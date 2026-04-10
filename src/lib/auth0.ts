@@ -4,7 +4,11 @@ let _auth0: Auth0Client | undefined;
 
 export function getAuth0(): Auth0Client {
   if (!_auth0) {
-    _auth0 = new Auth0Client();
+    _auth0 = new Auth0Client({
+      authorizationParameters: {
+        audience: process.env.AUTH0_AUDIENCE,
+      },
+    });
   }
   return _auth0;
 }
