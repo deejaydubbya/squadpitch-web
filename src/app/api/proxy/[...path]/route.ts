@@ -1,6 +1,8 @@
 import { auth0 } from '@/lib/auth0';
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const API_URL = process.env.SQUADPITCH_API_URL || 'http://localhost:4000';
 
 async function proxy(request: NextRequest, { params }: { params: { path: string[] } }) {
