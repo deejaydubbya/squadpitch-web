@@ -1,0 +1,37 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { auth0 } from '@/lib/auth0';
+
+const PUBLIC_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/terms', '/privacy'];
+
+export async function middleware(request: NextRequest) {
+  const authResponse = await auth0.middleware(request);
+  const { pathname } = request.nextUrl;
+
+  // Let Auth0 handle /auth/* routes
+  if (pathname.startsWith('/auth/')) return authResponse;
+
+  // Public paths — no auth needed
+  if (PUBLIC_PATHS.includes(pathname)) return authResponse;
+
+  // API proxy — forward without auth check (Auth0 token attached by proxy)
+  if (pathname.startsWith('/api/')) return authResponse;
+
+  // OAuth callbacks — no auth needed
+  if (pathname.startsWith('/oauth/')) return authResponse;
+
+  // All other paths require authentication
+  const session = await auth0.getSession(request);
+  if (!session) {
+    const loginUrl = new URL('/auth/login', request.url);
+    loginUrl.searchParams.set('returnTo', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return authResponse;
+}
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|sitemap\\.xml|robots\\.txt).*)',
+  ],
+};
