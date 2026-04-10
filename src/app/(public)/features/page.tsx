@@ -15,14 +15,16 @@ export default function FeaturesPage() {
   return (
     <div className="py-20">
       <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-4xl font-bold text-gray-900 text-center">Features</h1>
+        <h1 className="text-4xl font-bold text-gray-900 text-center">
+          <span className="text-teal">Features</span>
+        </h1>
         <p className="mt-4 text-lg text-gray-600 text-center max-w-2xl mx-auto">
           Everything you need to create, manage, and publish social media content at scale.
         </p>
-        <div className="mt-16 space-y-12">
+        <div className="mt-16 space-y-8">
           {features.map((f) => (
-            <div key={f.title} className="border-b border-gray-100 pb-8">
-              <h2 className="text-xl font-semibold text-gray-900">{f.title}</h2>
+            <div key={f.title} className="p-6 rounded-xl border border-gray-100 hover:border-teal/30 hover:shadow-md transition-all">
+              <h2 className="text-xl font-semibold text-teal-dark">{f.title}</h2>
               <p className="mt-2 text-gray-600 leading-relaxed">{f.desc}</p>
             </div>
           ))}

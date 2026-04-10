@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-sp-bg text-white-100 antialiased;
+    @apply antialiased;
   }
 }
 

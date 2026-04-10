@@ -18,7 +18,7 @@ export default function PricingPage() {
           {tiers.map((tier) => (
             <div
               key={tier.name}
-              className={`p-8 rounded-2xl border ${tier.primary ? 'border-gray-900 ring-1 ring-gray-900' : 'border-gray-200'}`}
+              className={`p-8 rounded-2xl border ${tier.primary ? 'border-teal ring-2 ring-teal/30 shadow-glow-teal' : 'border-gray-200'}`}
             >
               <h2 className="text-xl font-semibold text-gray-900">{tier.name}</h2>
               <p className="text-sm text-gray-500 mt-1">{tier.desc}</p>
@@ -29,21 +29,30 @@ export default function PricingPage() {
               <ul className="mt-8 space-y-3">
                 {tier.features.map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
-                    <span className="text-gray-400 mt-0.5">&#10003;</span>
+                    <span className="text-teal mt-0.5">&#10003;</span>
                     {f}
                   </li>
                 ))}
               </ul>
-              <Link
-                href={tier.name === 'Team' ? '/contact' : '/auth/login?screen_hint=signup'}
-                className={`block mt-8 text-center py-2.5 rounded-lg text-sm font-medium ${
-                  tier.primary
-                    ? 'bg-gray-900 text-white hover:bg-gray-800'
-                    : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {tier.cta}
-              </Link>
+              {tier.name === 'Team' ? (
+                <Link
+                  href="/contact"
+                  className="block mt-8 text-center py-2.5 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  {tier.cta}
+                </Link>
+              ) : (
+                <a
+                  href="/auth/login?screen_hint=signup&returnTo=/dashboard"
+                  className={`block mt-8 text-center py-2.5 rounded-lg text-sm font-medium ${
+                    tier.primary
+                      ? 'bg-teal text-white hover:bg-teal-dark'
+                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {tier.cta}
+                </a>
+              )}
             </div>
           ))}
         </div>

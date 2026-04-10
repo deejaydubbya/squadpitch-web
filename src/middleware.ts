@@ -4,30 +4,40 @@ import { auth0 } from '@/lib/auth0';
 const PUBLIC_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/terms', '/privacy'];
 
 export async function middleware(request: NextRequest) {
-  const authResponse = await auth0.middleware(request);
   const { pathname } = request.nextUrl;
 
-  // Let Auth0 handle /auth/* routes
-  if (pathname.startsWith('/auth/')) return authResponse;
+  try {
+    const authResponse = await auth0.middleware(request);
 
-  // Public paths — no auth needed
-  if (PUBLIC_PATHS.includes(pathname)) return authResponse;
+    // Let Auth0 handle /auth/* routes
+    if (pathname.startsWith('/auth/')) return authResponse;
 
-  // API proxy — forward without auth check (Auth0 token attached by proxy)
-  if (pathname.startsWith('/api/')) return authResponse;
+    // Public paths — no auth needed
+    if (PUBLIC_PATHS.includes(pathname)) return authResponse;
 
-  // OAuth callbacks — no auth needed
-  if (pathname.startsWith('/oauth/')) return authResponse;
+    // API proxy — forward without auth check (Auth0 token attached by proxy)
+    if (pathname.startsWith('/api/')) return authResponse;
 
-  // All other paths require authentication
-  const session = await auth0.getSession(request);
-  if (!session) {
-    const loginUrl = new URL('/auth/login', request.url);
-    loginUrl.searchParams.set('returnTo', pathname);
-    return NextResponse.redirect(loginUrl);
+    // OAuth callbacks — no auth needed
+    if (pathname.startsWith('/oauth/')) return authResponse;
+
+    // All other paths require authentication
+    const session = await auth0.getSession(request);
+    if (!session) {
+      const loginUrl = new URL('/auth/login', request.url);
+      loginUrl.searchParams.set('returnTo', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    return authResponse;
+  } catch (error) {
+    console.error(`[middleware] Error on ${pathname}:`, error);
+    // On auth errors, redirect to home rather than showing a 500
+    if (pathname.startsWith('/auth/')) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    return NextResponse.next();
   }
-
-  return authResponse;
 }
 
 export const config = {

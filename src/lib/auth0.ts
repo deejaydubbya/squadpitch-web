@@ -9,10 +9,16 @@ export function getAuth0(): Auth0Client {
   return _auth0;
 }
 
-// Convenience alias — lazily initialized to avoid build-time failures
-// when Auth0 env vars aren't available in Docker build stage.
+// Lazily initialized proxy that binds methods to the real Auth0Client instance.
+// This avoids build-time crashes (env vars unavailable in Docker build) while
+// ensuring private fields are accessible (Auth0Client uses WeakMap-based #private).
 export const auth0 = new Proxy({} as Auth0Client, {
   get(_, prop) {
-    return (getAuth0() as any)[prop];
+    const target = getAuth0();
+    const value = (target as any)[prop];
+    if (typeof value === 'function') {
+      return value.bind(target);
+    }
+    return value;
   },
 });

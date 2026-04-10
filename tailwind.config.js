@@ -21,6 +21,7 @@ module.exports = {
 
         // White scales
         white: {
+          DEFAULT: '#FFFFFF',
           100: '#FFFFFF',
           90: 'rgba(255, 255, 255, 0.90)',
           80: 'rgba(255, 255, 255, 0.80)',
