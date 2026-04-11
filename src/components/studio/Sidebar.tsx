@@ -133,6 +133,17 @@ export function Sidebar({ client }: Props) {
 
         {settingsOpen && (
           <div className="ml-4 pl-4 border-l border-white-10 space-y-0.5">
+            <Link
+              href={`${base}/settings`}
+              className={cn(
+                'block px-3 py-2 rounded-lg text-sm transition-colors',
+                pathname === `${base}/settings`
+                  ? 'text-accent-green-110 bg-accent-green-110/10'
+                  : 'text-white-40 hover:text-white-100 hover:bg-white-5'
+              )}
+            >
+              General
+            </Link>
             {settingsItems.map((item) => {
               const active = isActive(item.href);
               return (
@@ -150,17 +161,6 @@ export function Sidebar({ client }: Props) {
                 </Link>
               );
             })}
-            <Link
-              href={`${base}/settings`}
-              className={cn(
-                'block px-3 py-2 rounded-lg text-sm transition-colors',
-                pathname === `${base}/settings`
-                  ? 'text-accent-green-110 bg-accent-green-110/10'
-                  : 'text-white-40 hover:text-white-100 hover:bg-white-5'
-              )}
-            >
-              General
-            </Link>
           </div>
         )}
       </nav>
