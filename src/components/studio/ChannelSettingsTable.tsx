@@ -22,7 +22,6 @@ const ALL_CHANNELS: Channel[] = [
   'LINKEDIN',
   'FACEBOOK',
   'YOUTUBE',
-  'BLOG',
 ];
 
 interface Row {

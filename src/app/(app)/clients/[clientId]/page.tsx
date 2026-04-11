@@ -80,6 +80,12 @@ export default function OverviewPage() {
         });
       }
       setBatchSuccess(true);
+      // Notify backend for BATCH_COMPLETE notification
+      fetch('/api/proxy/clients/' + clientId + '/batch-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: TOPICS.length }),
+      }).catch(() => {});
     } catch (err) {
       setBatchError(err instanceof Error ? err.message : 'Generation failed');
     } finally {

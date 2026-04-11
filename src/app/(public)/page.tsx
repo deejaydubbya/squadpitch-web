@@ -39,7 +39,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-8">
             {[
               { title: 'AI Generation', desc: 'Generate posts, captions, video scripts, and more — tailored to your brand voice and style.' },
-              { title: 'Multi-Channel', desc: 'Create content for Instagram, TikTok, X, LinkedIn, Facebook, YouTube, and your blog.' },
+              { title: 'Multi-Channel', desc: 'Create content for Instagram, TikTok, X, LinkedIn, Facebook, and YouTube.' },
               { title: 'Brand Profiles', desc: 'Define your brand identity, voice rules, and visual style. Every piece of content stays on-brand.' },
               { title: 'Approval Workflow', desc: 'Review, edit, approve, or reject drafts before they go live. Full audit trail included.' },
               { title: 'Smart Scheduling', desc: 'Schedule content and let Squadpitch publish automatically at the right time.' },

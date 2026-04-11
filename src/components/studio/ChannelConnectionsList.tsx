@@ -23,6 +23,7 @@ const CHANNELS: Channel[] = [
   'TIKTOK',
   'LINKEDIN',
   'X',
+  'YOUTUBE',
 ];
 
 export function ChannelConnectionsList({ clientId }: Props) {

@@ -1,4 +1,5 @@
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
+import { NextResponse } from 'next/server';
 
 let _auth0: Auth0Client | undefined;
 
@@ -7,6 +8,18 @@ export function getAuth0(): Auth0Client {
     _auth0 = new Auth0Client({
       authorizationParameters: {
         audience: process.env.AUTH0_AUDIENCE,
+      },
+      async onCallback(error: any, ctx: any) {
+        if (error) {
+          console.error('[auth0] Callback error:', error.code, error.message, error.cause);
+          return NextResponse.redirect(
+            new URL(`/?auth_error=${encodeURIComponent(error.code || 'unknown')}`, ctx.appBaseUrl || process.env.APP_BASE_URL || 'http://localhost:3000')
+          );
+        }
+        const returnTo = ctx.returnTo || '/dashboard';
+        return NextResponse.redirect(
+          new URL(returnTo, ctx.appBaseUrl || process.env.APP_BASE_URL || 'http://localhost:3000')
+        );
       },
     });
   }

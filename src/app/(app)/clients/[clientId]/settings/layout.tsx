@@ -10,6 +10,7 @@ const tabs = [
   { label: 'Voice', suffix: '/voice' },
   { label: 'Media', suffix: '/media' },
   { label: 'Channels', suffix: '/channels' },
+  { label: 'Notifications', suffix: '/notifications' },
   { label: 'Billing', suffix: '/billing' },
 ];
 

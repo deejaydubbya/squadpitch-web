@@ -8,7 +8,7 @@ import {
   Twitter,
   Facebook,
   Youtube,
-  FileText,
+
   Loader2,
   Link2,
   Unlink,
@@ -38,8 +38,7 @@ const CHANNEL_META: Record<
   LINKEDIN: { label: 'LinkedIn', icon: Linkedin, real: true },
   X: { label: 'X', icon: Twitter, real: true },
   FACEBOOK: { label: 'Facebook', icon: Facebook, real: true },
-  YOUTUBE: { label: 'YouTube', icon: Youtube, real: false },
-  BLOG: { label: 'Blog', icon: FileText, real: false },
+  YOUTUBE: { label: 'YouTube', icon: Youtube, real: true },
 };
 
 const STATUS_PILL: Record<ChannelConnectionStatus, string> = {

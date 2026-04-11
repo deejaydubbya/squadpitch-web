@@ -4,7 +4,7 @@ export default function FeaturesPage() {
     { title: 'Brand Profiles', desc: 'Define your brand description, industry, target audience, website, social presence, offers, and competitors. AI uses all of this context to generate authentic content.' },
     { title: 'Voice & Tone Rules', desc: 'Set tone guidelines, do/dont rules, banned phrases, CTA preferences, and content buckets with templates. Your brand voice stays consistent across every piece of content.' },
     { title: 'Media Strategy', desc: 'Choose between brand assets only, brand assets plus AI, or full AI character mode with LoRA models. Generate images and videos on demand with Fal.ai.' },
-    { title: 'Channel Settings', desc: 'Configure per-channel settings including character limits, emoji preferences, trailing hashtags, and custom notes. Support for Instagram, TikTok, X, LinkedIn, Facebook, YouTube, and Blog.' },
+    { title: 'Channel Settings', desc: 'Configure per-channel settings including character limits, emoji preferences, trailing hashtags, and custom notes. Support for Instagram, TikTok, X, LinkedIn, Facebook, and YouTube.' },
     { title: 'Draft Workflow', desc: 'Full lifecycle management: Draft → Pending Review → Approved → Scheduled → Published. Reject with reasons, edit inline, and track all changes with audit logs.' },
     { title: 'Smart Scheduling', desc: 'Schedule approved drafts for automatic publishing. The system retries on transient failures and classifies errors as permanent, connection, or transient.' },
     { title: 'Channel Connections', desc: 'OAuth integration with Instagram, Facebook, TikTok, LinkedIn, and X. Connect accounts securely with encrypted token storage and automatic refresh.' },

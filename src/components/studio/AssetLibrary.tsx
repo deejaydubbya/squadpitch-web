@@ -442,7 +442,7 @@ export function AssetLibrary({ clientId }: Props) {
                 value={genDraftId}
                 onChange={(e) => setGenDraftId(e.target.value)}
                 style={{ colorScheme: 'dark' }}
-                className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+                className="w-full px-3 py-2 rounded-lg bg-[#1a1a1a] border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 [&>option]:bg-[#1a1a1a] [&>option]:text-white"
               >
                 <option value="">None</option>
                 {attachableDrafts.map((d) => (

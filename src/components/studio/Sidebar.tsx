@@ -56,6 +56,7 @@ export function Sidebar({ client }: Props) {
     { href: `${base}/settings/voice`, label: 'Voice' },
     { href: `${base}/settings/media`, label: 'Media' },
     { href: `${base}/settings/channels`, label: 'Channels' },
+    { href: `${base}/settings/notifications`, label: 'Notifications' },
     { href: `${base}/settings/billing`, label: 'Billing' },
   ];
 
