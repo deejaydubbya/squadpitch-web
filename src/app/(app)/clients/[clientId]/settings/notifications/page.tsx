@@ -80,6 +80,27 @@ export default function NotificationSettingsPage() {
   const [phone, setPhone] = useState('');
   const [phoneEditing, setPhoneEditing] = useState(false);
 
+  /** Strip non-digits, keep leading +, normalize to E.164 */
+  const normalizePhone = (raw: string): string => {
+    const digits = raw.replace(/[^\d]/g, '');
+    if (!digits) return '';
+    // If 10 digits assume US, prepend +1
+    if (digits.length === 10) return `+1${digits}`;
+    // If 11 digits starting with 1, prepend +
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+    // Otherwise prepend + if not already there
+    return `+${digits}`;
+  };
+
+  /** Format for display: +1 (555) 123-4567 */
+  const formatPhoneDisplay = (e164: string): string => {
+    const digits = e164.replace(/[^\d]/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) {
+      return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+    return e164;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 py-8">
@@ -103,7 +124,9 @@ export default function NotificationSettingsPage() {
   };
 
   const savePhone = () => {
-    update.mutate({ phoneNumber: phone || null, smsEnabled: true });
+    const normalized = normalizePhone(phone);
+    if (!normalized || normalized.length < 10) return;
+    update.mutate({ phoneNumber: normalized, smsEnabled: true });
     setPhoneEditing(false);
   };
 
@@ -204,7 +227,7 @@ export default function NotificationSettingsPage() {
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-white-60">
-                    {prefs.phoneNumber}
+                    {formatPhoneDisplay(prefs.phoneNumber || '')}
                   </span>
                   <button
                     onClick={() => {
