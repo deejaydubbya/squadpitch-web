@@ -165,7 +165,7 @@ export function DraftPreviewCard({ draft, compact = false, maxChars }: Props) {
                 key={i}
                 className="text-sm text-white-60 border-l-2 border-white-10 pl-2"
               >
-                {v}
+                {typeof v === 'string' ? v : v.body}
               </li>
             ))}
           </ul>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Save, Loader2, Plus, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   useVoiceProfile,
   useUpsertVoiceProfile,
@@ -10,6 +11,64 @@ import {
 } from '@/hooks/useSquadpitch';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
+
+const VOICE_PRESETS = [
+  {
+    id: 'professional',
+    label: 'Professional',
+    tone: 'Professional, clear, and authoritative',
+    doRules: ['Use precise language', 'Cite data when possible', 'Maintain a confident tone'],
+    dontRules: ['Use slang or colloquialisms', 'Be vague or noncommittal', 'Overuse exclamation marks'],
+  },
+  {
+    id: 'friendly',
+    label: 'Friendly',
+    tone: 'Warm, approachable, and conversational',
+    doRules: ['Use inclusive language (we, you)', 'Ask questions to engage', 'Share relatable examples'],
+    dontRules: ['Sound corporate or stiff', 'Use jargon without explanation', 'Be condescending'],
+  },
+  {
+    id: 'luxury',
+    label: 'Luxury',
+    tone: 'Elegant, refined, and aspirational',
+    doRules: ['Use vivid sensory language', 'Emphasize exclusivity and quality', 'Keep copy concise and polished'],
+    dontRules: ['Use discounts or urgency language', 'Sound mass-market', 'Use casual abbreviations'],
+  },
+  {
+    id: 'bold',
+    label: 'Bold',
+    tone: 'Edgy, direct, and unapologetic',
+    doRules: ['Take strong positions', 'Use short punchy sentences', 'Be provocative and surprising'],
+    dontRules: ['Hedge or qualify everything', 'Sound generic or safe', 'Use passive voice'],
+  },
+] as const;
+
+const CONTENT_STYLE_PRESETS = [
+  {
+    id: 'educational',
+    buckets: [
+      { key: 'tips', label: 'Tips & How-To', template: 'Share a practical tip or how-to guide' },
+      { key: 'myths', label: 'Myth Busting', template: 'Debunk a common misconception' },
+      { key: 'explainer', label: 'Explainer', template: 'Break down a complex topic simply' },
+    ],
+  },
+  {
+    id: 'promotional',
+    buckets: [
+      { key: 'launch', label: 'Product Launch', template: 'Announce or highlight a product/service' },
+      { key: 'testimonial', label: 'Testimonial', template: 'Share customer success or social proof' },
+      { key: 'offer', label: 'Offer / CTA', template: 'Promote a specific offer with a call to action' },
+    ],
+  },
+  {
+    id: 'storytelling',
+    buckets: [
+      { key: 'bts', label: 'Behind the Scenes', template: 'Show the human side of the brand' },
+      { key: 'origin', label: 'Origin Story', template: 'Tell the brand or founder story' },
+      { key: 'journey', label: 'Customer Journey', template: 'Walk through a transformation or journey' },
+    ],
+  },
+] as const;
 
 interface Props {
   clientId: string;
@@ -80,6 +139,37 @@ export function VoiceProfileForm({ clientId }: Props) {
         </p>
       </div>
 
+      {/* Voice presets */}
+      <div>
+        <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2">
+          Quick presets
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {VOICE_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => {
+                setTone(preset.tone);
+                setDoList(preset.doRules as unknown as string[]);
+                setDontList(preset.dontRules as unknown as string[]);
+              }}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                tone === preset.tone
+                  ? 'bg-accent-green-110 text-sp-surface'
+                  : 'bg-white-10 text-white-60 hover:bg-white-20'
+              )}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-white-30 mt-1.5">
+          Click a preset to auto-fill tone and rules, then customize below.
+        </p>
+      </div>
+
       <div>
         <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
           Tone
@@ -115,6 +205,28 @@ export function VoiceProfileForm({ clientId }: Props) {
         placeholder="e.g. unlock, game-changer"
         mono
       />
+
+      {/* Content style presets */}
+      <div>
+        <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2">
+          Content style
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {CONTENT_STYLE_PRESETS.map((style) => (
+            <button
+              key={style.id}
+              type="button"
+              onClick={() => setBuckets(style.buckets.map((b) => ({ ...b })))}
+              className="px-3 py-1.5 rounded-full text-xs font-medium bg-white-10 text-white-60 hover:bg-white-20 transition-colors capitalize"
+            >
+              {style.id}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-white-30 mt-1.5">
+          Select a content style to auto-fill buckets, or create your own below.
+        </p>
+      </div>
 
       <div>
         <div className="flex items-center justify-between mb-2">

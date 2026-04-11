@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Wand2, Loader2 } from 'lucide-react';
+import { Wand2, Loader2, Lightbulb } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useGenerateContent,
@@ -9,8 +9,10 @@ import {
   useMediaProfile,
   useGenerateMedia,
   useGenerateVideo,
+  useGenerateIdeas,
   type Channel,
   type Draft,
+  type ContentIdea,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useUsage } from '@/hooks/useBilling';
@@ -29,12 +31,14 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
   const generate = useGenerateContent();
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
+  const ideasMutation = useGenerateIdeas(clientId);
 
   const { data: usage } = useUsage();
 
   const [guidance, setGuidance] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<Channel[]>([]);
   const [goal, setGoal] = useState<typeof GOALS[number]>('Growth');
+  const [ideas, setIdeas] = useState<ContentIdea[]>([]);
 
   const aiImageAvailable =
     mediaProfile?.mode === 'BRAND_ASSETS_PLUS_AI' ||
@@ -94,11 +98,11 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
     }
   };
 
-  const atGenerationLimit =
-    usage && isFinite(usage.limits.generations) && usage.usage.generations >= usage.limits.generations;
+  const atPostLimit =
+    usage && isFinite(usage.limits.posts) && usage.usage.posts >= usage.limits.posts;
 
   const canGenerate =
-    selectedChannels.length > 0 && guidance.trim().length > 0 && !generate.isPending && !atGenerationLimit;
+    selectedChannels.length > 0 && guidance.trim().length > 0 && !generate.isPending && !atPostLimit;
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
@@ -176,8 +180,8 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
           </div>
         </div>
 
-        {atGenerationLimit && (
-          <UpgradePrompt currentTier={usage!.tier} limitType="Generation" />
+        {atPostLimit && (
+          <UpgradePrompt currentTier={usage!.tier} limitType="Post" />
         )}
 
         {generate.error && (
@@ -205,6 +209,53 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
         <p className="text-center text-xs text-white-30">
           Ctrl+Enter to generate
         </p>
+
+        {/* Ideas Engine */}
+        <div className="border-t border-white-10 pt-6 mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-white-60">Need inspiration?</h3>
+            <button
+              onClick={() =>
+                ideasMutation.mutate(undefined, {
+                  onSuccess: (data) => setIdeas(data),
+                })
+              }
+              disabled={ideasMutation.isPending}
+              className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {ideasMutation.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Lightbulb className="w-3.5 h-3.5" />
+              )}
+              Give me ideas
+            </button>
+          </div>
+
+          {ideas.length > 0 && (
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {ideas.map((idea, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setGuidance(idea.description)}
+                  className="w-full text-left p-3 rounded-lg bg-white-5 border border-white-10 hover:bg-white-10 transition-colors"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium text-white-100">{idea.title}</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-white-10 text-white-40 text-[10px] uppercase">
+                      {idea.category}
+                    </span>
+                    <span className="text-[10px] text-white-30 ml-auto">
+                      {idea.suggestedChannel}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white-40">{idea.description}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

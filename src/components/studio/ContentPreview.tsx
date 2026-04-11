@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,14 +14,15 @@ import {
   Video,
   X,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   useUpdateDraft,
   useApproveDraft,
   useDeleteDraft,
-  useGenerateContent,
   useGenerateMedia,
   useGenerateVideo,
   type Draft,
+  type ContentVariation,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 
@@ -30,6 +31,13 @@ interface Props {
   clientId: string;
   onDiscard: () => void;
   onRegenerate: () => void;
+}
+
+interface VariationState {
+  body: string;
+  hooks: string[];
+  hashtags: string[];
+  cta: string | null;
 }
 
 export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Props) {
@@ -42,22 +50,52 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
 
-  const [body, setBody] = useState(draft.body);
-  const [cta, setCta] = useState(draft.cta ?? '');
-  const [hashtags, setHashtags] = useState(draft.hashtags?.join(', ') ?? '');
+  // Build all 3 variations (Version A from draft fields, B+C from variations array)
+  const allVariations = useMemo<VariationState[]>(() => {
+    const versionA: VariationState = {
+      body: draft.body,
+      hooks: draft.hooks ?? [],
+      hashtags: draft.hashtags ?? [],
+      cta: draft.cta,
+    };
+    const extras = (draft.variations ?? []).map((v: ContentVariation) => ({
+      body: v.body ?? '',
+      hooks: v.hooks ?? [],
+      hashtags: v.hashtags ?? [],
+      cta: v.cta ?? null,
+    }));
+    return [versionA, ...extras].slice(0, 3);
+  }, [draft]);
+
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [editedBody, setEditedBody] = useState(allVariations[0]?.body ?? '');
+  const [editedCta, setEditedCta] = useState(allVariations[0]?.cta ?? '');
+  const [editedHashtags, setEditedHashtags] = useState(
+    allVariations[0]?.hashtags?.join(', ') ?? ''
+  );
   const [hashtagInput, setHashtagInput] = useState('');
 
-  const parsedHashtags = hashtags
+  const handleSelectVariation = (idx: number) => {
+    setSelectedIdx(idx);
+    const v = allVariations[idx];
+    if (v) {
+      setEditedBody(v.body);
+      setEditedCta(v.cta ?? '');
+      setEditedHashtags(v.hashtags.join(', '));
+    }
+  };
+
+  const selectedVariation = allVariations[selectedIdx];
+  const parsedHashtags = editedHashtags
     .split(',')
     .map((t) => t.trim().replace(/^#/, ''))
     .filter(Boolean);
 
   const handleApproveAndQueue = () => {
-    // Save edits first, then approve
     updateDraft.mutate(
       {
-        body,
-        cta: cta || undefined,
+        body: editedBody,
+        cta: editedCta || undefined,
         hashtags: parsedHashtags,
       },
       {
@@ -76,8 +114,8 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
   const handleSaveAsDraft = () => {
     updateDraft.mutate(
       {
-        body,
-        cta: cta || undefined,
+        body: editedBody,
+        cta: editedCta || undefined,
         hashtags: parsedHashtags,
       },
       {
@@ -99,7 +137,7 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
     generateMedia.mutate(
       {
         clientId,
-        guidance: draft.imageGuidance || draft.altText || draft.body.slice(0, 500),
+        guidance: draft.imageGuidance || draft.altText || editedBody.slice(0, 500),
         draftId: draft.id,
         channel: draft.channel,
       },
@@ -115,7 +153,7 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
     generateVideo.mutate(
       {
         clientId,
-        guidance: draft.imageGuidance || draft.altText || draft.body.slice(0, 500),
+        guidance: draft.imageGuidance || draft.altText || editedBody.slice(0, 500),
         draftId: draft.id,
         channel: draft.channel,
       },
@@ -133,8 +171,10 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
     (approve.error as Error | null) ||
     (deleteDraft.error as Error | null);
 
+  const LABELS = ['Version A', 'Version B', 'Version C'];
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-white-100">Review your content</h1>
         <div className="flex items-center gap-2">
@@ -147,33 +187,77 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
         </div>
       </div>
 
+      {/* Variation selector cards */}
+      {allVariations.length > 1 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {allVariations.map((v, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleSelectVariation(idx)}
+              className={cn(
+                'card p-4 text-left transition-all',
+                selectedIdx === idx
+                  ? 'ring-2 ring-accent-green-110 bg-accent-green-110/5'
+                  : 'hover:bg-white-5 opacity-70'
+              )}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-white-60 uppercase tracking-wider">
+                  {LABELS[idx]}
+                </span>
+                {selectedIdx === idx && (
+                  <span className="w-5 h-5 rounded-full bg-accent-green-110 flex items-center justify-center">
+                    <Check className="w-3 h-3 text-sp-surface" />
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-white-80 line-clamp-4">{v.body}</p>
+              {v.hashtags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {v.hashtags.slice(0, 3).map((tag, i) => (
+                    <span key={i} className="text-[10px] text-white-40 font-mono">
+                      #{tag}
+                    </span>
+                  ))}
+                  {v.hashtags.length > 3 && (
+                    <span className="text-[10px] text-white-30">
+                      +{v.hashtags.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Content editing */}
         <div className="lg:col-span-2 space-y-5">
           {/* Body */}
           <div className="card p-5 space-y-3">
             <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
-              Post body
+              Post body {allVariations.length > 1 && `(${LABELS[selectedIdx]})`}
             </label>
             <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
+              value={editedBody}
+              onChange={(e) => setEditedBody(e.target.value)}
               rows={8}
               className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none"
             />
             <p className="text-xs text-white-30 text-right">
-              {body.length} characters
+              {editedBody.length} characters
             </p>
           </div>
 
           {/* Hooks */}
-          {draft.hooks && draft.hooks.length > 0 && (
+          {selectedVariation?.hooks && selectedVariation.hooks.length > 0 && (
             <div className="card p-5 space-y-3">
               <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
                 Hooks
               </label>
               <ul className="space-y-1.5">
-                {draft.hooks.map((hook, i) => (
+                {selectedVariation.hooks.map((hook, i) => (
                   <li key={i} className="text-sm text-white-80 flex items-start gap-2">
                     <span className="text-white-30 mt-0.5">{i + 1}.</span>
                     {hook}
@@ -190,8 +274,8 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
             </label>
             <input
               type="text"
-              value={cta}
-              onChange={(e) => setCta(e.target.value)}
+              value={editedCta}
+              onChange={(e) => setEditedCta(e.target.value)}
               placeholder="e.g. Link in bio for more details"
               className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
             />
@@ -212,7 +296,7 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
                   <button
                     onClick={() => {
                       const updated = parsedHashtags.filter((_, idx) => idx !== i);
-                      setHashtags(updated.join(', '));
+                      setEditedHashtags(updated.join(', '));
                     }}
                     className="text-white-40 hover:text-white-100"
                   >
@@ -230,7 +314,7 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
                   e.preventDefault();
                   const newTag = hashtagInput.trim().replace(/^#/, '');
                   if (newTag && !parsedHashtags.includes(newTag)) {
-                    setHashtags((prev) => (prev ? `${prev}, ${newTag}` : newTag));
+                    setEditedHashtags((prev) => (prev ? `${prev}, ${newTag}` : newTag));
                   }
                   setHashtagInput('');
                 }

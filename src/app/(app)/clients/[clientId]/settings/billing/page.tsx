@@ -24,8 +24,8 @@ export default function BillingSettingsPage() {
   }
 
   const tier = usage?.tier ?? 'STARTER';
-  const isAtGenerationLimit =
-    usage && isFinite(usage.limits.generations) && usage.usage.generations >= usage.limits.generations;
+  const isAtPostLimit =
+    usage && isFinite(usage.limits.posts) && usage.usage.posts >= usage.limits.posts;
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -81,19 +81,19 @@ export default function BillingSettingsPage() {
 
           <div className="space-y-3">
             <UsageMeter
-              label="Generations"
-              current={usage.usage.generations}
-              limit={usage.limits.generations}
+              label="Posts"
+              current={usage.usage.posts}
+              limit={usage.limits.posts}
             />
             <UsageMeter
-              label="Publishes"
-              current={usage.usage.publishes}
-              limit={usage.limits.publishes}
+              label="Images"
+              current={usage.usage.images}
+              limit={usage.limits.images}
             />
             <UsageMeter
-              label="Media generations"
-              current={usage.usage.mediaGens}
-              limit={usage.limits.mediaGens}
+              label="Videos"
+              current={usage.usage.videos}
+              limit={usage.limits.videos}
             />
           </div>
 
@@ -104,8 +104,8 @@ export default function BillingSettingsPage() {
       )}
 
       {/* Upgrade prompt */}
-      {isAtGenerationLimit && (
-        <UpgradePrompt currentTier={tier} limitType="Generation" />
+      {isAtPostLimit && (
+        <UpgradePrompt currentTier={tier} limitType="Post" />
       )}
     </div>
   );

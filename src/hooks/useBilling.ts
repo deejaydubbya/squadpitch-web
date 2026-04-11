@@ -24,15 +24,15 @@ export interface Subscription {
 export interface UsageData {
   period: { start: string; end: string };
   usage: {
-    generations: number;
-    publishes: number;
-    mediaGens: number;
+    posts: number;
+    images: number;
+    videos: number;
   };
   limits: {
     clients: number;
-    generations: number;
-    publishes: number;
-    mediaGens: number;
+    posts: number;
+    images: number;
+    videos: number;
   };
   tier: PlanTier;
 }

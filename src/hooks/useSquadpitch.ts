@@ -13,8 +13,7 @@ export type Channel =
   | 'X'
   | 'LINKEDIN'
   | 'FACEBOOK'
-  | 'YOUTUBE'
-  | 'BLOG';
+  | 'YOUTUBE';
 
 export type MediaMode =
   | 'BRAND_ASSETS_ONLY'
@@ -119,6 +118,13 @@ export interface Client {
   channelSettings?: ChannelSettings[];
 }
 
+export interface ContentVariation {
+  body: string;
+  hooks: string[];
+  hashtags: string[];
+  cta: string | null;
+}
+
 export interface Draft {
   id: string;
   clientId: string;
@@ -133,7 +139,7 @@ export interface Draft {
   hooks: string[];
   hashtags: string[];
   cta: string | null;
-  variations: string[] | null;
+  variations: ContentVariation[] | null;
   altText: string | null;
   imageGuidance: string | null;
   warnings: string[];
@@ -500,6 +506,40 @@ export function useGenerateContent() {
       qc.invalidateQueries({
         queryKey: squadpitchKeys.analytics(input.clientId),
       });
+    },
+  });
+}
+
+// ── Content Ideas ────────────────────────────────────────────────────────
+
+export interface ContentIdea {
+  title: string;
+  category: string;
+  description: string;
+  suggestedChannel: string;
+}
+
+export function useGenerateIdeas(clientId: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ideas: ContentIdea[] }>(`clients/${clientId}/ideas`, {
+        method: 'POST',
+      }).then((r) => r.ideas),
+  });
+}
+
+// ── Auto-schedule ────────────────────────────────────────────────────────
+
+export function useAutoSchedule(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (draftIds: string[]) =>
+      apiFetch<{ scheduled: Draft[]; count: number }>(`clients/${clientId}/auto-schedule`, {
+        method: 'POST',
+        body: JSON.stringify({ draftIds }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
     },
   });
 }

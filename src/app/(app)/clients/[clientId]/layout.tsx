@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { AlertTriangle } from 'lucide-react';
+import { useParams, usePathname } from 'next/navigation';
+import { AlertTriangle, Menu, X } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { Sidebar } from '@/components/studio/Sidebar';
@@ -11,6 +12,15 @@ import { useClient } from '@/hooks/useSquadpitch';
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ clientId: string }>();
   const clientId = params.clientId;
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close mobile sidebar on route change
+  const prevPathRef = { current: pathname };
+  if (prevPathRef.current !== pathname) {
+    prevPathRef.current = pathname;
+    if (mobileOpen) setMobileOpen(false);
+  }
 
   const { data: client, isLoading, error } = useClient(clientId);
 
@@ -19,7 +29,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex items-center gap-2">
           <LoadingSpinner size="sm" />
-          <span className="text-white-40 text-sm">Loading client…</span>
+          <span className="text-white-40 text-sm">Loading client...</span>
         </div>
       </div>
     );
@@ -56,9 +66,42 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar client={client} />
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">
+        <Sidebar client={client} />
+      </div>
+
+      {/* Mobile hamburger */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-sp-card border border-white-10 text-white-60 hover:text-white-100"
+        aria-label="Open menu"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
+      {/* Mobile sidebar overlay */}
+      {mobileOpen && (
+        <>
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-black/60"
+            onClick={() => setMobileOpen(false)}
+          />
+          <div className="lg:hidden fixed inset-y-0 left-0 z-50 w-64">
+            <Sidebar client={client} />
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-white-40 hover:text-white-100 hover:bg-white-10"
+              aria-label="Close menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </>
+      )}
+
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-16 lg:pt-8">
           {children}
         </div>
       </main>

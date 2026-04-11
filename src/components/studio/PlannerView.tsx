@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState, useCallback } from 'react';
-import { Inbox, Check, Loader2, Calendar, List } from 'lucide-react';
+import { Inbox, Check, Loader2, Calendar, List, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useDrafts,
+  useAutoSchedule,
   type DraftStatus,
   type Channel,
   type Draft,
@@ -57,6 +58,7 @@ export function PlannerView({ clientId }: Props) {
     status: statusFilter === 'ALL' ? undefined : statusFilter,
     limit: 200,
   });
+  const autoSchedule = useAutoSchedule(clientId);
 
   // Client-side channel filter
   const channelFiltered = useMemo(() => {
@@ -112,6 +114,16 @@ export function PlannerView({ clientId }: Props) {
   const hasApprovable = drafts?.some(
     (d) => d.status === 'DRAFT' || d.status === 'PENDING_REVIEW'
   );
+
+  const approvedUnscheduled = useMemo(
+    () => allDrafts?.filter((d) => d.status === 'APPROVED' && !d.scheduledFor) ?? [],
+    [allDrafts]
+  );
+
+  const handleAutoSchedule = () => {
+    if (approvedUnscheduled.length === 0) return;
+    autoSchedule.mutate(approvedUnscheduled.map((d) => d.id));
+  };
 
   return (
     <div className="space-y-5">
@@ -187,6 +199,29 @@ export function PlannerView({ clientId }: Props) {
             </button>
           ))}
         </div>
+
+        {/* Auto-schedule */}
+        {approvedUnscheduled.length > 0 && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleAutoSchedule}
+              disabled={autoSchedule.isPending}
+              className="px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-medium hover:bg-accent-green-110/20 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {autoSchedule.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Clock className="w-3.5 h-3.5" />
+              )}
+              Auto-schedule {approvedUnscheduled.length} approved post{approvedUnscheduled.length !== 1 ? 's' : ''}
+            </button>
+            {autoSchedule.isSuccess && (
+              <span className="text-xs text-accent-green-110">
+                Scheduled {autoSchedule.data.count} posts
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Calendar view */}
