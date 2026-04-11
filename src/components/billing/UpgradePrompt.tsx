@@ -11,8 +11,10 @@ interface Props {
 export function UpgradePrompt({ currentTier, limitType }: Props) {
   const checkout = useCreateCheckout();
 
-  const nextTier: PlanTier = currentTier === 'STARTER' ? 'GROWTH' : 'PRO';
-  const nextLabel = nextTier === 'GROWTH' ? 'Growth ($79/mo)' : 'Pro ($199/mo)';
+  const nextTier: PlanTier = currentTier === 'FREE' ? 'STARTER'
+    : currentTier === 'STARTER' ? 'GROWTH' : 'PRO';
+  const nextLabel = nextTier === 'STARTER' ? 'Starter ($29/mo)'
+    : nextTier === 'GROWTH' ? 'Growth ($79/mo)' : 'Pro ($199/mo)';
 
   if (currentTier === 'PRO') return null;
 

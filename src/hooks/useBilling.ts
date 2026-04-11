@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/apiFetch';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type PlanTier = 'STARTER' | 'GROWTH' | 'PRO';
+export type PlanTier = 'FREE' | 'STARTER' | 'GROWTH' | 'PRO';
 export type SubscriptionStatus = 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELED';
 
 export interface Subscription {

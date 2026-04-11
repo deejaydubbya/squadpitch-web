@@ -9,6 +9,7 @@ interface Props {
 }
 
 const TIER_STYLES: Record<PlanTier, string> = {
+  FREE: 'bg-white-10 text-white-40',
   STARTER: 'bg-white-10 text-white-60',
   GROWTH: 'bg-accent-green-110/20 text-accent-green-110',
   PRO: 'bg-accent-blue/20 text-accent-blue',
