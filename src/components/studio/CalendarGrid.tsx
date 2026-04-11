@@ -7,6 +7,8 @@ import type { Draft } from '@/hooks/useSquadpitch';
 
 interface Props {
   drafts: Draft[];
+  selectedDay?: string | null;
+  onSelectDay?: (dayKey: string | null) => void;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -25,7 +27,7 @@ const MONTH_NAMES = [
   'December',
 ];
 
-export function CalendarGrid({ drafts }: Props) {
+export function CalendarGrid({ drafts, selectedDay, onSelectDay }: Props) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -82,6 +84,11 @@ export function CalendarGrid({ drafts }: Props) {
     today.getMonth() === cursor.month &&
     today.getDate() === day;
 
+  const handleDayClick = (dayKey: string) => {
+    if (!onSelectDay) return;
+    onSelectDay(selectedDay === dayKey ? null : dayKey);
+  };
+
   return (
     <div className="card p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -117,20 +124,31 @@ export function CalendarGrid({ drafts }: Props) {
           }
           const dayDrafts =
             draftsByDay.get(`${cursor.year}-${cursor.month}-${cell.day}`) ?? [];
+          const isSelected = selectedDay === cell.key;
+          const clickable = !!onSelectDay;
+
           return (
             <div
               key={cell.key}
+              onClick={() => handleDayClick(cell.key)}
               className={cn(
-                'rounded-lg border p-1.5 min-h-20 text-left',
-                isToday(cell.day)
-                  ? 'border-accent-green-110/60 bg-accent-green-110/5'
-                  : 'border-white-10 bg-white-5'
+                'rounded-lg border p-1.5 min-h-20 text-left transition-colors',
+                clickable && 'cursor-pointer hover:border-accent-green-110/40',
+                isSelected
+                  ? 'border-accent-green-110 bg-accent-green-110/10 ring-1 ring-accent-green-110/30'
+                  : isToday(cell.day)
+                    ? 'border-accent-green-110/60 bg-accent-green-110/5'
+                    : 'border-white-10 bg-white-5'
               )}
             >
               <p
                 className={cn(
                   'text-xs font-medium',
-                  isToday(cell.day) ? 'text-accent-green-110' : 'text-white-60'
+                  isSelected
+                    ? 'text-accent-green-110'
+                    : isToday(cell.day)
+                      ? 'text-accent-green-110'
+                      : 'text-white-60'
                 )}
               >
                 {cell.day}

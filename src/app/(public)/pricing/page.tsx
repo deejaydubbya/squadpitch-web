@@ -1,10 +1,58 @@
 import Link from 'next/link';
+import { Check } from 'lucide-react';
 
 export default function PricingPage() {
   const tiers = [
-    { name: 'Free', price: '$0', period: '/month', desc: 'For individuals getting started', features: ['1 client workspace', '50 AI generations/month', 'All channels', 'Basic analytics'], cta: 'Get started', primary: false },
-    { name: 'Pro', price: '$29', period: '/month', desc: 'For professionals and small teams', features: ['5 client workspaces', 'Unlimited AI generations', 'All channels + OAuth publishing', 'AI image & video generation', 'Scheduled publishing', 'Full analytics'], cta: 'Start free trial', primary: true },
-    { name: 'Team', price: '$79', period: '/month', desc: 'For agencies and larger teams', features: ['Unlimited workspaces', 'Everything in Pro', 'Team collaboration', 'Priority support', 'Custom branding', 'API access'], cta: 'Contact us', primary: false },
+    {
+      name: 'Starter',
+      price: '$29',
+      period: '/month',
+      desc: 'For individuals getting started',
+      features: [
+        '3 client workspaces',
+        '100 AI generations/month',
+        '100 publishes/month',
+        '10 media generations/month',
+        'All 6 social channels',
+        'Brand & voice profiles',
+      ],
+      cta: 'Get started',
+      primary: false,
+    },
+    {
+      name: 'Growth',
+      price: '$79',
+      period: '/month',
+      desc: 'For professionals and small teams',
+      features: [
+        '10 client workspaces',
+        '500 AI generations/month',
+        '200 publishes/month',
+        '50 media generations/month',
+        'All channels + OAuth publishing',
+        'AI image & video generation',
+        'Scheduled publishing',
+        'Full analytics',
+      ],
+      cta: 'Start free trial',
+      primary: true,
+    },
+    {
+      name: 'Pro',
+      price: '$199',
+      period: '/month',
+      desc: 'For agencies and power users',
+      features: [
+        'Unlimited workspaces',
+        'Unlimited generations',
+        'Unlimited publishes',
+        'Unlimited media generations',
+        'Everything in Growth',
+        'Priority support',
+      ],
+      cta: 'Get started',
+      primary: false,
+    },
   ];
 
   return (
@@ -34,25 +82,16 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              {tier.name === 'Team' ? (
-                <Link
-                  href="/contact"
-                  className="block mt-8 text-center py-2.5 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
-                >
-                  {tier.cta}
-                </Link>
-              ) : (
-                <a
-                  href="/auth/login?screen_hint=signup&returnTo=/dashboard"
-                  className={`block mt-8 text-center py-2.5 rounded-lg text-sm font-medium ${
-                    tier.primary
-                      ? 'bg-teal text-white hover:bg-teal-dark'
-                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {tier.cta}
-                </a>
-              )}
+              <a
+                href="/auth/login?screen_hint=signup&returnTo=/dashboard"
+                className={`block mt-8 text-center py-2.5 rounded-lg text-sm font-medium ${
+                  tier.primary
+                    ? 'bg-teal text-white hover:bg-teal-dark'
+                    : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {tier.cta}
+              </a>
             </div>
           ))}
         </div>

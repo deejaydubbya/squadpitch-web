@@ -74,6 +74,11 @@ module.exports = {
           light: 'rgba(0, 198, 167, 0.1)',
           50: 'rgba(0, 198, 167, 0.15)',
         },
+
+        // Status zone colors
+        'zone-green': '#34D399',
+        'zone-blue': '#60A5FA',
+        'zone-yellow': '#FBBF24',
       },
 
       fontFamily: {
@@ -85,6 +90,11 @@ module.exports = {
         'display-lg': ['4rem', { lineHeight: '1.1', fontWeight: '700' }],
         'display': ['3rem', { lineHeight: '1.2', fontWeight: '700' }],
         'display-sm': ['2.25rem', { lineHeight: '1.25', fontWeight: '600' }],
+      },
+
+      spacing: {
+        '4.5': '1.125rem',
+        '18': '4.5rem',
       },
 
       borderRadius: {

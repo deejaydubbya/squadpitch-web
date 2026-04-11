@@ -1,7 +1,4 @@
-'use client';
-import { useParams } from 'next/navigation';
-import { GenerateForm } from '@/components/studio/GenerateForm';
-export default function GeneratePage() {
-  const params = useParams<{ clientId: string }>();
-  return <GenerateForm clientId={params.clientId} />;
+import { redirect } from 'next/navigation';
+export default function GenerateRedirect({ params }: { params: { clientId: string } }) {
+  redirect(`/clients/${params.clientId}/create`);
 }

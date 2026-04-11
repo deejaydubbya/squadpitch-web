@@ -1,7 +1,4 @@
-'use client';
-import { useParams } from 'next/navigation';
-import { BrandProfileForm } from '@/components/studio/BrandProfileForm';
-export default function BrandPage() {
-  const params = useParams<{ clientId: string }>();
-  return <BrandProfileForm clientId={params.clientId} />;
+import { redirect } from 'next/navigation';
+export default function BrandRedirect({ params }: { params: { clientId: string } }) {
+  redirect(`/clients/${params.clientId}/settings/brand`);
 }
