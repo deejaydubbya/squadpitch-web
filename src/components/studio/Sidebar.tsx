@@ -97,7 +97,7 @@ export function Sidebar({ client }: Props) {
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 item.primary && !active
-                  ? 'text-green-400 bg-green-500/10 hover:bg-green-500/20'
+                  ? 'text-green-400 hover:bg-green-500/10'
                   : active
                     ? 'bg-accent-green-110/15 text-accent-green-110'
                     : 'text-white-60 hover:bg-white-5 hover:text-white-100'
