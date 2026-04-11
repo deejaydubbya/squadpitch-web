@@ -10,8 +10,8 @@ export interface NotificationPreferences {
   userId: string;
   emailEnabled: boolean;
   smsEnabled: boolean;
-  phone: string | null;
-  preferences: Record<string, boolean>;
+  phoneNumber: string | null;
+  preferencesJson: Record<string, boolean>;
   createdAt: string;
   updatedAt: string;
 }
@@ -20,10 +20,13 @@ export interface NotificationLog {
   id: string;
   userId: string;
   eventType: string;
-  channel: string;
-  status: string;
-  payload: Record<string, unknown> | null;
-  error: string | null;
+  channel: string; // "email" | "sms"
+  status: string; // "queued" | "sent" | "failed" | "skipped"
+  provider: string | null; // "postmark" | "twilio"
+  providerMessageId: string | null;
+  resourceType: string | null;
+  resourceId: string | null;
+  errorMessage: string | null;
   createdAt: string;
 }
 
@@ -45,8 +48,8 @@ export function useUpdateNotificationPreferences() {
     mutationFn: (data: {
       emailEnabled?: boolean;
       smsEnabled?: boolean;
-      phone?: string | null;
-      preferences?: Record<string, boolean>;
+      phoneNumber?: string | null;
+      preferencesJson?: Record<string, boolean>;
     }) =>
       apiFetch<{ preferences: NotificationPreferences }>('/notifications/preferences', {
         method: 'PUT',
