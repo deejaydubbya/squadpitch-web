@@ -227,6 +227,7 @@ export interface MediaAsset {
   seed: string | null;
   errorMessage: string | null;
   durationMs: number | null;
+  usageCount: number;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -253,6 +254,7 @@ export interface AssetFilters {
   status?: MediaAssetStatus;
   assetType?: MediaAssetType;
   draftId?: string;
+  search?: string;
   limit?: number;
   cursor?: string;
 }
@@ -874,6 +876,75 @@ export function useDetachAsset(clientId: string) {
       apiFetch<MediaAsset>(`assets/${assetId}/detach`, {
         method: 'POST',
         body: JSON.stringify({}),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+    },
+  });
+}
+
+// ── Asset Link / Unlink (many-to-many) ─────────────────────────────────
+
+export function useLinkAsset(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ assetId, draftId, role }: { assetId: string; draftId: string; role?: string }) =>
+      apiFetch<MediaAsset>(`assets/${assetId}/link`, {
+        method: 'POST',
+        body: JSON.stringify({ draftId, role }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+    },
+  });
+}
+
+export function useUnlinkAsset(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ assetId, draftId }: { assetId: string; draftId: string }) =>
+      apiFetch<{ ok: true }>(`assets/${assetId}/link/${draftId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+    },
+  });
+}
+
+export interface AssetUsageDraft {
+  id: string;
+  channel: Channel;
+  bodySnippet: string;
+  status: DraftStatus;
+  role: string | null;
+}
+
+export function useAssetUsage(assetId: string | undefined) {
+  return useQuery({
+    queryKey: [...squadpitchKeys.all, 'asset-usage', assetId ?? ''],
+    queryFn: () => apiFetch<{ drafts: AssetUsageDraft[] }>(`assets/${assetId}/usage`),
+    select: (data) => data.drafts,
+    enabled: Boolean(assetId),
+  });
+}
+
+export interface GeneratePostFromAssetInput {
+  kind?: DraftKind;
+  channel: Channel;
+  guidance?: string;
+}
+
+export function useGeneratePostFromAsset(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ assetId, ...input }: GeneratePostFromAssetInput & { assetId: string }) =>
+      apiFetch<Draft>(`assets/${assetId}/generate-post`, {
+        method: 'POST',
+        body: JSON.stringify(input),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });

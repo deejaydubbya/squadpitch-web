@@ -5,14 +5,13 @@ import {
   Upload,
   Wand2,
   Trash2,
-  Link2,
-  Unlink,
-  Copy,
   Loader2,
   ImageOff,
   Paperclip,
   Film,
   Video,
+  Eye,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -21,8 +20,6 @@ import {
   useDeleteAsset,
   useGenerateMedia,
   useGenerateVideo,
-  useAttachAsset,
-  useDetachAsset,
   useDrafts,
   type MediaAssetSource,
   type MediaAssetStatus,
@@ -31,6 +28,8 @@ import {
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { AssetPreviewModal } from './AssetPreviewModal';
+import { AttachToPostModal } from './AttachToPostModal';
 
 interface Props {
   clientId: string;
@@ -92,14 +91,23 @@ export function AssetLibrary({ clientId }: Props) {
   const [sourceFilter, setSourceFilter] = useState<MediaAssetSource | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<MediaAssetStatus | 'ALL'>('ALL');
   const [typeFilter, setTypeFilter] = useState<MediaAssetType | 'ALL'>('ALL');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const filters = useMemo(() => {
     const f: Record<string, string> = {};
     if (sourceFilter !== 'ALL') f.source = sourceFilter;
     if (statusFilter !== 'ALL') f.status = statusFilter;
     if (typeFilter !== 'ALL') f.assetType = typeFilter;
+    if (debouncedSearch.trim()) f.search = debouncedSearch.trim();
     return f;
-  }, [sourceFilter, statusFilter, typeFilter]);
+  }, [sourceFilter, statusFilter, typeFilter, debouncedSearch]);
 
   // ── Data ──────────────────────────────────────────────────────────
   const [poll, setPoll] = useState(false);
@@ -131,8 +139,6 @@ export function AssetLibrary({ clientId }: Props) {
   const deleteAsset = useDeleteAsset(clientId);
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
-  const attachAsset = useAttachAsset(clientId);
-  const detachAsset = useDetachAsset(clientId);
 
   // ── Upload ────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -211,8 +217,9 @@ export function AssetLibrary({ clientId }: Props) {
   const isGenerating = genMode === 'video' ? generateVideo.isPending : generateMedia.isPending;
   const generateError = genMode === 'video' ? generateVideo.error : generateMedia.error;
 
-  // ── Attach dropdown state ─────────────────────────────────────────
-  const [attachingAssetId, setAttachingAssetId] = useState<string | null>(null);
+  // ── Modal state ─────────────────────────────────────────────────
+  const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
+  const [attachAssetId, setAttachAssetId] = useState<string | null>(null);
 
   // ── Delete confirmation ───────────────────────────────────────────
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
@@ -223,15 +230,23 @@ export function AssetLibrary({ clientId }: Props) {
     });
   };
 
-  const handleCopyUrl = (url: string) => {
-    navigator.clipboard.writeText(url);
-  };
-
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Filter bar */}
+      {/* Filter bar + Search */}
       <div className="card p-4 space-y-3">
+        {/* Search bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white-40" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search assets..."
+            className="w-full pl-10 pr-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+          />
+        </div>
+
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs text-white-40 font-medium">Source:</span>
@@ -340,7 +355,7 @@ export function AssetLibrary({ clientId }: Props) {
             {uploadAsset.isPending ? (
               <div className="flex items-center justify-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin text-accent-green-110" />
-                <span className="text-sm text-white-60">Uploading…</span>
+                <span className="text-sm text-white-60">Uploading...</span>
               </div>
             ) : uploadMode === 'video' ? (
               <div className="space-y-1">
@@ -431,7 +446,7 @@ export function AssetLibrary({ clientId }: Props) {
           <textarea
             value={guidance}
             onChange={(e) => setGuidance(e.target.value)}
-            placeholder={genMode === 'video' ? 'Describe the video you want to generate…' : 'Describe the image you want to generate…'}
+            placeholder={genMode === 'video' ? 'Describe the video you want to generate...' : 'Describe the image you want to generate...'}
             rows={3}
             className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none"
           />
@@ -447,7 +462,7 @@ export function AssetLibrary({ clientId }: Props) {
                 <option value="">None</option>
                 {attachableDrafts.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.channel} — {d.body.slice(0, 40)}…
+                    {d.channel} — {d.body.slice(0, 40)}...
                   </option>
                 ))}
               </select>
@@ -476,7 +491,7 @@ export function AssetLibrary({ clientId }: Props) {
       {isLoading && (
         <div className="flex items-center gap-2 py-6">
           <LoadingSpinner size="sm" />
-          <span className="text-white-40 text-sm">Loading assets…</span>
+          <span className="text-white-40 text-sm">Loading assets...</span>
         </div>
       )}
       {error && <StatusBanner error={(error as Error).message} />}
@@ -485,7 +500,7 @@ export function AssetLibrary({ clientId }: Props) {
       {hasInProgress && (
         <div className="flex items-center gap-2 text-xs text-zone-yellow">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          Assets are being processed — auto-refreshing…
+          Assets are being processed — auto-refreshing...
         </div>
       )}
 
@@ -493,9 +508,31 @@ export function AssetLibrary({ clientId }: Props) {
       {!isLoading && assets && (
         <>
           {assets.length === 0 ? (
-            <div className="card p-8 text-center">
-              <ImageOff className="w-8 h-8 mx-auto text-white-20 mb-2" />
-              <p className="text-sm text-white-40">No assets yet. Upload an image or generate one with AI.</p>
+            <div className="card p-8 text-center space-y-4">
+              <ImageOff className="w-10 h-10 mx-auto text-white-20" />
+              <p className="text-sm text-white-40">
+                Upload images or generate visuals to start building your media library.
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 rounded-lg bg-white-10 text-white-60 text-sm font-medium hover:bg-white-20 flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" /> Upload
+                </button>
+                <button
+                  onClick={() => { setGenMode('image'); document.querySelector<HTMLTextAreaElement>('textarea')?.focus(); }}
+                  className="px-4 py-2 rounded-lg bg-accent-green-110 text-white-100 text-sm font-medium hover:bg-accent-green-110/80 flex items-center gap-2"
+                >
+                  <Wand2 className="w-4 h-4" /> Generate Image
+                </button>
+                <button
+                  onClick={() => { setGenMode('video'); document.querySelector<HTMLTextAreaElement>('textarea')?.focus(); }}
+                  className="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 text-sm font-medium hover:bg-purple-500/30 flex items-center gap-2"
+                >
+                  <Video className="w-4 h-4" /> Generate Video
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -503,29 +540,40 @@ export function AssetLibrary({ clientId }: Props) {
                 <AssetCard
                   key={asset.id}
                   asset={asset}
-                  attachableDrafts={attachableDrafts}
-                  isAttaching={attachingAssetId === asset.id}
-                  onToggleAttach={() =>
-                    setAttachingAssetId((prev) => (prev === asset.id ? null : asset.id))
-                  }
-                  onAttach={(draftId) => {
-                    attachAsset.mutate(
-                      { assetId: asset.id, draftId },
-                      { onSuccess: () => setAttachingAssetId(null) }
-                    );
-                  }}
-                  onDetach={() => detachAsset.mutate(asset.id)}
+                  onPreview={() => setPreviewAsset(asset)}
+                  onAttach={() => setAttachAssetId(asset.id)}
                   isConfirmingDelete={deletingAssetId === asset.id}
                   onDeleteClick={() => setDeletingAssetId(asset.id)}
                   onDeleteConfirm={() => handleDelete(asset.id)}
                   onDeleteCancel={() => setDeletingAssetId(null)}
                   isDeleting={deleteAsset.isPending}
-                  onCopyUrl={() => asset.url && handleCopyUrl(asset.url)}
                 />
               ))}
             </div>
           )}
         </>
+      )}
+
+      {/* Preview modal */}
+      {previewAsset && (
+        <AssetPreviewModal
+          asset={previewAsset}
+          clientId={clientId}
+          onClose={() => setPreviewAsset(null)}
+          onAttach={() => {
+            setAttachAssetId(previewAsset.id);
+            setPreviewAsset(null);
+          }}
+        />
+      )}
+
+      {/* Attach to post modal */}
+      {attachAssetId && (
+        <AttachToPostModal
+          assetId={attachAssetId}
+          clientId={clientId}
+          onClose={() => setAttachAssetId(null)}
+        />
       )}
     </div>
   );
@@ -535,32 +583,24 @@ export function AssetLibrary({ clientId }: Props) {
 
 interface AssetCardProps {
   asset: MediaAsset;
-  attachableDrafts: { id: string; channel: string; body: string }[];
-  isAttaching: boolean;
-  onToggleAttach: () => void;
-  onAttach: (draftId: string) => void;
-  onDetach: () => void;
+  onPreview: () => void;
+  onAttach: () => void;
   isConfirmingDelete: boolean;
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
   isDeleting: boolean;
-  onCopyUrl: () => void;
 }
 
 function AssetCard({
   asset,
-  attachableDrafts,
-  isAttaching,
-  onToggleAttach,
+  onPreview,
   onAttach,
-  onDetach,
   isConfirmingDelete,
   onDeleteClick,
   onDeleteConfirm,
   onDeleteCancel,
   isDeleting,
-  onCopyUrl,
 }: AssetCardProps) {
   const isProcessing = asset.status === 'PENDING' || asset.status === 'GENERATING';
 
@@ -579,7 +619,7 @@ function AssetCard({
   }, [isProcessing, asset.createdAt]);
 
   return (
-    <div className="card p-0 overflow-hidden">
+    <div className="card p-0 overflow-hidden group/card">
       {/* Thumbnail */}
       <div className="relative aspect-square bg-white-5">
         {asset.status === 'READY' && (asset.assetType === 'video' ? asset.thumbnailUrl : asset.url) ? (
@@ -638,19 +678,61 @@ function AssetCard({
             <Paperclip className="w-2.5 h-2.5" /> Attached
           </span>
         )}
+
+        {/* Hover overlay with action buttons */}
+        {asset.status === 'READY' && (
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); onAttach(); }}
+              className="p-2 rounded-full bg-white-10 text-white-100 hover:bg-zone-blue/30 hover:text-zone-blue transition-colors"
+              title="Attach to post"
+            >
+              <Paperclip className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onPreview(); }}
+              className="p-2 rounded-full bg-white-10 text-white-100 hover:bg-accent-green-110/30 hover:text-accent-green-110 transition-colors"
+              title="Preview"
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDeleteClick(); }}
+              className="p-2 rounded-full bg-white-10 text-white-100 hover:bg-accent-red/30 hover:text-accent-red transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Info */}
-      <div className="p-3 space-y-2">
+      <div className="p-3 space-y-1.5">
         <p className="text-xs text-white-100 font-medium truncate">
           {asset.filename || (asset.source === 'AI_GENERATED' ? 'AI Generated' : 'Untitled')}
         </p>
         <div className="flex items-center gap-2 text-[10px] text-white-40">
           {asset.width && asset.height && (
-            <span>{asset.width}×{asset.height}</span>
+            <span>{asset.width}x{asset.height}</span>
           )}
           {asset.bytes && <span>{formatBytes(asset.bytes)}</span>}
         </div>
+
+        {/* Usage count */}
+        <button
+          onClick={onPreview}
+          className={cn(
+            'text-[10px] hover:underline',
+            asset.usageCount > 0
+              ? 'text-accent-green-110'
+              : 'text-white-40'
+          )}
+        >
+          {asset.usageCount > 0
+            ? `Used in ${asset.usageCount} post${asset.usageCount !== 1 ? 's' : ''}`
+            : 'Not used'}
+        </button>
 
         {asset.status === 'FAILED' && asset.errorMessage && (
           <p className="text-[10px] text-accent-red truncate" title={asset.errorMessage}>
@@ -658,81 +740,22 @@ function AssetCard({
           </p>
         )}
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-1 pt-1">
-          {asset.url && (
+        {/* Delete confirmation inline */}
+        {isConfirmingDelete && (
+          <div className="flex items-center gap-1 pt-1">
             <button
-              onClick={onCopyUrl}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-white-10 text-white-60 hover:bg-white-20 flex items-center gap-0.5"
-              title="Copy URL"
+              onClick={onDeleteConfirm}
+              disabled={isDeleting}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-accent-red text-white-100 hover:bg-accent-red/80 disabled:opacity-50"
             >
-              <Copy className="w-2.5 h-2.5" /> URL
+              {isDeleting ? 'Deleting...' : 'Confirm'}
             </button>
-          )}
-
-          {!asset.draftId && asset.status === 'READY' && (
             <button
-              onClick={onToggleAttach}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30 flex items-center gap-0.5"
-              title="Attach to draft"
+              onClick={onDeleteCancel}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-white-10 text-white-60 hover:bg-white-20"
             >
-              <Link2 className="w-2.5 h-2.5" /> Attach
+              Cancel
             </button>
-          )}
-
-          {asset.draftId && (
-            <button
-              onClick={onDetach}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-zone-yellow/20 text-zone-yellow hover:bg-zone-yellow/30 flex items-center gap-0.5"
-              title="Detach from draft"
-            >
-              <Unlink className="w-2.5 h-2.5" /> Detach
-            </button>
-          )}
-
-          {!isConfirmingDelete ? (
-            <button
-              onClick={onDeleteClick}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-accent-red/20 text-accent-red hover:bg-accent-red/30 flex items-center gap-0.5"
-              title="Delete"
-            >
-              <Trash2 className="w-2.5 h-2.5" />
-            </button>
-          ) : (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={onDeleteConfirm}
-                disabled={isDeleting}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-accent-red text-white-100 hover:bg-accent-red/80 disabled:opacity-50"
-              >
-                {isDeleting ? 'Deleting…' : 'Confirm'}
-              </button>
-              <button
-                onClick={onDeleteCancel}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-white-10 text-white-60 hover:bg-white-20"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Attach dropdown */}
-        {isAttaching && (
-          <div className="mt-2 p-2 rounded-lg bg-white-5 border border-white-10 space-y-1 max-h-32 overflow-y-auto">
-            {attachableDrafts.length === 0 ? (
-              <p className="text-[10px] text-white-40">No eligible drafts</p>
-            ) : (
-              attachableDrafts.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => onAttach(d.id)}
-                  className="w-full text-left text-[10px] px-2 py-1 rounded hover:bg-white-10 text-white-60 truncate"
-                >
-                  {d.channel} — {d.body.slice(0, 50)}…
-                </button>
-              ))
-            )}
           </div>
         )}
       </div>
