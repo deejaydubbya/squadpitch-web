@@ -387,6 +387,27 @@ export function useSheetsSpreadsheets(integrationId: string) {
   });
 }
 
+export function useMediaExportFile() {
+  return useMutation({
+    mutationFn: ({
+      integrationId,
+      assetId,
+      folderRef,
+    }: {
+      integrationId: string;
+      assetId: string;
+      folderRef?: string;
+    }) =>
+      apiFetch<{ ok: boolean; result: Record<string, unknown> }>(
+        `/integrations/media-import/${integrationId}/export`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ assetId, folderRef }),
+        },
+      ),
+  });
+}
+
 export function useMediaImportDisconnect() {
   const qc = useQueryClient();
   return useMutation({

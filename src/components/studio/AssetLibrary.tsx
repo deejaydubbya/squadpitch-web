@@ -30,6 +30,7 @@ import { StatusBanner } from '@/components/common/StatusBanner';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { AssetPreviewModal } from './AssetPreviewModal';
 import { AttachToPostModal } from './AttachToPostModal';
+import { CloudImportExport } from './CloudImportExport';
 
 interface Props {
   clientId: string;
@@ -486,6 +487,9 @@ export function AssetLibrary({ clientId }: Props) {
           )}
         </div>
       </div>
+
+      {/* Cloud Import/Export */}
+      <CloudImportExport clientId={clientId} assets={assets} />
 
       {/* Loading / error state */}
       {isLoading && (
