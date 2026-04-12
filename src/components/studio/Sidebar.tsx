@@ -50,6 +50,7 @@ export function Sidebar({ client }: Props) {
     { href: `${base}/create`, icon: Wand2, label: 'Create Content', primary: true },
     { href: `${base}/planner`, icon: Calendar, label: 'Planner' },
     { href: `${base}/library`, icon: Library, label: 'Content Library' },
+    { href: `${base}/assets`, icon: ImageIcon, label: 'Media Library' },
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics' },
   ];
 
