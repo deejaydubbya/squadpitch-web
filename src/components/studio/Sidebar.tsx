@@ -19,6 +19,7 @@ import {
   ArrowLeft,
   Briefcase,
   Activity,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
@@ -48,6 +49,7 @@ export function Sidebar({ client }: Props) {
   const navItems = [
     { href: base, icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { href: `${base}/create`, icon: Wand2, label: 'Create Content', primary: true },
+    { href: `${base}/business-data`, icon: Database, label: 'Business Data' },
     { href: `${base}/planner`, icon: Calendar, label: 'Planner' },
     { href: `${base}/library`, icon: Library, label: 'Content Library' },
     { href: `${base}/assets`, icon: ImageIcon, label: 'Media Library' },

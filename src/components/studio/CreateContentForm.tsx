@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Wand2, Loader2, Lightbulb } from 'lucide-react';
+import { Wand2, Loader2, Lightbulb, Database, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useGenerateContent,
@@ -10,9 +10,13 @@ import {
   useGenerateMedia,
   useGenerateVideo,
   useGenerateIdeas,
+  useDataItems,
+  useBlueprints,
   type Channel,
   type Draft,
   type ContentIdea,
+  type WorkspaceDataItem,
+  type ContentBlueprint,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useUsage } from '@/hooks/useBilling';
@@ -39,6 +43,20 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
   const [selectedChannels, setSelectedChannels] = useState<Channel[]>([]);
   const [goal, setGoal] = useState<typeof GOALS[number]>('Growth');
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
+
+  // Business data state
+  const [showBusinessData, setShowBusinessData] = useState(false);
+  const [selectedDataItem, setSelectedDataItem] = useState<WorkspaceDataItem | null>(null);
+  const [selectedBlueprint, setSelectedBlueprint] = useState<ContentBlueprint | null>(null);
+  const [dataSearch, setDataSearch] = useState('');
+
+  const { data: dataItems } = useDataItems(clientId, {
+    search: dataSearch.trim() || undefined,
+    limit: 20,
+  });
+  const { data: blueprints } = useBlueprints(
+    selectedDataItem ? { applicableType: selectedDataItem.type } : {}
+  );
 
   const aiImageAvailable =
     mediaProfile?.mode === 'BRAND_ASSETS_PLUS_AI' ||
@@ -73,6 +91,8 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
         kind: 'POST',
         channel,
         guidance: fullGuidance,
+        dataItemId: selectedDataItem?.id,
+        blueprintId: selectedBlueprint?.id,
       },
       {
         onSuccess: (draft) => {
@@ -178,6 +198,127 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Business Data Section */}
+        <div className="border border-white-10 rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowBusinessData((v) => !v)}
+            className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-white-60 hover:bg-white-5 transition-colors"
+          >
+            <Database className="w-4 h-4" />
+            Use Business Data
+            {selectedDataItem && (
+              <span className="ml-1 px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-[10px] font-semibold">
+                {selectedDataItem.title}
+              </span>
+            )}
+            {showBusinessData ? (
+              <ChevronDown className="w-3.5 h-3.5 ml-auto" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 ml-auto" />
+            )}
+          </button>
+
+          {showBusinessData && (
+            <div className="px-4 pb-4 space-y-3 border-t border-white-10">
+              {/* Data item search + select */}
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+                  Data Item
+                </label>
+                {selectedDataItem ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white-5 border border-accent-green-110/30">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-white-40 uppercase">
+                        {selectedDataItem.type.replace(/_/g, ' ')}
+                      </p>
+                      <p className="text-sm font-medium text-white-100 truncate">
+                        {selectedDataItem.title}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedDataItem(null);
+                        setSelectedBlueprint(null);
+                      }}
+                      className="p-1 rounded text-white-40 hover:text-white-100"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      value={dataSearch}
+                      onChange={(e) => setDataSearch(e.target.value)}
+                      placeholder="Search data items..."
+                      className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+                    />
+                    {dataItems && dataItems.length > 0 && (
+                      <div className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
+                        {dataItems.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDataItem(item);
+                              setDataSearch('');
+                            }}
+                            className="w-full text-left p-2 rounded-lg bg-white-5 hover:bg-white-10 transition-colors"
+                          >
+                            <span className="text-[10px] text-white-40 uppercase">
+                              {item.type.replace(/_/g, ' ')}
+                            </span>
+                            <p className="text-xs font-medium text-white-100 truncate">
+                              {item.title}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Blueprint picker */}
+              {selectedDataItem && (
+                <div>
+                  <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+                    Content Angle
+                  </label>
+                  {blueprints && blueprints.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {blueprints.map((bp) => (
+                        <button
+                          key={bp.id}
+                          type="button"
+                          onClick={() =>
+                            setSelectedBlueprint(
+                              selectedBlueprint?.id === bp.id ? null : bp
+                            )
+                          }
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                            selectedBlueprint?.id === bp.id
+                              ? 'bg-accent-green-110 text-sp-surface'
+                              : 'bg-white-10 text-white-60 hover:bg-white-20'
+                          )}
+                        >
+                          {bp.name}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-white-40 italic">
+                      No angles available for this type.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {atPostLimit && (

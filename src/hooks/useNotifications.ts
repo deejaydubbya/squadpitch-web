@@ -103,6 +103,28 @@ export function useNotificationLogs(limit = 50) {
   });
 }
 
+export function useTestEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: boolean; messageId?: string; error?: string }>('/notifications/test-email', {
+        method: 'POST',
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notification-logs'] }),
+  });
+}
+
+export function useTestSms() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: boolean; sid?: string; error?: string }>('/notifications/test-sms', {
+        method: 'POST',
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notification-logs'] }),
+  });
+}
+
 // ── In-app inbox hooks ──────────────────────────────────────────────────
 
 export function useInboxNotifications(filter = 'all', limit = 20, offset = 0) {

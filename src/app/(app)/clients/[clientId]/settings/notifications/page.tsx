@@ -6,6 +6,8 @@ import {
   useNotificationPreferences,
   useUpdateNotificationPreferences,
   useNotificationLogs,
+  useTestEmail,
+  useTestSms,
   useVapidKey,
   usePushSubscribe,
   usePushUnsubscribe,
@@ -99,6 +101,8 @@ export default function NotificationSettingsPage() {
   const pushSubscribe = usePushSubscribe();
   const pushUnsubscribe = usePushUnsubscribe();
   const { permission: pushPermission, isSubscribed: pushSubscribed, refresh: refreshPush } = usePushPermissionState();
+  const testEmail = useTestEmail();
+  const testSms = useTestSms();
 
   const [phone, setPhone] = useState('');
   const [phoneEditing, setPhoneEditing] = useState(false);
@@ -226,10 +230,29 @@ export default function NotificationSettingsPage() {
                 </p>
               </div>
             </div>
-            <Toggle
-              checked={prefs.emailEnabled}
-              onChange={() => toggleGlobal('emailEnabled')}
-            />
+            <div className="flex items-center gap-3">
+              {prefs.emailEnabled && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => testEmail.mutate()}
+                    disabled={testEmail.isPending}
+                    className="text-xs text-white-40 hover:text-white-60 transition-colors disabled:opacity-50"
+                  >
+                    {testEmail.isPending ? 'Sending...' : 'Send test'}
+                  </button>
+                  {testEmail.isSuccess && (
+                    <span className="text-xs text-green-400">Sent!</span>
+                  )}
+                  {testEmail.isError && (
+                    <span className="text-xs text-red-400">Failed</span>
+                  )}
+                </div>
+              )}
+              <Toggle
+                checked={prefs.emailEnabled}
+                onChange={() => toggleGlobal('emailEnabled')}
+              />
+            </div>
           </div>
 
           {prefs.emailEnabled && (
@@ -314,6 +337,21 @@ export default function NotificationSettingsPage() {
                   >
                     Change
                   </button>
+                  <button
+                    onClick={() => testSms.mutate()}
+                    disabled={testSms.isPending}
+                    className="text-xs text-white-40 hover:text-white-60 transition-colors disabled:opacity-50"
+                  >
+                    {testSms.isPending ? 'Sending...' : 'Send test'}
+                  </button>
+                  {testSms.isSuccess && (
+                    <span className="text-xs text-green-400">Sent!</span>
+                  )}
+                  {testSms.isError && (
+                    <span className="text-xs text-red-400">
+                      {(testSms.error as Error)?.message || 'Failed'}
+                    </span>
+                  )}
                 </div>
               )}
             </div>

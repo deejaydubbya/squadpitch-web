@@ -12,6 +12,7 @@ import {
   Loader2,
   Sparkles,
   Settings,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   useClient,
@@ -51,6 +52,7 @@ export default function OverviewPage() {
     { href: `${base}/create`, icon: Wand2, label: 'Create Content', desc: 'Generate on-brand posts' },
     { href: `${base}/planner`, icon: Calendar, label: 'Planner', desc: 'Calendar & queue' },
     { href: `${base}/library`, icon: Library, label: 'Content Library', desc: 'All your drafts' },
+    { href: `${base}/assets`, icon: ImageIcon, label: 'Media Library', desc: 'Images & videos' },
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics', desc: 'Performance metrics' },
     { href: `${base}/settings/brand`, icon: Settings, label: 'Settings', desc: 'Brand, voice & channels' },
   ];

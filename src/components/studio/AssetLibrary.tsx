@@ -28,6 +28,8 @@ import {
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import { useUsage } from '@/hooks/useBilling';
 import { AssetPreviewModal } from './AssetPreviewModal';
 import { AttachToPostModal } from './AttachToPostModal';
 import { CloudImportExport } from './CloudImportExport';
@@ -135,6 +137,9 @@ export function AssetLibrary({ clientId }: Props) {
     () => drafts?.filter((d) => d.status === 'DRAFT' || d.status === 'APPROVED') ?? [],
     [drafts]
   );
+
+  // ── Usage / billing ──────────────────────────────────────────────
+  const { data: usage } = useUsage();
 
   // ── Mutations ─────────────────────────────────────────────────────
   const uploadAsset = useUploadAsset(clientId);
@@ -485,6 +490,24 @@ export function AssetLibrary({ clientId }: Props) {
 
           {generateError && (
             <StatusBanner error={(generateError as Error).message} />
+          )}
+
+          {/* Usage remaining + upgrade prompt */}
+          {usage && (
+            <>
+              <p className="text-xs text-white-40">
+                {genMode === 'image'
+                  ? `${Math.max(0, (usage.limits.images ?? 0) - (usage.usage.images ?? 0))} of ${usage.limits.images ?? 0} image generations remaining`
+                  : `${Math.max(0, (usage.limits.videos ?? 0) - (usage.usage.videos ?? 0))} of ${usage.limits.videos ?? 0} video generations remaining`}
+              </p>
+              {((genMode === 'image' && usage.usage.images >= usage.limits.images) ||
+                (genMode === 'video' && usage.usage.videos >= usage.limits.videos)) && (
+                <UpgradePrompt
+                  currentTier={usage.tier}
+                  limitType={genMode === 'video' ? 'Video' : 'Image'}
+                />
+              )}
+            </>
           )}
         </div>
       </div>

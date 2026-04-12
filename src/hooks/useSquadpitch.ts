@@ -198,6 +198,147 @@ export interface ClientAnalytics {
   last14Days: Array<{ date: string; count: number }>;
 }
 
+export type AnalyticsRange = '7d' | '30d' | '90d' | 'all';
+
+export interface AnalyticsPost {
+  id: string;
+  body: string;
+  channel: Channel;
+  publishedAt: string;
+  mediaType: string | null;
+  performanceScore: number | null;
+  engagementRate: number | null;
+  impressions: number | null;
+  contentType?: string | null;
+  hookType?: string | null;
+  sentiment?: string | null;
+}
+
+export interface PlatformStat {
+  channel: Channel;
+  postCount: number;
+  avgEngagementRate: number | null;
+  avgScore: number | null;
+  totalReach: number | null;
+}
+
+export interface TrendPoint {
+  date: string;
+  count: number;
+  avgScore: number | null;
+}
+
+export interface SyncStatus {
+  lastSyncedAt: string | null;
+  syncedPostCount: number;
+  pendingSyncCount: number;
+}
+
+export interface Insight {
+  type: string;
+  title: string;
+  description: string;
+  confidence: 'high' | 'medium' | 'low';
+  supportingMetrics: Record<string, unknown>;
+}
+
+export interface Recommendation {
+  title: string;
+  reason: string;
+  suggestedAction: string;
+  confidence: 'high' | 'medium' | 'low';
+  category: string;
+}
+
+export interface ContentTypeStat {
+  contentType: string;
+  postCount: number;
+  avgScore: number | null;
+}
+
+export interface ScoreComponent {
+  raw: number;
+  weight: number;
+  weighted: number;
+}
+
+export interface ScoreBreakdown {
+  score: number;
+  tier: string;
+  mode: 'weighted' | 'internal_only';
+  components: {
+    engagement: ScoreComponent | null;
+    quality: ScoreComponent;
+    consistency: ScoreComponent;
+  };
+  explanation: string;
+}
+
+export interface PostDetailMetrics {
+  impressions: number;
+  reach: number;
+  engagements: number;
+  clicks: number;
+  saves: number;
+  shares: number;
+  comments: number;
+  likes: number;
+  engagementRate: number | null;
+}
+
+export interface PostDetailInsight {
+  performanceScore: number | null;
+  contentType: string | null;
+  hookType: string | null;
+  sentiment: string | null;
+  lengthBucket: string | null;
+  mediaType: string | null;
+  postingTimeBucket: string | null;
+  recommendationTags: string[] | null;
+}
+
+export interface PostDetail {
+  id: string;
+  body: string;
+  channel: Channel;
+  publishedAt: string | null;
+  mediaType: string | null;
+  mediaUrl: string | null;
+  externalPostUrl: string | null;
+  metrics: PostDetailMetrics | null;
+  insight: PostDetailInsight | null;
+  scoreBreakdown: ScoreBreakdown;
+}
+
+export interface AnalyticsOverview {
+  summary: {
+    performanceScore: number | null;
+    engagementRate: number | null;
+    totalReach: number | null;
+    postsPublished: number;
+    dataCoverage: 'full' | 'partial' | 'internal_only';
+  };
+  kpis: {
+    topPlatform: string | null;
+    bestContentType: string | null;
+    bestMediaType: string | null;
+  };
+  topPosts: AnalyticsPost[];
+  worstPosts: AnalyticsPost[];
+  platformBreakdown: PlatformStat[];
+  publishingTrend: TrendPoint[];
+  dataCoverage: {
+    totalPublished: number;
+    withEngagementData: number;
+    withInternalOnly: number;
+    coveragePercent: number;
+  };
+  syncStatus?: SyncStatus;
+  insights?: Insight[];
+  recommendations?: Recommendation[];
+  contentTypeBreakdown?: ContentTypeStat[];
+}
+
 export type MediaAssetSource = 'UPLOAD' | 'AI_GENERATED' | 'IMPORTED';
 export type MediaAssetStatus = 'PENDING' | 'GENERATING' | 'READY' | 'FAILED';
 export type MediaAssetType = 'image' | 'video';
@@ -233,12 +374,204 @@ export interface MediaAsset {
   updatedAt: string;
 }
 
+export type DataSourceType = 'MANUAL';
+
+export type DataItemStatus = 'ACTIVE' | 'ARCHIVED';
+
+export type DataItemType =
+  | 'TESTIMONIAL'
+  | 'CASE_STUDY'
+  | 'PRODUCT_LAUNCH'
+  | 'PROMOTION'
+  | 'STATISTIC'
+  | 'MILESTONE'
+  | 'FAQ'
+  | 'TEAM_SPOTLIGHT'
+  | 'INDUSTRY_NEWS'
+  | 'EVENT'
+  | 'CUSTOM';
+
+export type BlueprintCategory =
+  | 'SOCIAL_PROOF'
+  | 'EDUCATION'
+  | 'BEHIND_THE_SCENES'
+  | 'PROMOTION'
+  | 'ENGAGEMENT'
+  | 'STORYTELLING'
+  | 'AUTHORITY'
+  | 'SEASONAL';
+
+export interface WorkspaceDataSource {
+  id: string;
+  clientId: string;
+  type: DataSourceType;
+  name: string;
+  config: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DataItemPerformanceStats {
+  totalDrafts: number;
+  totalPublished: number;
+  avgEngagement: number | null;
+  avgPerformanceScore: number | null;
+  lastCalculated: string;
+}
+
+export interface WorkspaceDataItem {
+  id: string;
+  clientId: string;
+  dataSourceId: string;
+  type: DataItemType;
+  status: DataItemStatus;
+  title: string;
+  summary: string | null;
+  dataJson: Record<string, unknown>;
+  tags: string[];
+  priority: number;
+  expiresAt: string | null;
+  usageCount: number;
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  performance: DataItemPerformanceStats | null;
+}
+
+export interface BlueprintWithPerformance {
+  id: string;
+  slug: string;
+  name: string;
+  category: BlueprintCategory;
+  performance: DataItemPerformanceStats | null;
+}
+
+export interface TopPerformingItem {
+  id: string;
+  type: DataItemType;
+  title: string;
+  summary: string | null;
+  usageCount: number;
+  performance: DataItemPerformanceStats | null;
+}
+
+// ── Autopilot Types ──────────────────────────────────────────────────
+
+export interface AutopilotSuggestion {
+  rank: number;
+  dataItem: {
+    id: string;
+    type: DataItemType;
+    title: string;
+    summary: string | null;
+    usageCount: number;
+    lastUsedAt: string | null;
+  };
+  blueprint: {
+    id: string;
+    slug: string;
+    name: string;
+    category: BlueprintCategory;
+  };
+  opportunityScore: number;
+  adjustedScore: number;
+  autoSelected: boolean;
+  reasoning: string;
+}
+
+export interface AutopilotPreviewInput {
+  count?: number;
+  channel?: Channel;
+  excludeDataItemIds?: string[];
+}
+
+export interface AutopilotExecuteInput {
+  channel?: Channel;
+  autoSchedule?: boolean;
+  suggestions: Array<{
+    dataItem: { id: string };
+    blueprint: { id: string };
+  }>;
+}
+
+export interface AutopilotExecuteResult {
+  results: Array<{
+    dataItemId: string;
+    status: 'success' | 'error' | 'limit_reached';
+    draftId?: string;
+  }>;
+  generated: number;
+  total: number;
+  scheduled: number;
+}
+
+export interface ContentBlueprint {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  category: BlueprintCategory;
+  promptTemplate: string;
+  applicableTypes: DataItemType[];
+  applicableChannels: Channel[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContentOpportunity {
+  dataItem: {
+    id: string;
+    type: DataItemType;
+    title: string;
+    summary: string | null;
+    usageCount: number;
+  };
+  blueprint: {
+    id: string;
+    slug: string;
+    name: string;
+    category: BlueprintCategory;
+  };
+  score: number;
+}
+
+export interface ItemOpportunity {
+  blueprint: {
+    id: string;
+    slug: string;
+    name: string;
+    category: BlueprintCategory;
+    description: string;
+  };
+  score: number;
+}
+
+export interface BulkGenerateItem {
+  dataItemId: string;
+  blueprintId: string;
+  channel: Channel;
+  guidance?: string;
+}
+
+export interface BulkGenerateResult {
+  results: Array<{
+    dataItemId: string;
+    status: 'success' | 'error' | 'limit_reached';
+    draftId?: string;
+  }>;
+  generated: number;
+  total: number;
+}
+
 export interface GenerateContentInput {
   clientId: string;
   kind: DraftKind;
   channel: Channel;
   bucketKey?: string;
   guidance: string;
+  dataItemId?: string;
+  blueprintId?: string;
 }
 
 export interface GenerateMediaInput {
@@ -277,12 +610,34 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', id, 'connections'] as const,
   analytics: (id: string) =>
     [...squadpitchKeys.all, 'client', id, 'analytics'] as const,
+  analyticsOverview: (id: string, range: string) =>
+    [...squadpitchKeys.all, 'client', id, 'analytics-overview', range] as const,
   drafts: (filters?: Record<string, unknown>) =>
     [...squadpitchKeys.all, 'drafts', filters ?? {}] as const,
   draft: (id: string) => [...squadpitchKeys.all, 'draft', id] as const,
   assets: (clientId: string, filters?: Record<string, unknown>) =>
     [...squadpitchKeys.all, 'client', clientId, 'assets', filters ?? {}] as const,
   asset: (id: string) => [...squadpitchKeys.all, 'asset', id] as const,
+  postDetail: (clientId: string, postId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'post-detail', postId] as const,
+  dataSources: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'data-sources'] as const,
+  dataItems: (clientId: string, filters?: Record<string, unknown>) =>
+    [...squadpitchKeys.all, 'client', clientId, 'data-items', filters ?? {}] as const,
+  dataItem: (id: string) =>
+    [...squadpitchKeys.all, 'data-item', id] as const,
+  blueprints: (filters?: Record<string, unknown>) =>
+    [...squadpitchKeys.all, 'blueprints', filters ?? {}] as const,
+  opportunities: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'opportunities'] as const,
+  itemOpportunities: (itemId: string) =>
+    [...squadpitchKeys.all, 'item-opportunities', itemId] as const,
+  topPerforming: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'top-performing'] as const,
+  bestBlueprints: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'best-blueprints'] as const,
+  autopilot: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'autopilot'] as const,
 };
 
 // ── Clients ──────────────────────────────────────────────────────────────
@@ -490,6 +845,45 @@ export function useClientAnalytics(clientId: string | undefined) {
     queryKey: squadpitchKeys.analytics(clientId ?? ''),
     queryFn: () => apiFetch<ClientAnalytics>(`clients/${clientId}/analytics`),
     enabled: Boolean(clientId),
+  });
+}
+
+export function useAnalyticsOverview(
+  clientId: string | undefined,
+  range: AnalyticsRange = '30d',
+) {
+  return useQuery({
+    queryKey: squadpitchKeys.analyticsOverview(clientId ?? '', range),
+    queryFn: () =>
+      apiFetch<AnalyticsOverview>(
+        `clients/${clientId}/analytics/overview?range=${range}`,
+      ),
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useSyncMetrics(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (draftId: string) =>
+      apiFetch<{ synced: boolean; reason?: string }>(`drafts/${draftId}/metrics/sync`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.analytics(clientId) });
+      qc.invalidateQueries({
+        queryKey: [...squadpitchKeys.all, 'client', clientId, 'analytics-overview'],
+      });
+    },
+  });
+}
+
+export function usePostDetail(clientId: string | undefined, postId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.postDetail(clientId ?? '', postId ?? ''),
+    queryFn: () =>
+      apiFetch<PostDetail>(`clients/${clientId}/analytics/posts/${postId}`),
+    enabled: Boolean(clientId) && Boolean(postId),
   });
 }
 
@@ -949,6 +1343,239 @@ export function useGeneratePostFromAsset(clientId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
       qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+    },
+  });
+}
+
+// ── Business Data ────────────────────────────────────���───────────────────
+
+export interface DataItemFilters {
+  type?: DataItemType;
+  status?: DataItemStatus;
+  search?: string;
+  limit?: number;
+}
+
+export function useDataItems(clientId: string, filters: DataItemFilters = {}) {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
+  });
+  const qs = query.toString();
+  const path = `clients/${clientId}/business-data${qs ? `?${qs}` : ''}`;
+
+  return useQuery({
+    queryKey: squadpitchKeys.dataItems(clientId, filters as Record<string, unknown>),
+    queryFn: () => apiFetch<{ dataItems: WorkspaceDataItem[] }>(path),
+    select: (data) => data.dataItems,
+  });
+}
+
+export function useDataItem(id: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.dataItem(id ?? ''),
+    queryFn: () => apiFetch<WorkspaceDataItem>(`business-data/${id}`),
+    enabled: Boolean(id),
+  });
+}
+
+export interface CreateDataItemInput {
+  type: DataItemType;
+  title: string;
+  summary?: string | null;
+  dataJson?: Record<string, unknown>;
+  tags?: string[];
+  priority?: number;
+  expiresAt?: string | null;
+}
+
+export function useCreateDataItem(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateDataItemInput) =>
+      apiFetch<WorkspaceDataItem>(`clients/${clientId}/business-data`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useUpdateDataItem(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: Partial<CreateDataItemInput> & { id: string }) =>
+      apiFetch<WorkspaceDataItem>(`business-data/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useArchiveDataItem(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<WorkspaceDataItem>(`business-data/${id}/archive`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useDeleteDataItem(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ ok: boolean }>(`business-data/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+// ── Content Blueprints ───────────────────────────────────────────────────
+
+export interface BlueprintFilters {
+  category?: BlueprintCategory;
+  applicableType?: DataItemType;
+  channel?: Channel;
+}
+
+export function useBlueprints(filters: BlueprintFilters = {}) {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
+  });
+  const qs = query.toString();
+  const path = `content-blueprints${qs ? `?${qs}` : ''}`;
+
+  return useQuery({
+    queryKey: squadpitchKeys.blueprints(filters as Record<string, unknown>),
+    queryFn: () => apiFetch<{ blueprints: ContentBlueprint[] }>(path),
+    select: (data) => data.blueprints,
+  });
+}
+
+// ── Content Opportunities ────────────────────────────────────────────────
+
+export function useContentOpportunities(clientId: string) {
+  return useQuery({
+    queryKey: squadpitchKeys.opportunities(clientId),
+    queryFn: () =>
+      apiFetch<{ opportunities: ContentOpportunity[] }>(
+        `clients/${clientId}/content-opportunities`
+      ),
+    select: (data) => data.opportunities,
+  });
+}
+
+export function useItemOpportunities(itemId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.itemOpportunities(itemId ?? ''),
+    queryFn: () =>
+      apiFetch<{ opportunities: ItemOpportunity[] }>(
+        `business-data/${itemId}/opportunities`
+      ),
+    select: (data) => data.opportunities,
+    enabled: Boolean(itemId),
+  });
+}
+
+// ── Bulk Generate ────────────────────────────────────────────────────────
+
+export function useBulkGenerate(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: BulkGenerateItem[]) =>
+      apiFetch<BulkGenerateResult>(
+        `clients/${clientId}/business-data/bulk-generate`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ items }),
+        }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+    },
+  });
+}
+
+// ── Data Performance ──────────────────────────────────────────────────
+
+export function useTopPerformingDataItems(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.topPerforming(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<{ items: TopPerformingItem[] }>(
+        `clients/${clientId}/business-data/top-performing`
+      ),
+    select: (data) => data.items,
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useBestBlueprints(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.bestBlueprints(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<{ blueprints: BlueprintWithPerformance[] }>(
+        `clients/${clientId}/business-data/best-blueprints`
+      ),
+    select: (data) => data.blueprints,
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useRecalculatePerformance(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ recalculated: number }>(
+        `clients/${clientId}/business-data/recalculate`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.topPerforming(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.bestBlueprints(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+// ── Autopilot ────────────────────────────────────────────────────────
+
+export function useAutopilotPreview(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AutopilotPreviewInput) =>
+      apiFetch<{ suggestions: AutopilotSuggestion[] }>(
+        `clients/${clientId}/autopilot/preview`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+  });
+}
+
+export function useAutopilotExecute(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AutopilotExecuteInput) =>
+      apiFetch<AutopilotExecuteResult>(
+        `clients/${clientId}/autopilot/execute`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.topPerforming(clientId) });
     },
   });
 }

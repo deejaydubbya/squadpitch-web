@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Hash,
   Webhook,
@@ -32,15 +32,10 @@ import {
   Radio,
   Globe,
   PenTool,
+  ChevronDown,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import {
-  useSlackConnection,
-  useSaveSlackConnection,
-  useUpdateSlackEvents,
-  useToggleSlackActive,
-  useDeleteSlackConnection,
-  useTestSlack,
   useWebhooks,
   useCreateWebhook,
   useUpdateWebhook,
@@ -65,14 +60,14 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
-const SLACK_EVENTS = [
+const INTEGRATION_EVENTS = [
   { key: 'POST_PUBLISHED', label: 'Post published' },
   { key: 'POST_FAILED', label: 'Post failed' },
   { key: 'BATCH_COMPLETE', label: 'Batch complete' },
   { key: 'CONNECTION_EXPIRED', label: 'Connection expired' },
 ];
 
-const WEBHOOK_EVENTS = SLACK_EVENTS;
+const WEBHOOK_EVENTS = INTEGRATION_EVENTS;
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
@@ -88,153 +83,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
         }`}
       />
     </button>
-  );
-}
-
-// ── Slack Section ─────────────────────────────────────────────────────
-
-function SlackSection() {
-  const { data: conn, isLoading } = useSlackConnection();
-  const save = useSaveSlackConnection();
-  const updateEvents = useUpdateSlackEvents();
-  const toggleActive = useToggleSlackActive();
-  const remove = useDeleteSlackConnection();
-  const test = useTestSlack();
-
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [channelName, setChannelName] = useState('');
-  const [editing, setEditing] = useState(false);
-
-  if (isLoading) return <LoadingSpinner size="sm" />;
-
-  const showForm = editing || !conn;
-
-  const handleSave = () => {
-    if (!webhookUrl.trim()) return;
-    save.mutate(
-      { webhookUrl: webhookUrl.trim(), channelName: channelName.trim() || undefined },
-      { onSuccess: () => setEditing(false) },
-    );
-  };
-
-  const toggleEvent = (key: string) => {
-    if (!conn) return;
-    const events = conn.subscribedEvents;
-    const next = events.includes(key)
-      ? events.filter((e) => e !== key)
-      : [...events, key];
-    updateEvents.mutate(next);
-  };
-
-  return (
-    <section>
-      <h2 className="text-base font-semibold text-white-100 mb-4">Slack</h2>
-      <div className="space-y-3">
-        <div className="card p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
-                <Hash className="w-4.5 h-4.5 text-accent-green-110" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white-100">Slack notifications</p>
-                <p className="text-xs text-white-40">
-                  {conn
-                    ? `Connected${conn.channelName ? ` — #${conn.channelName}` : ''}`
-                    : 'Paste an incoming webhook URL to connect'}
-                </p>
-              </div>
-            </div>
-            {conn && (
-              <Toggle
-                checked={conn.isActive}
-                onChange={() => toggleActive.mutate(!conn.isActive)}
-              />
-            )}
-          </div>
-
-          {showForm && (
-            <div className="mt-3 ml-12 space-y-2">
-              <input
-                type="url"
-                value={webhookUrl}
-                onChange={(e) => setWebhookUrl(e.target.value)}
-                placeholder="https://hooks.slack.com/services/..."
-                className="input w-full text-sm font-mono"
-              />
-              <input
-                type="text"
-                value={channelName}
-                onChange={(e) => setChannelName(e.target.value)}
-                placeholder="Channel name (optional)"
-                className="input w-full text-sm"
-              />
-              <div className="flex gap-2">
-                <button onClick={handleSave} className="btn-primary text-sm px-4">
-                  {save.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
-                </button>
-                {conn && (
-                  <button
-                    onClick={() => setEditing(false)}
-                    className="text-sm text-white-40 hover:text-white-100"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {conn && !editing && (
-            <div className="mt-3 ml-12 flex gap-2">
-              <button
-                onClick={() => {
-                  setWebhookUrl(conn.webhookUrl);
-                  setChannelName(conn.channelName || '');
-                  setEditing(true);
-                }}
-                className="text-xs text-accent-green-110 hover:underline"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => test.mutate()}
-                className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
-              >
-                <Send className="w-3 h-3" />
-                {test.isPending ? 'Sending...' : 'Test'}
-              </button>
-              {test.isSuccess && (
-                <span className="text-xs text-green-400">Sent!</span>
-              )}
-              <button
-                onClick={() => remove.mutate()}
-                className="text-xs text-red-400 hover:underline"
-              >
-                Disconnect
-              </button>
-            </div>
-          )}
-        </div>
-
-        {conn?.isActive && (
-          <div className="space-y-1 ml-1">
-            {SLACK_EVENTS.map((evt) => {
-              const enabled = conn.subscribedEvents.includes(evt.key);
-              return (
-                <div
-                  key={evt.key}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-white-5 transition-colors"
-                >
-                  <p className="text-sm font-medium text-white-100">{evt.label}</p>
-                  <Toggle checked={enabled} onChange={() => toggleEvent(evt.key)} />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </section>
   );
 }
 
@@ -485,256 +333,33 @@ function WebhookCard({
   );
 }
 
-// ── Google Sheets Section (OAuth) ────────────────────────────────────
-
-function GoogleSheetsSection() {
-  const qc = useQueryClient();
-  const { data: integrations, isLoading } = useGenericIntegrations();
-  const connect = useMediaImportConnect();
-  const disconnect = useMediaImportDisconnect();
-  const update = useUpdateIntegration();
-  const testInt = useTestIntegration();
-
-  const sheetsInt = integrations?.find((i) => i.type === 'google_sheets');
-  const config = (sheetsInt?.config ?? {}) as {
-    email?: string;
-    spreadsheetId?: string;
-    spreadsheetName?: string;
-    sheetName?: string;
-  };
-
-  const [sheetName, setSheetName] = useState(config.sheetName ?? 'Sheet1');
-  const [showLogs, setShowLogs] = useState(false);
-
-  // Fetch spreadsheets when connected but not yet configured
-  const isConnected = !!sheetsInt?.isActive;
-  const isConfigured = isConnected && !!config.spreadsheetId;
-  const { data: spreadsheets, isLoading: spreadsheetsLoading } = useSheetsSpreadsheets(
-    isConnected && !isConfigured && sheetsInt ? sheetsInt.id : '',
-  );
-
-  const logsQuery = useIntegrationLogs(showLogs && sheetsInt ? sheetsInt.id : '');
-
-  // Sync sheetName from config when integration data loads
-  const prevId = useRef(sheetsInt?.id);
-  if (sheetsInt?.id && sheetsInt.id !== prevId.current) {
-    prevId.current = sheetsInt.id;
-    if (config.sheetName) setSheetName(config.sheetName);
-  }
-
-  // Listen for OAuth popup completion → refresh integrations
-  useEffect(() => {
-    const onMessage = (e: MessageEvent) => {
-      if (e.data?.type === 'sp-oauth-complete' && e.data?.channel?.toUpperCase() === 'SHEETS') {
-        qc.invalidateQueries({ queryKey: ['integrations'] });
-      }
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [qc]);
-
-  if (isLoading) return <LoadingSpinner size="sm" />;
-
-  const handleConnect = () => {
-    connect.mutate('google_sheets', {
-      onSuccess: (data) => {
-        window.open(data.authUrl, 'sheets-oauth', 'width=500,height=700');
-      },
-    });
-  };
-
-  const handleSelectSpreadsheet = (spreadsheetId: string, spreadsheetName: string) => {
-    if (!sheetsInt) return;
-    update.mutate({
-      id: sheetsInt.id,
-      config: {
-        ...(sheetsInt.config as object),
-        spreadsheetId,
-        spreadsheetName,
-        sheetName: sheetName.trim() || 'Sheet1',
-      },
-    });
-  };
-
-  const handleToggleActive = () => {
-    if (!sheetsInt) return;
-    update.mutate({ id: sheetsInt.id, isActive: !sheetsInt.isActive });
-  };
-
-  return (
-    <section>
-      <h2 className="text-base font-semibold text-white-100 mb-4">Google Sheets</h2>
-      <div className="card p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
-              <FileSpreadsheet className="w-4.5 h-4.5 text-accent-green-110" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white-100">Google Sheets</p>
-              <p className="text-xs text-white-40">
-                {isConfigured
-                  ? `Connected — ${config.email ?? 'Google account'}`
-                  : isConnected
-                    ? `Connected — ${config.email ?? 'Google account'} (select a spreadsheet below)`
-                    : 'Append event rows to a spreadsheet'}
-              </p>
-            </div>
-          </div>
-          {isConnected && (
-            <Toggle checked={sheetsInt!.isActive} onChange={handleToggleActive} />
-          )}
-        </div>
-
-        {!isConnected && (
-          <button
-            onClick={handleConnect}
-            className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1 ml-12"
-          >
-            {connect.isPending ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <ExternalLink className="w-3 h-3" />
-            )}
-            Connect Google Sheets
-          </button>
-        )}
-
-        {isConnected && !isConfigured && (
-          <div className="ml-12 space-y-3">
-            {/* Sheet name input */}
-            <div>
-              <label className="text-xs text-white-40 block mb-1">Sheet / Tab Name</label>
-              <input
-                type="text"
-                value={sheetName}
-                onChange={(e) => setSheetName(e.target.value)}
-                placeholder="Sheet1"
-                className="input w-full text-sm"
-              />
-            </div>
-
-            {/* Spreadsheet picker */}
-            <div>
-              <label className="text-xs text-white-40 block mb-1">Select a spreadsheet</label>
-              {spreadsheetsLoading ? (
-                <div className="flex items-center gap-2 py-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white-40" />
-                  <span className="text-xs text-white-40">Loading spreadsheets...</span>
-                </div>
-              ) : spreadsheets && spreadsheets.length > 0 ? (
-                <div className="space-y-1 max-h-60 overflow-y-auto">
-                  {spreadsheets.map((ss) => (
-                    <button
-                      key={ss.id}
-                      onClick={() => handleSelectSpreadsheet(ss.id, ss.name)}
-                      disabled={update.isPending}
-                      className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-white-5 transition-colors text-left"
-                    >
-                      <FileSpreadsheet className="w-4 h-4 text-accent-green-110 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm text-white-100 truncate">{ss.name}</p>
-                        <p className="text-xs text-white-30">
-                          {new Date(ss.modifiedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-white-40 py-2">
-                  No spreadsheets found in this Google account.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {isConfigured && (
-          <div className="ml-12 space-y-3">
-            {/* Spreadsheet info */}
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
-              <span className="text-sm text-white-100 truncate">
-                {config.spreadsheetName ?? config.spreadsheetId}
-              </span>
-              <a
-                href={`https://docs.google.com/spreadsheets/d/${config.spreadsheetId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-accent-green-110 hover:underline flex items-center gap-1 flex-shrink-0"
-              >
-                <ExternalLink className="w-3 h-3" />
-                Open
-              </a>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => testInt.mutate(sheetsInt!.id)}
-                className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
-              >
-                <Send className="w-3 h-3" />
-                {testInt.isPending ? 'Sending...' : 'Test'}
-              </button>
-              <button
-                onClick={() => setShowLogs(!showLogs)}
-                className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
-              >
-                {showLogs ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                {showLogs ? 'Hide logs' : 'Logs'}
-              </button>
-              <button
-                onClick={() => disconnect.mutate(sheetsInt!.id)}
-                className="text-xs text-red-400 hover:underline flex items-center gap-1"
-              >
-                <Unplug className="w-3 h-3" />
-                {disconnect.isPending ? 'Disconnecting...' : 'Disconnect'}
-              </button>
-            </div>
-
-            {/* Logs */}
-            {showLogs && logsQuery.data && logsQuery.data.length > 0 && (
-              <div>
-                <p className="text-xs text-white-40 uppercase tracking-wider mb-1">
-                  Recent deliveries
-                </p>
-                <div className="space-y-1">
-                  {logsQuery.data.slice(0, 15).map((log) => (
-                    <div
-                      key={log.id}
-                      className="flex items-center gap-2 p-2 rounded-lg bg-white-5 text-xs"
-                    >
-                      {log.status === 'success' ? (
-                        <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                      ) : (
-                        <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-                      )}
-                      <span className="text-white-100">{log.eventType}</span>
-                      {log.errorMessage && (
-                        <span className="text-red-400 truncate max-w-[200px]" title={log.errorMessage}>
-                          {log.errorMessage}
-                        </span>
-                      )}
-                      <span className="text-white-30 ml-auto flex-shrink-0">
-                        {new Date(log.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
 // ── Generic Integrations Section ─────────────────────────────────────
 
-const INTEGRATION_META: Record<string, { label: string; icon: typeof Database; description: string; fields: { key: string; label: string; placeholder: string; type?: string }[] }> = {
+interface IntegrationMeta {
+  label: string;
+  icon: typeof Database;
+  description: string;
+  fields: { key: string; label: string; placeholder: string; type?: string }[];
+  oauth?: 'google_drive' | 'dropbox' | 'google_sheets';
+}
+
+const INTEGRATION_META: Record<string, IntegrationMeta> = {
+  slack: {
+    label: 'Slack',
+    icon: Hash,
+    description: 'Send notifications to a Slack channel',
+    fields: [
+      { key: 'webhookUrl', label: 'Webhook URL', placeholder: 'https://hooks.slack.com/services/...' },
+      { key: 'channelName', label: 'Channel Name', placeholder: '#general (optional)' },
+    ],
+  },
+  google_sheets: {
+    label: 'Google Sheets',
+    icon: FileSpreadsheet,
+    description: 'Append event rows to a spreadsheet',
+    fields: [],
+    oauth: 'google_sheets',
+  },
   discord: {
     label: 'Discord',
     icon: MessageSquare,
@@ -800,23 +425,41 @@ const INTEGRATION_META: Record<string, { label: string; icon: typeof Database; d
 };
 
 function GenericIntegrationsSection() {
+  const qc = useQueryClient();
   const { data: integrations, isLoading } = useGenericIntegrations();
   const create = useCreateIntegration();
   const update = useUpdateIntegration();
   const remove = useDeleteIntegration();
   const testInt = useTestIntegration();
+  const oauthConnect = useMediaImportConnect();
 
   const [adding, setAdding] = useState<string | null>(null);
   const [formName, setFormName] = useState('');
   const [formConfig, setFormConfig] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Listen for OAuth popup completion (Sheets, etc.) → refresh integrations
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const expectedOrigin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+      if (e.origin !== expectedOrigin && e.origin !== window.location.origin) return;
+      if (e.data?.type === 'sp-oauth-complete') {
+        qc.invalidateQueries({ queryKey: ['integrations'] });
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [qc]);
+
   if (isLoading) return <LoadingSpinner size="sm" />;
 
   const handleCreate = (type: string) => {
     if (!formName.trim()) return;
+    const config: Record<string, unknown> = { ...formConfig };
+    // Set default subscribed events for all integrations
+    config.subscribedEvents = INTEGRATION_EVENTS.map((e) => e.key);
     create.mutate(
-      { type, name: formName.trim(), config: formConfig },
+      { type, name: formName.trim(), config },
       {
         onSuccess: () => {
           setAdding(null);
@@ -828,6 +471,16 @@ function GenericIntegrationsSection() {
   };
 
   const startAdding = (type: string) => {
+    const meta = INTEGRATION_META[type];
+    // OAuth-based integrations open a popup instead of showing a form
+    if (meta?.oauth) {
+      oauthConnect.mutate(meta.oauth, {
+        onSuccess: (data) => {
+          window.open(data.authUrl, 'sp-oauth-popup', 'width=600,height=720');
+        },
+      });
+      return;
+    }
     setAdding(type);
     setFormName('');
     setFormConfig({});
@@ -844,11 +497,14 @@ function GenericIntegrationsSection() {
         {Object.entries(INTEGRATION_META).map(([type, meta]) => {
           const Icon = meta.icon;
           const count = integrations?.filter((i) => i.type === type).length ?? 0;
+          // Hide "Add" card for OAuth types that are already connected (only 1 allowed)
+          if (meta.oauth && count > 0) return null;
           return (
             <button
               key={type}
               onClick={() => startAdding(type)}
-              className="card p-4 text-left hover:border-accent-green-110/30 transition-colors"
+              disabled={!!meta.oauth && oauthConnect.isPending}
+              className="card p-4 text-left hover:border-accent-green-110/30 transition-colors disabled:opacity-50"
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
@@ -866,8 +522,8 @@ function GenericIntegrationsSection() {
         })}
       </div>
 
-      {/* Add form */}
-      {adding && INTEGRATION_META[adding] && (
+      {/* Add form (non-OAuth types only) */}
+      {adding && INTEGRATION_META[adding] && !INTEGRATION_META[adding].oauth && (
         <div className="card p-4 mb-4 space-y-3">
           <p className="text-sm font-medium text-white-100">
             Add {INTEGRATION_META[adding].label} integration
@@ -920,6 +576,9 @@ function GenericIntegrationsSection() {
               onToggleActive={(active) =>
                 update.mutate({ id: int.id, isActive: active })
               }
+              onUpdateConfig={(config) =>
+                update.mutate({ id: int.id, config })
+              }
               onDelete={() => remove.mutate(int.id)}
               onTest={() => testInt.mutate(int.id)}
               testing={testInt.isPending}
@@ -942,6 +601,7 @@ function IntegrationCard({
   expanded,
   onToggleExpand,
   onToggleActive,
+  onUpdateConfig,
   onDelete,
   onTest,
   testing,
@@ -950,16 +610,60 @@ function IntegrationCard({
   expanded: boolean;
   onToggleExpand: () => void;
   onToggleActive: (v: boolean) => void;
+  onUpdateConfig: (config: Record<string, unknown>) => void;
   onDelete: () => void;
   onTest: () => void;
   testing: boolean;
 }) {
   const { data: logs } = useIntegrationLogs(expanded ? integration.id : '');
   const retry = useRetryIntegration();
+  const [eventsOpen, setEventsOpen] = useState(false);
 
   const meta = INTEGRATION_META[integration.type];
   const Icon = meta?.icon ?? Blocks;
   const typeLabel = meta?.label ?? integration.type;
+
+  const config = integration.config as Record<string, unknown>;
+
+  // Event subscriptions (all integration types)
+  const subscribedEvents = Array.isArray(config?.subscribedEvents)
+    ? (config.subscribedEvents as string[])
+    : INTEGRATION_EVENTS.map((e) => e.key);
+
+  const toggleEvent = (key: string) => {
+    const next = subscribedEvents.includes(key)
+      ? subscribedEvents.filter((e) => e !== key)
+      : [...subscribedEvents, key];
+    onUpdateConfig({ ...config, subscribedEvents: next });
+  };
+
+  // Google Sheets spreadsheet picker
+  const sheetsConfigured = integration.type === 'google_sheets' && !!config?.spreadsheetId;
+  const { data: spreadsheets, isLoading: spreadsheetsLoading } = useSheetsSpreadsheets(
+    integration.type === 'google_sheets' && integration.isActive && !sheetsConfigured
+      ? integration.id
+      : '',
+  );
+  const [sheetName, setSheetName] = useState(
+    (config?.sheetName as string) ?? 'Sheet1',
+  );
+
+  const handleSelectSpreadsheet = (spreadsheetId: string, spreadsheetName: string) => {
+    onUpdateConfig({
+      ...config,
+      spreadsheetId,
+      spreadsheetName,
+      sheetName: sheetName.trim() || 'Sheet1',
+    });
+  };
+
+  // Subtitle
+  let subtitle = typeLabel;
+  if (integration.type === 'slack' && config?.channelName) {
+    subtitle += ` — #${config.channelName}`;
+  } else if (integration.type === 'google_sheets' && config?.email) {
+    subtitle += ` — ${config.email}`;
+  }
 
   return (
     <div className="card p-4 space-y-3">
@@ -972,7 +676,7 @@ function IntegrationCard({
             <p className="text-sm font-medium text-white-100 truncate">
               {integration.name}
             </p>
-            <p className="text-xs text-white-40">{typeLabel}</p>
+            <p className="text-xs text-white-40">{subtitle}</p>
           </div>
         </div>
         <Toggle
@@ -982,6 +686,18 @@ function IntegrationCard({
       </div>
 
       <div className="flex gap-2 ml-12">
+        {/* Show Sheets link when configured */}
+        {sheetsConfigured && (
+          <a
+            href={`https://docs.google.com/spreadsheets/d/${config.spreadsheetId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+          >
+            <ExternalLink className="w-3 h-3" />
+            {(config.spreadsheetName as string) ?? 'Open Sheet'}
+          </a>
+        )}
         <button
           onClick={onToggleExpand}
           className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
@@ -1003,6 +719,82 @@ function IntegrationCard({
           <Trash2 className="w-3 h-3" /> Delete
         </button>
       </div>
+
+      {/* Google Sheets: spreadsheet picker when not yet configured */}
+      {integration.type === 'google_sheets' && integration.isActive && !sheetsConfigured && (
+        <div className="ml-12 space-y-3">
+          <div>
+            <label className="text-xs text-white-40 block mb-1">Sheet / Tab Name</label>
+            <input
+              type="text"
+              value={sheetName}
+              onChange={(e) => setSheetName(e.target.value)}
+              placeholder="Sheet1"
+              className="input w-full text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-white-40 block mb-1">Select a spreadsheet</label>
+            {spreadsheetsLoading ? (
+              <div className="flex items-center gap-2 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white-40" />
+                <span className="text-xs text-white-40">Loading spreadsheets...</span>
+              </div>
+            ) : spreadsheets && spreadsheets.length > 0 ? (
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {spreadsheets.map((ss) => (
+                  <button
+                    key={ss.id}
+                    onClick={() => handleSelectSpreadsheet(ss.id, ss.name)}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-white-5 transition-colors text-left"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-accent-green-110 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm text-white-100 truncate">{ss.name}</p>
+                      <p className="text-xs text-white-30">
+                        {new Date(ss.modifiedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-white-40 py-2">
+                No spreadsheets found in this Google account.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Event subscriptions (collapsible) */}
+      {integration.isActive && (
+        <div className="ml-12">
+          <button
+            onClick={() => setEventsOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-xs text-white-40 uppercase tracking-wider hover:text-white-60 transition-colors"
+          >
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${eventsOpen ? 'rotate-0' : '-rotate-90'}`} />
+            Events ({subscribedEvents.length}/{INTEGRATION_EVENTS.length})
+          </button>
+          {eventsOpen && (
+            <div className="mt-1 space-y-0.5">
+              {INTEGRATION_EVENTS.map((evt) => (
+                <div
+                  key={evt.key}
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-white-5 transition-colors"
+                >
+                  <p className="text-sm text-white-100">{evt.label}</p>
+                  <Toggle
+                    checked={subscribedEvents.includes(evt.key)}
+                    onChange={() => toggleEvent(evt.key)}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {expanded && (
         <div className="ml-12 space-y-3">
@@ -1068,10 +860,25 @@ const MEDIA_PROVIDERS = [
 
 function MediaImportSection() {
   const { clientId } = useParams<{ clientId: string }>();
+  const qc = useQueryClient();
   const { data: integrations, isLoading } = useGenericIntegrations();
   const connect = useMediaImportConnect();
   const disconnect = useMediaImportDisconnect();
   const [browsing, setBrowsing] = useState<string | null>(null);
+
+  // Listen for OAuth popup completion → refresh integrations
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const expectedOrigin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+      if (e.origin !== expectedOrigin && e.origin !== window.location.origin) return;
+      const ch = e.data?.channel?.toUpperCase();
+      if (e.data?.type === 'sp-oauth-complete' && (ch === 'DRIVE' || ch === 'DROPBOX')) {
+        qc.invalidateQueries({ queryKey: ['integrations'] });
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [qc]);
 
   if (isLoading) return <LoadingSpinner size="sm" />;
 
@@ -1081,7 +888,7 @@ function MediaImportSection() {
   const handleConnect = (provider: 'google_drive' | 'dropbox') => {
     connect.mutate(provider, {
       onSuccess: (data) => {
-        window.location.href = data.authUrl;
+        window.open(data.authUrl, 'sp-oauth-popup', 'width=600,height=720');
       },
     });
   };
@@ -1295,11 +1102,9 @@ function FileBrowser({
 export default function IntegrationsPage() {
   return (
     <div className="space-y-8 max-w-2xl">
-      <SlackSection />
-      <WebhooksSection />
-      <GoogleSheetsSection />
       <GenericIntegrationsSection />
       <MediaImportSection />
+      <WebhooksSection />
     </div>
   );
 }
