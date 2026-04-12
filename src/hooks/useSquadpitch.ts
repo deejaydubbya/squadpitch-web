@@ -638,6 +638,10 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', clientId, 'best-blueprints'] as const,
   autopilot: (clientId: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'autopilot'] as const,
+  dashboardRecommendations: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'dashboard-recommendations'] as const,
+  dashboardActions: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'dashboard-actions'] as const,
 };
 
 // ── Clients ──────────────────────────────────────────────────────────────
@@ -1577,5 +1581,78 @@ export function useAutopilotExecute(clientId: string) {
       qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
       qc.invalidateQueries({ queryKey: squadpitchKeys.topPerforming(clientId) });
     },
+  });
+}
+
+// ── Dashboard ───────────────────────────────────────────────────────────
+
+export interface DashboardRecommendation {
+  id: string;
+  title: string;
+  description: string;
+  action: string;
+  actionLabel: string;
+  priority: number;
+  category: string;
+}
+
+export interface DashboardRecommendationsResponse {
+  recommendations: DashboardRecommendation[];
+  summary: {
+    totalDataItems: number;
+    unusedDataCount: number;
+    enabledChannels: number;
+    recentPublished: number;
+    dataByType: Partial<Record<string, number>>;
+    publishedThisWeek: number;
+    scheduledUpcoming: number;
+    lastAutopilotAt: string | null;
+  };
+}
+
+export interface DashboardActionItem {
+  id: string;
+  body: string;
+  channel: string;
+  kind: string;
+}
+
+export interface DashboardAction {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  actionLabel: string;
+  actionRoute: string;
+  priority: number;
+  count: number;
+  items: DashboardActionItem[];
+}
+
+export interface DashboardActionsResponse {
+  actions: DashboardAction[];
+}
+
+export function useDashboardRecommendations(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.dashboardRecommendations(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<DashboardRecommendationsResponse>(
+        `clients/${clientId}/dashboard/recommendations`,
+      ),
+    enabled: Boolean(clientId),
+    staleTime: 60_000,
+  });
+}
+
+export function useDashboardActions(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.dashboardActions(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<DashboardActionsResponse>(
+        `clients/${clientId}/dashboard/actions`,
+      ),
+    enabled: Boolean(clientId),
+    staleTime: 60_000,
   });
 }
