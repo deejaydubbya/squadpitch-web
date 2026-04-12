@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { OnboardingWelcome } from '@/components/studio/OnboardingWelcome';
 import {
   Wand2,
   Calendar,
@@ -55,6 +56,8 @@ export default function OverviewPage() {
   const params = useParams<{ clientId: string }>();
   const clientId = params.clientId;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showWelcome, setShowWelcome] = useState(searchParams.get('onboarded') === 'true');
 
   const { data: client } = useClient(clientId);
   const { data: drafts, isLoading: draftsLoading } = useDrafts({
@@ -149,6 +152,17 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6 max-w-5xl">
+      {/* Onboarding welcome */}
+      {showWelcome && (
+        <OnboardingWelcome
+          clientId={clientId}
+          onDismiss={() => {
+            setShowWelcome(false);
+            router.replace(base, { scroll: false });
+          }}
+        />
+      )}
+
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Total drafts" value={analytics?.total ?? 0} />

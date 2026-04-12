@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, ImageIcon, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useCreateDataItem,
@@ -106,6 +106,10 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
   const [dataJson, setDataJson] = useState<Record<string, string>>(
     (editItem?.dataJson as Record<string, string>) ?? {}
   );
+  const [imageUrl, setImageUrl] = useState(
+    (editItem?.dataJson as Record<string, unknown>)?.imageUrl as string ?? ''
+  );
+  const [imageError, setImageError] = useState(false);
   const [tags, setTags] = useState(editItem?.tags.join(', ') ?? '');
   const [priority, setPriority] = useState(editItem?.priority ?? 0);
   const [expiresAt, setExpiresAt] = useState(
@@ -129,11 +133,17 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
+    const finalDataJson = { ...dataJson };
+    if (imageUrl.trim()) {
+      finalDataJson.imageUrl = imageUrl.trim();
+    } else {
+      delete finalDataJson.imageUrl;
+    }
     const body = {
       type,
       title: title.trim(),
       summary: summary.trim() || null,
-      dataJson,
+      dataJson: finalDataJson,
       tags: parsedTags,
       priority,
       expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
@@ -217,6 +227,51 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
               rows={2}
               maxLength={2000}
               className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none placeholder:text-white-30"
+            />
+          </div>
+
+          {/* Image */}
+          <div>
+            <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+              Image URL
+            </label>
+            {imageUrl && !imageError ? (
+              <div className="flex items-start gap-3 mb-2">
+                <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white-5 border border-white-10">
+                  <img
+                    src={imageUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    onError={() => setImageError(true)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setImageUrl(''); setImageError(false); }}
+                  className="p-1.5 rounded-lg text-white-40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  title="Remove image"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ) : imageUrl && imageError ? (
+              <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
+                <ImageIcon className="w-4 h-4" />
+                Image failed to load
+                <button
+                  type="button"
+                  onClick={() => { setImageUrl(''); setImageError(false); }}
+                  className="ml-auto text-white-40 hover:text-red-400"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : null}
+            <input
+              value={imageUrl}
+              onChange={(e) => { setImageUrl(e.target.value); setImageError(false); }}
+              placeholder="https://example.com/image.jpg"
+              className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
             />
           </div>
 

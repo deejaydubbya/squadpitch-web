@@ -1,6 +1,6 @@
 'use client';
 
-import { Wand2, Archive, Pencil, BarChart3, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Wand2, Archive, Pencil, BarChart3, TrendingUp, TrendingDown, Minus, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceDataItem, DataItemType } from '@/hooks/useSquadpitch';
 
@@ -59,6 +59,7 @@ export function DataItemCard({
   onGenerate,
 }: Props) {
   const badge = getPerformanceBadge(item.performance?.avgEngagement);
+  const imageUrl = (item.dataJson as Record<string, unknown>)?.imageUrl as string | undefined;
 
   return (
     <div
@@ -124,12 +125,40 @@ export function DataItemCard({
         </div>
       </div>
 
-      <h3 className="text-sm font-semibold text-white-100 mt-2 truncate">
-        {item.title}
-      </h3>
-
-      {item.summary && (
-        <p className="text-xs text-white-40 mt-1 line-clamp-2">{item.summary}</p>
+      {imageUrl ? (
+        <div className="mt-2 flex gap-3">
+          <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-white-5 border border-white-10">
+            <img
+              src={imageUrl}
+              alt={item.title}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <div className="hidden w-full h-full flex items-center justify-center">
+              <ImageIcon className="w-5 h-5 text-white-20" />
+            </div>
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-white-100 truncate">
+              {item.title}
+            </h3>
+            {item.summary && (
+              <p className="text-xs text-white-40 mt-0.5 line-clamp-2">{item.summary}</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          <h3 className="text-sm font-semibold text-white-100 mt-2 truncate">
+            {item.title}
+          </h3>
+          {item.summary && (
+            <p className="text-xs text-white-40 mt-1 line-clamp-2">{item.summary}</p>
+          )}
+        </>
       )}
 
       <div className="flex items-center gap-3 mt-3">

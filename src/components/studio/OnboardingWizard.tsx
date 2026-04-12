@@ -12,6 +12,8 @@ import {
   Globe,
   MessageSquare,
   Zap,
+  Calendar,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -22,7 +24,9 @@ import {
   type Draft,
   type OnboardingAnalyzeResult,
 } from '@/hooks/useSquadpitch';
+import { apiFetch } from '@/lib/apiFetch';
 import { StatusBanner } from '@/components/common/StatusBanner';
+import { OnboardingPostCard } from '@/components/studio/OnboardingPostCard';
 
 function slugify(value: string) {
   return value
@@ -78,7 +82,7 @@ function normalizeUrl(value: string): string {
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const [step, setStep] = useState<0 | 1>(0);
+  const [step, setStep] = useState<0 | 1 | 2>(0);
 
   // Step 1 state
   const [input, setInput] = useState('');
@@ -100,6 +104,11 @@ export function OnboardingWizard() {
   const [selectedTone, setSelectedTone] = useState('');
   const [selectedGoal, setSelectedGoal] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<Channel[]>([]);
+
+  // Step 3 state — Content preview bulk actions
+  const [bulkActionRunning, setBulkActionRunning] = useState(false);
+  const [bulkSuccess, setBulkSuccess] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   // Track if setup is running to prevent double-click
   const setupRunning = useRef(false);
@@ -184,11 +193,28 @@ export function OnboardingWizard() {
           });
           setGeneratedDrafts((prev) => [...prev, draft]);
           setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
+
+          // Fire-and-forget image generation so images are ready by content preview
+          if (draft.imageGuidance) {
+            apiFetch('assets/generate', {
+              method: 'POST',
+              body: JSON.stringify({
+                clientId: client.id,
+                guidance: draft.imageGuidance,
+                draftId: draft.id,
+                channel,
+              }),
+            }).catch(() => {}); // don't block onboarding flow
+          }
         } catch {
           // Continue generating remaining posts if one fails
         }
       }
       setStage('generating', 'done');
+
+      // Auto-advance to content preview
+      await delay(800);
+      setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed. Please try again.');
       setupRunning.current = false;
@@ -238,11 +264,61 @@ export function OnboardingWizard() {
     });
   };
 
-  const handleFinish = () => {
+  const handleFinish = (onboarded = false) => {
     if (createdClientId) {
-      router.push(`/clients/${createdClientId}/create`);
+      router.push(`/clients/${createdClientId}${onboarded ? '?onboarded=true' : ''}`);
     } else {
       router.push('/dashboard');
+    }
+  };
+
+  const handleRegenerated = (oldIndex: number, newDraft: Draft) => {
+    setGeneratedDrafts((prev) => prev.map((d, i) => (i === oldIndex ? newDraft : d)));
+  };
+
+  const handleBulkApproveAndSchedule = async () => {
+    if (!createdClientId) return;
+    setBulkActionRunning(true);
+    setBulkError(null);
+    try {
+      for (let i = 0; i < generatedDrafts.length; i++) {
+        const draft = generatedDrafts[i];
+        if (draft.status !== 'APPROVED' && draft.status !== 'SCHEDULED') {
+          await apiFetch(`drafts/${draft.id}/approve`, { method: 'POST' });
+        }
+        if (draft.status !== 'SCHEDULED') {
+          const time = getScheduleTime(i);
+          await apiFetch(`drafts/${draft.id}/schedule`, {
+            method: 'POST',
+            body: JSON.stringify({ scheduledFor: time.iso }),
+          });
+        }
+      }
+      setBulkSuccess(true);
+      await delay(1500);
+      handleFinish(true);
+    } catch (err) {
+      setBulkError(err instanceof Error ? err.message : 'Bulk action failed.');
+      setBulkActionRunning(false);
+    }
+  };
+
+  const handleBulkApproveOnly = async () => {
+    if (!createdClientId) return;
+    setBulkActionRunning(true);
+    setBulkError(null);
+    try {
+      for (const draft of generatedDrafts) {
+        if (draft.status !== 'APPROVED' && draft.status !== 'SCHEDULED') {
+          await apiFetch(`drafts/${draft.id}/approve`, { method: 'POST' });
+        }
+      }
+      setBulkSuccess(true);
+      await delay(1500);
+      handleFinish(true);
+    } catch (err) {
+      setBulkError(err instanceof Error ? err.message : 'Bulk action failed.');
+      setBulkActionRunning(false);
     }
   };
 
@@ -302,6 +378,111 @@ export function OnboardingWizard() {
             Build My Marketing System
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // ── Step 3: Content Preview ───────────────────────────────────────
+
+  if (step === 2) {
+    return (
+      <div className="flex flex-col items-center min-h-[60vh] space-y-8 max-w-5xl mx-auto">
+        {/* Success overlay */}
+        {bulkSuccess && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-sp-surface/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+              <CheckCircle2 className="w-16 h-16 text-accent-green-110" />
+              <p className="text-xl font-bold text-white-100">You&apos;re all set!</p>
+              <p className="text-sm text-white-40">Redirecting to your workspace...</p>
+            </div>
+          </div>
+        )}
+
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-bold text-white-100">
+            These were created from your business and website
+          </h2>
+          <p className="text-sm text-white-40">
+            Edit, approve, schedule, or regenerate any post before continuing.
+          </p>
+        </div>
+
+        {/* Post cards grid */}
+        {generatedDrafts.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+            {generatedDrafts.map((draft, i) => (
+              <OnboardingPostCard
+                key={draft.id}
+                draft={draft}
+                clientId={createdClientId!}
+                defaultScheduleTime={getScheduleTime(i)}
+                onRegenerated={(newDraft) => handleRegenerated(i, newDraft)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="card p-8 bg-white-5/50 text-center w-full">
+            <p className="text-sm text-white-40">
+              No posts were generated. You can create content from your dashboard.
+            </p>
+          </div>
+        )}
+
+        {bulkError && <StatusBanner error={bulkError} />}
+
+        {/* Bulk actions */}
+        {generatedDrafts.length > 0 && (
+          <div className="w-full space-y-3">
+            <div className="flex items-center justify-center gap-2 text-xs text-white-30">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>
+                Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
+              </span>
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={handleBulkApproveAndSchedule}
+                disabled={bulkActionRunning}
+                className="px-6 py-3 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50"
+              >
+                {bulkActionRunning ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Calendar className="w-4 h-4" />
+                )}
+                Approve & Schedule All
+              </button>
+              <button
+                onClick={handleBulkApproveOnly}
+                disabled={bulkActionRunning}
+                className="px-6 py-3 rounded-2xl bg-white-10 text-white-100 font-semibold text-sm flex items-center gap-2 hover:bg-white-15 transition-colors disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                Just Approve
+              </button>
+            </div>
+            <div className="text-center">
+              <button
+                onClick={() => handleFinish()}
+                disabled={bulkActionRunning}
+                className="text-sm text-white-30 hover:text-white-60 transition-colors underline underline-offset-2"
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* If no drafts, just show a continue button */}
+        {generatedDrafts.length === 0 && (
+          <button
+            onClick={() => handleFinish()}
+            className="px-6 py-3 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors"
+          >
+            Go to Dashboard
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        )}
       </div>
     );
   }
@@ -413,10 +594,10 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Go to Dashboard button */}
-        {allDone && (
+        {/* Error recovery — only shows if auto-advance to step 2 hasn't happened */}
+        {allDone && error && (
           <button
-            onClick={handleFinish}
+            onClick={() => handleFinish()}
             className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors mt-4"
           >
             Go to Dashboard
@@ -552,4 +733,17 @@ function mapToneToOption(tone: string): string {
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getScheduleTime(index: number): { iso: string; label: string } {
+  const date = new Date();
+  date.setDate(date.getDate() + 1 + index); // tomorrow + index
+  date.setHours(10, 0, 0, 0);
+  const iso = date.toISOString();
+  const label = date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }) + ' at 10:00 AM';
+  return { iso, label };
 }
