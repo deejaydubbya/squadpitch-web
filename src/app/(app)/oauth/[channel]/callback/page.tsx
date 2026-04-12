@@ -6,7 +6,7 @@ import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useCompleteOAuth } from '@/hooks/useSquadpitch';
 import { useMediaImportCallback } from '@/hooks/useIntegrations';
 
-const MEDIA_IMPORT_CHANNELS = ['DRIVE', 'DROPBOX'];
+const MEDIA_IMPORT_CHANNELS = ['DRIVE', 'DROPBOX', 'SHEETS'];
 
 type Phase = 'exchanging' | 'success' | 'error';
 

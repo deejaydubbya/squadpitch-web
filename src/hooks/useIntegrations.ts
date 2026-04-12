@@ -320,7 +320,7 @@ export interface MediaImportFile {
 export function useMediaImportConnect() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (provider: 'google_drive' | 'dropbox') =>
+    mutationFn: (provider: 'google_drive' | 'dropbox' | 'google_sheets') =>
       apiFetch<{ authUrl: string }>(`/integrations/media-import/connect/${provider}`, {
         method: 'POST',
       }),

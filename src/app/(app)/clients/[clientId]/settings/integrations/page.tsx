@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   Hash,
   Webhook,
@@ -483,6 +483,205 @@ function WebhookCard({
   );
 }
 
+// ── Google Sheets Section (OAuth) ────────────────────────────────────
+
+function GoogleSheetsSection() {
+  const { data: integrations, isLoading } = useGenericIntegrations();
+  const connect = useMediaImportConnect();
+  const disconnect = useMediaImportDisconnect();
+  const update = useUpdateIntegration();
+  const testInt = useTestIntegration();
+
+  const sheetsInt = integrations?.find((i) => i.type === 'google_sheets');
+  const config = (sheetsInt?.config ?? {}) as {
+    email?: string;
+    spreadsheetId?: string;
+    sheetName?: string;
+  };
+
+  const [spreadsheetId, setSpreadsheetId] = useState(config.spreadsheetId ?? '');
+  const [sheetName, setSheetName] = useState(config.sheetName ?? 'Sheet1');
+  const [showLogs, setShowLogs] = useState(false);
+
+  // Sync form when integration data loads
+  const prevId = useRef(sheetsInt?.id);
+  if (sheetsInt?.id && sheetsInt.id !== prevId.current) {
+    prevId.current = sheetsInt.id;
+    if (config.spreadsheetId) setSpreadsheetId(config.spreadsheetId);
+    if (config.sheetName) setSheetName(config.sheetName);
+  }
+
+  const logsQuery = useIntegrationLogs(showLogs && sheetsInt ? sheetsInt.id : '');
+
+  if (isLoading) return <LoadingSpinner size="sm" />;
+
+  const isConnected = !!sheetsInt?.isActive;
+  const isConfigured = isConnected && !!config.spreadsheetId;
+
+  const handleConnect = () => {
+    connect.mutate('google_sheets', {
+      onSuccess: (data) => {
+        const popup = window.open(data.authUrl, 'sheets-oauth', 'width=500,height=700');
+        const onMessage = (e: MessageEvent) => {
+          if (e.data?.type === 'sp-oauth-complete' && e.data?.channel?.toUpperCase() === 'SHEETS') {
+            window.removeEventListener('message', onMessage);
+          }
+        };
+        window.addEventListener('message', onMessage);
+      },
+    });
+  };
+
+  const handleSaveConfig = () => {
+    if (!sheetsInt || !spreadsheetId.trim()) return;
+    update.mutate({
+      id: sheetsInt.id,
+      config: { ...sheetsInt.config as object, spreadsheetId: spreadsheetId.trim(), sheetName: sheetName.trim() || 'Sheet1' },
+    });
+  };
+
+  const handleToggleActive = () => {
+    if (!sheetsInt) return;
+    update.mutate({ id: sheetsInt.id, isActive: !sheetsInt.isActive });
+  };
+
+  return (
+    <section>
+      <h2 className="text-base font-semibold text-white-100 mb-4">Google Sheets</h2>
+      <div className="card p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
+              <FileSpreadsheet className="w-4.5 h-4.5 text-accent-green-110" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white-100">Google Sheets</p>
+              <p className="text-xs text-white-40">
+                {isConfigured
+                  ? `Connected — ${config.email ?? 'Google account'}`
+                  : isConnected
+                    ? `Connected — ${config.email ?? 'Google account'} (configure spreadsheet below)`
+                    : 'Append event rows to a spreadsheet'}
+              </p>
+            </div>
+          </div>
+          {isConnected && (
+            <Toggle checked={sheetsInt!.isActive} onChange={handleToggleActive} />
+          )}
+        </div>
+
+        {!isConnected && (
+          <button
+            onClick={handleConnect}
+            className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1 ml-12"
+          >
+            {connect.isPending ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <ExternalLink className="w-3 h-3" />
+            )}
+            Connect Google Sheets
+          </button>
+        )}
+
+        {isConnected && (
+          <div className="ml-12 space-y-3">
+            {/* Spreadsheet config fields */}
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs text-white-40 block mb-1">Spreadsheet ID</label>
+                <input
+                  type="text"
+                  value={spreadsheetId}
+                  onChange={(e) => setSpreadsheetId(e.target.value)}
+                  placeholder="1BxiMVs0XRA5nFMdKvBd..."
+                  className="input w-full text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-white-40 block mb-1">Sheet Name</label>
+                <input
+                  type="text"
+                  value={sheetName}
+                  onChange={(e) => setSheetName(e.target.value)}
+                  placeholder="Sheet1"
+                  className="input w-full text-sm"
+                />
+              </div>
+              <button
+                onClick={handleSaveConfig}
+                className="btn-primary text-sm px-4"
+                disabled={!spreadsheetId.trim()}
+              >
+                {update.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
+              </button>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              {isConfigured && (
+                <button
+                  onClick={() => testInt.mutate(sheetsInt!.id)}
+                  className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+                >
+                  <Send className="w-3 h-3" />
+                  {testInt.isPending ? 'Sending...' : 'Test'}
+                </button>
+              )}
+              <button
+                onClick={() => setShowLogs(!showLogs)}
+                className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+              >
+                {showLogs ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                {showLogs ? 'Hide logs' : 'Logs'}
+              </button>
+              <button
+                onClick={() => disconnect.mutate(sheetsInt!.id)}
+                className="text-xs text-red-400 hover:underline flex items-center gap-1"
+              >
+                <Unplug className="w-3 h-3" />
+                {disconnect.isPending ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            </div>
+
+            {/* Logs */}
+            {showLogs && logsQuery.data && logsQuery.data.length > 0 && (
+              <div>
+                <p className="text-xs text-white-40 uppercase tracking-wider mb-1">
+                  Recent deliveries
+                </p>
+                <div className="space-y-1">
+                  {logsQuery.data.slice(0, 15).map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-white-5 text-xs"
+                    >
+                      {log.status === 'success' ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                      )}
+                      <span className="text-white-100">{log.eventType}</span>
+                      {log.errorMessage && (
+                        <span className="text-red-400 truncate max-w-[200px]" title={log.errorMessage}>
+                          {log.errorMessage}
+                        </span>
+                      )}
+                      <span className="text-white-30 ml-auto flex-shrink-0">
+                        {new Date(log.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ── Generic Integrations Section ─────────────────────────────────────
 
 const INTEGRATION_META: Record<string, { label: string; icon: typeof Database; description: string; fields: { key: string; label: string; placeholder: string; type?: string }[] }> = {
@@ -501,17 +700,6 @@ const INTEGRATION_META: Record<string, { label: string; icon: typeof Database; d
     fields: [
       { key: 'apiKey', label: 'API Key', placeholder: 'ntn_...', type: 'password' },
       { key: 'databaseId', label: 'Database ID', placeholder: '8a2b3c4d...' },
-    ],
-  },
-  google_sheets: {
-    label: 'Google Sheets',
-    icon: FileSpreadsheet,
-    description: 'Append event rows to a spreadsheet',
-    fields: [
-      { key: 'serviceAccountEmail', label: 'Service Account Email', placeholder: 'name@project.iam.gserviceaccount.com' },
-      { key: 'privateKey', label: 'Private Key (PEM)', placeholder: '-----BEGIN PRIVATE KEY-----...', type: 'password' },
-      { key: 'spreadsheetId', label: 'Spreadsheet ID', placeholder: '1BxiMVs0XRA5nFMdKvBd...' },
-      { key: 'sheetName', label: 'Sheet Name', placeholder: 'Sheet1' },
     ],
   },
   hubspot: {
@@ -1059,6 +1247,7 @@ export default function IntegrationsPage() {
     <div className="space-y-8 max-w-2xl">
       <SlackSection />
       <WebhooksSection />
+      <GoogleSheetsSection />
       <GenericIntegrationsSection />
       <MediaImportSection />
     </div>
