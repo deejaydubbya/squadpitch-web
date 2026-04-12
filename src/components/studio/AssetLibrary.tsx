@@ -40,6 +40,7 @@ const SOURCE_OPTIONS: { label: string; value: MediaAssetSource | 'ALL' }[] = [
   { label: 'All', value: 'ALL' },
   { label: 'Uploads', value: 'UPLOAD' },
   { label: 'AI Generated', value: 'AI_GENERATED' },
+  { label: 'Imported', value: 'IMPORTED' },
 ];
 
 const STATUS_OPTIONS: { label: string; value: MediaAssetStatus | 'ALL' }[] = [
@@ -665,8 +666,13 @@ function AssetCard({
         </span>
 
         {/* Source badge */}
-        <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-medium bg-white-10 text-white-60">
-          {asset.source === 'UPLOAD' ? 'Upload' : 'AI'}
+        <span className={cn(
+          'absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-medium',
+          asset.source === 'IMPORTED'
+            ? 'bg-zone-blue/20 text-zone-blue'
+            : 'bg-white-10 text-white-60'
+        )}>
+          {asset.source === 'UPLOAD' ? 'Upload' : asset.source === 'IMPORTED' ? 'Imported' : 'AI'}
         </span>
 
         {/* Video duration badge */}

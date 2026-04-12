@@ -198,7 +198,7 @@ export interface ClientAnalytics {
   last14Days: Array<{ date: string; count: number }>;
 }
 
-export type MediaAssetSource = 'UPLOAD' | 'AI_GENERATED';
+export type MediaAssetSource = 'UPLOAD' | 'AI_GENERATED' | 'IMPORTED';
 export type MediaAssetStatus = 'PENDING' | 'GENERATING' | 'READY' | 'FAILED';
 export type MediaAssetType = 'image' | 'video';
 

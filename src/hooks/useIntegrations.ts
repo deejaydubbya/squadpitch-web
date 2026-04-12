@@ -372,7 +372,10 @@ export function useMediaImportFile() {
           body: JSON.stringify({ fileRef, clientId }),
         },
       ).then((r) => r.asset),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['media-import-files'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['media-import-files'] });
+      qc.invalidateQueries({ queryKey: ['squadpitch'] });
+    },
   });
 }
 

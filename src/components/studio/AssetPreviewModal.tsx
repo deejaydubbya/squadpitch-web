@@ -128,9 +128,11 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
               'px-2 py-0.5 rounded-full text-[10px] font-medium',
               asset.source === 'AI_GENERATED'
                 ? 'bg-purple-500/20 text-purple-400'
-                : 'bg-zone-blue/20 text-zone-blue'
+                : asset.source === 'IMPORTED'
+                  ? 'bg-zone-yellow/20 text-zone-yellow'
+                  : 'bg-zone-blue/20 text-zone-blue'
             )}>
-              {asset.source === 'AI_GENERATED' ? 'AI' : 'Upload'}
+              {asset.source === 'AI_GENERATED' ? 'AI' : asset.source === 'IMPORTED' ? 'Imported' : 'Upload'}
             </span>
           </div>
 

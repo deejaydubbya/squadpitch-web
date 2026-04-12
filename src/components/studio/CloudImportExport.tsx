@@ -39,8 +39,8 @@ function providerIcon(type: string) {
   return type === 'google_drive' ? HardDrive : Cloud;
 }
 
-function isMediaFile(file: MediaImportFile) {
-  if (file.isFolder) return true;
+function canImport(file: MediaImportFile) {
+  if (file.isFolder) return false;
   const mime = file.mimeType || '';
   return mime.startsWith('image/') || mime.startsWith('video/');
 }
@@ -160,11 +160,11 @@ function ImportBrowser({ integrationId, providerType, clientId, onClose }: Impor
     queryOpts.path = currentFolder.id;
   }
 
-  const { data, isLoading } = useMediaImportFiles(integrationId, queryOpts);
+  const { data, isLoading, error: listError } = useMediaImportFiles(integrationId, queryOpts);
   const importFile = useMediaImportFile();
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
 
-  const files = data?.files?.filter(isMediaFile) ?? [];
+  const files = data?.files ?? [];
 
   const handleImport = (file: MediaImportFile) => {
     const fileRef = providerType === 'dropbox' ? (file.path || file.id) : file.id;
@@ -210,8 +210,12 @@ function ImportBrowser({ integrationId, providerType, clientId, onClose }: Impor
           <div className="flex items-center justify-center py-6">
             <Loader2 className="w-4 h-4 animate-spin text-white-40" />
           </div>
+        ) : listError ? (
+          <p className="text-xs text-accent-red text-center py-4">
+            Failed to load files. Try reconnecting in Settings &gt; Integrations.
+          </p>
         ) : files.length === 0 ? (
-          <p className="text-xs text-white-40 text-center py-4">No media files found</p>
+          <p className="text-xs text-white-40 text-center py-4">No files found in this folder</p>
         ) : (
           files.map((file) => (
             <div
@@ -247,13 +251,13 @@ function ImportBrowser({ integrationId, providerType, clientId, onClose }: Impor
               {file.isFolder ? (
                 <button
                   onClick={() => openFolder(file)}
-                  className="p-1 rounded text-white-40 hover:text-white-100 hover:bg-white-10 opacity-0 group-hover:opacity-100 transition-all"
+                  className="p-1 rounded text-white-40 hover:text-white-100 hover:bg-white-10 transition-all"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               ) : importedIds.has(file.id) ? (
                 <Check className="w-3.5 h-3.5 text-zone-green flex-shrink-0" />
-              ) : (
+              ) : canImport(file) ? (
                 <button
                   onClick={() => handleImport(file)}
                   disabled={importFile.isPending}
@@ -265,7 +269,7 @@ function ImportBrowser({ integrationId, providerType, clientId, onClose }: Impor
                     'Import'
                   )}
                 </button>
-              )}
+              ) : null}
             </div>
           ))
         )}
@@ -375,7 +379,9 @@ function ExportPicker({ integrationId, providerType, assets, onClose }: ExportPi
 
       {exportFile.error && (
         <p className="text-[10px] text-accent-red">
-          {(exportFile.error as Error).message}
+          {(exportFile.error as Error).message?.includes('403') || (exportFile.error as Error).message?.includes('permission')
+            ? 'Permission denied. Reconnect this provider in Settings > Integrations to grant write access.'
+            : (exportFile.error as Error).message}
         </p>
       )}
     </div>
