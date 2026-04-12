@@ -374,7 +374,7 @@ export interface MediaAsset {
   updatedAt: string;
 }
 
-export type DataSourceType = 'MANUAL';
+export type DataSourceType = 'MANUAL' | 'URL' | 'CSV' | 'TEXT' | 'GOOGLE_SHEETS' | 'NOTION';
 
 export type DataItemStatus = 'ACTIVE' | 'ARCHIVED';
 
@@ -1442,6 +1442,192 @@ export function useDeleteDataItem(clientId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
+  });
+}
+
+// ── Data Import ──────────────────────────────────────────────────────────
+
+export interface ExtractedItem {
+  type: DataItemType;
+  title: string;
+  summary: string | null;
+  dataJson: Record<string, unknown>;
+  tags: string[];
+  priority: number;
+  confidence: number;
+}
+
+export interface UrlExtractResult {
+  items: ExtractedItem[];
+  sourceUrl: string;
+}
+
+export interface TextExtractResult {
+  items: ExtractedItem[];
+}
+
+export interface CSVPreviewResult {
+  headers: string[];
+  rowCount: number;
+}
+
+export interface CSVExtractResult {
+  items: ExtractedItem[];
+  headers: string[];
+  rowCount: number;
+}
+
+export interface CSVColumnMapping {
+  title?: string;
+  summary?: string;
+  type?: string;
+  tags?: string;
+  priority?: string;
+  dataJsonFields?: string[];
+}
+
+export interface ConfirmImportInput {
+  items: Array<{
+    type: DataItemType;
+    title: string;
+    summary?: string | null;
+    dataJson?: Record<string, unknown>;
+    tags?: string[];
+    priority?: number;
+    expiresAt?: string | null;
+  }>;
+  sourceType: DataSourceType;
+  sourceUrl?: string;
+}
+
+export interface ConfirmImportResult {
+  created: number;
+  dataSourceId: string;
+}
+
+export function useImportFromUrl(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { url: string; hint?: string }) =>
+      apiFetch<UrlExtractResult>(`clients/${clientId}/data-import/url`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
+export function useImportFromText(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { text: string; hint?: string }) =>
+      apiFetch<TextExtractResult>(`clients/${clientId}/data-import/text`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
+export function useCSVPreview(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { csvContent: string }) =>
+      apiFetch<CSVPreviewResult>(`clients/${clientId}/data-import/csv/preview`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
+export function useCSVExtract(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { csvContent: string; columnMapping: CSVColumnMapping; defaultType?: DataItemType }) =>
+      apiFetch<CSVExtractResult>(`clients/${clientId}/data-import/csv/extract`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
+export function useImportFromSheets(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { integrationId: string; spreadsheetId: string; sheetName?: string; hint?: string }) =>
+      apiFetch<{ items: ExtractedItem[]; spreadsheetId: string; sheetName: string }>(
+        `clients/${clientId}/data-import/sheets`,
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+  });
+}
+
+export function useImportFromNotion(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { integrationId: string; hint?: string }) =>
+      apiFetch<{ items: ExtractedItem[] }>(
+        `clients/${clientId}/data-import/notion`,
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+  });
+}
+
+export function useConfirmImport(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ConfirmImportInput) =>
+      apiFetch<ConfirmImportResult>(`clients/${clientId}/data-import/confirm`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+// ── Data Usage & Suggestions ─────────────────────────────────────────────
+
+export interface DataSuggestion {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  action: string;
+  priority: number;
+  missingTypes?: string[];
+}
+
+export interface DataCoverage {
+  totalActive: number;
+  unusedCount: number;
+  staleCount: number;
+  missingTypes: string[];
+  typeBreakdown: Record<string, number>;
+}
+
+export interface DataSuggestionsResult {
+  suggestions: DataSuggestion[];
+  coverage: DataCoverage;
+}
+
+export interface UnusedDataResult {
+  unusedCount: number;
+  items: Array<{
+    id: string;
+    type: DataItemType;
+    title: string;
+    summary: string | null;
+    tags: string[];
+    priority: number;
+    createdAt: string;
+  }>;
+}
+
+export function useUnusedData(clientId: string) {
+  return useQuery({
+    queryKey: [...squadpitchKeys.dataItems(clientId), 'unused'],
+    queryFn: () => apiFetch<UnusedDataResult>(`clients/${clientId}/business-data/unused`),
+  });
+}
+
+export function useDataSuggestions(clientId: string) {
+  return useQuery({
+    queryKey: [...squadpitchKeys.dataItems(clientId), 'suggestions'],
+    queryFn: () => apiFetch<DataSuggestionsResult>(`clients/${clientId}/business-data/suggestions`),
   });
 }
 

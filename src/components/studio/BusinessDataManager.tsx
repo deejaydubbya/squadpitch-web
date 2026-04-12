@@ -1,11 +1,24 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Plus, Search, Wand2, Loader2, TrendingUp, Zap } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Wand2,
+  Loader2,
+  TrendingUp,
+  Zap,
+  Download,
+  AlertCircle,
+  Lightbulb,
+  Clock,
+  ArrowRight,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useDataItems,
   useArchiveDataItem,
+  useDataSuggestions,
   type WorkspaceDataItem,
   type DataItemType,
   type DataItemStatus,
@@ -15,6 +28,7 @@ import { AddDataItemModal } from './AddDataItemModal';
 import { GenerateFromDataModal } from './GenerateFromDataModal';
 import { BulkGenerateModal } from './BulkGenerateModal';
 import { AutopilotPanel } from './AutopilotPanel';
+import { ImportDataModal } from './ImportDataModal';
 
 const TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: '', label: 'All Types' },
@@ -50,6 +64,7 @@ export function BusinessDataManager({ clientId }: Props) {
   );
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
   const [showAutopilot, setShowAutopilot] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const { data: items, isLoading } = useDataItems(clientId, {
     type: typeFilter || undefined,
@@ -58,6 +73,7 @@ export function BusinessDataManager({ clientId }: Props) {
   });
 
   const archive = useArchiveDataItem(clientId);
+  const { data: suggestionsData } = useDataSuggestions(clientId);
 
   const displayItems = useMemo(() => {
     if (!items) return [];
@@ -116,6 +132,13 @@ export function BusinessDataManager({ clientId }: Props) {
           >
             <Zap className="w-4 h-4" />
             Autopilot
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Import Data
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -197,6 +220,60 @@ export function BusinessDataManager({ clientId }: Props) {
               <>, <span className="text-white-40 font-semibold">{perfSummary.untested}</span> untested</>
             )}
           </span>
+        </div>
+      )}
+
+      {/* Smart suggestions */}
+      {suggestionsData?.suggestions && suggestionsData.suggestions.length > 0 && (
+        <div className="space-y-2">
+          {suggestionsData.suggestions.slice(0, 3).map((s) => {
+            const icon =
+              s.type === 'unused_data' ? AlertCircle :
+              s.type === 'new_data' ? Lightbulb :
+              s.type === 'stale_data' ? Clock :
+              s.type === 'missing_types' ? Plus :
+              Lightbulb;
+            const Icon = icon;
+            const color =
+              s.type === 'unused_data' ? 'text-orange-400 bg-orange-500/10 border-orange-500/20' :
+              s.type === 'new_data' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' :
+              s.type === 'stale_data' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' :
+              s.type === 'missing_types' ? 'text-purple-400 bg-purple-500/10 border-purple-500/20' :
+              'text-white-60 bg-white-5 border-white-10';
+            const [bgColor, textColor, borderColor] = color.split(' ');
+            return (
+              <div
+                key={s.id}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2.5 rounded-lg border text-xs',
+                  color,
+                )}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold">{s.title}</span>
+                  <span className="text-white-40 ml-1.5">{s.description}</span>
+                </div>
+                {s.action === 'generate_from_unused' || s.action === 'generate_from_new' || s.action === 'generate_from_stale' ? (
+                  <button
+                    onClick={() => setShowAutopilot(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors flex-shrink-0"
+                  >
+                    <Wand2 className="w-3 h-3" />
+                    Generate
+                  </button>
+                ) : s.action === 'add_data' ? (
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors flex-shrink-0"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -307,6 +384,13 @@ export function BusinessDataManager({ clientId }: Props) {
         <AutopilotPanel
           clientId={clientId}
           onClose={() => setShowAutopilot(false)}
+        />
+      )}
+
+      {showImportModal && (
+        <ImportDataModal
+          clientId={clientId}
+          onClose={() => setShowImportModal(false)}
         />
       )}
     </div>
