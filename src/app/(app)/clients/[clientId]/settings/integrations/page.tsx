@@ -30,6 +30,8 @@ import {
   Building2,
   Mail,
   Radio,
+  Globe,
+  PenTool,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import {
@@ -536,6 +538,25 @@ const INTEGRATION_META: Record<string, { label: string; icon: typeof Database; d
     description: 'Create draft email broadcasts',
     fields: [
       { key: 'apiSecret', label: 'API Secret', placeholder: 'xxxxxxxx...', type: 'password' },
+    ],
+  },
+  wordpress: {
+    label: 'WordPress',
+    icon: Globe,
+    description: 'Create draft blog posts',
+    fields: [
+      { key: 'siteUrl', label: 'Site URL', placeholder: 'https://yoursite.com' },
+      { key: 'username', label: 'Username', placeholder: 'admin' },
+      { key: 'applicationPassword', label: 'Application Password', placeholder: 'xxxx xxxx xxxx xxxx', type: 'password' },
+    ],
+  },
+  webflow: {
+    label: 'Webflow',
+    icon: PenTool,
+    description: 'Create draft CMS items',
+    fields: [
+      { key: 'apiToken', label: 'API Token', placeholder: 'xxxxxxxx...', type: 'password' },
+      { key: 'collectionId', label: 'Collection ID', placeholder: '6...abc' },
     ],
   },
 };
