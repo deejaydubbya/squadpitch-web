@@ -14,10 +14,14 @@ import {
   Zap,
   Calendar,
   CheckCircle2,
+  Upload,
+  FileText,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useOnboardingAnalyze,
+  useOnboardingUploadDocuments,
   useCreateClient,
   useGenerateContent,
   type Channel,
@@ -57,15 +61,19 @@ const GOAL_OPTIONS = [
   { id: 'leads', label: 'Leads', icon: Zap },
 ] as const;
 
-type SetupStage = 'analyzing' | 'extracting' | 'workspace' | 'generating';
+type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'workspace' | 'generating';
 
 interface StageState {
+  uploading: 'pending' | 'active' | 'done' | 'skipped';
   analyzing: 'pending' | 'active' | 'done';
   extracting: 'pending' | 'active' | 'done';
   workspace: 'pending' | 'active' | 'done';
   generating: 'pending' | 'active' | 'done';
   postsGenerated: number;
 }
+
+const ACCEPTED_FILE_TYPES = '.pdf,.docx,.txt,.csv';
+const MAX_FILES = 5;
 
 function isUrl(value: string): boolean {
   const trimmed = value.trim();
@@ -86,6 +94,8 @@ export function OnboardingWizard() {
 
   // Step 1 state
   const [input, setInput] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Step 2 state — AI results
   const [analyzeResult, setAnalyzeResult] = useState<OnboardingAnalyzeResult | null>(null);
@@ -93,6 +103,7 @@ export function OnboardingWizard() {
   const [generatedDrafts, setGeneratedDrafts] = useState<Draft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [stages, setStages] = useState<StageState>({
+    uploading: 'pending',
     analyzing: 'pending',
     extracting: 'pending',
     workspace: 'pending',
@@ -115,8 +126,21 @@ export function OnboardingWizard() {
 
   // Mutations
   const analyze = useOnboardingAnalyze();
+  const uploadDocuments = useOnboardingUploadDocuments();
   const createClient = useCreateClient();
   const generate = useGenerateContent();
+
+  const canSubmit = input.trim().length >= 3 || files.length > 0;
+
+  const handleFilesSelected = (selected: FileList | null) => {
+    if (!selected) return;
+    const newFiles = Array.from(selected).slice(0, MAX_FILES - files.length);
+    setFiles((prev) => [...prev, ...newFiles].slice(0, MAX_FILES));
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const inputDetectedAsUrl = isUrl(input);
 
@@ -137,8 +161,11 @@ export function OnboardingWizard() {
     setError(null);
     setGeneratedDrafts([]);
     setAnalyzeResult(null);
+
+    const hasFiles = files.length > 0;
     setStages({
-      analyzing: 'active',
+      uploading: hasFiles ? 'active' : 'skipped',
+      analyzing: hasFiles ? 'pending' : 'active',
       extracting: 'pending',
       workspace: 'pending',
       generating: 'pending',
@@ -146,11 +173,24 @@ export function OnboardingWizard() {
     });
 
     try {
+      // Stage 0.5: Upload documents (if any)
+      let documentTexts: string[] = [];
+      if (hasFiles) {
+        const uploadResult = await uploadDocuments.mutateAsync(files);
+        documentTexts = uploadResult.documents.map((d) => d.text);
+        setStage('uploading', 'done');
+        setStage('analyzing', 'active');
+      }
+
       // Stage 1: Analyze
       const inputType = inputDetectedAsUrl ? 'url' : 'text';
       const inputValue = inputType === 'url' ? normalizeUrl(input) : input.trim();
 
-      const result = await analyze.mutateAsync({ input: inputValue, inputType });
+      const result = await analyze.mutateAsync({
+        input: inputValue,
+        inputType,
+        documentTexts: documentTexts.length > 0 ? documentTexts : undefined,
+      });
       setAnalyzeResult(result);
       setStage('analyzing', 'done');
 
@@ -322,7 +362,8 @@ export function OnboardingWizard() {
     }
   };
 
-  const allDone = stages.analyzing === 'done' &&
+  const allDone = (stages.uploading === 'done' || stages.uploading === 'skipped') &&
+    stages.analyzing === 'done' &&
     stages.extracting === 'done' &&
     stages.workspace === 'done' &&
     stages.generating === 'done';
@@ -355,7 +396,7 @@ export function OnboardingWizard() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && input.trim().length >= 3) handleSetup();
+                if (e.key === 'Enter' && canSubmit) handleSetup();
               }}
               placeholder="Paste your website URL or describe your business..."
               className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
@@ -365,13 +406,68 @@ export function OnboardingWizard() {
 
           {inputDetectedAsUrl && (
             <p className="text-xs text-white-30 text-center">
-              URL detected — we'll scrape and analyze your site
+              URL detected — we'll crawl and analyze your site
             </p>
+          )}
+
+          {/* File dropzone */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleFilesSelected(e.dataTransfer.files);
+            }}
+            className="w-full p-4 rounded-xl border border-dashed border-white-15 hover:border-accent-green-110/50 transition-colors cursor-pointer flex flex-col items-center gap-2"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ACCEPTED_FILE_TYPES}
+              className="hidden"
+              onChange={(e) => {
+                handleFilesSelected(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <Upload className="w-5 h-5 text-white-30" />
+            <p className="text-sm text-white-40">
+              Drop files or <span className="text-accent-green-110">browse</span>
+            </p>
+            <p className="text-xs text-white-20">
+              PDF, DOCX, TXT, CSV — up to 5 files, 20MB each
+            </p>
+          </div>
+
+          {/* Attached files */}
+          {files.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {files.map((f, i) => (
+                <div
+                  key={`${f.name}-${i}`}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-sm"
+                >
+                  <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
+                  <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
+                  <span className="text-white-30 text-xs">
+                    {(f.size / 1024).toFixed(0)}KB
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                    className="text-white-30 hover:text-white-80 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
 
           <button
             onClick={handleSetup}
-            disabled={input.trim().length < 3}
+            disabled={!canSubmit}
             className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Wand2 className="w-5 h-5" />
@@ -497,9 +593,16 @@ export function OnboardingWizard() {
 
         {/* Stage checklist */}
         <div className="space-y-3">
+          {stages.uploading !== 'skipped' && (
+            <StageRow
+              status={stages.uploading === 'skipped' ? 'done' : stages.uploading}
+              activeLabel="Uploading documents..."
+              doneLabel="Documents parsed"
+            />
+          )}
           <StageRow
             status={stages.analyzing}
-            activeLabel="Analyzing your business..."
+            activeLabel={inputDetectedAsUrl ? 'Crawling website...' : 'Analyzing your business...'}
             doneLabel="Business analyzed"
           />
           <StageRow

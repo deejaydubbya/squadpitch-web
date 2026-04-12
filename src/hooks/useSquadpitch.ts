@@ -1848,6 +1848,7 @@ export function useDashboardActions(clientId: string | undefined) {
 export type OnboardingAnalyzeInput = {
   input: string;
   inputType: 'url' | 'text';
+  documentTexts?: string[];
 };
 
 export interface OnboardingBrandData {
@@ -1875,6 +1876,10 @@ export interface OnboardingAnalyzeResult {
   images: string[];
 }
 
+export interface UploadDocumentsResult {
+  documents: Array<{ filename: string; text: string }>;
+}
+
 export function useOnboardingAnalyze() {
   return useMutation({
     mutationFn: (body: OnboardingAnalyzeInput) =>
@@ -1882,5 +1887,25 @@ export function useOnboardingAnalyze() {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+  });
+}
+
+export function useOnboardingUploadDocuments() {
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append('files', file);
+      }
+      const res = await fetch('/api/proxy/onboarding/upload-documents', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || `Upload failed (${res.status})`);
+      }
+      return res.json() as Promise<UploadDocumentsResult>;
+    },
   });
 }
