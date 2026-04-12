@@ -27,6 +27,9 @@ import {
   Download,
   ExternalLink,
   Unplug,
+  Building2,
+  Mail,
+  Radio,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import {
@@ -507,6 +510,32 @@ const INTEGRATION_META: Record<string, { label: string; icon: typeof Database; d
       { key: 'privateKey', label: 'Private Key (PEM)', placeholder: '-----BEGIN PRIVATE KEY-----...', type: 'password' },
       { key: 'spreadsheetId', label: 'Spreadsheet ID', placeholder: '1BxiMVs0XRA5nFMdKvBd...' },
       { key: 'sheetName', label: 'Sheet Name', placeholder: 'Sheet1' },
+    ],
+  },
+  hubspot: {
+    label: 'HubSpot',
+    icon: Building2,
+    description: 'Log activity to HubSpot CRM',
+    fields: [
+      { key: 'accessToken', label: 'Access Token', placeholder: 'pat-na1-...', type: 'password' },
+    ],
+  },
+  mailchimp: {
+    label: 'Mailchimp',
+    icon: Mail,
+    description: 'Create draft email campaigns',
+    fields: [
+      { key: 'apiKey', label: 'API Key', placeholder: 'xxxxxxxx-us21', type: 'password' },
+      { key: 'serverPrefix', label: 'Server Prefix', placeholder: 'us21' },
+      { key: 'listId', label: 'Audience/List ID', placeholder: 'abc123def4' },
+    ],
+  },
+  convertkit: {
+    label: 'ConvertKit',
+    icon: Radio,
+    description: 'Create draft email broadcasts',
+    fields: [
+      { key: 'apiSecret', label: 'API Secret', placeholder: 'xxxxxxxx...', type: 'password' },
     ],
   },
 };
