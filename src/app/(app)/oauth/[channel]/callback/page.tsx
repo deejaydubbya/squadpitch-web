@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useCompleteOAuth } from '@/hooks/useSquadpitch';
+import { useMediaImportCallback } from '@/hooks/useIntegrations';
+
+const MEDIA_IMPORT_CHANNELS = ['DRIVE', 'DROPBOX'];
 
 type Phase = 'exchanging' | 'success' | 'error';
 
@@ -11,10 +14,13 @@ export default function OAuthCallbackPage() {
   const params = useParams<{ channel: string }>();
   const searchParams = useSearchParams();
   const completeOAuth = useCompleteOAuth();
+  const completeMediaImport = useMediaImportCallback();
 
   const [phase, setPhase] = useState<Phase>('exchanging');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hasRunRef = useRef(false);
+
+  const isMediaImport = MEDIA_IMPORT_CHANNELS.includes(params.channel?.toUpperCase() ?? '');
 
   useEffect(() => {
     if (hasRunRef.current) return;
@@ -35,33 +41,34 @@ export default function OAuthCallbackPage() {
       return;
     }
 
-    completeOAuth.mutate(
-      { code, state },
-      {
-        onSuccess: () => {
-          setPhase('success');
-          const targetOrigin =
-            process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-          try {
-            window.opener?.postMessage(
-              { type: 'sp-oauth-complete', channel: params.channel },
-              targetOrigin
-            );
-          } catch {
-            // If opener is gone, fall through and let the user close the tab.
-          }
-          // Give the parent a beat to receive the message, then close.
-          setTimeout(() => {
-            window.close();
-          }, 500);
-        },
-        onError: (err) => {
-          setPhase('error');
-          setErrorMessage((err as Error).message);
-        },
+    const onSuccess = () => {
+      setPhase('success');
+      const targetOrigin =
+        process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+      try {
+        window.opener?.postMessage(
+          { type: 'sp-oauth-complete', channel: params.channel },
+          targetOrigin
+        );
+      } catch {
+        // If opener is gone, fall through and let the user close the tab.
       }
-    );
-  }, [searchParams, completeOAuth, params.channel]);
+      setTimeout(() => {
+        window.close();
+      }, 500);
+    };
+
+    const onError = (err: unknown) => {
+      setPhase('error');
+      setErrorMessage((err as Error).message);
+    };
+
+    if (isMediaImport) {
+      completeMediaImport.mutate({ code, state }, { onSuccess, onError });
+    } else {
+      completeOAuth.mutate({ code, state }, { onSuccess, onError });
+    }
+  }, [searchParams, completeOAuth, completeMediaImport, params.channel, isMediaImport]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-8">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Hash,
   Webhook,
@@ -28,7 +28,7 @@ import {
   ExternalLink,
   Unplug,
 } from 'lucide-react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   useSlackConnection,
   useSaveSlackConnection,
@@ -50,7 +50,6 @@ import {
   useTestIntegration,
   useRetryIntegration,
   useMediaImportConnect,
-  useMediaImportCallback,
   useMediaImportFiles,
   useMediaImportFile,
   useMediaImportDisconnect,
@@ -781,30 +780,10 @@ const MEDIA_PROVIDERS = [
 
 function MediaImportSection() {
   const { clientId } = useParams<{ clientId: string }>();
-  const searchParams = useSearchParams();
   const { data: integrations, isLoading } = useGenericIntegrations();
   const connect = useMediaImportConnect();
-  const callback = useMediaImportCallback();
   const disconnect = useMediaImportDisconnect();
   const [browsing, setBrowsing] = useState<string | null>(null);
-
-  // Handle OAuth callback (code + state in URL)
-  useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    if (code && state) {
-      callback.mutate(
-        { code, state },
-        {
-          onSuccess: () => {
-            // Clean URL params
-            window.history.replaceState({}, '', window.location.pathname);
-          },
-        },
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
   if (isLoading) return <LoadingSpinner size="sm" />;
 
