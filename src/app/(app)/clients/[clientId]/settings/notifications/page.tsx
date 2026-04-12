@@ -1,11 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, Smartphone, Loader2, CheckCircle, Clock, XCircle, SkipForward } from 'lucide-react';
+import { Mail, Smartphone, Bell, BellRing, CalendarDays, Loader2, CheckCircle, Clock, XCircle, SkipForward, AlertTriangle } from 'lucide-react';
 import {
   useNotificationPreferences,
   useUpdateNotificationPreferences,
   useNotificationLogs,
+  useVapidKey,
+  usePushSubscribe,
+  usePushUnsubscribe,
+  usePushPermissionState,
 } from '@/hooks/useNotifications';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
@@ -42,6 +46,21 @@ const EVENT_TYPES = [
   },
 ];
 
+const INAPP_EVENT_TYPES = [
+  { key: 'INAPP_POST_PUBLISHED', label: 'Post published', desc: 'When a post is successfully published.' },
+  { key: 'INAPP_POST_FAILED', label: 'Post failed', desc: 'When a post fails to publish.' },
+  { key: 'INAPP_USAGE_LIMIT_NEARING', label: 'Usage limit nearing', desc: 'When you reach 80% of your plan limit.' },
+  { key: 'INAPP_CONNECTION_EXPIRED', label: 'Connection expired', desc: 'When a channel connection expires.' },
+  { key: 'INAPP_BATCH_COMPLETE', label: 'Batch complete', desc: 'When batch generation finishes.' },
+];
+
+const PUSH_EVENT_TYPES = [
+  { key: 'PUSH_POST_FAILED', label: 'Post failed', desc: 'When a post fails to publish.' },
+  { key: 'PUSH_CONNECTION_EXPIRED', label: 'Connection expired', desc: 'When a channel connection expires.' },
+  { key: 'PUSH_BATCH_COMPLETE', label: 'Batch complete', desc: 'When batch generation finishes.' },
+  { key: 'PUSH_POST_PUBLISHED', label: 'Post published', desc: 'When a post is published.' },
+];
+
 const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle; color: string }> = {
   sent: { icon: CheckCircle, color: 'text-green-400' },
   queued: { icon: Clock, color: 'text-yellow-400' },
@@ -76,6 +95,10 @@ export default function NotificationSettingsPage() {
   const { data: prefs, isLoading } = useNotificationPreferences();
   const update = useUpdateNotificationPreferences();
   const { data: logs } = useNotificationLogs(20);
+  const { data: vapidKey } = useVapidKey();
+  const pushSubscribe = usePushSubscribe();
+  const pushUnsubscribe = usePushUnsubscribe();
+  const { permission: pushPermission, isSubscribed: pushSubscribed, refresh: refreshPush } = usePushPermissionState();
 
   const [phone, setPhone] = useState('');
   const [phoneEditing, setPhoneEditing] = useState(false);
@@ -123,6 +146,23 @@ export default function NotificationSettingsPage() {
     update.mutate({ preferencesJson: { ...eventPrefs, [key]: !current } });
   };
 
+  const togglePush = async () => {
+    if (pushSubscribed && prefs?.pushEnabled) {
+      // Unsubscribe
+      await pushUnsubscribe.mutateAsync();
+      refreshPush();
+    } else if (vapidKey) {
+      // Subscribe
+      await pushSubscribe.mutateAsync(vapidKey);
+      refreshPush();
+    }
+  };
+
+  const togglePushEvent = (key: string) => {
+    const current = eventPrefs[key] !== false; // default true
+    update.mutate({ preferencesJson: { ...eventPrefs, [key]: !current } });
+  };
+
   const savePhone = () => {
     const normalized = normalizePhone(phone);
     if (!normalized || normalized.length < 10) return;
@@ -132,6 +172,42 @@ export default function NotificationSettingsPage() {
 
   return (
     <div className="space-y-8 max-w-2xl">
+      {/* In-app section */}
+      <section>
+        <h2 className="text-base font-semibold text-white-100 mb-4">In-app</h2>
+        <div className="space-y-3">
+          <div className="card p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
+              <BellRing className="w-4.5 h-4.5 text-accent-green-110" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white-100">In-app notifications</p>
+              <p className="text-xs text-white-40">Notifications in the bell icon and notifications page</p>
+            </div>
+          </div>
+          <div className="space-y-1 ml-1">
+            {INAPP_EVENT_TYPES.map((evt) => {
+              const enabled = eventPrefs[evt.key] !== false;
+              return (
+                <div
+                  key={evt.key}
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-white-5 transition-colors"
+                >
+                  <div className="flex-1 min-w-0 pr-4">
+                    <p className="text-sm font-medium text-white-100">{evt.label}</p>
+                    <p className="text-xs text-white-40">{evt.desc}</p>
+                  </div>
+                  <Toggle
+                    checked={enabled}
+                    onChange={() => toggleEvent(evt.key)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* Email section */}
       <section>
         <h2 className="text-base font-semibold text-white-100 mb-4">Email</h2>
@@ -242,6 +318,95 @@ export default function NotificationSettingsPage() {
               )}
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Browser Push section */}
+      <section>
+        <h2 className="text-base font-semibold text-white-100 mb-4">Browser Push</h2>
+        <div className="space-y-3">
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
+                  <Bell className="w-4.5 h-4.5 text-accent-green-110" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white-100">
+                    Browser push notifications
+                  </p>
+                  <p className="text-xs text-white-40">
+                    {pushPermission === 'denied'
+                      ? 'Blocked by browser'
+                      : prefs?.pushEnabled && pushSubscribed
+                        ? 'Enabled'
+                        : 'Click to enable'}
+                  </p>
+                </div>
+              </div>
+              <Toggle
+                checked={!!prefs?.pushEnabled && pushSubscribed}
+                onChange={togglePush}
+              />
+            </div>
+            {pushPermission === 'denied' && (
+              <div className="mt-3 ml-12 flex items-center gap-2 text-xs text-yellow-400">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Push notifications are blocked. Please enable them in your browser settings.</span>
+              </div>
+            )}
+          </div>
+
+          {prefs?.pushEnabled && pushSubscribed && (
+            <div className="space-y-1 ml-1">
+              {PUSH_EVENT_TYPES.map((evt) => {
+                const enabled = eventPrefs[evt.key] !== false;
+                return (
+                  <div
+                    key={evt.key}
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-white-5 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0 pr-4">
+                      <p className="text-sm font-medium text-white-100">
+                        {evt.label}
+                      </p>
+                      <p className="text-xs text-white-40">{evt.desc}</p>
+                    </div>
+                    <Toggle
+                      checked={enabled}
+                      onChange={() => togglePushEvent(evt.key)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Weekly Digest section */}
+      <section>
+        <h2 className="text-base font-semibold text-white-100 mb-4">Weekly Digest</h2>
+        <div className="card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
+                <CalendarDays className="w-4.5 h-4.5 text-accent-green-110" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white-100">
+                  Weekly summary email
+                </p>
+                <p className="text-xs text-white-40">
+                  Get a weekly recap of posts published, scheduled, and failed
+                </p>
+              </div>
+            </div>
+            <Toggle
+              checked={prefs.digestEnabled}
+              onChange={() => update.mutate({ digestEnabled: !prefs.digestEnabled })}
+            />
+          </div>
         </div>
       </section>
 

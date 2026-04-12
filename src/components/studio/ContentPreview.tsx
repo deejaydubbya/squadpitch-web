@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import {
   RefreshCw,
   Check,
@@ -13,16 +13,21 @@ import {
   Film,
   Video,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/apiFetch';
 import {
   useUpdateDraft,
   useApproveDraft,
   useDeleteDraft,
   useGenerateMedia,
   useGenerateVideo,
+  useDraft,
   type Draft,
   type ContentVariation,
+  type MediaAsset,
+  squadpitchKeys,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 
@@ -40,15 +45,42 @@ interface VariationState {
   cta: string | null;
 }
 
-export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Props) {
+export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onRegenerate }: Props) {
   const router = useRouter();
   const qc = useQueryClient();
+
+  // Live draft data — falls back to prop for initial render, then stays in sync
+  const { data: liveDraft } = useDraft(initialDraft.id);
+  const draft = liveDraft ?? initialDraft;
 
   const updateDraft = useUpdateDraft(draft.id);
   const approve = useApproveDraft(draft.id);
   const deleteDraft = useDeleteDraft();
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
+
+  // Track the generating asset ID for polling
+  const [generatingAssetId, setGeneratingAssetId] = useState<string | null>(null);
+
+  // Poll the asset every 3s while it's in progress
+  const { data: generatingAsset } = useQuery({
+    queryKey: squadpitchKeys.asset(generatingAssetId ?? ''),
+    queryFn: () => apiFetch<MediaAsset>(`assets/${generatingAssetId}`),
+    enabled: Boolean(generatingAssetId),
+    refetchInterval: 3000,
+  });
+
+  // When asset reaches terminal state, stop polling and refresh the draft
+  useEffect(() => {
+    if (!generatingAsset) return;
+    if (generatingAsset.status === 'READY' || generatingAsset.status === 'FAILED') {
+      setGeneratingAssetId(null);
+      qc.invalidateQueries({ queryKey: squadpitchKeys.draft(draft.id) });
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+    }
+  }, [generatingAsset, draft.id, qc]);
+
+  const isGenerating = Boolean(generatingAssetId) || generateMedia.isPending || generateVideo.isPending;
 
   // Build all 3 variations (Version A from draft fields, B+C from variations array)
   const allVariations = useMemo<VariationState[]>(() => {
@@ -142,8 +174,8 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
         channel: draft.channel,
       },
       {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
+        onSuccess: (asset) => {
+          setGeneratingAssetId(asset.id);
         },
       }
     );
@@ -158,8 +190,8 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
         channel: draft.channel,
       },
       {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
+        onSuccess: (asset) => {
+          setGeneratingAssetId(asset.id);
         },
       }
     );
@@ -172,6 +204,12 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
     (deleteDraft.error as Error | null);
 
   const LABELS = ['Version A', 'Version B', 'Version C'];
+
+  // Determine what to show in the media section
+  const mediaUrl = draft.mediaUrl;
+  const mediaType = draft.mediaType;
+  const progressStage = generatingAsset?.progressStage;
+  const generationFailed = generatingAsset?.status === 'FAILED';
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -331,21 +369,50 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
             <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
               Media
             </label>
-            {draft.mediaUrl ? (
+
+            {/* Generating state — show progress */}
+            {isGenerating && !mediaUrl && (
+              <div className="aspect-square rounded-lg bg-white-5 border border-white-10 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-8 h-8 text-accent-green-110 animate-spin" />
+                <p className="text-sm text-white-60 font-medium">
+                  {progressStage || 'Starting generation...'}
+                </p>
+                <p className="text-xs text-white-30">This may take a moment</p>
+              </div>
+            )}
+
+            {/* Generation failed */}
+            {generationFailed && !mediaUrl && (
+              <div className="aspect-square rounded-lg bg-accent-red/5 border border-accent-red/20 flex flex-col items-center justify-center gap-3">
+                <AlertTriangle className="w-8 h-8 text-accent-red" />
+                <p className="text-sm text-accent-red font-medium">Generation failed</p>
+                <p className="text-xs text-white-40">{generatingAsset?.errorMessage || 'Unknown error'}</p>
+              </div>
+            )}
+
+            {/* Media ready */}
+            {!isGenerating && !generationFailed && mediaUrl && (
               <div className="space-y-3">
-                {draft.mediaType === 'video' ? (
-                  <div className="aspect-square rounded-lg bg-white-5 flex items-center justify-center">
-                    <Film className="w-8 h-8 text-white-30" />
-                  </div>
+                {mediaType === 'video' ? (
+                  <video
+                    src={mediaUrl}
+                    controls
+                    className="w-full rounded-lg"
+                    poster={draft.mediaUrl ? undefined : undefined}
+                  />
                 ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={draft.mediaUrl}
+                    src={mediaUrl}
                     alt="Attached media"
                     className="w-full rounded-lg object-cover"
                   />
                 )}
               </div>
-            ) : (
+            )}
+
+            {/* No media and not generating */}
+            {!isGenerating && !generationFailed && !mediaUrl && (
               <div className="aspect-square rounded-lg bg-white-5 border border-dashed border-white-10 flex flex-col items-center justify-center gap-3">
                 <ImagePlus className="w-8 h-8 text-white-20" />
                 <p className="text-xs text-white-30">No media attached</p>
@@ -355,7 +422,7 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
             <div className="space-y-2">
               <button
                 onClick={handleGenerateImage}
-                disabled={generateMedia.isPending}
+                disabled={isGenerating}
                 className="w-full py-2.5 rounded-lg bg-white-10 text-white-80 text-sm font-medium hover:bg-white-20 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {generateMedia.isPending ? (
@@ -363,11 +430,11 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
                 ) : (
                   <ImagePlus className="w-4 h-4" />
                 )}
-                Generate Image
+                {mediaUrl ? 'Regenerate Image' : 'Generate Image'}
               </button>
               <button
                 onClick={handleGenerateVideo}
-                disabled={generateVideo.isPending}
+                disabled={isGenerating}
                 className="w-full py-2.5 rounded-lg bg-white-10 text-white-80 text-sm font-medium hover:bg-white-20 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {generateVideo.isPending ? (
@@ -375,7 +442,7 @@ export function ContentPreview({ draft, clientId, onDiscard, onRegenerate }: Pro
                 ) : (
                   <Video className="w-4 h-4" />
                 )}
-                Generate Video
+                {mediaUrl ? 'Regenerate Video' : 'Generate Video'}
               </button>
             </div>
 

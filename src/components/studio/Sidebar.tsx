@@ -18,11 +18,13 @@ import {
   ChevronRight,
   ArrowLeft,
   Briefcase,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
 import { useUsage } from '@/hooks/useBilling';
 import { PlanBadge } from '@/components/billing/PlanBadge';
+import { NotificationBell } from './NotificationBell';
 
 interface Props {
   client: Client;
@@ -57,6 +59,7 @@ export function Sidebar({ client }: Props) {
     { href: `${base}/settings/media`, label: 'Media' },
     { href: `${base}/settings/channels`, label: 'Channels' },
     { href: `${base}/settings/notifications`, label: 'Notifications' },
+    { href: `${base}/settings/integrations`, label: 'Integrations' },
     { href: `${base}/settings/billing`, label: 'Billing' },
   ];
 
@@ -108,6 +111,24 @@ export function Sidebar({ client }: Props) {
             </Link>
           );
         })}
+
+        {/* Divider */}
+        <div className="border-t border-white-10 my-3" />
+
+        {/* Notifications & Activity */}
+        <NotificationBell />
+        <Link
+          href="/activity"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+            pathname === '/activity'
+              ? 'bg-accent-green-110/15 text-accent-green-110'
+              : 'text-white-60 hover:bg-white-5 hover:text-white-100',
+          )}
+        >
+          <Activity className="w-4.5 h-4.5" />
+          Activity
+        </Link>
 
         {/* Divider */}
         <div className="border-t border-white-10 my-3" />

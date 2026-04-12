@@ -36,6 +36,7 @@ import {
 } from '@/hooks/useSquadpitch';
 import { DraftPreviewCard } from './DraftPreviewCard';
 import { StatusBanner } from '@/components/common/StatusBanner';
+import { MediaLightbox } from './MediaLightbox';
 
 interface Props {
   draft: Draft;
@@ -51,6 +52,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const [showReject, setShowReject] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const qc = useQueryClient();
   const updateDraft = useUpdateDraft(draft.id);
@@ -144,21 +146,30 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       <div className="border-t border-white-10 px-4 py-2 bg-white-5 flex items-center gap-2">
         {draft.mediaUrl ? (
           <>
-            {draft.mediaType === 'video' ? (
-              <div className="w-8 h-8 rounded bg-white-10 flex items-center justify-center flex-shrink-0">
-                <Film className="w-4 h-4 text-white-60" />
-              </div>
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={draft.mediaUrl}
-                alt="Attached media"
-                className="w-8 h-8 rounded object-cover flex-shrink-0"
-              />
-            )}
-            <span className="text-xs text-white-60 truncate flex-1">
-              {draft.mediaType === 'video' ? 'Video attached' : draft.mediaUrl.split('/').pop()}
-            </span>
+            <button
+              onClick={() => setLightboxOpen(true)}
+              className="flex-shrink-0 hover:opacity-80 transition-opacity"
+              title="Click to preview"
+            >
+              {draft.mediaType === 'video' ? (
+                <div className="w-8 h-8 rounded bg-white-10 flex items-center justify-center">
+                  <Film className="w-4 h-4 text-white-60" />
+                </div>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={draft.mediaUrl}
+                  alt="Attached media"
+                  className="w-8 h-8 rounded object-cover"
+                />
+              )}
+            </button>
+            <button
+              onClick={() => setLightboxOpen(true)}
+              className="text-xs text-white-60 truncate flex-1 text-left hover:text-white-100 transition-colors"
+            >
+              {draft.mediaType === 'video' ? 'Video attached — click to play' : 'Image attached — click to view'}
+            </button>
             <Link
               href={`/clients/${draft.clientId}/assets`}
               className="text-[10px] text-accent-green-110 hover:underline"
@@ -467,6 +478,14 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         <div className="border-t border-white-10 p-4 bg-white-5">
           <StatusBanner error={anyError.message} />
         </div>
+      )}
+
+      {lightboxOpen && draft.mediaUrl && (
+        <MediaLightbox
+          url={draft.mediaUrl}
+          type={draft.mediaType ?? 'image'}
+          onClose={() => setLightboxOpen(false)}
+        />
       )}
     </div>
   );

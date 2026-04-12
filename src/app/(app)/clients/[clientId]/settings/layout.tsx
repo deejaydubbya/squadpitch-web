@@ -11,6 +11,7 @@ const tabs = [
   { label: 'Media', suffix: '/media' },
   { label: 'Channels', suffix: '/channels' },
   { label: 'Notifications', suffix: '/notifications' },
+  { label: 'Integrations', suffix: '/integrations' },
   { label: 'Billing', suffix: '/billing' },
 ];
 
