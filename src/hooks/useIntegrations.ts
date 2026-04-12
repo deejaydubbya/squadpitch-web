@@ -376,6 +376,17 @@ export function useMediaImportFile() {
   });
 }
 
+export function useSheetsSpreadsheets(integrationId: string) {
+  return useQuery({
+    queryKey: ['sheets-spreadsheets', integrationId],
+    queryFn: () =>
+      apiFetch<{ spreadsheets: { id: string; name: string; modifiedAt: string }[] }>(
+        `/integrations/media-import/${integrationId}/spreadsheets`,
+      ).then((r) => r.spreadsheets),
+    enabled: !!integrationId,
+  });
+}
+
 export function useMediaImportDisconnect() {
   const qc = useQueryClient();
   return useMutation({

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Hash,
   Webhook,
@@ -58,9 +58,11 @@ import {
   useMediaImportFiles,
   useMediaImportFile,
   useMediaImportDisconnect,
+  useSheetsSpreadsheets,
   type Integration,
   type MediaImportFile,
 } from '@/hooks/useIntegrations';
+import { useQueryClient } from '@tanstack/react-query';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 const SLACK_EVENTS = [
@@ -486,6 +488,7 @@ function WebhookCard({
 // ── Google Sheets Section (OAuth) ────────────────────────────────────
 
 function GoogleSheetsSection() {
+  const qc = useQueryClient();
   const { data: integrations, isLoading } = useGenericIntegrations();
   const connect = useMediaImportConnect();
   const disconnect = useMediaImportDisconnect();
@@ -499,44 +502,55 @@ function GoogleSheetsSection() {
     sheetName?: string;
   };
 
-  const [spreadsheetId, setSpreadsheetId] = useState(config.spreadsheetId ?? '');
   const [sheetName, setSheetName] = useState(config.sheetName ?? 'Sheet1');
   const [showLogs, setShowLogs] = useState(false);
 
-  // Sync form when integration data loads
-  const prevId = useRef(sheetsInt?.id);
-  if (sheetsInt?.id && sheetsInt.id !== prevId.current) {
-    prevId.current = sheetsInt.id;
-    if (config.spreadsheetId) setSpreadsheetId(config.spreadsheetId);
-    if (config.sheetName) setSheetName(config.sheetName);
-  }
+  // Fetch spreadsheets when connected but not yet configured
+  const isConnected = !!sheetsInt?.isActive;
+  const isConfigured = isConnected && !!config.spreadsheetId;
+  const { data: spreadsheets, isLoading: spreadsheetsLoading } = useSheetsSpreadsheets(
+    isConnected && !isConfigured && sheetsInt ? sheetsInt.id : '',
+  );
 
   const logsQuery = useIntegrationLogs(showLogs && sheetsInt ? sheetsInt.id : '');
 
-  if (isLoading) return <LoadingSpinner size="sm" />;
+  // Sync sheetName from config when integration data loads
+  const prevId = useRef(sheetsInt?.id);
+  if (sheetsInt?.id && sheetsInt.id !== prevId.current) {
+    prevId.current = sheetsInt.id;
+    if (config.sheetName) setSheetName(config.sheetName);
+  }
 
-  const isConnected = !!sheetsInt?.isActive;
-  const isConfigured = isConnected && !!config.spreadsheetId;
+  // Listen for OAuth popup completion → refresh integrations
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'sp-oauth-complete' && e.data?.channel?.toUpperCase() === 'SHEETS') {
+        qc.invalidateQueries({ queryKey: ['integrations'] });
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [qc]);
+
+  if (isLoading) return <LoadingSpinner size="sm" />;
 
   const handleConnect = () => {
     connect.mutate('google_sheets', {
       onSuccess: (data) => {
-        const popup = window.open(data.authUrl, 'sheets-oauth', 'width=500,height=700');
-        const onMessage = (e: MessageEvent) => {
-          if (e.data?.type === 'sp-oauth-complete' && e.data?.channel?.toUpperCase() === 'SHEETS') {
-            window.removeEventListener('message', onMessage);
-          }
-        };
-        window.addEventListener('message', onMessage);
+        window.open(data.authUrl, 'sheets-oauth', 'width=500,height=700');
       },
     });
   };
 
-  const handleSaveConfig = () => {
-    if (!sheetsInt || !spreadsheetId.trim()) return;
+  const handleSelectSpreadsheet = (spreadsheetId: string, name: string) => {
+    if (!sheetsInt) return;
     update.mutate({
       id: sheetsInt.id,
-      config: { ...sheetsInt.config as object, spreadsheetId: spreadsheetId.trim(), sheetName: sheetName.trim() || 'Sheet1' },
+      config: {
+        ...(sheetsInt.config as object),
+        spreadsheetId,
+        sheetName: sheetName.trim() || 'Sheet1',
+      },
     });
   };
 
@@ -560,7 +574,7 @@ function GoogleSheetsSection() {
                 {isConfigured
                   ? `Connected — ${config.email ?? 'Google account'}`
                   : isConnected
-                    ? `Connected — ${config.email ?? 'Google account'} (configure spreadsheet below)`
+                    ? `Connected — ${config.email ?? 'Google account'} (select a spreadsheet below)`
                     : 'Append event rows to a spreadsheet'}
               </p>
             </div>
@@ -584,50 +598,67 @@ function GoogleSheetsSection() {
           </button>
         )}
 
-        {isConnected && (
+        {isConnected && !isConfigured && (
           <div className="ml-12 space-y-3">
-            {/* Spreadsheet config fields */}
-            <div className="space-y-2">
-              <div>
-                <label className="text-xs text-white-40 block mb-1">Spreadsheet ID</label>
-                <input
-                  type="text"
-                  value={spreadsheetId}
-                  onChange={(e) => setSpreadsheetId(e.target.value)}
-                  placeholder="1BxiMVs0XRA5nFMdKvBd..."
-                  className="input w-full text-sm font-mono"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-white-40 block mb-1">Sheet Name</label>
-                <input
-                  type="text"
-                  value={sheetName}
-                  onChange={(e) => setSheetName(e.target.value)}
-                  placeholder="Sheet1"
-                  className="input w-full text-sm"
-                />
-              </div>
-              <button
-                onClick={handleSaveConfig}
-                className="btn-primary text-sm px-4"
-                disabled={!spreadsheetId.trim()}
-              >
-                {update.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
-              </button>
+            {/* Sheet name input */}
+            <div>
+              <label className="text-xs text-white-40 block mb-1">Sheet / Tab Name</label>
+              <input
+                type="text"
+                value={sheetName}
+                onChange={(e) => setSheetName(e.target.value)}
+                placeholder="Sheet1"
+                className="input w-full text-sm"
+              />
             </div>
 
+            {/* Spreadsheet picker */}
+            <div>
+              <label className="text-xs text-white-40 block mb-1">Select a spreadsheet</label>
+              {spreadsheetsLoading ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white-40" />
+                  <span className="text-xs text-white-40">Loading spreadsheets...</span>
+                </div>
+              ) : spreadsheets && spreadsheets.length > 0 ? (
+                <div className="space-y-1 max-h-60 overflow-y-auto">
+                  {spreadsheets.map((ss) => (
+                    <button
+                      key={ss.id}
+                      onClick={() => handleSelectSpreadsheet(ss.id, ss.name)}
+                      disabled={update.isPending}
+                      className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-white-5 transition-colors text-left"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-accent-green-110 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm text-white-100 truncate">{ss.name}</p>
+                        <p className="text-xs text-white-30">
+                          {new Date(ss.modifiedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-white-40 py-2">
+                  No spreadsheets found in this Google account.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isConfigured && (
+          <div className="ml-12 space-y-3">
             {/* Actions */}
             <div className="flex gap-2">
-              {isConfigured && (
-                <button
-                  onClick={() => testInt.mutate(sheetsInt!.id)}
-                  className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
-                >
-                  <Send className="w-3 h-3" />
-                  {testInt.isPending ? 'Sending...' : 'Test'}
-                </button>
-              )}
+              <button
+                onClick={() => testInt.mutate(sheetsInt!.id)}
+                className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+              >
+                <Send className="w-3 h-3" />
+                {testInt.isPending ? 'Sending...' : 'Test'}
+              </button>
               <button
                 onClick={() => setShowLogs(!showLogs)}
                 className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
