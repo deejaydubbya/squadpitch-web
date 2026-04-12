@@ -499,6 +499,7 @@ function GoogleSheetsSection() {
   const config = (sheetsInt?.config ?? {}) as {
     email?: string;
     spreadsheetId?: string;
+    spreadsheetName?: string;
     sheetName?: string;
   };
 
@@ -542,13 +543,14 @@ function GoogleSheetsSection() {
     });
   };
 
-  const handleSelectSpreadsheet = (spreadsheetId: string, name: string) => {
+  const handleSelectSpreadsheet = (spreadsheetId: string, spreadsheetName: string) => {
     if (!sheetsInt) return;
     update.mutate({
       id: sheetsInt.id,
       config: {
         ...(sheetsInt.config as object),
         spreadsheetId,
+        spreadsheetName,
         sheetName: sheetName.trim() || 'Sheet1',
       },
     });
@@ -650,6 +652,23 @@ function GoogleSheetsSection() {
 
         {isConfigured && (
           <div className="ml-12 space-y-3">
+            {/* Spreadsheet info */}
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
+              <span className="text-sm text-white-100 truncate">
+                {config.spreadsheetName ?? config.spreadsheetId}
+              </span>
+              <a
+                href={`https://docs.google.com/spreadsheets/d/${config.spreadsheetId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent-green-110 hover:underline flex items-center gap-1 flex-shrink-0"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Open
+              </a>
+            </div>
+
             {/* Actions */}
             <div className="flex gap-2">
               <button
