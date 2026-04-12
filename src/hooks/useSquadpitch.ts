@@ -1842,3 +1842,45 @@ export function useDashboardActions(clientId: string | undefined) {
     staleTime: 60_000,
   });
 }
+
+// ── Onboarding ──────────────────────────────────────────────────────────
+
+export type OnboardingAnalyzeInput = {
+  input: string;
+  inputType: 'url' | 'text';
+};
+
+export interface OnboardingBrandData {
+  name: string;
+  description: string;
+  industry: string;
+  audience: string;
+  offers: string;
+  competitors: string;
+  website?: string;
+}
+
+export interface OnboardingVoiceData {
+  tone: string;
+  doRules: string[];
+  dontRules: string[];
+  contentBuckets: ContentBucket[];
+}
+
+export interface OnboardingAnalyzeResult {
+  brandData: OnboardingBrandData;
+  voiceData: OnboardingVoiceData;
+  suggestedGoal: string;
+  suggestedChannels: Channel[];
+  images: string[];
+}
+
+export function useOnboardingAnalyze() {
+  return useMutation({
+    mutationFn: (body: OnboardingAnalyzeInput) =>
+      apiFetch<OnboardingAnalyzeResult>('onboarding/analyze', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  });
+}

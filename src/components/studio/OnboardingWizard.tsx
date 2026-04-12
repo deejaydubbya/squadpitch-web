@@ -1,26 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
-  ArrowLeft,
   Loader2,
   Wand2,
-  Globe,
-  Target,
-  Share2,
+  Check,
+  Search,
   Sparkles,
+  Globe,
+  MessageSquare,
+  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
+  useOnboardingAnalyze,
   useCreateClient,
-  useUpsertBrandProfile,
-  useUpsertVoiceProfile,
-  useUpsertChannelSettings,
   useGenerateContent,
   type Channel,
   type Draft,
+  type OnboardingAnalyzeResult,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 
@@ -32,93 +32,88 @@ function slugify(value: string) {
     .slice(0, 64);
 }
 
-const STEPS = [
-  { label: 'Your brand', icon: Globe },
-  { label: 'Your goal', icon: Target },
-  { label: 'Platforms', icon: Share2 },
-  { label: 'First post', icon: Sparkles },
-];
-
-const GOALS = [
-  { id: 'growth', label: 'Growth', desc: 'Grow your audience and followers' },
-  { id: 'engagement', label: 'Engagement', desc: 'Build community and spark conversations' },
-  { id: 'leads', label: 'Leads & Sales', desc: 'Drive traffic and convert customers' },
-] as const;
-
-const CHANNELS: { id: Channel; label: string }[] = [
+const ALL_CHANNELS: { id: Channel; label: string }[] = [
   { id: 'INSTAGRAM', label: 'Instagram' },
   { id: 'TIKTOK', label: 'TikTok' },
   { id: 'LINKEDIN', label: 'LinkedIn' },
-  { id: 'X', label: 'X (Twitter)' },
+  { id: 'X', label: 'X' },
   { id: 'FACEBOOK', label: 'Facebook' },
   { id: 'YOUTUBE', label: 'YouTube' },
 ];
 
-const VOICE_PRESETS: Record<string, { tone: string; doRules: string[]; dontRules: string[] }> = {
-  growth: {
-    tone: 'Friendly, approachable, and motivating',
-    doRules: [
-      'Use inclusive language (we, you, together)',
-      'Share actionable tips and insights',
-      'Be encouraging and optimistic',
-    ],
-    dontRules: [
-      'Sound corporate or overly formal',
-      'Use jargon without explanation',
-      'Be pushy or aggressive',
-    ],
-  },
-  engagement: {
-    tone: 'Conversational, witty, and relatable',
-    doRules: [
-      'Ask questions to spark discussion',
-      'Share personal stories and behind-the-scenes',
-      'Use humor when appropriate',
-    ],
-    dontRules: [
-      'Post one-directional announcements only',
-      'Ignore audience responses',
-      'Sound robotic or templated',
-    ],
-  },
-  leads: {
-    tone: 'Professional, confident, and value-driven',
-    doRules: [
-      'Lead with clear value propositions',
-      'Include strong calls to action',
-      'Share social proof and results',
-    ],
-    dontRules: [
-      'Be vague about what you offer',
-      'Sound desperate or salesy',
-      'Forget the call to action',
-    ],
-  },
-};
+const TONE_OPTIONS = [
+  { id: 'professional', label: 'Professional' },
+  { id: 'conversational', label: 'Conversational' },
+  { id: 'bold', label: 'Bold' },
+];
+
+const GOAL_OPTIONS = [
+  { id: 'growth', label: 'Growth', icon: Sparkles },
+  { id: 'engagement', label: 'Engagement', icon: MessageSquare },
+  { id: 'leads', label: 'Leads', icon: Zap },
+] as const;
+
+type SetupStage = 'analyzing' | 'extracting' | 'workspace' | 'generating';
+
+interface StageState {
+  analyzing: 'pending' | 'active' | 'done';
+  extracting: 'pending' | 'active' | 'done';
+  workspace: 'pending' | 'active' | 'done';
+  generating: 'pending' | 'active' | 'done';
+  postsGenerated: number;
+}
+
+function isUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return true;
+  if (/^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.[a-z]{2,}/i.test(trimmed) && !trimmed.includes(' ')) return true;
+  return false;
+}
+
+function normalizeUrl(value: string): string {
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<0 | 1>(0);
 
   // Step 1 state
-  const [name, setName] = useState('');
-  const [website, setWebsite] = useState('');
+  const [input, setInput] = useState('');
 
-  // Step 2 state
-  const [goal, setGoal] = useState<keyof typeof VOICE_PRESETS | ''>('');
+  // Step 2 state — AI results
+  const [analyzeResult, setAnalyzeResult] = useState<OnboardingAnalyzeResult | null>(null);
+  const [createdClientId, setCreatedClientId] = useState<string | null>(null);
+  const [generatedDrafts, setGeneratedDrafts] = useState<Draft[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [stages, setStages] = useState<StageState>({
+    analyzing: 'pending',
+    extracting: 'pending',
+    workspace: 'pending',
+    generating: 'pending',
+    postsGenerated: 0,
+  });
 
-  // Step 3 state
+  // User-modifiable options (populated from AI, changeable before profiles are saved)
+  const [selectedTone, setSelectedTone] = useState('');
+  const [selectedGoal, setSelectedGoal] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<Channel[]>([]);
 
-  // Step 4 state
-  const [createdClientId, setCreatedClientId] = useState<string | null>(null);
-  const [generatedDraft, setGeneratedDraft] = useState<Draft | null>(null);
-  const [isSettingUp, setIsSettingUp] = useState(false);
+  // Track if setup is running to prevent double-click
+  const setupRunning = useRef(false);
 
+  // Mutations
+  const analyze = useOnboardingAnalyze();
   const createClient = useCreateClient();
   const generate = useGenerateContent();
 
-  const [error, setError] = useState<string | null>(null);
+  const inputDetectedAsUrl = isUrl(input);
+
+  const setStage = (stage: SetupStage, status: 'active' | 'done') => {
+    setStages((prev) => ({ ...prev, [stage]: status }));
+  };
 
   const toggleChannel = (ch: Channel) => {
     setSelectedChannels((prev) =>
@@ -126,82 +121,121 @@ export function OnboardingWizard() {
     );
   };
 
-  const canProceed = () => {
-    switch (step) {
-      case 0: return name.trim().length > 0;
-      case 1: return goal !== '';
-      case 2: return selectedChannels.length > 0;
-      default: return false;
+  const handleSetup = async () => {
+    if (setupRunning.current) return;
+    setupRunning.current = true;
+    setStep(1);
+    setError(null);
+    setGeneratedDrafts([]);
+    setAnalyzeResult(null);
+    setStages({
+      analyzing: 'active',
+      extracting: 'pending',
+      workspace: 'pending',
+      generating: 'pending',
+      postsGenerated: 0,
+    });
+
+    try {
+      // Stage 1: Analyze
+      const inputType = inputDetectedAsUrl ? 'url' : 'text';
+      const inputValue = inputType === 'url' ? normalizeUrl(input) : input.trim();
+
+      const result = await analyze.mutateAsync({ input: inputValue, inputType });
+      setAnalyzeResult(result);
+      setStage('analyzing', 'done');
+
+      // Populate interactive options from AI suggestions
+      setSelectedTone(mapToneToOption(result.voiceData.tone));
+      setSelectedGoal(result.suggestedGoal);
+      setSelectedChannels(result.suggestedChannels);
+
+      // Stage 2: Extract (visual stage — instant)
+      setStage('extracting', 'active');
+      await delay(400); // brief visual pause
+      setStage('extracting', 'done');
+
+      // Stage 3: Create workspace
+      setStage('workspace', 'active');
+      const brandName = result.brandData.name || input.trim().slice(0, 60);
+      const slug = slugify(brandName);
+      const client = await createClient.mutateAsync({ name: brandName, slug });
+      setCreatedClientId(client.id);
+
+      // Save profiles using the AI-extracted data
+      // (user modifications will be picked up from state at this point)
+      await saveProfiles(client.id, result);
+      setStage('workspace', 'done');
+
+      // Stage 4: Generate 3 posts
+      setStage('generating', 'active');
+      const channels = result.suggestedChannels.length > 0
+        ? result.suggestedChannels
+        : ['INSTAGRAM' as Channel];
+
+      for (let i = 0; i < 3; i++) {
+        const channel = channels[i % channels.length];
+        try {
+          const draft = await generate.mutateAsync({
+            clientId: client.id,
+            kind: 'POST',
+            channel,
+            guidance: `Create an engaging social media post for ${brandName}. Focus on their ${result.brandData.industry} expertise. Make it authentic and ready to publish.`,
+          });
+          setGeneratedDrafts((prev) => [...prev, draft]);
+          setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
+        } catch {
+          // Continue generating remaining posts if one fails
+        }
+      }
+      setStage('generating', 'done');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Setup failed. Please try again.');
+      setupRunning.current = false;
     }
   };
 
-  // Step 4: Create everything and generate first post
-  const handleSetupAndGenerate = async () => {
-    setIsSettingUp(true);
-    setError(null);
+  const saveProfiles = async (clientId: string, result: OnboardingAnalyzeResult) => {
+    // Brand profile
+    await fetch(`/api/proxy/clients/${clientId}/brand`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        description: result.brandData.description,
+        industry: result.brandData.industry,
+        audience: result.brandData.audience,
+        website: result.brandData.website || null,
+        offers: result.brandData.offers,
+        competitors: result.brandData.competitors,
+      }),
+    });
 
-    try {
-      // 1. Create client
-      const slug = slugify(name);
-      const client = await createClient.mutateAsync({ name: name.trim(), slug });
-      setCreatedClientId(client.id);
+    // Voice profile
+    await fetch(`/api/proxy/clients/${clientId}/voice`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tone: result.voiceData.tone,
+        voiceRulesJson: {
+          do: result.voiceData.doRules,
+          dont: result.voiceData.dontRules,
+        },
+        bannedPhrases: [],
+        contentBuckets: result.voiceData.contentBuckets,
+      }),
+    });
 
-      // 2. Setup brand profile
-      const brandBody: Record<string, unknown> = {};
-      if (website.trim()) brandBody.website = website.trim();
-      brandBody.description = `${name.trim()} — managed via Squadpitch`;
-
-      await fetch(`/api/proxy/clients/${client.id}/brand`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(brandBody),
-      });
-
-      // 3. Setup voice profile from goal preset
-      const preset = VOICE_PRESETS[goal as string];
-      if (preset) {
-        await fetch(`/api/proxy/clients/${client.id}/voice`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tone: preset.tone,
-            voiceRulesJson: { do: preset.doRules, dont: preset.dontRules },
-            bannedPhrases: [],
-            contentBuckets: [
-              { key: 'educational', label: 'Educational', template: 'Share knowledge or tips' },
-              { key: 'promotional', label: 'Promotional', template: 'Promote products or services' },
-              { key: 'storytelling', label: 'Storytelling', template: 'Tell a brand story' },
-            ],
-          }),
-        });
-      }
-
-      // 4. Enable selected channels
-      const channelItems = selectedChannels.map((ch) => ({
-        channel: ch,
-        isEnabled: true,
-      }));
-      await fetch(`/api/proxy/clients/${client.id}/channels`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: channelItems }),
-      });
-
-      // 5. Generate first post
-      const goalLabel = GOALS.find((g) => g.id === goal)?.label ?? 'Growth';
-      const draft = await generate.mutateAsync({
-        clientId: client.id,
-        kind: 'POST',
-        channel: selectedChannels[0],
-        guidance: `[Goal: ${goalLabel}] Create an engaging first post introducing ${name.trim()} to our audience. Make it feel authentic and personal.`,
-      });
-
-      setGeneratedDraft(draft);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Setup failed');
-    } finally {
-      setIsSettingUp(false);
-    }
+    // Channel settings
+    const channels = result.suggestedChannels.length > 0
+      ? result.suggestedChannels
+      : ['INSTAGRAM' as Channel];
+    await fetch(`/api/proxy/clients/${clientId}/channels`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: channels.map((ch) => ({ channel: ch, isEnabled: true })),
+      }),
+    });
   };
 
   const handleFinish = () => {
@@ -212,226 +246,310 @@ export function OnboardingWizard() {
     }
   };
 
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-white-100">Welcome to Squadpitch</h1>
-        <p className="text-white-40">Let's set up your first workspace in under a minute.</p>
-      </div>
+  const allDone = stages.analyzing === 'done' &&
+    stages.extracting === 'done' &&
+    stages.workspace === 'done' &&
+    stages.generating === 'done';
 
-      {/* Step indicators */}
-      <div className="flex items-center justify-center gap-2">
-        {STEPS.map((s, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <div
-              className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors',
-                i < step
-                  ? 'bg-accent-green-110 text-sp-surface'
-                  : i === step
-                    ? 'bg-accent-green-110/20 text-accent-green-110 ring-2 ring-accent-green-110'
-                    : 'bg-white-10 text-white-40'
+  // ── Step 1: Business Input ──────────────────────────────────────────
+
+  if (step === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
+        <div className="text-center space-y-3">
+          <h1 className="text-4xl font-bold text-white-100">
+            Build your marketing system
+          </h1>
+          <p className="text-lg text-white-40 max-w-md">
+            Paste your website or describe your business. AI does the rest.
+          </p>
+        </div>
+
+        <div className="w-full max-w-xl space-y-4">
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white-30">
+              {inputDetectedAsUrl ? (
+                <Globe className="w-5 h-5" />
+              ) : (
+                <Search className="w-5 h-5" />
               )}
-            >
-              {i + 1}
             </div>
-            {i < STEPS.length - 1 && (
-              <div className={cn('w-8 h-0.5', i < step ? 'bg-accent-green-110' : 'bg-white-10')} />
-            )}
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && input.trim().length >= 3) handleSetup();
+              }}
+              placeholder="Paste your website URL or describe your business..."
+              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
+              autoFocus
+            />
           </div>
-        ))}
+
+          {inputDetectedAsUrl && (
+            <p className="text-xs text-white-30 text-center">
+              URL detected — we'll scrape and analyze your site
+            </p>
+          )}
+
+          <button
+            onClick={handleSetup}
+            disabled={input.trim().length < 3}
+            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Wand2 className="w-5 h-5" />
+            Build My Marketing System
+          </button>
+        </div>
       </div>
+    );
+  }
 
-      {/* Step content */}
-      <div className="card p-8 space-y-6">
-        {step === 0 && (
-          <>
-            <div className="flex items-center gap-3 mb-4">
-              <Globe className="w-6 h-6 text-accent-green-110" />
-              <h2 className="text-lg font-bold text-white-100">Tell us about your brand</h2>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-white-60 mb-1.5">
-                  Business name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Acme Fitness"
-                  className="w-full px-4 py-3 rounded-xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
-                  autoFocus
-                />
+  // ── Step 2: AI Setup Screen (split layout) ──────────────────────────
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-[60vh]">
+      {/* Left panel — Progress + Options */}
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-white-100">Setting up your workspace</h2>
+
+        {/* Stage checklist */}
+        <div className="space-y-3">
+          <StageRow
+            status={stages.analyzing}
+            activeLabel="Analyzing your business..."
+            doneLabel="Business analyzed"
+          />
+          <StageRow
+            status={stages.extracting}
+            activeLabel="Extracting brand voice..."
+            doneLabel="Brand voice extracted"
+          />
+          <StageRow
+            status={stages.workspace}
+            activeLabel="Setting up workspace..."
+            doneLabel="Workspace ready"
+          />
+          <StageRow
+            status={stages.generating}
+            activeLabel="Generating content..."
+            doneLabel={`${stages.postsGenerated} post${stages.postsGenerated !== 1 ? 's' : ''} generated`}
+          />
+        </div>
+
+        {error && (
+          <StatusBanner error={error} />
+        )}
+
+        {/* Interactive options — appear after stage 1 */}
+        {analyzeResult && (
+          <div className="space-y-5 pt-2">
+            <div className="h-px bg-white-10" />
+
+            {/* Tone selector */}
+            <div>
+              <p className="text-sm font-medium text-white-60 mb-2">Tone</p>
+              <div className="flex gap-2">
+                {TONE_OPTIONS.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTone(t.id)}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-sm font-medium transition-all',
+                      selectedTone === t.id
+                        ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                        : 'bg-white-5 text-white-60 hover:bg-white-10'
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-white-60 mb-1.5">
-                  Website <span className="text-white-30">(optional)</span>
-                </label>
-                <input
-                  type="url"
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
-                  placeholder="https://example.com"
-                  className="w-full px-4 py-3 rounded-xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
-                />
+            </div>
+
+            {/* Goal selector */}
+            <div>
+              <p className="text-sm font-medium text-white-60 mb-2">Goal</p>
+              <div className="flex gap-2">
+                {GOAL_OPTIONS.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setSelectedGoal(g.id)}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-1.5',
+                      selectedGoal === g.id
+                        ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                        : 'bg-white-5 text-white-60 hover:bg-white-10'
+                    )}
+                  >
+                    <g.icon className="w-3.5 h-3.5" />
+                    {g.label}
+                  </button>
+                ))}
               </div>
             </div>
-          </>
-        )}
 
-        {step === 1 && (
-          <>
-            <div className="flex items-center gap-3 mb-4">
-              <Target className="w-6 h-6 text-accent-green-110" />
-              <h2 className="text-lg font-bold text-white-100">What's your main goal?</h2>
-            </div>
-            <div className="space-y-3">
-              {GOALS.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => setGoal(g.id)}
-                  className={cn(
-                    'w-full p-4 rounded-xl text-left transition-all',
-                    goal === g.id
-                      ? 'bg-accent-green-110/10 ring-2 ring-accent-green-110'
-                      : 'bg-white-5 border border-white-10 hover:bg-white-10'
-                  )}
-                >
-                  <p className="text-sm font-semibold text-white-100">{g.label}</p>
-                  <p className="text-xs text-white-40 mt-0.5">{g.desc}</p>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <div className="flex items-center gap-3 mb-4">
-              <Share2 className="w-6 h-6 text-accent-green-110" />
-              <h2 className="text-lg font-bold text-white-100">Where do you post?</h2>
-            </div>
-            <p className="text-sm text-white-40 mb-4">Select all platforms you use.</p>
-            <div className="grid grid-cols-2 gap-3">
-              {CHANNELS.map((ch) => (
-                <button
-                  key={ch.id}
-                  onClick={() => toggleChannel(ch.id)}
-                  className={cn(
-                    'p-4 rounded-xl text-left transition-all',
-                    selectedChannels.includes(ch.id)
-                      ? 'bg-accent-green-110/10 ring-2 ring-accent-green-110'
-                      : 'bg-white-5 border border-white-10 hover:bg-white-10'
-                  )}
-                >
-                  <p className="text-sm font-semibold text-white-100">{ch.label}</p>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {step === 3 && (
-          <>
-            <div className="flex items-center gap-3 mb-4">
-              <Sparkles className="w-6 h-6 text-accent-green-110" />
-              <h2 className="text-lg font-bold text-white-100">
-                {generatedDraft ? 'Your first post is ready!' : 'Setting up your workspace...'}
-              </h2>
-            </div>
-
-            {isSettingUp && (
-              <div className="flex flex-col items-center py-12 gap-4">
-                <Loader2 className="w-10 h-10 animate-spin text-accent-green-110" />
-                <p className="text-sm text-white-40">
-                  Creating workspace and generating your first post...
-                </p>
+            {/* Channel pills */}
+            <div>
+              <p className="text-sm font-medium text-white-60 mb-2">Channels</p>
+              <div className="flex flex-wrap gap-2">
+                {ALL_CHANNELS.map((ch) => (
+                  <button
+                    key={ch.id}
+                    onClick={() => toggleChannel(ch.id)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                      selectedChannels.includes(ch.id)
+                        ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                        : 'bg-white-5 text-white-40 hover:bg-white-10'
+                    )}
+                  >
+                    {ch.label}
+                  </button>
+                ))}
               </div>
-            )}
-
-            {generatedDraft && (
-              <div className="space-y-4">
-                <div className="card p-5 bg-white-5 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-accent-green-110/20 text-accent-green-110 text-xs font-medium">
-                      {selectedChannels[0]}
-                    </span>
-                  </div>
-                  <p className="text-sm text-white-100 whitespace-pre-wrap leading-relaxed">
-                    {generatedDraft.body}
-                  </p>
-                  {generatedDraft.hashtags && generatedDraft.hashtags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {generatedDraft.hashtags.map((tag, i) => (
-                        <span key={i} className="text-xs text-accent-green-110 font-mono">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-white-30 text-center">
-                  You can edit this post and generate more from your workspace.
-                </p>
-              </div>
-            )}
-
-            {error && <StatusBanner error={error} />}
-          </>
-        )}
-      </div>
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        {step > 0 && step < 3 ? (
-          <button
-            onClick={() => setStep((s) => s - 1)}
-            className="px-4 py-2.5 rounded-lg text-white-60 text-sm font-medium hover:text-white-100 hover:bg-white-5 transition-colors flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-        ) : (
-          <div />
+            </div>
+          </div>
         )}
 
-        {step < 2 && (
-          <button
-            onClick={() => setStep((s) => s + 1)}
-            disabled={!canProceed()}
-            className="px-6 py-3 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Continue
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        )}
-
-        {step === 2 && (
-          <button
-            onClick={() => {
-              setStep(3);
-              handleSetupAndGenerate();
-            }}
-            disabled={!canProceed()}
-            className="px-6 py-3 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Wand2 className="w-4 h-4" />
-            Create & Generate
-          </button>
-        )}
-
-        {step === 3 && generatedDraft && (
+        {/* Go to Dashboard button */}
+        {allDone && (
           <button
             onClick={handleFinish}
-            className="px-6 py-3 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors"
+            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors mt-4"
           >
-            Go to workspace
-            <ArrowRight className="w-4 h-4" />
+            Go to Dashboard
+            <ArrowRight className="w-5 h-5" />
           </button>
         )}
+      </div>
+
+      {/* Right panel — Live Preview */}
+      <div className="space-y-4">
+        {/* Brand card */}
+        {analyzeResult ? (
+          <div className="card p-5 space-y-3 bg-white-5/50">
+            <h3 className="text-lg font-bold text-white-100">
+              {analyzeResult.brandData.name}
+            </h3>
+            <div className="flex items-center gap-2">
+              {analyzeResult.brandData.industry && (
+                <span className="px-2 py-0.5 rounded-full bg-white-10 text-white-60 text-xs">
+                  {analyzeResult.brandData.industry}
+                </span>
+              )}
+            </div>
+            {analyzeResult.brandData.audience && (
+              <p className="text-sm text-white-40">
+                <span className="text-white-60 font-medium">Audience:</span>{' '}
+                {analyzeResult.brandData.audience}
+              </p>
+            )}
+            <p className="text-sm text-white-40 leading-relaxed">
+              {analyzeResult.brandData.description}
+            </p>
+          </div>
+        ) : (
+          // Skeleton brand card
+          <div className="card p-5 space-y-3 bg-white-5/50 animate-pulse">
+            <div className="h-5 w-40 bg-white-10 rounded" />
+            <div className="h-3 w-24 bg-white-10 rounded" />
+            <div className="h-3 w-full bg-white-10 rounded" />
+            <div className="h-3 w-3/4 bg-white-10 rounded" />
+          </div>
+        )}
+
+        {/* Generated posts */}
+        {generatedDrafts.length > 0
+          ? generatedDrafts.map((draft, i) => (
+              <div
+                key={draft.id}
+                className="card p-4 space-y-2 bg-white-5/50 animate-in fade-in slide-in-from-bottom-2 duration-300"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full bg-accent-green-110/20 text-accent-green-110 text-xs font-medium">
+                    {draft.channel}
+                  </span>
+                </div>
+                <p className="text-sm text-white-100 whitespace-pre-wrap leading-relaxed line-clamp-4">
+                  {draft.body}
+                </p>
+                {draft.hashtags && draft.hashtags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {draft.hashtags.slice(0, 5).map((tag, j) => (
+                      <span key={j} className="text-xs text-accent-green-110 font-mono">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          : stages.generating !== 'pending' && (
+              // Skeleton post cards
+              <>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="card p-4 space-y-2 bg-white-5/50 animate-pulse">
+                    <div className="h-4 w-20 bg-white-10 rounded" />
+                    <div className="h-3 w-full bg-white-10 rounded" />
+                    <div className="h-3 w-full bg-white-10 rounded" />
+                    <div className="h-3 w-2/3 bg-white-10 rounded" />
+                  </div>
+                ))}
+              </>
+            )}
       </div>
     </div>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function StageRow({
+  status,
+  activeLabel,
+  doneLabel,
+}: {
+  status: 'pending' | 'active' | 'done';
+  activeLabel: string;
+  doneLabel: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all',
+          status === 'done' && 'bg-accent-green-110',
+          status === 'active' && 'bg-accent-green-110/20',
+          status === 'pending' && 'bg-white-10'
+        )}
+      >
+        {status === 'done' && <Check className="w-3.5 h-3.5 text-sp-surface" />}
+        {status === 'active' && <Loader2 className="w-3.5 h-3.5 text-accent-green-110 animate-spin" />}
+      </div>
+      <span
+        className={cn(
+          'text-sm transition-colors',
+          status === 'done' && 'text-white-100',
+          status === 'active' && 'text-white-100 font-medium',
+          status === 'pending' && 'text-white-30'
+        )}
+      >
+        {status === 'done' ? doneLabel : status === 'active' ? activeLabel : activeLabel}
+      </span>
+    </div>
+  );
+}
+
+function mapToneToOption(tone: string): string {
+  const lower = tone.toLowerCase();
+  if (lower.includes('bold') || lower.includes('edgy') || lower.includes('provocative')) return 'bold';
+  if (lower.includes('conversational') || lower.includes('casual') || lower.includes('friendly')) return 'conversational';
+  return 'professional';
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
