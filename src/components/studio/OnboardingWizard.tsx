@@ -63,12 +63,14 @@ const GOAL_OPTIONS = [
 
 type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'workspace' | 'generating';
 
+type StageStatus = 'pending' | 'active' | 'done';
+
 interface StageState {
-  uploading: 'pending' | 'active' | 'done' | 'skipped';
-  analyzing: 'pending' | 'active' | 'done';
-  extracting: 'pending' | 'active' | 'done';
-  workspace: 'pending' | 'active' | 'done';
-  generating: 'pending' | 'active' | 'done';
+  uploading: StageStatus | 'skipped';
+  analyzing: StageStatus;
+  extracting: StageStatus;
+  workspace: StageStatus;
+  generating: StageStatus;
   postsGenerated: number;
 }
 
@@ -595,7 +597,7 @@ export function OnboardingWizard() {
         <div className="space-y-3">
           {stages.uploading !== 'skipped' && (
             <StageRow
-              status={stages.uploading === 'skipped' ? 'done' : stages.uploading}
+              status={stages.uploading}
               activeLabel="Uploading documents..."
               doneLabel="Documents parsed"
             />
@@ -796,7 +798,7 @@ function StageRow({
   activeLabel,
   doneLabel,
 }: {
-  status: 'pending' | 'active' | 'done';
+  status: StageStatus | 'skipped';
   activeLabel: string;
   doneLabel: string;
 }) {
