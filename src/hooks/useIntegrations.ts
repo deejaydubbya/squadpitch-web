@@ -301,3 +301,88 @@ export function useAvailableIntegrationTypes() {
       ),
   });
 }
+
+// ── Media Import Types ──────────────────────────────────────────────
+
+export interface MediaImportFile {
+  id: string;
+  name: string;
+  path?: string;
+  mimeType: string;
+  size: number | null;
+  thumbnailUrl: string | null;
+  modifiedAt: string;
+  isFolder: boolean;
+}
+
+// ── Media Import Hooks ──────────────────────────────────────────────
+
+export function useMediaImportConnect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (provider: 'google_drive' | 'dropbox') =>
+      apiFetch<{ authUrl: string }>(`/integrations/media-import/connect/${provider}`, {
+        method: 'POST',
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
+}
+
+export function useMediaImportCallback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { code: string; state: string }) =>
+      apiFetch<{ integration: Integration }>('/integrations/media-import/callback', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }).then((r) => r.integration),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
+}
+
+export function useMediaImportFiles(integrationId: string, options?: Record<string, string>) {
+  const params = new URLSearchParams(options ?? {}).toString();
+  const qs = params ? `?${params}` : '';
+  return useQuery({
+    queryKey: ['media-import-files', integrationId, options],
+    queryFn: () =>
+      apiFetch<{ files: MediaImportFile[]; nextPageToken?: string; cursor?: string; hasMore?: boolean }>(
+        `/integrations/media-import/${integrationId}/files${qs}`,
+      ),
+    enabled: !!integrationId,
+  });
+}
+
+export function useMediaImportFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      integrationId,
+      fileRef,
+      clientId,
+    }: {
+      integrationId: string;
+      fileRef: string;
+      clientId: string;
+    }) =>
+      apiFetch<{ asset: Record<string, unknown> }>(
+        `/integrations/media-import/${integrationId}/import`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ fileRef, clientId }),
+        },
+      ).then((r) => r.asset),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['media-import-files'] }),
+  });
+}
+
+export function useMediaImportDisconnect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (integrationId: string) =>
+      apiFetch(`/integrations/media-import/${integrationId}/disconnect`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
+}
