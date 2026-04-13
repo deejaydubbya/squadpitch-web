@@ -674,7 +674,7 @@ export function OnboardingWizard() {
           <h1 className="text-4xl font-bold text-white-100">
             Create your content system
           </h1>
-          <p className="text-lg text-white-40 max-w-lg">
+          <p className="text-lg text-white-50 max-w-lg">
             Drop in your website and we&apos;ll build your brand voice, content strategy, and first posts automatically.
           </p>
         </div>
@@ -816,11 +816,11 @@ export function OnboardingWizard() {
             Create My Content System
           </button>
 
-          <div className="flex items-center justify-center gap-4 text-[11px] text-white-20">
+          <div className="flex items-center justify-center gap-4 text-[11px] text-white-30">
             <span>AI-powered</span>
-            <span className="w-1 h-1 rounded-full bg-white-10" />
+            <span className="w-1 h-1 rounded-full bg-white-15" />
             <span>Takes about 60 seconds</span>
-            <span className="w-1 h-1 rounded-full bg-white-10" />
+            <span className="w-1 h-1 rounded-full bg-white-15" />
             <span>No credit card needed</span>
           </div>
         </div>
@@ -1033,7 +1033,11 @@ export function OnboardingWizard() {
           <StageRow
             status={stages.analyzing}
             activeLabel={inputDetectedAsUrl ? 'Exploring your website...' : 'Learning about your business...'}
-            doneLabel={`${crawlPages.length} page${crawlPages.length !== 1 ? 's' : ''} explored`}
+            doneLabel={
+              inputDetectedAsUrl
+                ? `${crawlPages.length} page${crawlPages.length !== 1 ? 's' : ''} explored`
+                : 'Business analyzed'
+            }
             activeHint={inputDetectedAsUrl ? `Reading pages from your site` : undefined}
           />
           <StageRow

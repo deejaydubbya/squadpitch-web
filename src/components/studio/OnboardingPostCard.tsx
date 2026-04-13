@@ -285,7 +285,7 @@ export function OnboardingPostCard({
 
       {/* Action footer */}
       {!isScheduled && (
-        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white-10">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-t border-white-10">
           {!editing && (
             <button
               onClick={() => setEditing(true)}
@@ -324,7 +324,7 @@ export function OnboardingPostCard({
           <button
             onClick={handleRegenerate}
             disabled={regenerating}
-            className="text-xs px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 hover:bg-white-15 hover:text-white disabled:opacity-50 flex items-center gap-1 ml-auto"
+            className="text-xs px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 hover:bg-white-15 hover:text-white disabled:opacity-50 flex items-center gap-1"
           >
             {regenerating ? (
               <Loader2 className="w-3 h-3 animate-spin" />
