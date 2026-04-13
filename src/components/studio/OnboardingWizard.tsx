@@ -70,7 +70,7 @@ const CHANNEL_COLORS: Record<string, { badge: string; bg: string }> = {
   YOUTUBE:   { badge: 'bg-red-500/20 text-red-400',   bg: 'from-red-500/5' },
 };
 
-type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'importing' | 'workspace' | 'generating';
+type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'extractingData' | 'importing' | 'workspace' | 'generating';
 
 type StageStatus = 'pending' | 'active' | 'done';
 
@@ -78,6 +78,7 @@ interface StageState {
   uploading: StageStatus | 'skipped';
   analyzing: StageStatus;
   extracting: StageStatus;
+  extractingData: StageStatus | 'skipped';
   importing: StageStatus | 'skipped';
   workspace: StageStatus;
   generating: StageStatus;
@@ -203,6 +204,7 @@ export function OnboardingWizard() {
     uploading: 'pending',
     analyzing: 'pending',
     extracting: 'pending',
+    extractingData: 'pending',
     importing: 'pending',
     workspace: 'pending',
     generating: 'pending',
@@ -273,6 +275,7 @@ export function OnboardingWizard() {
       uploading: hasFiles ? 'active' : 'skipped',
       analyzing: hasFiles ? 'pending' : 'active',
       extracting: 'pending',
+      extractingData: 'pending',
       importing: 'pending',
       workspace: 'pending',
       generating: 'pending',
@@ -318,11 +321,12 @@ export function OnboardingWizard() {
             setStage('extracting', 'active');
           },
           onBrandDone: () => {
-            // Brand extraction done — full result comes when stream completes
+            setStage('extracting', 'done');
+            setStage('extractingData', 'active');
           },
           onDataDone: (items) => {
             setExtractedDataItems(items);
-            setStage('extracting', 'done');
+            setStage('extractingData', 'done');
           },
           onError: (message) => {
             setError(message);
@@ -537,6 +541,7 @@ export function OnboardingWizard() {
   const allDone = (stages.uploading === 'done' || stages.uploading === 'skipped') &&
     stages.analyzing === 'done' &&
     stages.extracting === 'done' &&
+    (stages.extractingData === 'done' || stages.extractingData === 'skipped') &&
     (stages.importing === 'done' || stages.importing === 'skipped') &&
     stages.workspace === 'done' &&
     stages.generating === 'done';
@@ -791,16 +796,26 @@ export function OnboardingWizard() {
             status={stages.analyzing}
             activeLabel={inputDetectedAsUrl ? 'Exploring your website...' : 'Learning about your business...'}
             doneLabel={`${crawlPages.length} page${crawlPages.length !== 1 ? 's' : ''} explored`}
+            activeHint={inputDetectedAsUrl ? `Reading pages from your site` : undefined}
           />
           <StageRow
             status={stages.extracting}
             activeLabel="Understanding your brand..."
-            doneLabel={
-              extractedDataItems.length > 0
-                ? `Brand captured · ${extractedDataItems.length} insight${extractedDataItems.length !== 1 ? 's' : ''} found`
-                : 'Brand voice extracted'
-            }
+            doneLabel="Brand captured"
+            activeHint="AI is analyzing your voice, audience, and positioning"
           />
+          {stages.extractingData !== 'skipped' && (
+            <StageRow
+              status={stages.extractingData}
+              activeLabel="Discovering business insights..."
+              doneLabel={
+                extractedDataItems.length > 0
+                  ? `${extractedDataItems.length} insight${extractedDataItems.length !== 1 ? 's' : ''} found`
+                  : 'Insights extracted'
+              }
+              activeHint="Finding testimonials, stats, and key data"
+            />
+          )}
           {stages.importing !== 'skipped' && (
             <StageRow
               status={stages.importing}
@@ -817,6 +832,7 @@ export function OnboardingWizard() {
             status={stages.generating}
             activeLabel="Creating your first posts..."
             doneLabel={`${stages.postsGenerated} post${stages.postsGenerated !== 1 ? 's' : ''} ready to review`}
+            activeHint={stages.postsGenerated > 0 ? `${stages.postsGenerated} of 3 done` : 'Writing content tailored to your brand'}
           />
         </div>
 
@@ -1102,16 +1118,18 @@ function StageRow({
   status,
   activeLabel,
   doneLabel,
+  activeHint,
 }: {
   status: StageStatus | 'skipped';
   activeLabel: string;
   doneLabel: string;
+  activeHint?: string;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-start gap-3">
       <div
         className={cn(
-          'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all',
+          'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all mt-0.5',
           status === 'done' && 'bg-accent-green-110',
           status === 'active' && 'bg-accent-green-110/20',
           status === 'pending' && 'bg-white-10'
@@ -1120,16 +1138,23 @@ function StageRow({
         {status === 'done' && <Check className="w-3.5 h-3.5 text-sp-surface" />}
         {status === 'active' && <Loader2 className="w-3.5 h-3.5 text-accent-green-110 animate-spin" />}
       </div>
-      <span
-        className={cn(
-          'text-sm transition-colors',
-          status === 'done' && 'text-white-100',
-          status === 'active' && 'text-white-100 font-medium',
-          status === 'pending' && 'text-white-30'
+      <div className="min-w-0">
+        <span
+          className={cn(
+            'text-sm transition-colors',
+            status === 'done' && 'text-white-100',
+            status === 'active' && 'text-white-100 font-medium',
+            status === 'pending' && 'text-white-30'
+          )}
+        >
+          {status === 'done' ? doneLabel : activeLabel}
+        </span>
+        {status === 'active' && activeHint && (
+          <p className="text-[11px] text-white-20 mt-0.5 animate-pulse">
+            {activeHint}
+          </p>
         )}
-      >
-        {status === 'done' ? doneLabel : activeLabel}
-      </span>
+      </div>
     </div>
   );
 }
