@@ -21,6 +21,7 @@ import {
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useUsage } from '@/hooks/useBilling';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import { ServiceAlert } from '@/components/billing/ServiceAlert';
 
 interface Props {
   clientId: string;
@@ -28,6 +29,17 @@ interface Props {
 }
 
 const GOALS = ['Growth', 'Engagement', 'Sales'] as const;
+
+function getGenerationError(error: Error | null) {
+  if (!error) return null;
+  const msg = error.message;
+  if (msg.includes('BUDGET_EXCEEDED')) return { type: 'budget' as const, message: 'AI generation is temporarily unavailable due to budget limits.' };
+  if (msg.includes('SERVICE_UNAVAILABLE')) return { type: 'service' as const, message: msg };
+  if (msg.includes('FEATURE_THROTTLED')) return { type: 'throttled' as const, message: msg };
+  if (msg.includes('USAGE_LIMIT')) return { type: 'limit' as const, message: msg };
+  if (msg.includes('TIER_LIMIT')) return { type: 'tier' as const, message: msg };
+  return { type: 'generic' as const, message: msg };
+}
 
 export function CreateContentForm({ clientId, onGenerated }: Props) {
   const { data: channels } = useChannelSettings(clientId);
@@ -97,7 +109,7 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
       {
         onSuccess: (draft) => {
           // Auto-generate image if AI available
-          if (aiImageAvailable) {
+          if (aiImageAvailable && !atImageLimit) {
             generateMedia.mutate({
               clientId,
               guidance: draft.imageGuidance || draft.altText || draft.body.slice(0, 500),
@@ -120,9 +132,19 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
 
   const atPostLimit =
     usage && isFinite(usage.limits.posts) && usage.usage.posts >= usage.limits.posts;
+  const atImageLimit =
+    usage && isFinite(usage.limits.images) && usage.usage.images >= usage.limits.images;
+  const atVideoLimit =
+    usage && isFinite(usage.limits.videos) && usage.usage.videos >= usage.limits.videos;
 
   const canGenerate =
     selectedChannels.length > 0 && guidance.trim().length > 0 && !generate.isPending && !atPostLimit;
+
+  const genError = getGenerationError(generate.error as Error | null);
+
+  // Quota display
+  const postsRemaining = usage ? (isFinite(usage.limits.posts) ? usage.limits.posts - usage.usage.posts : null) : null;
+  const quotaColor = postsRemaining === null ? '' : postsRemaining <= 0 ? 'text-accent-red' : postsRemaining <= 5 ? 'text-accent-orange' : 'text-white-40';
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
@@ -134,6 +156,8 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
           Describe your idea and we'll generate on-brand content ready to publish.
         </p>
       </div>
+
+      <ServiceAlert />
 
       <div className="space-y-6">
         <textarea
@@ -324,28 +348,46 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
         {atPostLimit && (
           <UpgradePrompt currentTier={usage!.tier} limitType="Post" />
         )}
-
-        {generate.error && (
-          <StatusBanner error={(generate.error as Error).message} />
+        {atImageLimit && !atPostLimit && (
+          <UpgradePrompt currentTier={usage!.tier} limitType="Image" />
         )}
 
-        <button
-          onClick={handleGenerate}
-          disabled={!canGenerate}
-          className="w-full py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {generate.isPending ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Generating...
-            </>
+        {genError && (
+          genError.type === 'limit' || genError.type === 'tier' ? (
+            <UpgradePrompt currentTier={usage?.tier ?? 'FREE'} limitType="Post" />
+          ) : genError.type === 'budget' || genError.type === 'service' ? (
+            <StatusBanner info={genError.message} />
+          ) : genError.type === 'throttled' ? (
+            <StatusBanner warning={genError.message} />
           ) : (
-            <>
-              <Wand2 className="w-5 h-5" />
-              Generate
-            </>
+            <StatusBanner error={genError.message} />
+          )
+        )}
+
+        <div className="flex items-center justify-between">
+          <button
+            onClick={handleGenerate}
+            disabled={!canGenerate}
+            className="flex-1 py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generate.isPending ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-5 h-5" />
+                Generate
+              </>
+            )}
+          </button>
+          {postsRemaining !== null && (
+            <span className={cn('text-xs font-mono ml-3 whitespace-nowrap', quotaColor)}>
+              {Math.max(0, postsRemaining)}/{usage!.limits.posts} posts left
+            </span>
           )}
-        </button>
+        </div>
 
         <p className="text-center text-xs text-white-30">
           Ctrl+Enter to generate

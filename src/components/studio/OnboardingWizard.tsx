@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   Loader2,
-  Wand2,
   Check,
-  Search,
   Sparkles,
   Globe,
   MessageSquare,
@@ -17,17 +15,19 @@ import {
   Upload,
   FileText,
   X,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  useOnboardingAnalyze,
   useOnboardingUploadDocuments,
   useCreateClient,
   useGenerateContent,
   type Channel,
   type Draft,
   type OnboardingAnalyzeResult,
+  type OnboardingDataItem,
 } from '@/hooks/useSquadpitch';
+// Note: useOnboardingAnalyze replaced by SSE stream (consumeAnalyzeStream)
 import { apiFetch } from '@/lib/apiFetch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { OnboardingPostCard } from '@/components/studio/OnboardingPostCard';
@@ -61,6 +61,15 @@ const GOAL_OPTIONS = [
   { id: 'leads', label: 'Leads', icon: Zap },
 ] as const;
 
+const CHANNEL_COLORS: Record<string, { badge: string; bg: string }> = {
+  INSTAGRAM: { badge: 'bg-pink-500/20 text-pink-400', bg: 'from-pink-500/5' },
+  TIKTOK:    { badge: 'bg-cyan-500/20 text-cyan-400', bg: 'from-cyan-500/5' },
+  X:         { badge: 'bg-white/20 text-white/60',     bg: 'from-white/5' },
+  LINKEDIN:  { badge: 'bg-blue-500/20 text-blue-400', bg: 'from-blue-500/5' },
+  FACEBOOK:  { badge: 'bg-blue-600/20 text-blue-300', bg: 'from-blue-600/5' },
+  YOUTUBE:   { badge: 'bg-red-500/20 text-red-400',   bg: 'from-red-500/5' },
+};
+
 type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'importing' | 'workspace' | 'generating';
 
 type StageStatus = 'pending' | 'active' | 'done';
@@ -74,6 +83,13 @@ interface StageState {
   generating: StageStatus;
   postsGenerated: number;
   dataItemsImported: number;
+}
+
+interface CrawlPage {
+  url: string;
+  title: string;
+  pageNum: number;
+  totalExpected: number;
 }
 
 const ACCEPTED_FILE_TYPES = '.pdf,.docx,.txt,.csv';
@@ -92,12 +108,89 @@ function normalizeUrl(value: string): string {
   return `https://${trimmed}`;
 }
 
+// ── SSE stream consumer ─────────────────────────────────────────────────
+
+interface StreamCallbacks {
+  onCrawlPage: (page: CrawlPage) => void;
+  onCrawlDone: () => void;
+  onBrandDone: () => void;
+  onDataDone: (items: OnboardingDataItem[], count: number) => void;
+  onError: (message: string) => void;
+}
+
+async function consumeAnalyzeStream(
+  body: { input: string; inputType: string; documentTexts?: string[] },
+  callbacks: Omit<StreamCallbacks, 'onDone'>,
+): Promise<OnboardingAnalyzeResult | null> {
+  const res = await fetch('/api/proxy/onboarding/analyze-stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok || !res.body) {
+    callbacks.onError('Failed to connect to analysis service.');
+    return null;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalResult: OnboardingAnalyzeResult | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || ''; // keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const data = JSON.parse(line.slice(6));
+        switch (data.event) {
+          case 'crawl:page':
+            callbacks.onCrawlPage(data as CrawlPage);
+            break;
+          case 'crawl:discovered':
+            // total expected updated via crawl:page
+            break;
+          case 'crawl:done':
+            callbacks.onCrawlDone();
+            break;
+          case 'brand:done':
+            callbacks.onBrandDone();
+            break;
+          case 'data:done':
+            callbacks.onDataDone(data.items || [], data.count || 0);
+            break;
+          case 'done':
+            finalResult = data as OnboardingAnalyzeResult;
+            break;
+          case 'error':
+            callbacks.onError(data.message || 'Analysis failed.');
+            break;
+        }
+      } catch {
+        // skip malformed event
+      }
+    }
+  }
+
+  return finalResult;
+}
+
+// ── Component ───────────────────────────────────────────────────────────
+
 export function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState<0 | 1 | 2>(0);
 
   // Step 1 state
   const [input, setInput] = useState('');
+  const [description, setDescription] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -117,6 +210,11 @@ export function OnboardingWizard() {
     dataItemsImported: 0,
   });
 
+  // Live crawl progress
+  const [crawlPages, setCrawlPages] = useState<CrawlPage[]>([]);
+  const [crawlDone, setCrawlDone] = useState(false);
+  const [extractedDataItems, setExtractedDataItems] = useState<OnboardingDataItem[]>([]);
+
   // User-modifiable options (populated from AI, changeable before profiles are saved)
   const [selectedTone, setSelectedTone] = useState('');
   const [selectedGoal, setSelectedGoal] = useState('');
@@ -131,12 +229,11 @@ export function OnboardingWizard() {
   const setupRunning = useRef(false);
 
   // Mutations
-  const analyze = useOnboardingAnalyze();
   const uploadDocuments = useOnboardingUploadDocuments();
   const createClient = useCreateClient();
   const generate = useGenerateContent();
 
-  const canSubmit = input.trim().length >= 3 || files.length > 0;
+  const canSubmit = input.trim().length >= 3 || description.trim().length >= 10 || files.length > 0;
 
   const handleFilesSelected = (selected: FileList | null) => {
     if (!selected) return;
@@ -167,6 +264,9 @@ export function OnboardingWizard() {
     setError(null);
     setGeneratedDrafts([]);
     setAnalyzeResult(null);
+    setCrawlPages([]);
+    setCrawlDone(false);
+    setExtractedDataItems([]);
 
     const hasFiles = files.length > 0;
     setStages({
@@ -190,27 +290,58 @@ export function OnboardingWizard() {
         setStage('analyzing', 'active');
       }
 
-      // Stage 1: Analyze
+      // Append description as additional context if provided
+      if (description.trim()) {
+        documentTexts.push(description.trim());
+      }
+
+      // Stage 1: Stream analyze
       const inputType = inputDetectedAsUrl ? 'url' : 'text';
       const inputValue = inputType === 'url' ? normalizeUrl(input) : input.trim();
 
-      const result = await analyze.mutateAsync({
-        input: inputValue,
-        inputType,
-        documentTexts: documentTexts.length > 0 ? documentTexts : undefined,
-      });
+      const result = await consumeAnalyzeStream(
+        {
+          input: inputValue,
+          inputType,
+          documentTexts: documentTexts.length > 0 ? documentTexts : undefined,
+        },
+        {
+          onCrawlPage: (page) => {
+            setCrawlPages((prev) => {
+              if (prev.some((p) => p.url === page.url)) return prev;
+              return [...prev, page];
+            });
+          },
+          onCrawlDone: () => {
+            setCrawlDone(true);
+            setStage('analyzing', 'done');
+            setStage('extracting', 'active');
+          },
+          onBrandDone: () => {
+            // Brand extraction done — full result comes when stream completes
+          },
+          onDataDone: (items) => {
+            setExtractedDataItems(items);
+            setStage('extracting', 'done');
+          },
+          onError: (message) => {
+            setError(message);
+          },
+        }
+      );
+
+      if (!result) {
+        if (!error) setError('Analysis did not complete. Please try again.');
+        setupRunning.current = false;
+        return;
+      }
+
       setAnalyzeResult(result);
-      setStage('analyzing', 'done');
 
       // Populate interactive options from AI suggestions
       setSelectedTone(mapToneToOption(result.voiceData.tone));
       setSelectedGoal(result.suggestedGoal);
       setSelectedChannels(result.suggestedChannels);
-
-      // Stage 2: Extract (visual stage — instant)
-      setStage('extracting', 'active');
-      await delay(400); // brief visual pause
-      setStage('extracting', 'done');
 
       // Stage 3: Create workspace
       setStage('workspace', 'active');
@@ -220,7 +351,6 @@ export function OnboardingWizard() {
       setCreatedClientId(client.id);
 
       // Save profiles using the AI-extracted data
-      // (user modifications will be picked up from state at this point)
       await saveProfiles(client.id, result);
       setStage('workspace', 'done');
 
@@ -235,9 +365,9 @@ export function OnboardingWizard() {
               sourceType: 'URL',
             }),
           });
-          setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: result.dataItems.length }));
+          setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: result!.dataItems.length }));
         } catch {
-          // Non-fatal — mark skipped so onboarding continues
+          // Non-fatal — mark done with 0 so onboarding continues
           setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: 0 }));
         }
       } else {
@@ -280,9 +410,7 @@ export function OnboardingWizard() {
       }
       setStage('generating', 'done');
 
-      // Auto-advance to content preview
-      await delay(800);
-      setStep(2);
+      // DON'T auto-advance — let user review results and click Continue
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed. Please try again.');
       setupRunning.current = false;
@@ -420,21 +548,18 @@ export function OnboardingWizard() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
         <div className="text-center space-y-3">
           <h1 className="text-4xl font-bold text-white-100">
-            Build your marketing system
+            Create your content system
           </h1>
-          <p className="text-lg text-white-40 max-w-md">
-            Paste your website or describe your business. AI does the rest.
+          <p className="text-lg text-white-40 max-w-lg">
+            Drop in your website and we&apos;ll build your brand voice, content strategy, and first posts automatically.
           </p>
         </div>
 
         <div className="w-full max-w-xl space-y-4">
+          {/* URL input */}
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white-30">
-              {inputDetectedAsUrl ? (
-                <Globe className="w-5 h-5" />
-              ) : (
-                <Search className="w-5 h-5" />
-              )}
+              <Globe className="w-5 h-5" />
             </div>
             <input
               type="text"
@@ -443,19 +568,31 @@ export function OnboardingWizard() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && canSubmit) handleSetup();
               }}
-              placeholder="Paste your website URL or describe your business..."
+              placeholder="yourwebsite.com"
               className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
               autoFocus
             />
           </div>
 
-          {inputDetectedAsUrl && (
-            <p className="text-xs text-white-30 text-center">
-              URL detected — we'll crawl and analyze your site
-            </p>
-          )}
+          <p className="text-xs text-white-30 text-center">
+            Your website alone is enough — we&apos;ll extract everything we need.
+          </p>
 
-          {/* File dropzone */}
+          {/* Business description (optional) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white-40">
+              Business description (optional)
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What does your business do? Who do you serve?"
+              rows={3}
+              className="w-full px-4 py-3 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
+            />
+          </div>
+
+          {/* Compact file upload */}
           <div
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
@@ -464,7 +601,7 @@ export function OnboardingWizard() {
               e.stopPropagation();
               handleFilesSelected(e.dataTransfer.files);
             }}
-            className="w-full p-4 rounded-xl border border-dashed border-white-15 hover:border-accent-green-110/50 transition-colors cursor-pointer flex flex-col items-center gap-2"
+            className="w-full px-4 py-3 rounded-xl border border-dashed border-white-10 hover:border-white-20 transition-colors cursor-pointer flex items-center gap-3"
           >
             <input
               ref={fileInputRef}
@@ -477,12 +614,9 @@ export function OnboardingWizard() {
                 e.target.value = '';
               }}
             />
-            <Upload className="w-5 h-5 text-white-30" />
-            <p className="text-sm text-white-40">
-              Drop files or <span className="text-accent-green-110">browse</span>
-            </p>
-            <p className="text-xs text-white-20">
-              PDF, DOCX, TXT, CSV — up to 5 files, 20MB each
+            <Upload className="w-4 h-4 text-white-20 flex-shrink-0" />
+            <p className="text-xs text-white-30">
+              Have docs? Drop files here (PDF, DOCX, TXT, CSV)
             </p>
           </div>
 
@@ -513,10 +647,10 @@ export function OnboardingWizard() {
           <button
             onClick={handleSetup}
             disabled={!canSubmit}
-            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-glow-green"
           >
-            <Wand2 className="w-5 h-5" />
-            Build My Marketing System
+            <Sparkles className="w-5 h-5" />
+            Create My Content System
           </button>
         </div>
       </div>
@@ -539,18 +673,22 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold text-white-100">
-            These were created from your business and website
+        <div className="text-center space-y-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-medium">
+            <Sparkles className="w-3.5 h-3.5" />
+            {generatedDrafts.length} post{generatedDrafts.length !== 1 ? 's' : ''} ready
+          </span>
+          <h2 className="text-3xl font-bold text-white-100">
+            Your content is ready
           </h2>
           <p className="text-sm text-white-40">
-            Edit, approve, schedule, or regenerate any post before continuing.
+            We created these posts based on your business. Review, edit, or schedule them.
           </p>
         </div>
 
         {/* Post cards grid */}
         {generatedDrafts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
             {generatedDrafts.map((draft, i) => (
               <OnboardingPostCard
                 key={draft.id}
@@ -573,40 +711,44 @@ export function OnboardingWizard() {
 
         {/* Bulk actions */}
         {generatedDrafts.length > 0 && (
-          <div className="w-full space-y-3">
+          <div className="w-full space-y-4 border-t border-white-10 pt-4">
+            {/* Primary CTA — full width */}
+            <button
+              onClick={handleBulkApproveAndSchedule}
+              disabled={bulkActionRunning}
+              className="w-full py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 shadow-glow-green"
+            >
+              {bulkActionRunning ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Calendar className="w-4 h-4" />
+              )}
+              Approve & Schedule All
+            </button>
+
+            {/* Schedule info */}
             <div className="flex items-center justify-center gap-2 text-xs text-white-30">
               <Calendar className="w-3.5 h-3.5" />
               <span>
                 Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
               </span>
             </div>
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={handleBulkApproveAndSchedule}
-                disabled={bulkActionRunning}
-                className="px-6 py-3 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50"
-              >
-                {bulkActionRunning ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Calendar className="w-4 h-4" />
-                )}
-                Approve & Schedule All
-              </button>
+
+            {/* Secondary actions — text links */}
+            <div className="flex items-center justify-center gap-3 text-sm">
               <button
                 onClick={handleBulkApproveOnly}
                 disabled={bulkActionRunning}
-                className="px-6 py-3 rounded-2xl bg-white-10 text-white-100 font-semibold text-sm flex items-center gap-2 hover:bg-white-15 transition-colors disabled:opacity-50"
+                className="text-white-40 hover:text-white-60 transition-colors flex items-center gap-1 disabled:opacity-50"
               >
-                <Check className="w-4 h-4" />
-                Just Approve
+                <Check className="w-3.5 h-3.5" />
+                Just approve
               </button>
-            </div>
-            <div className="text-center">
+              <span className="text-white-15">|</span>
               <button
                 onClick={() => handleFinish()}
                 disabled={bulkActionRunning}
-                className="text-sm text-white-30 hover:text-white-60 transition-colors underline underline-offset-2"
+                className="text-white-30 hover:text-white-60 transition-colors disabled:opacity-50"
               >
                 Skip for now
               </button>
@@ -634,43 +776,47 @@ export function OnboardingWizard() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-[60vh]">
       {/* Left panel — Progress + Options */}
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-white-100">Setting up your workspace</h2>
+        <h2 className="text-2xl font-bold text-white-100">Building your content system</h2>
 
         {/* Stage checklist */}
         <div className="space-y-3">
           {stages.uploading !== 'skipped' && (
             <StageRow
               status={stages.uploading}
-              activeLabel="Uploading documents..."
-              doneLabel="Documents parsed"
+              activeLabel="Reading your documents..."
+              doneLabel="Documents understood"
             />
           )}
           <StageRow
             status={stages.analyzing}
-            activeLabel={inputDetectedAsUrl ? 'Crawling website...' : 'Analyzing your business...'}
-            doneLabel="Business analyzed"
+            activeLabel={inputDetectedAsUrl ? 'Exploring your website...' : 'Learning about your business...'}
+            doneLabel={`${crawlPages.length} page${crawlPages.length !== 1 ? 's' : ''} explored`}
           />
           <StageRow
             status={stages.extracting}
-            activeLabel="Extracting brand voice..."
-            doneLabel="Brand voice extracted"
+            activeLabel="Understanding your brand..."
+            doneLabel={
+              extractedDataItems.length > 0
+                ? `Brand captured · ${extractedDataItems.length} insight${extractedDataItems.length !== 1 ? 's' : ''} found`
+                : 'Brand voice extracted'
+            }
           />
           {stages.importing !== 'skipped' && (
             <StageRow
               status={stages.importing}
-              activeLabel="Importing business data..."
-              doneLabel={`${stages.dataItemsImported} data item${stages.dataItemsImported !== 1 ? 's' : ''} imported`}
+              activeLabel="Saving your business insights..."
+              doneLabel={`${stages.dataItemsImported} insight${stages.dataItemsImported !== 1 ? 's' : ''} imported`}
             />
           )}
           <StageRow
             status={stages.workspace}
-            activeLabel="Setting up workspace..."
-            doneLabel="Workspace ready"
+            activeLabel="Preparing your workspace..."
+            doneLabel="Workspace created"
           />
           <StageRow
             status={stages.generating}
-            activeLabel="Generating content..."
-            doneLabel={`${stages.postsGenerated} post${stages.postsGenerated !== 1 ? 's' : ''} generated`}
+            activeLabel="Creating your first posts..."
+            doneLabel={`${stages.postsGenerated} post${stages.postsGenerated !== 1 ? 's' : ''} ready to review`}
           />
         </div>
 
@@ -678,21 +824,21 @@ export function OnboardingWizard() {
           <StatusBanner error={error} />
         )}
 
-        {/* Interactive options — appear after stage 1 */}
+        {/* Interactive options — appear after brand extraction (ABOVE crawl feed) */}
         {analyzeResult && (
-          <div className="space-y-5 pt-2">
-            <div className="h-px bg-white-10" />
+          <div className="space-y-3 pt-2">
+            <p className="text-[10px] font-semibold text-white-30 uppercase tracking-widest">Content settings</p>
 
-            {/* Tone selector */}
-            <div>
-              <p className="text-sm font-medium text-white-60 mb-2">Tone</p>
-              <div className="flex gap-2">
+            {/* Tone selector — inline */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Tone</span>
+              <div className="flex gap-1.5">
                 {TONE_OPTIONS.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setSelectedTone(t.id)}
                     className={cn(
-                      'px-4 py-2 rounded-xl text-sm font-medium transition-all',
+                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                       selectedTone === t.id
                         ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
                         : 'bg-white-5 text-white-60 hover:bg-white-10'
@@ -704,38 +850,38 @@ export function OnboardingWizard() {
               </div>
             </div>
 
-            {/* Goal selector */}
-            <div>
-              <p className="text-sm font-medium text-white-60 mb-2">Goal</p>
-              <div className="flex gap-2">
+            {/* Goal selector — inline */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Goal</span>
+              <div className="flex gap-1.5">
                 {GOAL_OPTIONS.map((g) => (
                   <button
                     key={g.id}
                     onClick={() => setSelectedGoal(g.id)}
                     className={cn(
-                      'px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-1.5',
+                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5',
                       selectedGoal === g.id
                         ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
                         : 'bg-white-5 text-white-60 hover:bg-white-10'
                     )}
                   >
-                    <g.icon className="w-3.5 h-3.5" />
+                    <g.icon className="w-3 h-3" />
                     {g.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Channel pills */}
-            <div>
-              <p className="text-sm font-medium text-white-60 mb-2">Channels</p>
-              <div className="flex flex-wrap gap-2">
+            {/* Channel pills — inline */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Channels</span>
+              <div className="flex flex-wrap gap-1.5">
                 {ALL_CHANNELS.map((ch) => (
                   <button
                     key={ch.id}
                     onClick={() => toggleChannel(ch.id)}
                     className={cn(
-                      'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                      'px-3 py-1 rounded-full text-[11px] font-medium transition-all',
                       selectedChannels.includes(ch.id)
                         ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
                         : 'bg-white-5 text-white-40 hover:bg-white-10'
@@ -749,14 +895,51 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Error recovery — only shows if auto-advance to step 2 hasn't happened */}
-        {allDone && error && (
+        {/* Live crawl feed — collapsible */}
+        {crawlPages.length > 0 && (
+          <details open={!crawlDone}>
+            <summary className="text-xs text-white-30 cursor-pointer hover:text-white-40 transition-colors select-none">
+              {crawlDone ? `${crawlPages.length} pages explored` : 'Exploring pages...'}
+            </summary>
+            <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 mt-2">
+              {crawlPages.map((page, i) => (
+                <div
+                  key={page.url}
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-white-5/50 animate-in fade-in slide-in-from-left-2 duration-200"
+                  style={{ animationDelay: `${i * 50}ms` }}
+                >
+                  <Globe className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
+                  <span className="text-xs text-white-30 truncate flex-1">
+                    {page.title || shortenUrl(page.url)}
+                  </span>
+                  <span className="text-[10px] text-white-20 flex-shrink-0 font-mono">
+                    {page.pageNum}/{page.totalExpected}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {/* Continue button — appears when all stages are done */}
+        {allDone && (
+          <button
+            onClick={() => setStep(2)}
+            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
+            Review Your Posts
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Error recovery */}
+        {error && !allDone && (
           <button
             onClick={() => handleFinish()}
-            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors mt-4"
+            className="w-full px-6 py-3 rounded-2xl bg-white-10 text-white-100 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-white-15 transition-colors mt-2"
           >
             Go to Dashboard
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRight className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -765,7 +948,7 @@ export function OnboardingWizard() {
       <div className="space-y-4">
         {/* Brand card */}
         {analyzeResult ? (
-          <div className="card p-5 space-y-3 bg-white-5/50">
+          <div className="card p-5 space-y-3 bg-gradient-to-br from-accent-green-110/5 to-transparent">
             <h3 className="text-lg font-bold text-white-100">
               {analyzeResult.brandData.name}
             </h3>
@@ -796,42 +979,114 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Generated posts */}
-        {generatedDrafts.length > 0
-          ? generatedDrafts.map((draft, i) => (
-              <div
-                key={draft.id}
-                className="card p-4 space-y-2 bg-white-5/50 animate-in fade-in slide-in-from-bottom-2 duration-300"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full bg-accent-green-110/20 text-accent-green-110 text-xs font-medium">
-                    {draft.channel}
+        {/* Extracted business data items */}
+        {extractedDataItems.length > 0 && (
+          <div className="card p-5 space-y-3 bg-white-5/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-accent-green-110" />
+              <h3 className="text-sm font-bold text-white-100">
+                Business Data Found
+              </h3>
+              <span className="text-xs text-white-30 ml-auto">
+                {extractedDataItems.length} item{extractedDataItems.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
+              {extractedDataItems.map((item, i) => (
+                <div
+                  key={`${item.title}-${i}`}
+                  className="flex items-start gap-2 py-2 px-3 rounded-lg bg-white-5/50 animate-in fade-in duration-200"
+                  style={{ animationDelay: `${i * 30}ms` }}
+                >
+                  <span className="px-1.5 py-0.5 rounded bg-white-10 text-[10px] text-white-40 font-mono uppercase flex-shrink-0 mt-0.5">
+                    {item.type.replace('_', ' ')}
                   </span>
-                </div>
-                <p className="text-sm text-white-100 whitespace-pre-wrap leading-relaxed line-clamp-4">
-                  {draft.body}
-                </p>
-                {draft.hashtags && draft.hashtags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {draft.hashtags.slice(0, 5).map((tag, j) => (
-                      <span key={j} className="text-xs text-accent-green-110 font-mono">
-                        #{tag}
-                      </span>
-                    ))}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-white-80 font-medium truncate">
+                      {item.title}
+                    </p>
+                    {item.summary && (
+                      <p className="text-[11px] text-white-30 line-clamp-1 mt-0.5">
+                        {item.summary}
+                      </p>
+                    )}
                   </div>
-                )}
-              </div>
-            ))
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-white-20">
+              This data will power your content generation.
+            </p>
+          </div>
+        )}
+
+        {/* Generated posts — platform-styled mini cards */}
+        {generatedDrafts.length > 0
+          ? generatedDrafts.map((draft, i) => {
+              const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white/5' };
+              const brandInitial = analyzeResult?.brandData.name?.[0]?.toUpperCase() || '?';
+              return (
+                <div
+                  key={draft.id}
+                  className={cn(
+                    'rounded-2xl border border-white-10 overflow-hidden bg-gradient-to-b to-transparent animate-in fade-in slide-in-from-bottom-2 duration-300',
+                    colors.bg
+                  )}
+                  style={{ animationDelay: `${i * 100}ms` }}
+                >
+                  {/* Header bar */}
+                  <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-5">
+                    <div className="w-7 h-7 rounded-full bg-white-10 flex items-center justify-center text-xs font-bold text-white-60 flex-shrink-0">
+                      {brandInitial}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-white-80 truncate">
+                        {analyzeResult?.brandData.name || 'Brand'}
+                      </p>
+                      <p className="text-[10px] text-white-30">
+                        {ALL_CHANNELS.find((c) => c.id === draft.channel)?.label || draft.channel}
+                      </p>
+                    </div>
+                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium', colors.badge)}>
+                      {draft.channel}
+                    </span>
+                  </div>
+                  {/* Body */}
+                  <div className="px-4 py-3">
+                    <p className="text-sm text-white-90 whitespace-pre-wrap leading-relaxed line-clamp-4">
+                      {draft.body}
+                    </p>
+                    {draft.hashtags && draft.hashtags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {draft.hashtags.slice(0, 5).map((tag, j) => (
+                          <span key={j} className="text-xs text-accent-green-110/70 font-mono">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
           : stages.generating !== 'pending' && (
-              // Skeleton post cards
+              // Skeleton post cards — match new card structure
               <>
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="card p-4 space-y-2 bg-white-5/50 animate-pulse">
-                    <div className="h-4 w-20 bg-white-10 rounded" />
-                    <div className="h-3 w-full bg-white-10 rounded" />
-                    <div className="h-3 w-full bg-white-10 rounded" />
-                    <div className="h-3 w-2/3 bg-white-10 rounded" />
+                  <div key={i} className="rounded-2xl border border-white-10 overflow-hidden animate-pulse">
+                    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-5">
+                      <div className="w-7 h-7 rounded-full bg-white-10" />
+                      <div className="flex-1 space-y-1">
+                        <div className="h-3 w-20 bg-white-10 rounded" />
+                        <div className="h-2 w-14 bg-white-10 rounded" />
+                      </div>
+                      <div className="h-4 w-16 bg-white-10 rounded-full" />
+                    </div>
+                    <div className="px-4 py-3 space-y-2">
+                      <div className="h-3 w-full bg-white-10 rounded" />
+                      <div className="h-3 w-full bg-white-10 rounded" />
+                      <div className="h-3 w-2/3 bg-white-10 rounded" />
+                    </div>
                   </div>
                 ))}
               </>
@@ -873,7 +1128,7 @@ function StageRow({
           status === 'pending' && 'text-white-30'
         )}
       >
-        {status === 'done' ? doneLabel : status === 'active' ? activeLabel : activeLabel}
+        {status === 'done' ? doneLabel : activeLabel}
       </span>
     </div>
   );
@@ -884,6 +1139,15 @@ function mapToneToOption(tone: string): string {
   if (lower.includes('bold') || lower.includes('edgy') || lower.includes('provocative')) return 'bold';
   if (lower.includes('conversational') || lower.includes('casual') || lower.includes('friendly')) return 'conversational';
   return 'professional';
+}
+
+function shortenUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.pathname === '/' ? u.hostname : `${u.hostname}${u.pathname}`;
+  } catch {
+    return url;
+  }
 }
 
 function delay(ms: number) {

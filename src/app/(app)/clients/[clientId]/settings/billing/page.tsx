@@ -1,12 +1,15 @@
 'use client';
 
-import { ArrowUpRight, ArrowDownRight, CreditCard, ExternalLink, Loader2, Zap } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, CreditCard, ExternalLink, Loader2, Zap, Activity } from 'lucide-react';
 import {
   useSubscription,
   useUsage,
   useCreatePortal,
   useCreateCheckout,
   useChangePlan,
+  useAiUsage,
+  useAiCostBreakdown,
+  useSystemHealth,
   type PlanTier,
 } from '@/hooks/useBilling';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -14,6 +17,7 @@ import { StatusBanner } from '@/components/common/StatusBanner';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { UsageMeter } from '@/components/billing/UsageMeter';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import { cn } from '@/lib/utils';
 
 const PLANS: { tier: PlanTier; label: string; price: string; features: string[] }[] = [
   {
@@ -42,12 +46,30 @@ const PLANS: { tier: PlanTier; label: string; price: string; features: string[] 
   },
 ];
 
+const ACTION_LABELS: Record<string, string> = {
+  POST: 'Posts generated',
+  IMAGE: 'Images generated',
+  VIDEO: 'Videos generated',
+  IDEAS: 'Ideas generated',
+};
+
+function StatusDot({ status }: { status: string }) {
+  const color =
+    status === 'healthy' ? 'bg-zone-green' :
+    status === 'degraded' ? 'bg-yellow-400' :
+    'bg-accent-red';
+  return <span className={cn('inline-block w-2 h-2 rounded-full', color)} />;
+}
+
 export default function BillingSettingsPage() {
   const { data: subscription, isLoading: subLoading } = useSubscription();
   const { data: usage, isLoading: usageLoading } = useUsage();
   const portal = useCreatePortal();
   const checkout = useCreateCheckout();
   const changePlan = useChangePlan();
+  const { data: aiUsage } = useAiUsage();
+  const { data: costBreakdown } = useAiCostBreakdown();
+  const { data: health } = useSystemHealth();
 
   const isLoading = subLoading || usageLoading;
 
@@ -83,6 +105,9 @@ export default function BillingSettingsPage() {
 
   const mutationError =
     changePlan.error?.message || checkout.error?.message || portal.error?.message;
+
+  // Total estimated cost from breakdown
+  const totalCostCents = costBreakdown?.breakdown?.reduce((sum, e) => sum + e.totalCostCents, 0) ?? 0;
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -251,6 +276,109 @@ export default function BillingSettingsPage() {
           <p className="text-[10px] text-white-30">
             Usage resets on the 1st of each month.
           </p>
+        </div>
+      )}
+
+      {/* AI Usage This Month */}
+      {aiUsage && (
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white-100">
+              AI Usage This Month
+            </h3>
+            {totalCostCents > 0 && (
+              <span className="text-xs font-mono text-white-40">
+                ~${(totalCostCents / 100).toFixed(2)} est. cost
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {aiUsage.usage.length > 0 ? (
+              aiUsage.usage.map((entry) => (
+                <div key={entry.actionType} className="flex items-center justify-between">
+                  <span className="text-xs text-white-60">
+                    {ACTION_LABELS[entry.actionType] ?? entry.actionType}
+                  </span>
+                  <span className="text-xs font-mono text-white-40">
+                    {entry.count}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-white-40 italic">No AI usage this month.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* System Status */}
+      {health && (
+        <div className="card p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-white-100 flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            System Status
+          </h3>
+
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <StatusDot status={health.services.openai} />
+                <span className="text-xs text-white-60">OpenAI (text generation)</span>
+              </div>
+              <span className="text-[10px] text-white-40 capitalize">{health.services.openai}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <StatusDot status={health.services.fal} />
+                <span className="text-xs text-white-60">Fal (image/video)</span>
+              </div>
+              <span className="text-[10px] text-white-40 capitalize">{health.services.fal}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <StatusDot status={health.services.redis} />
+                <span className="text-xs text-white-60">Redis (queues)</span>
+              </div>
+              <span className="text-[10px] text-white-40 capitalize">{health.services.redis}</span>
+            </div>
+          </div>
+
+          {/* Budget bars */}
+          <div className="space-y-2 pt-2 border-t border-white-10">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white-40">OpenAI budget</span>
+                <span className="text-[10px] font-mono text-white-40">{health.budget.openai.percentage}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white-10 overflow-hidden">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    health.budget.openai.status === 'exceeded' ? 'bg-accent-red' :
+                    health.budget.openai.status === 'warning' ? 'bg-accent-orange' : 'bg-accent-green-110'
+                  )}
+                  style={{ width: `${Math.min(health.budget.openai.percentage, 100)}%` }}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white-40">Fal budget</span>
+                <span className="text-[10px] font-mono text-white-40">{health.budget.fal.percentage}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white-10 overflow-hidden">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    health.budget.fal.status === 'exceeded' ? 'bg-accent-red' :
+                    health.budget.fal.status === 'warning' ? 'bg-accent-orange' : 'bg-accent-green-110'
+                  )}
+                  style={{ width: `${Math.min(health.budget.fal.percentage, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

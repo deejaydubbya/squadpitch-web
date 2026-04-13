@@ -27,11 +27,24 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
     body: body ? Buffer.from(body) : undefined,
   });
 
+  // Stream SSE responses instead of buffering
+  const resContentType = res.headers.get('content-type') || '';
+  if (resContentType.includes('text/event-stream') && res.body) {
+    return new NextResponse(res.body as unknown as ReadableStream, {
+      status: res.status,
+      headers: {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        'connection': 'keep-alive',
+      },
+    });
+  }
+
   const responseBody = await res.arrayBuffer();
   return new NextResponse(responseBody, {
     status: res.status,
     headers: {
-      'content-type': res.headers.get('content-type') || 'application/json',
+      'content-type': resContentType || 'application/json',
     },
   });
 }

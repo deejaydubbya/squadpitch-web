@@ -32,6 +32,9 @@ import {
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { DraftPreviewCard } from './DraftPreviewCard';
+import { useUsage } from '@/hooks/useBilling';
+import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import { ServiceAlert } from '@/components/billing/ServiceAlert';
 
 interface Props {
   clientId: string;
@@ -47,6 +50,17 @@ const KINDS: DraftKind[] = [
   'REPLY',
 ];
 
+function getGenerationError(error: Error | null) {
+  if (!error) return null;
+  const msg = error.message;
+  if (msg.includes('BUDGET_EXCEEDED')) return { type: 'budget' as const, message: 'AI generation is temporarily unavailable due to budget limits.' };
+  if (msg.includes('SERVICE_UNAVAILABLE')) return { type: 'service' as const, message: msg };
+  if (msg.includes('FEATURE_THROTTLED')) return { type: 'throttled' as const, message: msg };
+  if (msg.includes('USAGE_LIMIT')) return { type: 'limit' as const, message: msg };
+  if (msg.includes('TIER_LIMIT')) return { type: 'tier' as const, message: msg };
+  return { type: 'generic' as const, message: msg };
+}
+
 export function GenerateForm({ clientId }: Props) {
   const { data: client } = useClient(clientId);
   const { data: voice } = useVoiceProfile(clientId);
@@ -55,6 +69,7 @@ export function GenerateForm({ clientId }: Props) {
   const generate = useGenerateContent();
   const generateMedia = useGenerateMedia(clientId);
   const generateVideoMutation = useGenerateVideo(clientId);
+  const { data: usage } = useUsage();
 
   const [kind, setKind] = useState<DraftKind>('POST');
   const [channel, setChannel] = useState<Channel | null>(null);
@@ -87,6 +102,13 @@ export function GenerateForm({ clientId }: Props) {
     [enabledChannels, channel]
   );
 
+  const atPostLimit =
+    usage && isFinite(usage.limits.posts) && usage.usage.posts >= usage.limits.posts;
+  const atImageLimit =
+    usage && isFinite(usage.limits.images) && usage.usage.images >= usage.limits.images;
+  const atVideoLimit =
+    usage && isFinite(usage.limits.videos) && usage.usage.videos >= usage.limits.videos;
+
   const handleGenerate = () => {
     if (!channel || !guidance.trim()) return;
     generate.mutate(
@@ -102,7 +124,7 @@ export function GenerateForm({ clientId }: Props) {
           setLastDraft(draft);
           // Only clear guidance — keep kind, channel, bucket for next generation
           setGuidance('');
-          if (generateImage && aiImageAvailable) {
+          if (generateImage && aiImageAvailable && !atImageLimit) {
             generateMedia.mutate({
               clientId,
               guidance: draft.imageGuidance || draft.altText || draft.body.slice(0, 500),
@@ -110,7 +132,7 @@ export function GenerateForm({ clientId }: Props) {
               channel,
             });
           }
-          if (generateVideoFlag) {
+          if (generateVideoFlag && !atVideoLimit) {
             generateVideoMutation.mutate({
               clientId,
               guidance: draft.imageGuidance || draft.altText || draft.body.slice(0, 500),
@@ -131,10 +153,18 @@ export function GenerateForm({ clientId }: Props) {
   };
 
   const canGenerate =
-    channel && guidance.trim().length > 0 && !generate.isPending;
+    channel && guidance.trim().length > 0 && !generate.isPending && !atPostLimit;
+
+  const genError = getGenerationError(generate.error as Error | null);
+
+  // Quota display
+  const postsRemaining = usage ? (isFinite(usage.limits.posts) ? usage.limits.posts - usage.usage.posts : null) : null;
+  const quotaColor = postsRemaining === null ? '' : postsRemaining <= 0 ? 'text-accent-red' : postsRemaining <= 5 ? 'text-accent-orange' : 'text-white-40';
 
   return (
     <div className="space-y-5 max-w-3xl">
+      <ServiceAlert />
+
       <div className="card p-5 space-y-5">
         <div>
           <h2 className="text-lg font-bold text-white-100">
@@ -292,17 +322,19 @@ export function GenerateForm({ clientId }: Props) {
         </div>
 
         {aiImageAvailable && (
-          <label className="flex items-start gap-3 cursor-pointer group">
+          <label className={cn('flex items-start gap-3 cursor-pointer group', atImageLimit && 'opacity-50 cursor-not-allowed')}>
             <input
               type="checkbox"
               checked={generateImage}
               onChange={(e) => setGenerateImage(e.target.checked)}
+              disabled={!!atImageLimit}
               className="mt-0.5 accent-accent-green-110"
             />
             <div>
               <span className="text-sm text-white-80 group-hover:text-white-100 flex items-center gap-1.5">
                 <ImageIcon className="w-3.5 h-3.5" />
                 Also generate image
+                {atImageLimit && <span className="text-accent-red text-[10px] font-medium ml-1">Limit reached</span>}
               </span>
               <span className="text-xs text-white-40 block mt-0.5">
                 AI will create an image based on the generated content
@@ -311,17 +343,19 @@ export function GenerateForm({ clientId }: Props) {
           </label>
         )}
 
-        <label className="flex items-start gap-3 cursor-pointer group">
+        <label className={cn('flex items-start gap-3 cursor-pointer group', atVideoLimit && 'opacity-50 cursor-not-allowed')}>
           <input
             type="checkbox"
             checked={generateVideoFlag}
             onChange={(e) => setGenerateVideoFlag(e.target.checked)}
+            disabled={!!atVideoLimit}
             className="mt-0.5 accent-accent-green-110"
           />
           <div>
             <span className="text-sm text-white-80 group-hover:text-white-100 flex items-center gap-1.5">
               <Video className="w-3.5 h-3.5" />
               Also generate video
+              {atVideoLimit && <span className="text-accent-red text-[10px] font-medium ml-1">Limit reached</span>}
             </span>
             <span className="text-xs text-white-40 block mt-0.5">
               AI will create a video based on the generated content
@@ -329,8 +363,26 @@ export function GenerateForm({ clientId }: Props) {
           </div>
         </label>
 
-        {generate.error && (
-          <StatusBanner error={(generate.error as Error).message} />
+        {atPostLimit && (
+          <UpgradePrompt currentTier={usage!.tier} limitType="Post" />
+        )}
+        {atImageLimit && !atPostLimit && (
+          <UpgradePrompt currentTier={usage!.tier} limitType="Image" />
+        )}
+        {atVideoLimit && !atPostLimit && !atImageLimit && (
+          <UpgradePrompt currentTier={usage!.tier} limitType="Video" />
+        )}
+
+        {genError && (
+          genError.type === 'limit' || genError.type === 'tier' ? (
+            <UpgradePrompt currentTier={usage?.tier ?? 'FREE'} limitType="Post" />
+          ) : genError.type === 'budget' || genError.type === 'service' ? (
+            <StatusBanner info={genError.message} />
+          ) : genError.type === 'throttled' ? (
+            <StatusBanner warning={genError.message} />
+          ) : (
+            <StatusBanner error={genError.message} />
+          )
         )}
 
         <div className="flex items-center gap-3">
@@ -347,9 +399,14 @@ export function GenerateForm({ clientId }: Props) {
             Generate
           </button>
           <span className="text-[10px] text-white-40">Ctrl+Enter</span>
+          {postsRemaining !== null && (
+            <span className={cn('text-xs font-mono', quotaColor)}>
+              {Math.max(0, postsRemaining)}/{usage!.limits.posts} posts left
+            </span>
+          )}
           <Link
             href={`/clients/${clientId}/queue`}
-            className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+            className="text-xs text-accent-green-110 hover:underline flex items-center gap-1 ml-auto"
           >
             Go to queue <ArrowRight className="w-3 h-3" />
           </Link>
