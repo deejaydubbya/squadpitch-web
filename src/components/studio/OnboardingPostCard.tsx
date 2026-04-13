@@ -9,10 +9,6 @@ import {
   Calendar,
   RefreshCw,
   X,
-  Heart,
-  MessageCircle,
-  Send,
-  Bookmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -218,14 +214,14 @@ export function OnboardingPostCard({
       ) : null}
 
       {/* Caption body */}
-      <div className="px-4 py-3 flex-1 space-y-2">
+      <div className="px-4 py-4 flex-1 space-y-3">
         {editing ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <textarea
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
               rows={5}
-              className="w-full rounded-lg bg-white-5 border border-white-15 text-white text-sm p-3 focus:outline-none focus:border-accent-green-110 resize-none"
+              className="w-full rounded-xl bg-white-5 border border-white-15 text-white text-sm p-3 focus:outline-none focus:border-accent-green-110 resize-none"
             />
             <div className="flex gap-2">
               <button
@@ -253,25 +249,15 @@ export function OnboardingPostCard({
           </div>
         ) : (
           <>
-            <p className="text-sm text-white whitespace-pre-wrap leading-relaxed">
+            <p className="text-[13px] text-white whitespace-pre-wrap leading-[1.7]">
               {captionText}
             </p>
             {uniqueHashtags.length > 0 && (
-              <p className="text-sm text-accent-green-110/80 leading-relaxed">
+              <p className="text-[13px] text-accent-green-110/80 leading-relaxed">
                 {uniqueHashtags.join(' ')}
               </p>
             )}
           </>
-        )}
-
-        {/* Faux social engagement bar */}
-        {!editing && (
-          <div className="flex items-center gap-5 pt-2 border-t border-white-10">
-            <Heart className="w-4 h-4 text-white-30" />
-            <MessageCircle className="w-4 h-4 text-white-30" />
-            <Send className="w-4 h-4 text-white-30" />
-            <Bookmark className="w-4 h-4 text-white-30 ml-auto" />
-          </div>
         )}
       </div>
 

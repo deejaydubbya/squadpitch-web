@@ -21,6 +21,7 @@ import {
   Music2,
   Youtube,
   Link2,
+  Pencil,
   Home,
   Car,
   Building2,
@@ -831,13 +832,13 @@ export function OnboardingWizard() {
 
   if (step === 2) {
     return (
-      <div className="flex flex-col items-center min-h-[60vh] space-y-8 max-w-5xl mx-auto">
+      <div className="flex flex-col items-center min-h-[60vh] max-w-5xl mx-auto">
         {/* Success overlay */}
         {bulkSuccess && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-sp-surface/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-sp-surface/90 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
               <CheckCircle2 className="w-16 h-16 text-accent-green-110" />
-              <p className="text-xl font-bold text-white-100">
+              <p className="text-2xl font-bold text-white">
                 {analyzeResult?.brandData.name
                   ? `${analyzeResult.brandData.name} is all set!`
                   : 'You\u2019re all set!'}
@@ -847,50 +848,25 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Wow moment header */}
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-semibold">
+        {/* ── Level 1: Wow moment headline ── */}
+        <div className="text-center space-y-3 pt-4 pb-2">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-semibold animate-in fade-in duration-500">
             <CheckCircle2 className="w-4 h-4" />
-            {generatedDrafts.length} post{generatedDrafts.length !== 1 ? 's' : ''} created from your business
+            Your first week of content is ready
           </div>
-          <h2 className="text-3xl font-bold text-white">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white">
             {analyzeResult?.brandData.name
               ? `${analyzeResult.brandData.name}\u2019s content is ready`
               : 'Your content is ready'}
           </h2>
-          <p className="text-sm text-white-60 max-w-lg mx-auto">
-            We analyzed {analyzeResult?.brandData.website ? 'your website' : 'your business'} and created {generatedDrafts.length} on-brand post{generatedDrafts.length !== 1 ? 's' : ''}. Review, edit, or schedule them below.
+          <p className="text-base text-white-60 max-w-md mx-auto">
+            We analyzed {analyzeResult?.brandData.website ? 'your website' : 'your business'} and created {generatedDrafts.length} on-brand post{generatedDrafts.length !== 1 ? 's' : ''} ready to publish.
           </p>
         </div>
 
-        {/* Brand summary bar */}
-        {analyzeResult && (
-          <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-[#141420] border border-white-10 w-full">
-            <div className="w-9 h-9 rounded-full bg-accent-green-110/20 flex items-center justify-center text-sm font-bold text-accent-green-110 flex-shrink-0">
-              {analyzeResult.brandData.name?.[0]?.toUpperCase() || '?'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{analyzeResult.brandData.name}</p>
-              {analyzeResult.brandData.description && (
-                <p className="text-xs text-white-50 truncate mt-0.5">{analyzeResult.brandData.description}</p>
-              )}
-            </div>
-            {analyzeResult.brandData.industry && (
-              <span className="px-2.5 py-1 rounded-full bg-white-10 text-white-60 text-xs flex-shrink-0">
-                {analyzeResult.brandData.industry}
-              </span>
-            )}
-            {analyzeResult.voiceData.tone && (
-              <span className="px-2.5 py-1 rounded-full bg-accent-green-110/15 text-accent-green-110 text-xs flex-shrink-0">
-                {analyzeResult.voiceData.tone}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Post cards grid */}
+        {/* ── Level 2: Post cards (the hero) ── */}
         {generatedDrafts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 w-full pt-6 pb-2">
             {generatedDrafts.map((draft, i) => (
               <div
                 key={draft.id}
@@ -908,21 +884,67 @@ export function OnboardingWizard() {
             ))}
           </div>
         ) : (
-          <div className="p-8 rounded-2xl bg-[#141420] border border-white-10 text-center w-full">
+          <div className="p-8 rounded-2xl bg-[#141420] border border-white-10 text-center w-full mt-6">
             <p className="text-sm text-white-60">
               No posts were generated. You can create content from your dashboard.
             </p>
           </div>
         )}
 
-        {bulkError && <StatusBanner error={bulkError} />}
+        {/* ── Level 3: Primary CTA area ── */}
+        {generatedDrafts.length > 0 && (
+          <div className="w-full space-y-3 pt-6">
+            <button
+              onClick={handleBulkApproveAndSchedule}
+              disabled={bulkActionRunning}
+              className="w-full py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2.5 hover:bg-accent-green-120 transition-colors disabled:opacity-50 shadow-glow-green"
+            >
+              {bulkActionRunning ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : hasConnectedChannel ? (
+                <Calendar className="w-5 h-5" />
+              ) : (
+                <Link2 className="w-5 h-5" />
+              )}
+              {hasConnectedChannel ? 'Approve & Schedule All' : 'Connect & Schedule'}
+            </button>
+
+            {hasConnectedChannel && (
+              <p className="text-center text-xs text-white-50">
+                Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
+              </p>
+            )}
+
+            <div className="flex items-center justify-center gap-4 pt-1">
+              <button
+                onClick={() => handleFinish()}
+                disabled={bulkActionRunning}
+                className="text-sm text-white-50 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit posts in dashboard
+              </button>
+              <span className="text-white-15">·</span>
+              <button
+                onClick={handleBulkApproveOnly}
+                disabled={bulkActionRunning}
+                className="text-sm text-white-50 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Approve all
+              </button>
+            </div>
+          </div>
+        )}
+
+        {bulkError && <div className="w-full pt-2"><StatusBanner error={bulkError} /></div>}
 
         {/* Connect prompt — shown when no channel connected and user tries to schedule */}
         {showConnectPrompt && !hasConnectedChannel && (
-          <div className="w-full p-5 rounded-2xl bg-[#141420] border border-accent-green-110/30 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-full p-5 rounded-2xl bg-[#141420] border border-accent-green-110/30 space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="text-center space-y-1.5">
               <p className="text-base font-semibold text-white">
-                Connect a platform to publish your posts
+                Connect a platform to publish
               </p>
               <p className="text-sm text-white-60">
                 Choose where you want to publish. You can add more later.
@@ -946,53 +968,18 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Bulk actions */}
-        {generatedDrafts.length > 0 && (
-          <div className="w-full space-y-4 border-t border-white-10 pt-4">
-            {/* Primary CTA — full width */}
-            <button
-              onClick={handleBulkApproveAndSchedule}
-              disabled={bulkActionRunning}
-              className="w-full py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 shadow-glow-green"
-            >
-              {bulkActionRunning ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : hasConnectedChannel ? (
-                <Calendar className="w-4 h-4" />
-              ) : (
-                <Link2 className="w-4 h-4" />
-              )}
-              {hasConnectedChannel ? 'Approve & Schedule All' : 'Connect & Schedule'}
-            </button>
-
-            {/* Schedule info — only when connected */}
-            {hasConnectedChannel && (
-              <div className="flex items-center justify-center gap-2 text-xs text-white-30">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>
-                  Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
-                </span>
+        {/* ── Level 4: Brand context (de-emphasized) ── */}
+        {analyzeResult && (
+          <div className="w-full pt-6 border-t border-white-10/50 mt-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-accent-green-110/15 flex items-center justify-center text-xs font-bold text-accent-green-110 flex-shrink-0">
+                {analyzeResult.brandData.name?.[0]?.toUpperCase() || '?'}
               </div>
-            )}
-
-            {/* Secondary actions — text links */}
-            <div className="flex items-center justify-center gap-3 text-sm">
-              <button
-                onClick={handleBulkApproveOnly}
-                disabled={bulkActionRunning}
-                className="text-white-50 hover:text-white transition-colors flex items-center gap-1 disabled:opacity-50"
-              >
-                <Check className="w-3.5 h-3.5" />
-                Approve all
-              </button>
-              <span className="text-white-20">|</span>
-              <button
-                onClick={() => handleFinish()}
-                disabled={bulkActionRunning}
-                className="text-white-40 hover:text-white-60 transition-colors disabled:opacity-50"
-              >
-                Go to dashboard
-              </button>
+              <p className="text-sm text-white-60 flex-1 min-w-0 truncate">
+                Built from <span className="text-white font-medium">{analyzeResult.brandData.name}</span>
+                {analyzeResult.brandData.industry && <span> · {analyzeResult.brandData.industry}</span>}
+                {analyzeResult.voiceData.tone && <span> · {analyzeResult.voiceData.tone} voice</span>}
+              </p>
             </div>
           </div>
         )}
@@ -1001,7 +988,7 @@ export function OnboardingWizard() {
         {generatedDrafts.length === 0 && (
           <button
             onClick={() => handleFinish()}
-            className="px-6 py-3 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors"
+            className="px-8 py-3 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors mt-4"
           >
             Go to Dashboard
             <ArrowRight className="w-4 h-4" />
