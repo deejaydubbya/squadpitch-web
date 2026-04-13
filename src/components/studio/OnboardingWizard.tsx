@@ -842,43 +842,46 @@ export function OnboardingWizard() {
                   ? `${analyzeResult.brandData.name} is all set!`
                   : 'You\u2019re all set!'}
               </p>
-              <p className="text-sm text-white-40">Taking you to your workspace...</p>
+              <p className="text-sm text-white-60">Taking you to your workspace...</p>
             </div>
           </div>
         )}
 
-        <div className="text-center space-y-3">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-medium">
-            <Sparkles className="w-3.5 h-3.5" />
-            {generatedDrafts.length} post{generatedDrafts.length !== 1 ? 's' : ''} ready
-          </span>
-          <h2 className="text-3xl font-bold text-white-100">
+        {/* Wow moment header */}
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-semibold">
+            <CheckCircle2 className="w-4 h-4" />
+            {generatedDrafts.length} post{generatedDrafts.length !== 1 ? 's' : ''} created from your business
+          </div>
+          <h2 className="text-3xl font-bold text-white">
             {analyzeResult?.brandData.name
               ? `${analyzeResult.brandData.name}\u2019s content is ready`
               : 'Your content is ready'}
           </h2>
-          <p className="text-sm text-white-40">
-            We created {generatedDrafts.length} post{generatedDrafts.length !== 1 ? 's' : ''} for{' '}
-            {analyzeResult?.brandData.name || 'your business'}. Review, edit, or schedule them.
+          <p className="text-sm text-white-60 max-w-lg mx-auto">
+            We analyzed {analyzeResult?.brandData.website ? 'your website' : 'your business'} and created {generatedDrafts.length} on-brand post{generatedDrafts.length !== 1 ? 's' : ''}. Review, edit, or schedule them below.
           </p>
         </div>
 
         {/* Brand summary bar */}
         {analyzeResult && (
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 w-full">
-            <div className="w-8 h-8 rounded-full bg-accent-green-110/15 flex items-center justify-center text-sm font-bold text-accent-green-110 flex-shrink-0">
+          <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-[#141420] border border-white-10 w-full">
+            <div className="w-9 h-9 rounded-full bg-accent-green-110/20 flex items-center justify-center text-sm font-bold text-accent-green-110 flex-shrink-0">
               {analyzeResult.brandData.name?.[0]?.toUpperCase() || '?'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white-80 truncate">{analyzeResult.brandData.name}</p>
+              <p className="text-sm font-semibold text-white truncate">{analyzeResult.brandData.name}</p>
+              {analyzeResult.brandData.description && (
+                <p className="text-xs text-white-50 truncate mt-0.5">{analyzeResult.brandData.description}</p>
+              )}
             </div>
             {analyzeResult.brandData.industry && (
-              <span className="px-2 py-0.5 rounded-full bg-white-10 text-white-40 text-[11px] flex-shrink-0">
+              <span className="px-2.5 py-1 rounded-full bg-white-10 text-white-60 text-xs flex-shrink-0">
                 {analyzeResult.brandData.industry}
               </span>
             )}
             {analyzeResult.voiceData.tone && (
-              <span className="px-2 py-0.5 rounded-full bg-accent-green-110/10 text-accent-green-110 text-[11px] flex-shrink-0">
+              <span className="px-2.5 py-1 rounded-full bg-accent-green-110/15 text-accent-green-110 text-xs flex-shrink-0">
                 {analyzeResult.voiceData.tone}
               </span>
             )}
@@ -905,8 +908,8 @@ export function OnboardingWizard() {
             ))}
           </div>
         ) : (
-          <div className="p-8 rounded-2xl bg-white-5 border border-white-10 text-center w-full">
-            <p className="text-sm text-white-40">
+          <div className="p-8 rounded-2xl bg-[#141420] border border-white-10 text-center w-full">
+            <p className="text-sm text-white-60">
               No posts were generated. You can create content from your dashboard.
             </p>
           </div>
@@ -916,12 +919,12 @@ export function OnboardingWizard() {
 
         {/* Connect prompt — shown when no channel connected and user tries to schedule */}
         {showConnectPrompt && !hasConnectedChannel && (
-          <div className="w-full p-5 rounded-2xl bg-gradient-to-br from-accent-green-110/5 to-white-5/80 border border-accent-green-110/20 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-full p-5 rounded-2xl bg-[#141420] border border-accent-green-110/30 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="text-center space-y-1.5">
-              <p className="text-base font-semibold text-white-100">
+              <p className="text-base font-semibold text-white">
                 Connect a platform to publish your posts
               </p>
-              <p className="text-sm text-white-40">
+              <p className="text-sm text-white-60">
                 Choose where you want to publish. You can add more later.
               </p>
             </div>
@@ -930,14 +933,14 @@ export function OnboardingWizard() {
                 <button
                   key={ch.id}
                   onClick={() => handleConnectChannel(ch.id)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-colors text-sm text-white-80"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 hover:border-accent-green-110/50 hover:bg-white-10 transition-colors text-sm text-white"
                 >
                   <ch.icon className="w-4 h-4 text-white-60" />
                   {ch.label}
                 </button>
               ))}
             </div>
-            <p className="text-[11px] text-white-20 text-center">
+            <p className="text-xs text-white-40 text-center">
               A secure popup will open to authorize your account
             </p>
           </div>
@@ -977,18 +980,18 @@ export function OnboardingWizard() {
               <button
                 onClick={handleBulkApproveOnly}
                 disabled={bulkActionRunning}
-                className="text-white-40 hover:text-white-60 transition-colors flex items-center gap-1 disabled:opacity-50"
+                className="text-white-50 hover:text-white transition-colors flex items-center gap-1 disabled:opacity-50"
               >
                 <Check className="w-3.5 h-3.5" />
-                Just approve
+                Approve all
               </button>
-              <span className="text-white-15">|</span>
+              <span className="text-white-20">|</span>
               <button
                 onClick={() => handleFinish()}
                 disabled={bulkActionRunning}
-                className="text-white-30 hover:text-white-60 transition-colors disabled:opacity-50"
+                className="text-white-40 hover:text-white-60 transition-colors disabled:opacity-50"
               >
-                Skip for now
+                Go to dashboard
               </button>
             </div>
           </div>
@@ -1020,14 +1023,14 @@ export function OnboardingWizard() {
               ? `Building ${(analyzeResult?.brandData ?? earlyBrandData)!.name}\u2019s content system`
               : 'Building your content system'}
           </h2>
-          <p className="text-sm text-white-30 mt-1">
+          <p className="text-sm text-white-50 mt-1">
             {stages.generating === 'done'
-              ? 'Everything\u2019s ready for you to review'
+              ? 'Everything\u2019s ready \u2014 let\u2019s review your content'
               : stages.generating === 'active'
-                ? 'Almost there \u2014 creating your posts now'
-                : analyzeResult
+                ? 'Almost there \u2014 creating your first posts'
+                : (analyzeResult?.brandData ?? earlyBrandData)
                   ? 'Setting up your workspace...'
-                  : 'This usually takes about a minute'}
+                  : 'Analyzing your business \u2014 this takes about a minute'}
           </p>
         </div>
 
@@ -1091,7 +1094,7 @@ export function OnboardingWizard() {
         {/* Interactive options — collapsible, de-emphasized */}
         {analyzeResult && (
           <details className="pt-2">
-            <summary className="text-xs text-white-30 cursor-pointer hover:text-white-40 transition-colors select-none">
+            <summary className="text-xs text-white-40 cursor-pointer hover:text-white-60 transition-colors select-none">
               Customize tone, goal & channels
             </summary>
             <div className="space-y-3 mt-3">
@@ -1165,21 +1168,21 @@ export function OnboardingWizard() {
         {/* Live crawl feed — collapsible */}
         {crawlPages.length > 0 && (
           <details open={!crawlDone}>
-            <summary className="text-xs text-white-30 cursor-pointer hover:text-white-40 transition-colors select-none">
+            <summary className="text-xs text-white-50 cursor-pointer hover:text-white-60 transition-colors select-none">
               {crawlDone ? `${crawlPages.length} pages explored` : 'Exploring pages...'}
             </summary>
             <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 mt-2">
               {crawlPages.map((page, i) => (
                 <div
                   key={page.url}
-                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-white-5 animate-in fade-in slide-in-from-left-2 duration-200"
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[#141420] animate-in fade-in slide-in-from-left-2 duration-200"
                   style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <Globe className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
-                  <span className="text-xs text-white-30 truncate flex-1">
+                  <span className="text-xs text-white-50 truncate flex-1">
                     {page.title || shortenUrl(page.url)}
                   </span>
-                  <span className="text-[10px] text-white-20 flex-shrink-0 font-mono">
+                  <span className="text-[10px] text-white-40 flex-shrink-0 font-mono">
                     {page.pageNum}/{page.totalExpected}
                   </span>
                 </div>
@@ -1213,59 +1216,71 @@ export function OnboardingWizard() {
 
       {/* Right panel — Live Preview */}
       <div className="space-y-4">
-        <p className="text-xs font-medium text-white-20 uppercase tracking-wider">Live preview</p>
+        <p className="text-xs font-semibold text-white-50 uppercase tracking-wider">Live preview</p>
 
         {/* Brand card — shows as soon as brand:done fires */}
         {(() => {
           const brand = analyzeResult?.brandData ?? earlyBrandData;
           if (brand) {
             return (
-              <div className="p-5 rounded-2xl space-y-2.5 bg-gradient-to-br from-accent-green-110/5 to-white-5/80 border border-white-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-lg font-bold text-white-100">
-                    {brand.name}
-                  </h3>
-                  {brand.industry && (
-                    <span className="px-2 py-0.5 rounded-full bg-white-10 text-white-60 text-[11px]">
-                      {brand.industry}
+              <div className="p-5 rounded-2xl space-y-3 bg-[#141420] border border-white-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-bold text-accent-green-110">
+                      {brand.name?.[0]?.toUpperCase() || '?'}
                     </span>
-                  )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold text-white truncate">
+                      {brand.name}
+                    </h3>
+                    {brand.industry && (
+                      <span className="text-xs text-white-50">
+                        {brand.industry}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-white-40 leading-relaxed line-clamp-2">
+                <p className="text-sm text-white-60 leading-relaxed line-clamp-3">
                   {brand.description}
                 </p>
               </div>
             );
           }
           return (
-            <div className="p-5 rounded-2xl space-y-3 bg-white-5 border border-white-10 animate-pulse">
-              <div className="h-5 w-40 bg-white-10 rounded" />
-              <div className="h-3 w-24 bg-white-10 rounded" />
+            <div className="p-5 rounded-2xl space-y-3 bg-[#141420] border border-white-10 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white-10" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-40 bg-white-10 rounded" />
+                  <div className="h-3 w-24 bg-white-10/60 rounded" />
+                </div>
+              </div>
               <div className="h-3 w-full bg-white-10 rounded" />
-              <div className="h-3 w-3/4 bg-white-10 rounded" />
+              <div className="h-3 w-3/4 bg-white-10/60 rounded" />
             </div>
           );
         })()}
 
         {/* Brand discovery highlights */}
         {analyzeResult && (
-          <div className="p-4 rounded-2xl bg-white-5 border border-white-10 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <p className="text-xs font-medium text-white-40 uppercase tracking-wider">What we discovered</p>
+          <div className="p-4 rounded-2xl bg-[#141420] border border-white-10 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <p className="text-xs font-semibold text-white-50 uppercase tracking-wider">What we discovered</p>
             <div className="flex flex-wrap gap-2">
               {analyzeResult.voiceData.tone && (
-                <span className="px-2.5 py-1 rounded-full bg-accent-green-110/10 text-accent-green-110 text-xs">
+                <span className="px-2.5 py-1 rounded-full bg-accent-green-110/15 text-accent-green-110 text-xs font-medium">
                   {analyzeResult.voiceData.tone} voice
                 </span>
               )}
               {analyzeResult.brandData.audience && (
-                <span className="px-2.5 py-1 rounded-full bg-white-10 text-white-60 text-xs truncate max-w-[200px]">
+                <span className="px-2.5 py-1 rounded-full bg-white-10 text-white-70 text-xs truncate max-w-[200px]">
                   {analyzeResult.brandData.audience}
                 </span>
               )}
               {selectedChannels.slice(0, 3).map((ch) => {
                 const chColors = CHANNEL_COLORS[ch] || { badge: 'bg-white-10 text-white-60' };
                 return (
-                  <span key={ch} className={cn('px-2.5 py-1 rounded-full text-xs', chColors.badge)}>
+                  <span key={ch} className={cn('px-2.5 py-1 rounded-full text-xs font-medium', chColors.badge)}>
                     {ALL_CHANNELS.find((c) => c.id === ch)?.label || ch}
                   </span>
                 );
@@ -1274,7 +1289,7 @@ export function OnboardingWizard() {
             {extractedDataItems.length > 0 && (
               <div className="flex items-center gap-2 pt-1">
                 <Check className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
-                <p className="text-xs text-white-40">
+                <p className="text-xs text-white-60">
                   {extractedDataItems.length} business insight{extractedDataItems.length !== 1 ? 's' : ''} found
                 </p>
               </div>
@@ -1282,16 +1297,16 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Generated posts — progressive reveal with skeletons for remaining slots */}
+        {/* Generated posts — progressive reveal with skeletons */}
         <div className="flex items-center gap-2 py-2">
-          <Sparkles className="w-4 h-4 text-white-20" />
-          <p className="text-xs text-white-20">
+          <Sparkles className="w-4 h-4 text-white-40" />
+          <p className="text-xs text-white-50">
             {generatedDrafts.length === 3
               ? 'All posts created'
               : stages.generating === 'active'
-                ? `Crafting posts tailored to your brand... (${generatedDrafts.length}/3)`
+                ? `Creating your posts... (${generatedDrafts.length}/3)`
                 : stages.generating === 'pending'
-                  ? 'Your posts will appear here as they\u2019re created'
+                  ? 'Your posts will appear here'
                   : `${generatedDrafts.length} post${generatedDrafts.length !== 1 ? 's' : ''} created`}
           </p>
         </div>
@@ -1299,62 +1314,52 @@ export function OnboardingWizard() {
         {/* Real cards */}
         {generatedDrafts.map((draft, i) => {
           const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white-5' };
-          const brandInitial = analyzeResult?.brandData.name?.[0]?.toUpperCase() || '?';
+          const previewBrandName = (analyzeResult?.brandData ?? earlyBrandData)?.name || 'Brand';
+          const brandInitial = previewBrandName[0]?.toUpperCase() || '?';
           return (
             <div
               key={draft.id}
-              className={cn(
-                'rounded-2xl border border-white-10 overflow-hidden bg-gradient-to-b to-white-5/80 animate-in fade-in slide-in-from-bottom-2 duration-300',
-                colors.bg
-              )}
+              className="rounded-2xl border border-white-10 overflow-hidden bg-[#141420] animate-in fade-in slide-in-from-bottom-2 duration-300"
               style={{ animationDelay: `${i * 100}ms` }}
             >
-              <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-10">
-                <div className="w-7 h-7 rounded-full bg-white-10 flex items-center justify-center text-xs font-bold text-white-60 flex-shrink-0">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-accent-green-110/20 flex items-center justify-center text-xs font-bold text-accent-green-110 flex-shrink-0">
                   {brandInitial}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white-80 truncate">
-                    {analyzeResult?.brandData.name || 'Brand'}
+                  <p className="text-sm font-semibold text-white truncate">
+                    {previewBrandName}
                   </p>
-                  <p className="text-[10px] text-white-30">
+                  <p className="text-xs text-white-50">
                     {ALL_CHANNELS.find((c) => c.id === draft.channel)?.label || draft.channel}
                   </p>
                 </div>
-                <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium', colors.badge)}>
-                  {ALL_CHANNELS.find((c) => c.id === draft.channel)?.label || draft.channel}
-                </span>
               </div>
-              <div className="px-4 py-3">
-                <p className="text-sm text-white-90 whitespace-pre-wrap leading-relaxed line-clamp-4">
+              <div className="px-4 py-3 border-t border-white-10/50">
+                <p className="text-sm text-white whitespace-pre-wrap leading-relaxed line-clamp-5">
                   {draft.body}
                 </p>
                 {draft.hashtags && draft.hashtags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {draft.hashtags.slice(0, 5).map((tag, j) => (
-                      <span key={j} className="text-xs text-accent-green-110/70 font-mono">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="text-sm text-accent-green-110/80 mt-2">
+                    {draft.hashtags.slice(0, 5).map(t => `#${t}`).join(' ')}
+                  </p>
                 )}
               </div>
             </div>
           );
         })}
 
-        {/* Skeleton placeholders for remaining slots */}
+        {/* Skeleton placeholders */}
         {Array.from({ length: Math.max(0, 3 - generatedDrafts.length) }).map((_, i) => (
-          <div key={`skeleton-${i}`} className="rounded-2xl border border-white-10 overflow-hidden bg-white-5 animate-pulse">
-            <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-10">
-              <div className="w-7 h-7 rounded-full bg-white-10" />
+          <div key={`skeleton-${i}`} className="rounded-2xl border border-white-10 overflow-hidden bg-[#141420] animate-pulse">
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="w-8 h-8 rounded-full bg-white-10" />
               <div className="flex-1 space-y-1.5">
-                <div className="h-3 w-24 bg-white-10 rounded" />
-                <div className="h-2 w-16 bg-white-10/60 rounded" />
+                <div className="h-3.5 w-28 bg-white-10 rounded" />
+                <div className="h-2.5 w-16 bg-white-10/60 rounded" />
               </div>
-              <div className="h-4 w-16 bg-white-10 rounded-full" />
             </div>
-            <div className="px-4 py-3 space-y-2">
+            <div className="px-4 py-3 space-y-2.5 border-t border-white-10/50">
               <div className="h-3 w-full bg-white-10 rounded" />
               <div className="h-3 w-5/6 bg-white-10 rounded" />
               <div className="h-3 w-2/3 bg-white-10 rounded" />
@@ -1398,13 +1403,13 @@ function StageRow({
             'text-sm transition-colors',
             status === 'done' && 'text-white-100',
             status === 'active' && 'text-white-100 font-medium',
-            status === 'pending' && 'text-white-30'
+            status === 'pending' && 'text-white-40'
           )}
         >
           {status === 'done' ? doneLabel : activeLabel}
         </span>
         {status === 'active' && activeHint && (
-          <p className="text-[11px] text-white-20 mt-0.5 animate-pulse">
+          <p className="text-xs text-white-50 mt-0.5">
             {activeHint}
           </p>
         )}
