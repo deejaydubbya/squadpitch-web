@@ -201,7 +201,7 @@ export function Sidebar({ client }: Props) {
           className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          All clients
+          All workspaces
         </Link>
       </div>
     </aside>

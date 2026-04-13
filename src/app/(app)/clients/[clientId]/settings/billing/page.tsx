@@ -24,25 +24,25 @@ const PLANS: { tier: PlanTier; label: string; price: string; features: string[] 
     tier: 'STARTER',
     label: 'Starter',
     price: '$19/mo',
-    features: ['3 clients', '50 posts/mo', '10 images/mo'],
+    features: ['3 workspaces', '50 posts/mo', '10 images/mo'],
   },
   {
     tier: 'PRO',
     label: 'Pro',
     price: '$49/mo',
-    features: ['5 clients', '200 posts/mo', '50 images/mo', '5 videos/mo'],
+    features: ['5 workspaces', '200 posts/mo', '50 images/mo', '5 videos/mo'],
   },
   {
     tier: 'GROWTH',
     label: 'Growth',
     price: '$99/mo',
-    features: ['10 clients', '500 posts/mo', '150 images/mo', '20 videos/mo'],
+    features: ['10 workspaces', '500 posts/mo', '150 images/mo', '20 videos/mo'],
   },
   {
     tier: 'AGENCY',
     label: 'Agency',
     price: '$199/mo',
-    features: ['Unlimited clients', '1,000 posts/mo', '500 images/mo', '100 videos/mo'],
+    features: ['Unlimited workspaces', '1,000 posts/mo', '500 images/mo', '100 videos/mo'],
   },
 ];
 

@@ -29,7 +29,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex items-center gap-2">
           <LoadingSpinner size="sm" />
-          <span className="text-white-40 text-sm">Loading client...</span>
+          <span className="text-white-40 text-sm">Loading workspace...</span>
         </div>
       </div>
     );
@@ -50,9 +50,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="text-white-100 font-semibold">Client not found</h3>
+              <h3 className="text-white-100 font-semibold">Workspace not found</h3>
               <p className="text-sm text-white-60 mt-1">
-                No client with id <code>{clientId}</code>.{' '}
+                No workspace with id <code>{clientId}</code>.{' '}
                 <Link href="/dashboard" className="text-accent-green-110 hover:underline">
                   Back to list
                 </Link>.

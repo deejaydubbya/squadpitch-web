@@ -29,14 +29,14 @@ export default function DashboardPage() {
             Squadpitch
           </h1>
           <p className="text-white-60 mt-1">
-            Manage client brands and generate on-brand social content with AI.
+            Build and manage your AI-powered content systems.
           </p>
         </div>
 
         {isLoading && (
           <div className="flex items-center gap-2 py-8">
             <LoadingSpinner size="sm" />
-            <span className="text-white-40 text-sm">Loading clients…</span>
+            <span className="text-white-40 text-sm">Loading workspaces…</span>
           </div>
         )}
 
@@ -56,10 +56,10 @@ export default function DashboardPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-white-100 font-semibold text-lg group-hover:text-accent-green-110 transition-colors">
-                  Add new client
+                  Create new workspace
                 </h3>
                 <p className="text-sm text-white-40 mt-1">
-                  AI-powered setup from your website, documents, or description
+                  Paste your website → generate your first posts in seconds
                 </p>
               </div>
             </div>

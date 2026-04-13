@@ -24,7 +24,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-white-100">Settings</h1>
-        <p className="text-sm text-white-40 mt-1">Configure your client workspace.</p>
+        <p className="text-sm text-white-40 mt-1">Configure your workspace settings.</p>
       </div>
 
       <div className="flex gap-1 border-b border-white-10">
