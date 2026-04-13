@@ -43,6 +43,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 interface OnboardingPostCardProps {
   draft: Draft;
   clientId: string;
+  brandName?: string;
   defaultScheduleTime: { iso: string; label: string };
   onRegenerated: (newDraft: Draft) => void;
 }
@@ -50,6 +51,7 @@ interface OnboardingPostCardProps {
 export function OnboardingPostCard({
   draft,
   clientId,
+  brandName,
   defaultScheduleTime,
   onRegenerated,
 }: OnboardingPostCardProps) {
@@ -147,22 +149,24 @@ export function OnboardingPostCard({
 
   const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white/5' };
   const channelLabel = CHANNEL_LABELS[draft.channel] || draft.channel;
-  const channelInitial = channelLabel[0]?.toUpperCase() || '?';
 
   const statusLabel = isScheduled ? 'Scheduled' : isApproved ? 'Approved' : 'Draft';
 
+  const displayName = brandName || 'Your Brand';
+  const brandInitial = displayName[0]?.toUpperCase() || '?';
+
   return (
     <div className={cn(
-      'rounded-2xl border border-white-10 overflow-hidden flex flex-col bg-gradient-to-b to-transparent',
+      'rounded-2xl border border-white-10 overflow-hidden flex flex-col bg-gradient-to-b to-white-5/80',
       colors.bg
     )}>
       {/* Social header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white-5">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white-10">
         <div className="w-9 h-9 rounded-full bg-white-10 flex items-center justify-center text-sm font-bold text-white-60 flex-shrink-0">
-          {channelInitial}
+          {brandInitial}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white-80 truncate">Your Brand</p>
+          <p className="text-sm font-medium text-white-80 truncate">{displayName}</p>
           <p className="text-[11px] text-white-30">
             {channelLabel} · {statusLabel}
           </p>
@@ -183,7 +187,7 @@ export function OnboardingPostCard({
         />
       )}
       {!imageUrl && asset && asset.status !== 'FAILED' && (
-        <div className="w-full aspect-[4/3] bg-white-5 animate-pulse flex items-center justify-center">
+        <div className="w-full aspect-[4/3] bg-white-10 animate-pulse flex items-center justify-center">
           <Loader2 className="w-5 h-5 text-white-30 animate-spin" />
         </div>
       )}
@@ -241,11 +245,11 @@ export function OnboardingPostCard({
       </div>
 
       {/* Action footer */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white-5">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white-10">
         {!editing && !isScheduled && (
           <button
             onClick={() => setEditing(true)}
-            className="text-xs px-2.5 py-1 rounded-md bg-white-5 text-white-60 hover:bg-white-10 flex items-center gap-1"
+            className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-60 hover:bg-white-15 flex items-center gap-1"
           >
             <Pencil className="w-3 h-3" />
             Edit
@@ -281,7 +285,7 @@ export function OnboardingPostCard({
           <button
             onClick={handleRegenerate}
             disabled={regenerating}
-            className="text-xs px-2.5 py-1 rounded-md bg-white-5 text-white-60 hover:bg-white-10 disabled:opacity-50 flex items-center gap-1 ml-auto"
+            className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-60 hover:bg-white-15 disabled:opacity-50 flex items-center gap-1 ml-auto"
           >
             {regenerating ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -295,7 +299,7 @@ export function OnboardingPostCard({
 
       {/* Schedule picker */}
       {showSchedule && (
-        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white-5">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white-10">
           <input
             type="datetime-local"
             value={scheduleDate}

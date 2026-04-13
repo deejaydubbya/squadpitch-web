@@ -699,13 +699,14 @@ export function OnboardingWizard() {
                 key={draft.id}
                 draft={draft}
                 clientId={createdClientId!}
+                brandName={analyzeResult?.brandData.name}
                 defaultScheduleTime={getScheduleTime(i)}
                 onRegenerated={(newDraft) => handleRegenerated(i, newDraft)}
               />
             ))}
           </div>
         ) : (
-          <div className="card p-8 bg-white-5/50 text-center w-full">
+          <div className="card p-8 bg-white-5 border border-white-10 text-center w-full">
             <p className="text-sm text-white-40">
               No posts were generated. You can create content from your dashboard.
             </p>
@@ -840,75 +841,78 @@ export function OnboardingWizard() {
           <StatusBanner error={error} />
         )}
 
-        {/* Interactive options — appear after brand extraction (ABOVE crawl feed) */}
+        {/* Interactive options — collapsible, de-emphasized */}
         {analyzeResult && (
-          <div className="space-y-3 pt-2">
-            <p className="text-[10px] font-semibold text-white-30 uppercase tracking-widest">Content settings</p>
+          <details className="pt-2">
+            <summary className="text-xs text-white-30 cursor-pointer hover:text-white-40 transition-colors select-none">
+              Customize tone, goal & channels
+            </summary>
+            <div className="space-y-3 mt-3">
+              {/* Tone selector — inline */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Tone</span>
+                <div className="flex gap-1.5">
+                  {TONE_OPTIONS.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedTone(t.id)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                        selectedTone === t.id
+                          ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                          : 'bg-white-5 text-white-60 hover:bg-white-10'
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            {/* Tone selector — inline */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Tone</span>
-              <div className="flex gap-1.5">
-                {TONE_OPTIONS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedTone(t.id)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                      selectedTone === t.id
-                        ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
-                        : 'bg-white-5 text-white-60 hover:bg-white-10'
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+              {/* Goal selector — inline */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Goal</span>
+                <div className="flex gap-1.5">
+                  {GOAL_OPTIONS.map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => setSelectedGoal(g.id)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5',
+                        selectedGoal === g.id
+                          ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                          : 'bg-white-5 text-white-60 hover:bg-white-10'
+                      )}
+                    >
+                      <g.icon className="w-3 h-3" />
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Channel pills — inline */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Channels</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {ALL_CHANNELS.map((ch) => (
+                    <button
+                      key={ch.id}
+                      onClick={() => toggleChannel(ch.id)}
+                      className={cn(
+                        'px-3 py-1 rounded-full text-[11px] font-medium transition-all',
+                        selectedChannels.includes(ch.id)
+                          ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                          : 'bg-white-5 text-white-40 hover:bg-white-10'
+                      )}
+                    >
+                      {ch.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-
-            {/* Goal selector — inline */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Goal</span>
-              <div className="flex gap-1.5">
-                {GOAL_OPTIONS.map((g) => (
-                  <button
-                    key={g.id}
-                    onClick={() => setSelectedGoal(g.id)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5',
-                      selectedGoal === g.id
-                        ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
-                        : 'bg-white-5 text-white-60 hover:bg-white-10'
-                    )}
-                  >
-                    <g.icon className="w-3 h-3" />
-                    {g.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Channel pills — inline */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Channels</span>
-              <div className="flex flex-wrap gap-1.5">
-                {ALL_CHANNELS.map((ch) => (
-                  <button
-                    key={ch.id}
-                    onClick={() => toggleChannel(ch.id)}
-                    className={cn(
-                      'px-3 py-1 rounded-full text-[11px] font-medium transition-all',
-                      selectedChannels.includes(ch.id)
-                        ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
-                        : 'bg-white-5 text-white-40 hover:bg-white-10'
-                    )}
-                  >
-                    {ch.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          </details>
         )}
 
         {/* Live crawl feed — collapsible */}
@@ -921,7 +925,7 @@ export function OnboardingWizard() {
               {crawlPages.map((page, i) => (
                 <div
                   key={page.url}
-                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-white-5/50 animate-in fade-in slide-in-from-left-2 duration-200"
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-white-5 animate-in fade-in slide-in-from-left-2 duration-200"
                   style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <Globe className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
@@ -964,7 +968,7 @@ export function OnboardingWizard() {
       <div className="space-y-4">
         {/* Brand card */}
         {analyzeResult ? (
-          <div className="card p-5 space-y-3 bg-gradient-to-br from-accent-green-110/5 to-transparent">
+          <div className="card p-5 space-y-3 bg-gradient-to-br from-accent-green-110/5 to-white-5/80 border border-white-10">
             <h3 className="text-lg font-bold text-white-100">
               {analyzeResult.brandData.name}
             </h3>
@@ -987,7 +991,7 @@ export function OnboardingWizard() {
           </div>
         ) : (
           // Skeleton brand card
-          <div className="card p-5 space-y-3 bg-white-5/50 animate-pulse">
+          <div className="card p-5 space-y-3 bg-white-5 border border-white-10 animate-pulse">
             <div className="h-5 w-40 bg-white-10 rounded" />
             <div className="h-3 w-24 bg-white-10 rounded" />
             <div className="h-3 w-full bg-white-10 rounded" />
@@ -995,44 +999,15 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Extracted business data items */}
+        {/* Extracted business data — compact summary */}
         {extractedDataItems.length > 0 && (
-          <div className="card p-5 space-y-3 bg-white-5/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="card p-4 bg-white-5 border border-white-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-accent-green-110" />
-              <h3 className="text-sm font-bold text-white-100">
-                Business Data Found
-              </h3>
-              <span className="text-xs text-white-30 ml-auto">
-                {extractedDataItems.length} item{extractedDataItems.length !== 1 ? 's' : ''}
-              </span>
+              <Check className="w-4 h-4 text-accent-green-110 flex-shrink-0" />
+              <p className="text-sm text-white-80">
+                Found {extractedDataItems.length} business insight{extractedDataItems.length !== 1 ? 's' : ''} to power your content
+              </p>
             </div>
-            <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
-              {extractedDataItems.map((item, i) => (
-                <div
-                  key={`${item.title}-${i}`}
-                  className="flex items-start gap-2 py-2 px-3 rounded-lg bg-white-5/50 animate-in fade-in duration-200"
-                  style={{ animationDelay: `${i * 30}ms` }}
-                >
-                  <span className="px-1.5 py-0.5 rounded bg-white-10 text-[10px] text-white-40 font-mono uppercase flex-shrink-0 mt-0.5">
-                    {item.type.replace('_', ' ')}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-white-80 font-medium truncate">
-                      {item.title}
-                    </p>
-                    {item.summary && (
-                      <p className="text-[11px] text-white-30 line-clamp-1 mt-0.5">
-                        {item.summary}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-[10px] text-white-20">
-              This data will power your content generation.
-            </p>
           </div>
         )}
 
@@ -1045,7 +1020,7 @@ export function OnboardingWizard() {
                 <div
                   key={draft.id}
                   className={cn(
-                    'rounded-2xl border border-white-10 overflow-hidden bg-gradient-to-b to-transparent animate-in fade-in slide-in-from-bottom-2 duration-300',
+                    'rounded-2xl border border-white-10 overflow-hidden bg-gradient-to-b to-white-5/80 animate-in fade-in slide-in-from-bottom-2 duration-300',
                     colors.bg
                   )}
                   style={{ animationDelay: `${i * 100}ms` }}
@@ -1085,22 +1060,28 @@ export function OnboardingWizard() {
                 </div>
               );
             })
-          : stages.generating !== 'pending' && (
-              // Skeleton post cards — match new card structure
+          : (
+              // Skeleton post cards — show throughout to fill the right panel
               <>
+                <div className="flex items-center gap-2 py-2">
+                  <Sparkles className="w-4 h-4 text-white-20" />
+                  <p className="text-xs text-white-20">
+                    {stages.generating === 'pending' ? 'Posts will appear here...' : 'Creating your posts...'}
+                  </p>
+                </div>
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="rounded-2xl border border-white-10 overflow-hidden animate-pulse">
-                    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-5">
+                  <div key={i} className="rounded-2xl border border-white-10 overflow-hidden bg-white-5 animate-pulse">
+                    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-10">
                       <div className="w-7 h-7 rounded-full bg-white-10" />
-                      <div className="flex-1 space-y-1">
-                        <div className="h-3 w-20 bg-white-10 rounded" />
-                        <div className="h-2 w-14 bg-white-10 rounded" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 w-24 bg-white-10 rounded" />
+                        <div className="h-2 w-16 bg-white-10/60 rounded" />
                       </div>
                       <div className="h-4 w-16 bg-white-10 rounded-full" />
                     </div>
                     <div className="px-4 py-3 space-y-2">
                       <div className="h-3 w-full bg-white-10 rounded" />
-                      <div className="h-3 w-full bg-white-10 rounded" />
+                      <div className="h-3 w-5/6 bg-white-10 rounded" />
                       <div className="h-3 w-2/3 bg-white-10 rounded" />
                     </div>
                   </div>
