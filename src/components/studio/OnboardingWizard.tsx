@@ -61,7 +61,7 @@ const GOAL_OPTIONS = [
   { id: 'leads', label: 'Leads', icon: Zap },
 ] as const;
 
-type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'workspace' | 'generating';
+type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'importing' | 'workspace' | 'generating';
 
 type StageStatus = 'pending' | 'active' | 'done';
 
@@ -69,9 +69,11 @@ interface StageState {
   uploading: StageStatus | 'skipped';
   analyzing: StageStatus;
   extracting: StageStatus;
+  importing: StageStatus | 'skipped';
   workspace: StageStatus;
   generating: StageStatus;
   postsGenerated: number;
+  dataItemsImported: number;
 }
 
 const ACCEPTED_FILE_TYPES = '.pdf,.docx,.txt,.csv';
@@ -108,9 +110,11 @@ export function OnboardingWizard() {
     uploading: 'pending',
     analyzing: 'pending',
     extracting: 'pending',
+    importing: 'pending',
     workspace: 'pending',
     generating: 'pending',
     postsGenerated: 0,
+    dataItemsImported: 0,
   });
 
   // User-modifiable options (populated from AI, changeable before profiles are saved)
@@ -169,9 +173,11 @@ export function OnboardingWizard() {
       uploading: hasFiles ? 'active' : 'skipped',
       analyzing: hasFiles ? 'pending' : 'active',
       extracting: 'pending',
+      importing: 'pending',
       workspace: 'pending',
       generating: 'pending',
       postsGenerated: 0,
+      dataItemsImported: 0,
     });
 
     try {
@@ -217,6 +223,26 @@ export function OnboardingWizard() {
       // (user modifications will be picked up from state at this point)
       await saveProfiles(client.id, result);
       setStage('workspace', 'done');
+
+      // Stage 3.5: Import data items
+      if (result.dataItems && result.dataItems.length > 0) {
+        setStage('importing', 'active');
+        try {
+          await apiFetch(`clients/${client.id}/data-import/confirm`, {
+            method: 'POST',
+            body: JSON.stringify({
+              items: result.dataItems,
+              sourceType: 'URL',
+            }),
+          });
+          setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: result.dataItems.length }));
+        } catch {
+          // Non-fatal — mark skipped so onboarding continues
+          setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: 0 }));
+        }
+      } else {
+        setStages((prev) => ({ ...prev, importing: 'skipped' }));
+      }
 
       // Stage 4: Generate 3 posts
       setStage('generating', 'active');
@@ -264,8 +290,17 @@ export function OnboardingWizard() {
   };
 
   const saveProfiles = async (clientId: string, result: OnboardingAnalyzeResult) => {
+    const checkedFetch = async (url: string, init: RequestInit) => {
+      const res = await fetch(url, init);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { message?: string }).message || `Request failed (${res.status})`);
+      }
+      return res;
+    };
+
     // Brand profile
-    await fetch(`/api/proxy/clients/${clientId}/brand`, {
+    await checkedFetch(`/api/proxy/clients/${clientId}/brand`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -279,7 +314,7 @@ export function OnboardingWizard() {
     });
 
     // Voice profile
-    await fetch(`/api/proxy/clients/${clientId}/voice`, {
+    await checkedFetch(`/api/proxy/clients/${clientId}/voice`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -293,11 +328,18 @@ export function OnboardingWizard() {
       }),
     });
 
+    // Media profile (default — enables image generation)
+    await checkedFetch(`/api/proxy/clients/${clientId}/media`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'BRAND_ASSETS_PLUS_AI' }),
+    });
+
     // Channel settings
     const channels = result.suggestedChannels.length > 0
       ? result.suggestedChannels
       : ['INSTAGRAM' as Channel];
-    await fetch(`/api/proxy/clients/${clientId}/channels`, {
+    await checkedFetch(`/api/proxy/clients/${clientId}/channels`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -367,6 +409,7 @@ export function OnboardingWizard() {
   const allDone = (stages.uploading === 'done' || stages.uploading === 'skipped') &&
     stages.analyzing === 'done' &&
     stages.extracting === 'done' &&
+    (stages.importing === 'done' || stages.importing === 'skipped') &&
     stages.workspace === 'done' &&
     stages.generating === 'done';
 
@@ -612,6 +655,13 @@ export function OnboardingWizard() {
             activeLabel="Extracting brand voice..."
             doneLabel="Brand voice extracted"
           />
+          {stages.importing !== 'skipped' && (
+            <StageRow
+              status={stages.importing}
+              activeLabel="Importing business data..."
+              doneLabel={`${stages.dataItemsImported} data item${stages.dataItemsImported !== 1 ? 's' : ''} imported`}
+            />
+          )}
           <StageRow
             status={stages.workspace}
             activeLabel="Setting up workspace..."

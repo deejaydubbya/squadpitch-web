@@ -1,14 +1,16 @@
 'use client';
 
-import { CreditCard, ExternalLink, Loader2, Zap } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, CreditCard, ExternalLink, Loader2, Zap } from 'lucide-react';
 import {
   useSubscription,
   useUsage,
   useCreatePortal,
   useCreateCheckout,
+  useChangePlan,
   type PlanTier,
 } from '@/hooks/useBilling';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { StatusBanner } from '@/components/common/StatusBanner';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { UsageMeter } from '@/components/billing/UsageMeter';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
@@ -17,18 +19,24 @@ const PLANS: { tier: PlanTier; label: string; price: string; features: string[] 
   {
     tier: 'STARTER',
     label: 'Starter',
-    price: '$29/mo',
-    features: ['1 client', '50 posts/mo', '20 images/mo'],
-  },
-  {
-    tier: 'GROWTH',
-    label: 'Growth',
-    price: '$79/mo',
-    features: ['3 clients', '200 posts/mo', '100 images/mo', '20 videos/mo'],
+    price: '$19/mo',
+    features: ['3 clients', '50 posts/mo', '10 images/mo'],
   },
   {
     tier: 'PRO',
     label: 'Pro',
+    price: '$49/mo',
+    features: ['5 clients', '200 posts/mo', '50 images/mo', '5 videos/mo'],
+  },
+  {
+    tier: 'GROWTH',
+    label: 'Growth',
+    price: '$99/mo',
+    features: ['10 clients', '500 posts/mo', '150 images/mo', '20 videos/mo'],
+  },
+  {
+    tier: 'AGENCY',
+    label: 'Agency',
     price: '$199/mo',
     features: ['Unlimited clients', '1,000 posts/mo', '500 images/mo', '100 videos/mo'],
   },
@@ -39,6 +47,7 @@ export default function BillingSettingsPage() {
   const { data: usage, isLoading: usageLoading } = useUsage();
   const portal = useCreatePortal();
   const checkout = useCreateCheckout();
+  const changePlan = useChangePlan();
 
   const isLoading = subLoading || usageLoading;
 
@@ -56,16 +65,35 @@ export default function BillingSettingsPage() {
   const isAtPostLimit =
     usage && isFinite(usage.limits.posts) && usage.usage.posts >= usage.limits.posts;
 
-  const handleCheckout = (planTier: PlanTier) => {
-    checkout.mutate({
-      tier: planTier,
-      successUrl: window.location.href,
-      cancelUrl: window.location.href,
-    });
+  const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
+
+  const handlePlanAction = (planTier: PlanTier) => {
+    if (hasSubscription) {
+      // Existing subscriber — upgrade/downgrade via proration
+      changePlan.mutate({ tier: planTier });
+    } else {
+      // No subscription — go through Stripe Checkout
+      checkout.mutate({
+        tier: planTier,
+        successUrl: window.location.href,
+        cancelUrl: window.location.href,
+      });
+    }
   };
+
+  const mutationError =
+    changePlan.error?.message || checkout.error?.message || portal.error?.message;
 
   return (
     <div className="space-y-6 max-w-3xl">
+      {mutationError && <StatusBanner error={mutationError} />}
+      {changePlan.isSuccess && (
+        <StatusBanner
+          success
+          message={`Plan ${changePlan.data?.isUpgrade ? 'upgraded' : 'changed'} to ${changePlan.data?.tier ?? 'new plan'}.`}
+        />
+      )}
+
       {/* Current Plan */}
       <div className="card p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -113,22 +141,35 @@ export default function BillingSettingsPage() {
         )}
       </div>
 
-      {/* Plan picker — shown when no subscription */}
-      {!hasSubscription && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          {PLANS.map((plan) => (
+      {/* Plan picker */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {PLANS.map((plan) => {
+          const isCurrent = plan.tier === tier;
+          const isHigher = TIER_RANK[plan.tier] > TIER_RANK[tier];
+          const isPending = checkout.isPending || changePlan.isPending;
+
+          return (
             <div
               key={plan.tier}
               className={`card p-5 space-y-3 ${
-                plan.tier === 'GROWTH'
+                isCurrent
+                  ? 'border-accent-blue/50 ring-1 ring-accent-blue/20'
+                  : plan.tier === 'PRO'
                   ? 'border-accent-green-110/50 ring-1 ring-accent-green-110/20'
                   : ''
               }`}
             >
               <div>
-                <h3 className="text-sm font-bold text-white-100">
-                  {plan.label}
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white-100">
+                    {plan.label}
+                  </h3>
+                  {isCurrent && (
+                    <span className="text-[10px] font-semibold text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
+                      Current
+                    </span>
+                  )}
+                </div>
                 <p className="text-lg font-bold text-accent-green-110 mt-1">
                   {plan.price}
                 </p>
@@ -143,22 +184,44 @@ export default function BillingSettingsPage() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => handleCheckout(plan.tier)}
-                disabled={checkout.isPending}
-                className="btn btn-primary w-full text-xs flex items-center justify-center gap-1.5"
-              >
-                {checkout.isPending ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Zap className="w-3.5 h-3.5" />
-                )}
-                Subscribe
-              </button>
+              {isCurrent ? (
+                <button
+                  disabled
+                  className="btn w-full text-xs flex items-center justify-center gap-1.5 opacity-50 cursor-default"
+                >
+                  Current plan
+                </button>
+              ) : (
+                <button
+                  onClick={() => handlePlanAction(plan.tier)}
+                  disabled={isPending}
+                  className={`btn w-full text-xs flex items-center justify-center gap-1.5 ${
+                    isHigher ? 'btn-primary' : 'btn-secondary'
+                  }`}
+                >
+                  {isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : isHigher ? (
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  ) : (
+                    <ArrowDownRight className="w-3.5 h-3.5" />
+                  )}
+                  {hasSubscription
+                    ? isHigher ? 'Upgrade' : 'Downgrade'
+                    : 'Subscribe'}
+                </button>
+              )}
+              {hasSubscription && !isCurrent && (
+                <p className="text-[10px] text-white-30 text-center">
+                  {isHigher
+                    ? 'Prorated charge applied today'
+                    : 'Credit applied to next bill'}
+                </p>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
       {/* Usage */}
       {usage && (

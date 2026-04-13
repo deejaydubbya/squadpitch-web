@@ -1868,12 +1868,22 @@ export interface OnboardingVoiceData {
   contentBuckets: ContentBucket[];
 }
 
+export interface OnboardingDataItem {
+  type: string;
+  title: string;
+  summary: string;
+  dataJson: Record<string, unknown>;
+  tags: string[];
+  priority: number;
+}
+
 export interface OnboardingAnalyzeResult {
   brandData: OnboardingBrandData;
   voiceData: OnboardingVoiceData;
   suggestedGoal: string;
   suggestedChannels: Channel[];
   images: string[];
+  dataItems: OnboardingDataItem[];
 }
 
 export interface UploadDocumentsResult {

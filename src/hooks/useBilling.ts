@@ -1,11 +1,11 @@
 'use client';
 
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/apiFetch';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type PlanTier = 'FREE' | 'STARTER' | 'GROWTH' | 'PRO';
+export type PlanTier = 'FREE' | 'STARTER' | 'PRO' | 'GROWTH' | 'AGENCY';
 export type SubscriptionStatus = 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELED';
 
 export interface Subscription {
@@ -90,6 +90,28 @@ export function useCreatePortal() {
       }),
     onSuccess: (result) => {
       if (result.url) window.location.href = result.url;
+    },
+  });
+}
+
+export interface ChangePlanResult {
+  tier: PlanTier;
+  previousTier: PlanTier;
+  isUpgrade: boolean;
+  currentPeriodEnd: string | null;
+}
+
+export function useChangePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { tier: PlanTier }) =>
+      apiFetch<ChangePlanResult>('billing/change-plan', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: billingKeys.subscription });
+      qc.invalidateQueries({ queryKey: billingKeys.usage });
     },
   });
 }

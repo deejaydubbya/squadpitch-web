@@ -128,7 +128,7 @@ export default function OverviewPage() {
   const handleRecommendationAction = (action: string) => {
     switch (action) {
       case 'generate_from_data':
-        router.push(`${base}/data`);
+        router.push(`${base}/business-data`);
         break;
       case 'generate_content':
         router.push(`${base}/create`);
@@ -137,7 +137,7 @@ export default function OverviewPage() {
         router.push(`${base}/settings/media`);
         break;
       case 'add_data':
-        router.push(`${base}/data`);
+        router.push(`${base}/business-data`);
         break;
       case 'review_drafts':
         router.push(`${base}/library`);
@@ -744,7 +744,7 @@ function BusinessDataSnapshot({
           )}
 
           <Link
-            href={`${base}/data`}
+            href={`${base}/business-data`}
             className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
           >
             <Wand2 className="w-3 h-3" />
@@ -757,7 +757,7 @@ function BusinessDataSnapshot({
             No data yet. Add testimonials, stats, or case studies.
           </p>
           <Link
-            href={`${base}/data`}
+            href={`${base}/business-data`}
             className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
           >
             <FileText className="w-3 h-3" />
@@ -954,7 +954,7 @@ function AutopilotStatus({
 
       {hasData ? (
         <Link
-          href={`${base}/data`}
+          href={`${base}/business-data`}
           className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
         >
           <Zap className="w-3 h-3" />

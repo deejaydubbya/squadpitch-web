@@ -1,7 +1,7 @@
 'use client';
 
 import { Zap, Loader2 } from 'lucide-react';
-import { useCreateCheckout, type PlanTier } from '@/hooks/useBilling';
+import { useCreateCheckout, useChangePlan, useSubscription, type PlanTier } from '@/hooks/useBilling';
 
 interface Props {
   currentTier: PlanTier;
@@ -10,20 +10,32 @@ interface Props {
 
 export function UpgradePrompt({ currentTier, limitType }: Props) {
   const checkout = useCreateCheckout();
+  const changePlan = useChangePlan();
+  const { data: subscription } = useSubscription();
+
+  const hasSubscription = !!subscription?.stripeSubscriptionId;
 
   const nextTier: PlanTier = currentTier === 'FREE' ? 'STARTER'
-    : currentTier === 'STARTER' ? 'GROWTH' : 'PRO';
-  const nextLabel = nextTier === 'STARTER' ? 'Starter ($29/mo)'
-    : nextTier === 'GROWTH' ? 'Growth ($79/mo)' : 'Pro ($199/mo)';
+    : currentTier === 'STARTER' ? 'PRO'
+    : currentTier === 'PRO' ? 'GROWTH' : 'AGENCY';
+  const nextLabel = nextTier === 'STARTER' ? 'Starter ($19/mo)'
+    : nextTier === 'PRO' ? 'Pro ($49/mo)'
+    : nextTier === 'GROWTH' ? 'Growth ($99/mo)' : 'Agency ($199/mo)';
 
-  if (currentTier === 'PRO') return null;
+  if (currentTier === 'AGENCY') return null;
+
+  const isPending = checkout.isPending || changePlan.isPending;
 
   const handleUpgrade = () => {
-    checkout.mutate({
-      tier: nextTier,
-      successUrl: window.location.href,
-      cancelUrl: window.location.href,
-    });
+    if (hasSubscription) {
+      changePlan.mutate({ tier: nextTier });
+    } else {
+      checkout.mutate({
+        tier: nextTier,
+        successUrl: window.location.href,
+        cancelUrl: window.location.href,
+      });
+    }
   };
 
   return (
@@ -37,14 +49,19 @@ export function UpgradePrompt({ currentTier, limitType }: Props) {
           <p className="text-xs text-white-60 mt-1">
             You&apos;ve used all your monthly {limitType.toLowerCase()}. Upgrade to {nextLabel} for higher limits.
           </p>
+          {hasSubscription && (
+            <p className="text-[10px] text-white-30 mt-1">
+              You&apos;ll be charged a prorated amount today.
+            </p>
+          )}
         </div>
       </div>
       <button
         onClick={handleUpgrade}
-        disabled={checkout.isPending}
+        disabled={isPending}
         className="btn btn-primary text-xs flex items-center gap-1.5"
       >
-        {checkout.isPending ? (
+        {isPending ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
         ) : (
           <Zap className="w-3.5 h-3.5" />
