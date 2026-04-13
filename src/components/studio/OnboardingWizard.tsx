@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
   Loader2,
@@ -15,19 +16,43 @@ import {
   Upload,
   FileText,
   X,
-  Database,
+  Instagram,
+  Linkedin,
+  Music2,
+  Youtube,
+  Link2,
+  Home,
+  Car,
+  Building2,
+  ShoppingBag,
+  Landmark,
+  Shield,
+  Scale,
+  TrendingUp,
+  Wrench,
+  Dumbbell,
+  UtensilsCrossed,
+  Scissors,
+  Mic,
+  Store,
+  Briefcase,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useOnboardingUploadDocuments,
   useCreateClient,
   useGenerateContent,
+  useChannelConnections,
+  useIndustries,
+  squadpitchKeys,
   type Channel,
   type Draft,
   type OnboardingAnalyzeResult,
   type OnboardingDataItem,
+  type OAuthStartResponse,
+  type IndustryProfile,
 } from '@/hooks/useSquadpitch';
-// Note: useOnboardingAnalyze replaced by SSE stream (consumeAnalyzeStream)
 import { apiFetch } from '@/lib/apiFetch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { OnboardingPostCard } from '@/components/studio/OnboardingPostCard';
@@ -39,6 +64,24 @@ function slugify(value: string) {
     .replace(/^-|-$/g, '')
     .slice(0, 64);
 }
+
+const INDUSTRY_ICON_MAP: Record<string, LucideIcon> = {
+  Home,
+  Car,
+  Building2,
+  ShoppingBag,
+  Landmark,
+  Shield,
+  Scale,
+  TrendingUp,
+  Wrench,
+  Dumbbell,
+  UtensilsCrossed,
+  Scissors,
+  Mic,
+  Store,
+  Briefcase,
+};
 
 const ALL_CHANNELS: { id: Channel; label: string }[] = [
   { id: 'INSTAGRAM', label: 'Instagram' },
@@ -64,11 +107,18 @@ const GOAL_OPTIONS = [
 const CHANNEL_COLORS: Record<string, { badge: string; bg: string }> = {
   INSTAGRAM: { badge: 'bg-pink-500/20 text-pink-400', bg: 'from-pink-500/5' },
   TIKTOK:    { badge: 'bg-cyan-500/20 text-cyan-400', bg: 'from-cyan-500/5' },
-  X:         { badge: 'bg-white/20 text-white/60',     bg: 'from-white/5' },
+  X:         { badge: 'bg-white-20 text-white-60',       bg: 'from-white-5' },
   LINKEDIN:  { badge: 'bg-blue-500/20 text-blue-400', bg: 'from-blue-500/5' },
   FACEBOOK:  { badge: 'bg-blue-600/20 text-blue-300', bg: 'from-blue-600/5' },
   YOUTUBE:   { badge: 'bg-red-500/20 text-red-400',   bg: 'from-red-500/5' },
 };
+
+const CONNECT_CHANNELS: { id: Channel; label: string; icon: typeof Instagram }[] = [
+  { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram },
+  { id: 'LINKEDIN', label: 'LinkedIn', icon: Linkedin },
+  { id: 'TIKTOK', label: 'TikTok', icon: Music2 },
+  { id: 'YOUTUBE', label: 'YouTube', icon: Youtube },
+];
 
 type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'extractingData' | 'importing' | 'workspace' | 'generating';
 
@@ -120,7 +170,7 @@ interface StreamCallbacks {
 }
 
 async function consumeAnalyzeStream(
-  body: { input: string; inputType: string; documentTexts?: string[] },
+  body: { input: string; inputType: string; documentTexts?: string[]; industryKey?: string },
   callbacks: Omit<StreamCallbacks, 'onDone'>,
 ): Promise<OnboardingAnalyzeResult | null> {
   const res = await fetch('/api/proxy/onboarding/analyze-stream', {
@@ -189,6 +239,11 @@ export function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState<0 | 1 | 2>(0);
 
+  // Industry profiles
+  const { data: industries = [] } = useIndustries();
+  const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
+  const activeProfile = industries.find((p) => p.key === selectedIndustry) ?? null;
+
   // Step 1 state
   const [input, setInput] = useState('');
   const [description, setDescription] = useState('');
@@ -229,6 +284,50 @@ export function OnboardingWizard() {
 
   // Track if setup is running to prevent double-click
   const setupRunning = useRef(false);
+
+  // Channel connections — for Step 2 publish flow
+  const queryClient = useQueryClient();
+  const connections = useChannelConnections(createdClientId ?? undefined);
+  const hasConnectedChannel = (connections.data ?? []).some((c) => c.status === 'CONNECTED');
+  const [showConnectPrompt, setShowConnectPrompt] = useState(false);
+  const oauthPopupRef = useRef<Window | null>(null);
+
+  // Listen for OAuth completion from popup
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'sp-oauth-complete' && createdClientId) {
+        queryClient.invalidateQueries({ queryKey: squadpitchKeys.connections(createdClientId) });
+        setShowConnectPrompt(false);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [createdClientId, queryClient]);
+
+  const handleConnectChannel = useCallback(async (channel: Channel) => {
+    if (!createdClientId) return;
+
+    if (oauthPopupRef.current && !oauthPopupRef.current.closed) {
+      oauthPopupRef.current.focus();
+      return;
+    }
+
+    const popup = window.open('about:blank', 'sp-oauth-popup', 'width=600,height=720');
+    if (!popup) return;
+    oauthPopupRef.current = popup;
+
+    try {
+      const data = await apiFetch<OAuthStartResponse>(
+        `clients/${createdClientId}/connections/${channel}/oauth/start`,
+        { method: 'POST' },
+      );
+      if (popup.closed) { oauthPopupRef.current = null; return; }
+      popup.location.href = data.authUrl;
+    } catch {
+      popup.close();
+      oauthPopupRef.current = null;
+    }
+  }, [createdClientId]);
 
   // Mutations
   const uploadDocuments = useOnboardingUploadDocuments();
@@ -307,6 +406,7 @@ export function OnboardingWizard() {
           input: inputValue,
           inputType,
           documentTexts: documentTexts.length > 0 ? documentTexts : undefined,
+          industryKey: selectedIndustry ?? undefined,
         },
         {
           onCrawlPage: (page) => {
@@ -351,7 +451,11 @@ export function OnboardingWizard() {
       setStage('workspace', 'active');
       const brandName = result.brandData.name || input.trim().slice(0, 60);
       const slug = slugify(brandName);
-      const client = await createClient.mutateAsync({ name: brandName, slug });
+      const client = await createClient.mutateAsync({
+        name: brandName,
+        slug,
+        industryKey: selectedIndustry ?? undefined,
+      });
       setCreatedClientId(client.id);
 
       // Save profiles using the AI-extracted data
@@ -384,6 +488,9 @@ export function OnboardingWizard() {
         ? result.suggestedChannels
         : ['INSTAGRAM' as Channel];
 
+      const angles = result.starterAngles ?? [];
+      const defaultGuidance = `Create an engaging social media post for ${brandName}. Focus on their ${result.brandData.industry} expertise. Make it authentic and ready to publish.`;
+
       for (let i = 0; i < 3; i++) {
         const channel = channels[i % channels.length];
         try {
@@ -391,7 +498,7 @@ export function OnboardingWizard() {
             clientId: client.id,
             kind: 'POST',
             channel,
-            guidance: `Create an engaging social media post for ${brandName}. Focus on their ${result.brandData.industry} expertise. Make it authentic and ready to publish.`,
+            guidance: angles[i] || defaultGuidance,
           });
           setGeneratedDrafts((prev) => [...prev, draft]);
           setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
@@ -494,6 +601,13 @@ export function OnboardingWizard() {
 
   const handleBulkApproveAndSchedule = async () => {
     if (!createdClientId) return;
+
+    // Intercept: if no channel connected, show connect prompt instead
+    if (!hasConnectedChannel) {
+      setShowConnectPrompt(true);
+      return;
+    }
+
     setBulkActionRunning(true);
     setBulkError(null);
     try {
@@ -573,81 +687,120 @@ export function OnboardingWizard() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && canSubmit) handleSetup();
               }}
-              placeholder="yourwebsite.com"
+              placeholder={activeProfile?.onboarding.websitePlaceholder ?? 'yourwebsite.com'}
               className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
               autoFocus
             />
           </div>
 
           <p className="text-xs text-white-30 text-center">
-            Your website alone is enough — we&apos;ll extract everything we need.
+            {activeProfile?.onboarding.helperText ?? "Your website alone is enough — we'll extract everything we need."}
           </p>
 
-          {/* Business description (optional) */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-white-40">
-              Business description (optional)
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does your business do? Who do you serve?"
-              rows={3}
-              className="w-full px-4 py-3 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
-            />
-          </div>
-
-          {/* Compact file upload */}
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleFilesSelected(e.dataTransfer.files);
-            }}
-            className="w-full px-4 py-3 rounded-xl border border-dashed border-white-10 hover:border-white-20 transition-colors cursor-pointer flex items-center gap-3"
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={ACCEPTED_FILE_TYPES}
-              className="hidden"
-              onChange={(e) => {
-                handleFilesSelected(e.target.files);
-                e.target.value = '';
-              }}
-            />
-            <Upload className="w-4 h-4 text-white-20 flex-shrink-0" />
-            <p className="text-xs text-white-30">
-              Have docs? Drop files here (PDF, DOCX, TXT, CSV)
-            </p>
-          </div>
-
-          {/* Attached files */}
-          {files.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {files.map((f, i) => (
-                <div
-                  key={`${f.name}-${i}`}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-sm"
-                >
-                  <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
-                  <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
-                  <span className="text-white-30 text-xs">
-                    {(f.size / 1024).toFixed(0)}KB
-                  </span>
+          {/* Industry selector grid */}
+          {industries.length > 0 && (
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {industries.map((profile) => {
+                const IconComponent = INDUSTRY_ICON_MAP[profile.ui.icon] ?? Briefcase;
+                const isSelected = selectedIndustry === profile.key;
+                return (
                   <button
-                    onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                    className="text-white-30 hover:text-white-80 transition-colors"
+                    key={profile.key}
+                    type="button"
+                    onClick={() => setSelectedIndustry(isSelected ? null : profile.key)}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border transition-all text-center',
+                      isSelected
+                        ? 'border-accent-green-110 bg-accent-green-110/10 ring-1 ring-accent-green-110'
+                        : 'border-white-10 bg-white-5 hover:border-white-20',
+                    )}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <IconComponent className={cn('w-5 h-5', isSelected ? 'text-accent-green-110' : 'text-white-30')} />
+                    <span className={cn('text-[11px] leading-tight', isSelected ? 'text-accent-green-110 font-medium' : 'text-white-40')}>
+                      {profile.label}
+                    </span>
                   </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
+
+          {/* Expandable extra details */}
+          <details className="group">
+            <summary className="text-xs text-white-30 cursor-pointer hover:text-white-40 transition-colors select-none text-center list-none [&::-webkit-details-marker]:hidden flex items-center justify-center gap-1.5">
+              <span className="border-b border-dashed border-white-20 group-open:border-transparent">
+                Add more details for better results
+              </span>
+            </summary>
+
+            <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-top-1 duration-200">
+              {/* Business description (optional) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-white-40">
+                  {activeProfile?.onboarding.extraContextLabel ?? 'Business description'}
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={activeProfile?.onboarding.extraContextPlaceholder ?? 'What does your business do? Who do you serve?'}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
+                />
+              </div>
+
+              {/* Compact file upload */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleFilesSelected(e.dataTransfer.files);
+                }}
+                className="w-full px-4 py-3 rounded-xl border border-dashed border-white-10 hover:border-white-20 transition-colors cursor-pointer flex items-center gap-3"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={ACCEPTED_FILE_TYPES}
+                  className="hidden"
+                  onChange={(e) => {
+                    handleFilesSelected(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <Upload className="w-4 h-4 text-white-20 flex-shrink-0" />
+                <p className="text-xs text-white-30">
+                  Drop files here (PDF, DOCX, TXT, CSV)
+                </p>
+              </div>
+
+              {/* Attached files */}
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {files.map((f, i) => (
+                    <div
+                      key={`${f.name}-${i}`}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-sm"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
+                      <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
+                      <span className="text-white-30 text-xs">
+                        {(f.size / 1024).toFixed(0)}KB
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                        className="text-white-30 hover:text-white-80 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
 
           <button
             onClick={handleSetup}
@@ -657,6 +810,14 @@ export function OnboardingWizard() {
             <Sparkles className="w-5 h-5" />
             Create My Content System
           </button>
+
+          <div className="flex items-center justify-center gap-4 text-[11px] text-white-20">
+            <span>AI-powered</span>
+            <span className="w-1 h-1 rounded-full bg-white-10" />
+            <span>Takes about 60 seconds</span>
+            <span className="w-1 h-1 rounded-full bg-white-10" />
+            <span>No credit card needed</span>
+          </div>
         </div>
       </div>
     );
@@ -672,8 +833,12 @@ export function OnboardingWizard() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-sp-surface/80 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
               <CheckCircle2 className="w-16 h-16 text-accent-green-110" />
-              <p className="text-xl font-bold text-white-100">You&apos;re all set!</p>
-              <p className="text-sm text-white-40">Redirecting to your workspace...</p>
+              <p className="text-xl font-bold text-white-100">
+                {analyzeResult?.brandData.name
+                  ? `${analyzeResult.brandData.name} is all set!`
+                  : 'You\u2019re all set!'}
+              </p>
+              <p className="text-sm text-white-40">Taking you to your workspace...</p>
             </div>
           </div>
         )}
@@ -684,29 +849,59 @@ export function OnboardingWizard() {
             {generatedDrafts.length} post{generatedDrafts.length !== 1 ? 's' : ''} ready
           </span>
           <h2 className="text-3xl font-bold text-white-100">
-            Your content is ready
+            {analyzeResult?.brandData.name
+              ? `${analyzeResult.brandData.name}\u2019s content is ready`
+              : 'Your content is ready'}
           </h2>
           <p className="text-sm text-white-40">
-            We created these posts based on your business. Review, edit, or schedule them.
+            We created {generatedDrafts.length} post{generatedDrafts.length !== 1 ? 's' : ''} for{' '}
+            {analyzeResult?.brandData.name || 'your business'}. Review, edit, or schedule them.
           </p>
         </div>
+
+        {/* Brand summary bar */}
+        {analyzeResult && (
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 w-full">
+            <div className="w-8 h-8 rounded-full bg-accent-green-110/15 flex items-center justify-center text-sm font-bold text-accent-green-110 flex-shrink-0">
+              {analyzeResult.brandData.name?.[0]?.toUpperCase() || '?'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white-80 truncate">{analyzeResult.brandData.name}</p>
+            </div>
+            {analyzeResult.brandData.industry && (
+              <span className="px-2 py-0.5 rounded-full bg-white-10 text-white-40 text-[11px] flex-shrink-0">
+                {analyzeResult.brandData.industry}
+              </span>
+            )}
+            {analyzeResult.voiceData.tone && (
+              <span className="px-2 py-0.5 rounded-full bg-accent-green-110/10 text-accent-green-110 text-[11px] flex-shrink-0">
+                {analyzeResult.voiceData.tone}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Post cards grid */}
         {generatedDrafts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
             {generatedDrafts.map((draft, i) => (
-              <OnboardingPostCard
+              <div
                 key={draft.id}
-                draft={draft}
-                clientId={createdClientId!}
-                brandName={analyzeResult?.brandData.name}
-                defaultScheduleTime={getScheduleTime(i)}
-                onRegenerated={(newDraft) => handleRegenerated(i, newDraft)}
-              />
+                className="animate-in fade-in slide-in-from-bottom-3 duration-300"
+                style={{ animationDelay: `${i * 120}ms`, animationFillMode: 'backwards' }}
+              >
+                <OnboardingPostCard
+                  draft={draft}
+                  clientId={createdClientId!}
+                  brandName={analyzeResult?.brandData.name}
+                  defaultScheduleTime={getScheduleTime(i)}
+                  onRegenerated={(newDraft) => handleRegenerated(i, newDraft)}
+                />
+              </div>
             ))}
           </div>
         ) : (
-          <div className="card p-8 bg-white-5 border border-white-10 text-center w-full">
+          <div className="p-8 rounded-2xl bg-white-5 border border-white-10 text-center w-full">
             <p className="text-sm text-white-40">
               No posts were generated. You can create content from your dashboard.
             </p>
@@ -714,6 +909,35 @@ export function OnboardingWizard() {
         )}
 
         {bulkError && <StatusBanner error={bulkError} />}
+
+        {/* Connect prompt — shown when no channel connected and user tries to schedule */}
+        {showConnectPrompt && !hasConnectedChannel && (
+          <div className="w-full p-5 rounded-2xl bg-gradient-to-br from-accent-green-110/5 to-white-5/80 border border-accent-green-110/20 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="text-center space-y-1.5">
+              <p className="text-base font-semibold text-white-100">
+                Connect a platform to publish your posts
+              </p>
+              <p className="text-sm text-white-40">
+                Choose where you want to publish. You can add more later.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {CONNECT_CHANNELS.map((ch) => (
+                <button
+                  key={ch.id}
+                  onClick={() => handleConnectChannel(ch.id)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-colors text-sm text-white-80"
+                >
+                  <ch.icon className="w-4 h-4 text-white-60" />
+                  {ch.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-white-20 text-center">
+              A secure popup will open to authorize your account
+            </p>
+          </div>
+        )}
 
         {/* Bulk actions */}
         {generatedDrafts.length > 0 && (
@@ -726,19 +950,23 @@ export function OnboardingWizard() {
             >
               {bulkActionRunning ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
+              ) : hasConnectedChannel ? (
                 <Calendar className="w-4 h-4" />
+              ) : (
+                <Link2 className="w-4 h-4" />
               )}
-              Approve & Schedule All
+              {hasConnectedChannel ? 'Approve & Schedule All' : 'Connect & Schedule'}
             </button>
 
-            {/* Schedule info */}
-            <div className="flex items-center justify-center gap-2 text-xs text-white-30">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>
-                Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
-              </span>
-            </div>
+            {/* Schedule info — only when connected */}
+            {hasConnectedChannel && (
+              <div className="flex items-center justify-center gap-2 text-xs text-white-30">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>
+                  Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
+                </span>
+              </div>
+            )}
 
             {/* Secondary actions — text links */}
             <div className="flex items-center justify-center gap-3 text-sm">
@@ -782,7 +1010,22 @@ export function OnboardingWizard() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-[60vh]">
       {/* Left panel — Progress + Options */}
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-white-100">Building your content system</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-white-100">
+            {analyzeResult
+              ? `Building ${analyzeResult.brandData.name}\u2019s content system`
+              : 'Building your content system'}
+          </h2>
+          <p className="text-sm text-white-30 mt-1">
+            {stages.generating === 'done'
+              ? 'Everything\u2019s ready for you to review'
+              : stages.generating === 'active'
+                ? 'Almost there \u2014 creating your posts now'
+                : analyzeResult
+                  ? 'Setting up your workspace...'
+                  : 'This usually takes about a minute'}
+          </p>
+        </div>
 
         {/* Stage checklist */}
         <div className="space-y-3">
@@ -945,7 +1188,7 @@ export function OnboardingWizard() {
         {allDone && (
           <button
             onClick={() => setStep(2)}
-            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors mt-4 shadow-glow-green animate-in fade-in slide-in-from-bottom-2 duration-300"
           >
             Review Your Posts
             <ArrowRight className="w-5 h-5" />
@@ -966,32 +1209,28 @@ export function OnboardingWizard() {
 
       {/* Right panel — Live Preview */}
       <div className="space-y-4">
+        <p className="text-xs font-medium text-white-20 uppercase tracking-wider">Live preview</p>
+
         {/* Brand card */}
         {analyzeResult ? (
-          <div className="card p-5 space-y-3 bg-gradient-to-br from-accent-green-110/5 to-white-5/80 border border-white-10">
-            <h3 className="text-lg font-bold text-white-100">
-              {analyzeResult.brandData.name}
-            </h3>
-            <div className="flex items-center gap-2">
+          <div className="p-5 rounded-2xl space-y-2.5 bg-gradient-to-br from-accent-green-110/5 to-white-5/80 border border-white-10">
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-lg font-bold text-white-100">
+                {analyzeResult.brandData.name}
+              </h3>
               {analyzeResult.brandData.industry && (
-                <span className="px-2 py-0.5 rounded-full bg-white-10 text-white-60 text-xs">
+                <span className="px-2 py-0.5 rounded-full bg-white-10 text-white-60 text-[11px]">
                   {analyzeResult.brandData.industry}
                 </span>
               )}
             </div>
-            {analyzeResult.brandData.audience && (
-              <p className="text-sm text-white-40">
-                <span className="text-white-60 font-medium">Audience:</span>{' '}
-                {analyzeResult.brandData.audience}
-              </p>
-            )}
-            <p className="text-sm text-white-40 leading-relaxed">
+            <p className="text-sm text-white-40 leading-relaxed line-clamp-2">
               {analyzeResult.brandData.description}
             </p>
           </div>
         ) : (
           // Skeleton brand card
-          <div className="card p-5 space-y-3 bg-white-5 border border-white-10 animate-pulse">
+          <div className="p-5 rounded-2xl space-y-3 bg-white-5 border border-white-10 animate-pulse">
             <div className="h-5 w-40 bg-white-10 rounded" />
             <div className="h-3 w-24 bg-white-10 rounded" />
             <div className="h-3 w-full bg-white-10 rounded" />
@@ -999,95 +1238,120 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Extracted business data — compact summary */}
-        {extractedDataItems.length > 0 && (
-          <div className="card p-4 bg-white-5 border border-white-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-accent-green-110 flex-shrink-0" />
-              <p className="text-sm text-white-80">
-                Found {extractedDataItems.length} business insight{extractedDataItems.length !== 1 ? 's' : ''} to power your content
-              </p>
+        {/* Brand discovery highlights */}
+        {analyzeResult && (
+          <div className="p-4 rounded-2xl bg-white-5 border border-white-10 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <p className="text-xs font-medium text-white-40 uppercase tracking-wider">What we discovered</p>
+            <div className="flex flex-wrap gap-2">
+              {analyzeResult.voiceData.tone && (
+                <span className="px-2.5 py-1 rounded-full bg-accent-green-110/10 text-accent-green-110 text-xs">
+                  {analyzeResult.voiceData.tone} voice
+                </span>
+              )}
+              {analyzeResult.brandData.audience && (
+                <span className="px-2.5 py-1 rounded-full bg-white-10 text-white-60 text-xs truncate max-w-[200px]">
+                  {analyzeResult.brandData.audience}
+                </span>
+              )}
+              {selectedChannels.slice(0, 3).map((ch) => {
+                const chColors = CHANNEL_COLORS[ch] || { badge: 'bg-white-10 text-white-60' };
+                return (
+                  <span key={ch} className={cn('px-2.5 py-1 rounded-full text-xs', chColors.badge)}>
+                    {ALL_CHANNELS.find((c) => c.id === ch)?.label || ch}
+                  </span>
+                );
+              })}
             </div>
+            {extractedDataItems.length > 0 && (
+              <div className="flex items-center gap-2 pt-1">
+                <Check className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
+                <p className="text-xs text-white-40">
+                  {extractedDataItems.length} business insight{extractedDataItems.length !== 1 ? 's' : ''} found
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Generated posts — platform-styled mini cards */}
-        {generatedDrafts.length > 0
-          ? generatedDrafts.map((draft, i) => {
-              const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white/5' };
-              const brandInitial = analyzeResult?.brandData.name?.[0]?.toUpperCase() || '?';
-              return (
-                <div
-                  key={draft.id}
-                  className={cn(
-                    'rounded-2xl border border-white-10 overflow-hidden bg-gradient-to-b to-white-5/80 animate-in fade-in slide-in-from-bottom-2 duration-300',
-                    colors.bg
-                  )}
-                  style={{ animationDelay: `${i * 100}ms` }}
-                >
-                  {/* Header bar */}
-                  <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-5">
-                    <div className="w-7 h-7 rounded-full bg-white-10 flex items-center justify-center text-xs font-bold text-white-60 flex-shrink-0">
-                      {brandInitial}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-white-80 truncate">
-                        {analyzeResult?.brandData.name || 'Brand'}
-                      </p>
-                      <p className="text-[10px] text-white-30">
-                        {ALL_CHANNELS.find((c) => c.id === draft.channel)?.label || draft.channel}
-                      </p>
-                    </div>
-                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium', colors.badge)}>
-                      {draft.channel}
-                    </span>
-                  </div>
-                  {/* Body */}
-                  <div className="px-4 py-3">
-                    <p className="text-sm text-white-90 whitespace-pre-wrap leading-relaxed line-clamp-4">
-                      {draft.body}
-                    </p>
-                    {draft.hashtags && draft.hashtags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {draft.hashtags.slice(0, 5).map((tag, j) => (
-                          <span key={j} className="text-xs text-accent-green-110/70 font-mono">
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+        {/* Generated posts — progressive reveal with skeletons for remaining slots */}
+        <div className="flex items-center gap-2 py-2">
+          <Sparkles className="w-4 h-4 text-white-20" />
+          <p className="text-xs text-white-20">
+            {generatedDrafts.length === 3
+              ? 'All posts created'
+              : stages.generating === 'active'
+                ? `Crafting posts tailored to your brand... (${generatedDrafts.length}/3)`
+                : stages.generating === 'pending'
+                  ? 'Your posts will appear here as they\u2019re created'
+                  : `${generatedDrafts.length} post${generatedDrafts.length !== 1 ? 's' : ''} created`}
+          </p>
+        </div>
+
+        {/* Real cards */}
+        {generatedDrafts.map((draft, i) => {
+          const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white-5' };
+          const brandInitial = analyzeResult?.brandData.name?.[0]?.toUpperCase() || '?';
+          return (
+            <div
+              key={draft.id}
+              className={cn(
+                'rounded-2xl border border-white-10 overflow-hidden bg-gradient-to-b to-white-5/80 animate-in fade-in slide-in-from-bottom-2 duration-300',
+                colors.bg
+              )}
+              style={{ animationDelay: `${i * 100}ms` }}
+            >
+              <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-10">
+                <div className="w-7 h-7 rounded-full bg-white-10 flex items-center justify-center text-xs font-bold text-white-60 flex-shrink-0">
+                  {brandInitial}
                 </div>
-              );
-            })
-          : (
-              // Skeleton post cards — show throughout to fill the right panel
-              <>
-                <div className="flex items-center gap-2 py-2">
-                  <Sparkles className="w-4 h-4 text-white-20" />
-                  <p className="text-xs text-white-20">
-                    {stages.generating === 'pending' ? 'Posts will appear here...' : 'Creating your posts...'}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white-80 truncate">
+                    {analyzeResult?.brandData.name || 'Brand'}
+                  </p>
+                  <p className="text-[10px] text-white-30">
+                    {ALL_CHANNELS.find((c) => c.id === draft.channel)?.label || draft.channel}
                   </p>
                 </div>
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="rounded-2xl border border-white-10 overflow-hidden bg-white-5 animate-pulse">
-                    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-10">
-                      <div className="w-7 h-7 rounded-full bg-white-10" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-3 w-24 bg-white-10 rounded" />
-                        <div className="h-2 w-16 bg-white-10/60 rounded" />
-                      </div>
-                      <div className="h-4 w-16 bg-white-10 rounded-full" />
-                    </div>
-                    <div className="px-4 py-3 space-y-2">
-                      <div className="h-3 w-full bg-white-10 rounded" />
-                      <div className="h-3 w-5/6 bg-white-10 rounded" />
-                      <div className="h-3 w-2/3 bg-white-10 rounded" />
-                    </div>
+                <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium', colors.badge)}>
+                  {ALL_CHANNELS.find((c) => c.id === draft.channel)?.label || draft.channel}
+                </span>
+              </div>
+              <div className="px-4 py-3">
+                <p className="text-sm text-white-90 whitespace-pre-wrap leading-relaxed line-clamp-4">
+                  {draft.body}
+                </p>
+                {draft.hashtags && draft.hashtags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {draft.hashtags.slice(0, 5).map((tag, j) => (
+                      <span key={j} className="text-xs text-accent-green-110/70 font-mono">
+                        #{tag}
+                      </span>
+                    ))}
                   </div>
-                ))}
-              </>
-            )}
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Skeleton placeholders for remaining slots */}
+        {Array.from({ length: Math.max(0, 3 - generatedDrafts.length) }).map((_, i) => (
+          <div key={`skeleton-${i}`} className="rounded-2xl border border-white-10 overflow-hidden bg-white-5 animate-pulse">
+            <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white-10">
+              <div className="w-7 h-7 rounded-full bg-white-10" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 w-24 bg-white-10 rounded" />
+                <div className="h-2 w-16 bg-white-10/60 rounded" />
+              </div>
+              <div className="h-4 w-16 bg-white-10 rounded-full" />
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              <div className="h-3 w-full bg-white-10 rounded" />
+              <div className="h-3 w-5/6 bg-white-10 rounded" />
+              <div className="h-3 w-2/3 bg-white-10 rounded" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -25,7 +25,7 @@ import {
 const CHANNEL_COLORS: Record<string, { badge: string; bg: string }> = {
   INSTAGRAM: { badge: 'bg-pink-500/20 text-pink-400', bg: 'from-pink-500/5' },
   TIKTOK:    { badge: 'bg-cyan-500/20 text-cyan-400', bg: 'from-cyan-500/5' },
-  X:         { badge: 'bg-white/20 text-white/60',     bg: 'from-white/5' },
+  X:         { badge: 'bg-white-20 text-white-60',       bg: 'from-white-5' },
   LINKEDIN:  { badge: 'bg-blue-500/20 text-blue-400', bg: 'from-blue-500/5' },
   FACEBOOK:  { badge: 'bg-blue-600/20 text-blue-300', bg: 'from-blue-600/5' },
   YOUTUBE:   { badge: 'bg-red-500/20 text-red-400',   bg: 'from-red-500/5' },
@@ -147,7 +147,7 @@ export function OnboardingPostCard({
   const now = new Date();
   const minDate = now.toISOString().slice(0, 16);
 
-  const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white/5' };
+  const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white-5' };
   const channelLabel = CHANNEL_LABELS[draft.channel] || draft.channel;
 
   const statusLabel = isScheduled ? 'Scheduled' : isApproved ? 'Approved' : 'Draft';
@@ -157,8 +157,13 @@ export function OnboardingPostCard({
 
   return (
     <div className={cn(
-      'rounded-2xl border border-white-10 overflow-hidden flex flex-col bg-gradient-to-b to-white-5/80',
-      colors.bg
+      'rounded-2xl border overflow-hidden flex flex-col bg-gradient-to-b to-white-5/80',
+      colors.bg,
+      isScheduled
+        ? 'border-zone-blue/40 ring-1 ring-zone-blue/20'
+        : isApproved
+          ? 'border-zone-green/40 ring-1 ring-zone-green/20'
+          : 'border-white-10'
     )}>
       {/* Social header */}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white-10">
@@ -179,17 +184,21 @@ export function OnboardingPostCard({
       </div>
 
       {/* Image — edge-to-edge */}
-      {imageUrl && (
+      {imageUrl ? (
         <img
           src={imageUrl}
           alt={draft.altText ?? 'Generated image'}
           className="w-full aspect-[4/3] object-cover"
         />
-      )}
-      {!imageUrl && asset && asset.status !== 'FAILED' && (
+      ) : asset && asset.status !== 'FAILED' ? (
         <div className="w-full aspect-[4/3] bg-white-10 animate-pulse flex items-center justify-center">
           <Loader2 className="w-5 h-5 text-white-30 animate-spin" />
         </div>
+      ) : (
+        <div className={cn(
+          'w-full aspect-[5/2] bg-gradient-to-br to-transparent',
+          colors.bg
+        )} />
       )}
 
       {/* Body */}
@@ -246,54 +255,65 @@ export function OnboardingPostCard({
 
       {/* Action footer */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white-10">
-        {!editing && !isScheduled && (
-          <button
-            onClick={() => setEditing(true)}
-            className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-60 hover:bg-white-15 flex items-center gap-1"
-          >
-            <Pencil className="w-3 h-3" />
-            Edit
-          </button>
-        )}
-
-        {!isApproved && (
-          <button
-            onClick={handleApprove}
-            disabled={approveDraft.isPending}
-            className="text-xs px-2.5 py-1 rounded-md bg-zone-green/10 text-zone-green hover:bg-zone-green/20 disabled:opacity-50 flex items-center gap-1"
-          >
-            {approveDraft.isPending ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Check className="w-3 h-3" />
-            )}
-            Approve
-          </button>
-        )}
-
-        {!isScheduled && !showSchedule && (
-          <button
-            onClick={() => setShowSchedule(true)}
-            className="text-xs px-2.5 py-1 rounded-md bg-zone-blue/10 text-zone-blue hover:bg-zone-blue/20 flex items-center gap-1"
-          >
+        {isScheduled ? (
+          <div className="flex items-center gap-1.5 text-xs text-zone-blue">
             <Calendar className="w-3 h-3" />
-            Schedule
-          </button>
-        )}
-
-        {!isScheduled && (
-          <button
-            onClick={handleRegenerate}
-            disabled={regenerating}
-            className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-60 hover:bg-white-15 disabled:opacity-50 flex items-center gap-1 ml-auto"
-          >
-            {regenerating ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <RefreshCw className="w-3 h-3" />
+            <span>
+              Scheduled for {new Date(draft.scheduledFor || scheduleDate).toLocaleDateString(undefined, {
+                weekday: 'short', month: 'short', day: 'numeric',
+              })}
+            </span>
+          </div>
+        ) : (
+          <>
+            {!editing && (
+              <button
+                onClick={() => setEditing(true)}
+                className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-60 hover:bg-white-15 flex items-center gap-1"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit
+              </button>
             )}
-            Regenerate
-          </button>
+
+            {!isApproved && (
+              <button
+                onClick={handleApprove}
+                disabled={approveDraft.isPending}
+                className="text-xs px-2.5 py-1 rounded-md bg-zone-green/10 text-zone-green hover:bg-zone-green/20 disabled:opacity-50 flex items-center gap-1"
+              >
+                {approveDraft.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Check className="w-3 h-3" />
+                )}
+                Approve
+              </button>
+            )}
+
+            {!showSchedule && (
+              <button
+                onClick={() => setShowSchedule(true)}
+                className="text-xs px-2.5 py-1 rounded-md bg-zone-blue/10 text-zone-blue hover:bg-zone-blue/20 flex items-center gap-1"
+              >
+                <Calendar className="w-3 h-3" />
+                Schedule
+              </button>
+            )}
+
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-60 hover:bg-white-15 disabled:opacity-50 flex items-center gap-1 ml-auto"
+            >
+              {regenerating ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3 h-3" />
+              )}
+              Regenerate
+            </button>
+          </>
         )}
       </div>
 

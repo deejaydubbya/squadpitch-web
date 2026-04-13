@@ -108,6 +108,7 @@ export interface Client {
   slug: string;
   status: ClientStatus;
   logoUrl: string | null;
+  industryKey: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -666,6 +667,7 @@ export interface CreateClientInput {
   name: string;
   slug: string;
   logoUrl?: string | null;
+  industryKey?: string;
 }
 
 export function useCreateClient() {
@@ -1884,6 +1886,42 @@ export interface OnboardingAnalyzeResult {
   suggestedChannels: Channel[];
   images: string[];
   dataItems: OnboardingDataItem[];
+  starterAngles?: string[];
+}
+
+export interface IndustryOnboarding {
+  websitePlaceholder: string;
+  extraContextLabel: string;
+  extraContextPlaceholder: string;
+  helperText: string;
+}
+
+export interface IndustryProfile {
+  key: string;
+  label: string;
+  description: string;
+  onboarding: IndustryOnboarding;
+  content: {
+    starterBlueprintSlugs: string[];
+    starterChannels: string[];
+  };
+  integrations: {
+    supportedCapabilities: string[];
+    recommendedProviders: string[];
+    starterAutomations: string[];
+  };
+  ui: { icon: string };
+}
+
+export function useIndustries() {
+  return useQuery({
+    queryKey: ['industries'],
+    queryFn: () =>
+      apiFetch<{ industries: IndustryProfile[] }>('industries').then(
+        (r) => r.industries,
+      ),
+    staleTime: Infinity,
+  });
 }
 
 export interface UploadDocumentsResult {
