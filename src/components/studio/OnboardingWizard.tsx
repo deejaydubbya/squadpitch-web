@@ -52,6 +52,7 @@ import {
   type OnboardingDataItem,
   type OAuthStartResponse,
   type IndustryProfile,
+  type OnboardingBrandData,
 } from '@/hooks/useSquadpitch';
 import { apiFetch } from '@/lib/apiFetch';
 import { StatusBanner } from '@/components/common/StatusBanner';
@@ -164,7 +165,7 @@ function normalizeUrl(value: string): string {
 interface StreamCallbacks {
   onCrawlPage: (page: CrawlPage) => void;
   onCrawlDone: () => void;
-  onBrandDone: () => void;
+  onBrandDone: (brandData: OnboardingBrandData) => void;
   onDataDone: (items: OnboardingDataItem[], count: number) => void;
   onError: (message: string) => void;
 }
@@ -212,7 +213,7 @@ async function consumeAnalyzeStream(
             callbacks.onCrawlDone();
             break;
           case 'brand:done':
-            callbacks.onBrandDone();
+            callbacks.onBrandDone(data.brandData);
             break;
           case 'data:done':
             callbacks.onDataDone(data.items || [], data.count || 0);
@@ -271,6 +272,7 @@ export function OnboardingWizard() {
   const [crawlPages, setCrawlPages] = useState<CrawlPage[]>([]);
   const [crawlDone, setCrawlDone] = useState(false);
   const [extractedDataItems, setExtractedDataItems] = useState<OnboardingDataItem[]>([]);
+  const [earlyBrandData, setEarlyBrandData] = useState<OnboardingBrandData | null>(null);
 
   // User-modifiable options (populated from AI, changeable before profiles are saved)
   const [selectedTone, setSelectedTone] = useState('');
@@ -368,6 +370,7 @@ export function OnboardingWizard() {
     setCrawlPages([]);
     setCrawlDone(false);
     setExtractedDataItems([]);
+    setEarlyBrandData(null);
 
     const hasFiles = files.length > 0;
     setStages({
@@ -420,7 +423,8 @@ export function OnboardingWizard() {
             setStage('analyzing', 'done');
             setStage('extracting', 'active');
           },
-          onBrandDone: () => {
+          onBrandDone: (brandData) => {
+            setEarlyBrandData(brandData);
             setStage('extracting', 'done');
             setStage('extractingData', 'active');
           },
@@ -1012,8 +1016,8 @@ export function OnboardingWizard() {
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-bold text-white-100">
-            {analyzeResult
-              ? `Building ${analyzeResult.brandData.name}\u2019s content system`
+            {(analyzeResult?.brandData ?? earlyBrandData)
+              ? `Building ${(analyzeResult?.brandData ?? earlyBrandData)!.name}\u2019s content system`
               : 'Building your content system'}
           </h2>
           <p className="text-sm text-white-30 mt-1">
@@ -1211,32 +1215,37 @@ export function OnboardingWizard() {
       <div className="space-y-4">
         <p className="text-xs font-medium text-white-20 uppercase tracking-wider">Live preview</p>
 
-        {/* Brand card */}
-        {analyzeResult ? (
-          <div className="p-5 rounded-2xl space-y-2.5 bg-gradient-to-br from-accent-green-110/5 to-white-5/80 border border-white-10">
-            <div className="flex items-center gap-2.5">
-              <h3 className="text-lg font-bold text-white-100">
-                {analyzeResult.brandData.name}
-              </h3>
-              {analyzeResult.brandData.industry && (
-                <span className="px-2 py-0.5 rounded-full bg-white-10 text-white-60 text-[11px]">
-                  {analyzeResult.brandData.industry}
-                </span>
-              )}
+        {/* Brand card — shows as soon as brand:done fires */}
+        {(() => {
+          const brand = analyzeResult?.brandData ?? earlyBrandData;
+          if (brand) {
+            return (
+              <div className="p-5 rounded-2xl space-y-2.5 bg-gradient-to-br from-accent-green-110/5 to-white-5/80 border border-white-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-lg font-bold text-white-100">
+                    {brand.name}
+                  </h3>
+                  {brand.industry && (
+                    <span className="px-2 py-0.5 rounded-full bg-white-10 text-white-60 text-[11px]">
+                      {brand.industry}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-white-40 leading-relaxed line-clamp-2">
+                  {brand.description}
+                </p>
+              </div>
+            );
+          }
+          return (
+            <div className="p-5 rounded-2xl space-y-3 bg-white-5 border border-white-10 animate-pulse">
+              <div className="h-5 w-40 bg-white-10 rounded" />
+              <div className="h-3 w-24 bg-white-10 rounded" />
+              <div className="h-3 w-full bg-white-10 rounded" />
+              <div className="h-3 w-3/4 bg-white-10 rounded" />
             </div>
-            <p className="text-sm text-white-40 leading-relaxed line-clamp-2">
-              {analyzeResult.brandData.description}
-            </p>
-          </div>
-        ) : (
-          // Skeleton brand card
-          <div className="p-5 rounded-2xl space-y-3 bg-white-5 border border-white-10 animate-pulse">
-            <div className="h-5 w-40 bg-white-10 rounded" />
-            <div className="h-3 w-24 bg-white-10 rounded" />
-            <div className="h-3 w-full bg-white-10 rounded" />
-            <div className="h-3 w-3/4 bg-white-10 rounded" />
-          </div>
-        )}
+          );
+        })()}
 
         {/* Brand discovery highlights */}
         {analyzeResult && (
