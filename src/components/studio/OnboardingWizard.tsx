@@ -631,6 +631,15 @@ export function OnboardingWizard() {
       const angles = result.starterAngles ?? [];
       const defaultGuidance = `Create a specific, ready-to-publish social media post for ${brandName}. Use concrete details — real numbers, specific benefits, and direct language. Reference their ${result.brandData.industry || 'business'} expertise. No vague or generic statements.`;
 
+      // Build business context snippet to enrich every generation call
+      const bd = result.brandData;
+      const bizContext = [
+        bd.name && `Business: ${bd.name}.`,
+        bd.offers && `Offerings: ${bd.offers}.`,
+        bd.audience && `Audience: ${bd.audience}.`,
+        bd.description && `About: ${bd.description}.`,
+      ].filter(Boolean).join(' ');
+
       // Fetch imported data items so posts are based on real business data
       let importedItems: { id: string }[] = [];
       try {
@@ -647,12 +656,14 @@ export function OnboardingWizard() {
         const template = coreTemplates[i];
         const channel = channels[i % channels.length];
         const dataItemId = importedItems[i]?.id;
+        const baseGuidance = template?.guidance || angles[i] || defaultGuidance;
+        const guidance = bizContext ? `${baseGuidance} ${bizContext}` : baseGuidance;
         try {
           const draft = await generate.mutateAsync({
             clientId: client.id,
             kind: 'POST',
             channel,
-            guidance: template?.guidance || angles[i] || defaultGuidance,
+            guidance,
             ...(template ? { templateType: template.type } : {}),
             ...(dataItemId ? { dataItemId } : {}),
           });
@@ -834,16 +845,24 @@ export function OnboardingWizard() {
       const defaultGuidance = `Create a specific, ready-to-publish social media post for ${brandName}. Use concrete details — real numbers, specific benefits, and direct language. Reference their ${analyzeResult.brandData.industry || 'business'} expertise. No vague or generic statements.`;
       const coreTemplates = analyzeResult.coreTemplates ?? [];
       const angles = analyzeResult.starterAngles ?? [];
+      const bd = analyzeResult.brandData;
+      const bizContext = [
+        bd.name && `Business: ${bd.name}.`,
+        bd.offers && `Offerings: ${bd.offers}.`,
+        bd.audience && `Audience: ${bd.audience}.`,
+      ].filter(Boolean).join(' ');
       const idx = generatedDrafts.length;
       const template = coreTemplates[idx % coreTemplates.length] ?? undefined;
       const channel = channels[idx % channels.length];
       const ids = importedDataItemIds.current;
       const dataItemId = ids[idx];
+      const baseGuidance = template?.guidance || angles[idx % angles.length] || defaultGuidance;
+      const guidance = bizContext ? `${baseGuidance} ${bizContext}` : baseGuidance;
       const draft = await generate.mutateAsync({
         clientId: createdClientId,
         kind: 'POST',
         channel,
-        guidance: template?.guidance || angles[idx % angles.length] || defaultGuidance,
+        guidance,
         ...(template ? { templateType: template.type } : {}),
         ...(dataItemId ? { dataItemId } : {}),
       });
@@ -1130,8 +1149,10 @@ export function OnboardingWizard() {
           <h2 className="text-3xl sm:text-4xl font-bold text-white">
             Your marketing system is ready
           </h2>
-          <p className="text-base text-white-60 max-w-md mx-auto">
-            We created these posts based on your business. Review, edit, or schedule anytime.
+          <p className="text-base text-white-60 max-w-lg mx-auto">
+            {analyzeResult?.brandData.name
+              ? `Based on ${analyzeResult.brandData.name}'s profile${analyzeResult.brandData.industry ? ` and ${analyzeResult.brandData.industry.toLowerCase()} expertise` : ''}, here are posts you can publish today.`
+              : 'Based on your business details, here are posts you can publish today.'}
           </p>
         </div>
 
@@ -1199,7 +1220,9 @@ export function OnboardingWizard() {
         {/* ── Level 2: Post cards (the hero) ── */}
         {generatedDrafts.length > 0 ? (() => {
           const shortenTitle = (t: string) =>
-            t.replace(/^(Post|Share|Promote|Announce|Feature|Showcase|List)\s+(a |an |the |Your |Today's )?/i, '').trim();
+            t.replace(/^(Post|Share|Promote|Announce|Feature|Showcase|List|Create|Highlight)\s+(a |an |the |Your |Today's )?/i, '')
+             .replace(/\s+Post$/i, '')
+             .trim();
           const filteredDrafts = channelFilter
             ? generatedDrafts.filter((d) => d.channel === channelFilter)
             : generatedDrafts;
@@ -1262,7 +1285,7 @@ export function OnboardingWizard() {
 
         {/* ── Level 3: Primary CTA area ── */}
         {generatedDrafts.length > 0 && (
-          <div className="w-full space-y-3 pt-6">
+          <div className="w-full space-y-4 pt-6">
             <button
               onClick={handleBulkApproveAndSchedule}
               disabled={bulkActionRunning}
@@ -1270,49 +1293,31 @@ export function OnboardingWizard() {
             >
               {bulkActionRunning ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
-              ) : hasConnectedChannel ? (
-                <Calendar className="w-5 h-5" />
               ) : (
-                <Check className="w-5 h-5" />
+                <ArrowRight className="w-5 h-5" />
               )}
-              {hasConnectedChannel ? 'Approve & Schedule Posts' : 'Approve Posts'}
+              Approve &amp; Continue to Dashboard
             </button>
 
-            {hasConnectedChannel ? (
-              <p className="text-center text-xs text-white-60">
-                Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
-              </p>
-            ) : (
-              <button
-                onClick={() => setShowConnectPrompt(true)}
-                className="text-center text-xs text-accent-green-110 hover:text-accent-green-120 transition-colors cursor-pointer"
-              >
-                Connect a channel to schedule &amp; publish
-              </button>
-            )}
+            <p className="text-center text-xs text-white-40">
+              This is the start of your content system. Keep generating, approving, and publishing from your dashboard.
+            </p>
 
-            <div className="flex items-center justify-center gap-4 pt-1">
-              <button
-                onClick={() => handleFinish()}
-                disabled={bulkActionRunning}
-                className="text-sm text-white-60 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                Review & Approve Posts
-              </button>
-              <span className="text-white-15">·</span>
-              <button
-                onClick={handleBulkApproveOnly}
-                disabled={bulkActionRunning}
-                className="text-sm text-white-60 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Check className="w-3.5 h-3.5" />
-                Approve all
-              </button>
-              <span className="text-white-15">·</span>
+            <div className="flex items-center justify-center gap-4">
+              {!hasConnectedChannel && (
+                <>
+                  <button
+                    onClick={() => setShowConnectPrompt(true)}
+                    className="text-xs text-accent-green-110/70 hover:text-accent-green-110 transition-colors"
+                  >
+                    Connect a channel first
+                  </button>
+                  <span className="text-white-15">·</span>
+                </>
+              )}
               <button
                 onClick={() => setStep(0)}
-                className="text-sm text-white-40 hover:text-white-60 transition-colors"
+                className="text-xs text-white-30 hover:text-white-50 transition-colors"
               >
                 Edit business info
               </button>

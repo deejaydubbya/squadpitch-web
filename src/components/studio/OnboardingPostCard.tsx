@@ -43,7 +43,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   YOUTUBE: 'YouTube',
 };
 
-const CONTENT_TYPE_STYLE = 'bg-white-10 text-white-60';
+const CONTENT_TYPE_STYLE = 'bg-accent-green-110/12 text-accent-green-110/80 border border-accent-green-110/15';
 
 const INDUSTRY_ATTRIBUTION: Record<string, string> = {
   real_estate: 'Based on your listing data',
@@ -237,7 +237,7 @@ export function OnboardingPostCard({
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {contentType && (
-            <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-medium', CONTENT_TYPE_STYLE)}>
+            <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase', CONTENT_TYPE_STYLE)}>
               {contentType}
             </span>
           )}
@@ -296,20 +296,23 @@ export function OnboardingPostCard({
             </div>
           </div>
         ) : (
-          <div className="space-y-2">
-            <p className="text-[13px] text-white-90 whitespace-pre-wrap leading-relaxed">
+          <div className="space-y-3">
+            <p className="text-[13.5px] text-white-90 whitespace-pre-wrap leading-[1.65]">
               {captionText}
             </p>
             {uniqueHashtags.length > 0 && (
-              <p className="text-[12px] text-accent-green-110/70 leading-relaxed">
+              <p className="text-[11.5px] text-accent-green-110/60 leading-relaxed tracking-wide">
                 {uniqueHashtags.join(' ')}
               </p>
             )}
-            <p className="text-[11px] text-white-30 pt-1">
-              {industryKey && INDUSTRY_ATTRIBUTION[industryKey]
-                ? INDUSTRY_ATTRIBUTION[industryKey]
-                : 'Generated from your business data'}
-            </p>
+            <div className="flex items-center gap-2 pt-0.5 text-[11px] text-white-25">
+              <span className="w-3 h-px bg-white-15 inline-block" />
+              <span>
+                {industryKey && INDUSTRY_ATTRIBUTION[industryKey]
+                  ? INDUSTRY_ATTRIBUTION[industryKey]
+                  : 'Generated from your business data'}
+              </span>
+            </div>
           </div>
         )}
       </div>
