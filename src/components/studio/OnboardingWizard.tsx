@@ -859,12 +859,12 @@ export function OnboardingWizard() {
 
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
-        <div className="text-center space-y-3">
-          <h1 className="text-4xl font-bold text-white">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold text-white">
             Let&apos;s build your marketing system
           </h1>
-          <p className="text-lg text-white-60 max-w-lg">
-            First, choose your industry. Then add a website, business details, or documents — we&apos;ll generate tailored content for your business.
+          <p className="text-sm text-white-50 max-w-md mx-auto">
+            Choose your industry and add your business details — we&apos;ll generate tailored content in seconds.
           </p>
         </div>
 
@@ -885,14 +885,14 @@ export function OnboardingWizard() {
                       type="button"
                       onClick={() => setSelectedIndustry(isSelected ? null : profile.key)}
                       className={cn(
-                        'flex items-center gap-2 px-3.5 py-3 rounded-xl border transition-all text-sm font-medium text-left',
+                        'flex items-center gap-2.5 px-3.5 py-3 rounded-xl border transition-all text-[13px] font-medium text-left h-[52px]',
                         isSelected
                           ? 'border-accent-green-110 bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
                           : 'border-white-10 bg-white-5 text-white-60 hover:border-white-20 hover:text-white-80',
                       )}
                     >
                       <IconComponent className="w-4 h-4 flex-shrink-0" />
-                      <span className="leading-tight">{profile.label}</span>
+                      <span className="leading-snug">{profile.label}</span>
                     </button>
                   );
                 })}
