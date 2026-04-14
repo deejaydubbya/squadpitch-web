@@ -107,7 +107,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
       <div className="relative bg-gradient-to-r from-accent-green-110/10 to-transparent px-6 py-6">
         <button
           onClick={onDismiss}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-white-40 hover:text-white-100 hover:bg-white-10 transition-colors"
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
           aria-label="Dismiss welcome"
         >
           <X className="w-4 h-4" />
@@ -119,7 +119,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
           </h2>
         </div>
         {client && (
-          <p className="text-sm text-white-40">
+          <p className="text-sm text-white-60">
             Everything is set up for {client.name}. Here&apos;s where you stand.
           </p>
         )}
@@ -130,18 +130,18 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
         <div className="grid grid-cols-3 gap-3 -mt-1">
           <div className="card p-4 text-center">
             <p className="text-2xl font-bold text-white-100">{postsReady}</p>
-            <p className="text-xs text-white-40 mt-0.5">Posts Ready</p>
+            <p className="text-xs text-white-60 mt-0.5">Posts Ready</p>
           </div>
           <div className="card p-4 text-center">
             <p className="text-2xl font-bold text-white-100">{postsScheduled}</p>
-            <p className="text-xs text-white-40 mt-0.5">Scheduled</p>
+            <p className="text-xs text-white-60 mt-0.5">Scheduled</p>
           </div>
           <div className="card p-4 text-center">
             <div className="flex items-center justify-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-white-40" />
+              <Clock className="w-3.5 h-3.5 text-white-60" />
               <p className="text-sm font-bold text-white-100 truncate">{nextPostLabel}</p>
             </div>
-            <p className="text-xs text-white-40 mt-0.5">Next Post</p>
+            <p className="text-xs text-white-60 mt-0.5">Next Post</p>
           </div>
         </div>
 
@@ -163,7 +163,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white-100">{a.title}</p>
-                    <p className="text-xs text-white-40 line-clamp-1">{a.desc}</p>
+                    <p className="text-xs text-white-60 line-clamp-1">{a.desc}</p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-white-30 flex-shrink-0" />
                 </Link>
@@ -174,7 +174,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
 
         {/* Data Opportunities */}
         {!allDataUsed && (
-          <div className="card p-4 bg-white-5/50 space-y-2">
+          <div className="rounded-xl border border-white-15 bg-[#1a1f2e] p-4 space-y-2">
             <div className="flex items-center gap-2 mb-1">
               <Database className="w-4 h-4 text-purple-400" />
               <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
@@ -182,12 +182,12 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
               </h3>
             </div>
             {totalDataItems > 0 && unusedDataCount > 0 ? (
-              <p className="text-sm text-white-40">
+              <p className="text-sm text-white-60">
                 You have {unusedDataCount} unused data item{unusedDataCount !== 1 ? 's' : ''} that
                 can fuel new content.
               </p>
             ) : (
-              <p className="text-sm text-white-40">
+              <p className="text-sm text-white-60">
                 Add testimonials, stats & case studies to fuel AI content generation.
               </p>
             )}
@@ -203,7 +203,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
 
         {/* AI Strategy card */}
         {(goalText || recommendedPlatform || contentApproach) && (
-          <div className="card p-4 bg-white-5/50 space-y-2">
+          <div className="rounded-xl border border-white-15 bg-[#1a1f2e] p-4 space-y-2">
             <div className="flex items-center gap-2 mb-1">
               <MessageSquare className="w-4 h-4 text-accent-green-110" />
               <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
@@ -212,7 +212,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
             </div>
             {goalText && (
               <div className="flex items-center justify-between">
-                <span className="text-xs text-white-40">Goal</span>
+                <span className="text-xs text-white-60">Goal</span>
                 <span className="text-xs font-medium text-white-100 truncate ml-2 max-w-[200px]">
                   {goalText}
                 </span>
@@ -220,7 +220,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
             )}
             {recommendedPlatform && (
               <div className="flex items-center justify-between">
-                <span className="text-xs text-white-40">Lead platform</span>
+                <span className="text-xs text-white-60">Lead platform</span>
                 <span className="text-xs font-medium text-white-100 flex items-center gap-1">
                   <Globe className="w-3 h-3" />
                   {recommendedPlatform}
@@ -229,7 +229,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
             )}
             {contentApproach && (
               <div className="flex items-center justify-between">
-                <span className="text-xs text-white-40">Content approach</span>
+                <span className="text-xs text-white-60">Content approach</span>
                 <span className="text-xs font-medium text-white-100 truncate ml-2 max-w-[200px]">
                   {contentApproach}
                 </span>

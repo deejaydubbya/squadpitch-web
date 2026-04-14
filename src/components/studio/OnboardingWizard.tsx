@@ -217,7 +217,7 @@ async function consumeAnalyzeStream(
             callbacks.onCrawlDone();
             break;
           case 'brand:done':
-            callbacks.onBrandDone(data.brandData);
+            callbacks.onBrandDone({ ...data.brandData, logoUrl: data.logoUrl || undefined });
             break;
           case 'data:done':
             callbacks.onDataDone(data.items || [], data.count || 0);
@@ -275,6 +275,7 @@ export function OnboardingWizard() {
   // Live crawl progress
   const [crawlPages, setCrawlPages] = useState<CrawlPage[]>([]);
   const [crawlDone, setCrawlDone] = useState(false);
+  const [uploadedDocNames, setUploadedDocNames] = useState<string[]>([]);
   const [extractedDataItems, setExtractedDataItems] = useState<OnboardingDataItem[]>([]);
   const [earlyBrandData, setEarlyBrandData] = useState<OnboardingBrandData | null>(null);
 
@@ -373,6 +374,7 @@ export function OnboardingWizard() {
     setAnalyzeResult(null);
     setCrawlPages([]);
     setCrawlDone(false);
+    setUploadedDocNames([]);
     setExtractedDataItems([]);
     setEarlyBrandData(null);
 
@@ -395,6 +397,7 @@ export function OnboardingWizard() {
       if (hasFiles) {
         const uploadResult = await uploadDocuments.mutateAsync(files);
         documentTexts = uploadResult.documents.map((d) => d.text);
+        setUploadedDocNames(uploadResult.documents.map((d) => d.filename));
         setStage('uploading', 'done');
         setStage('analyzing', 'active');
       }
@@ -462,6 +465,7 @@ export function OnboardingWizard() {
       const client = await createClient.mutateAsync({
         name: brandName,
         slug,
+        logoUrl: result.brandData.logoUrl || undefined,
         industryKey: selectedIndustry ?? undefined,
       });
       setCreatedClientId(client.id);
@@ -474,16 +478,20 @@ export function OnboardingWizard() {
       if (result.dataItems && result.dataItems.length > 0) {
         setStage('importing', 'active');
         try {
+          const importSourceType = inputType === 'url' ? 'URL' : 'TEXT';
           await apiFetch(`clients/${client.id}/data-import/confirm`, {
             method: 'POST',
             body: JSON.stringify({
-              items: result.dataItems,
-              sourceType: 'URL',
+              items: result.dataItems.map(({ type, title, summary, dataJson, tags, priority }) => ({
+                type, title, summary, dataJson, tags, priority,
+              })),
+              sourceType: importSourceType,
+              sourceUrl: inputType === 'url' ? normalizeUrl(input) : undefined,
             }),
           });
           setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: result!.dataItems.length }));
-        } catch {
-          // Non-fatal — mark done with 0 so onboarding continues
+        } catch (importErr) {
+          console.error('[onboarding] Data import failed:', importErr);
           setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: 0 }));
         }
       } else {
@@ -885,6 +893,7 @@ export function OnboardingWizard() {
                   draft={draft}
                   clientId={createdClientId!}
                   brandName={analyzeResult?.brandData.name}
+                  logoUrl={analyzeResult?.brandData.logoUrl}
                   defaultScheduleTime={getScheduleTime(i)}
                   onRegenerated={(newDraft) => handleRegenerated(i, newDraft)}
                 />
@@ -1194,6 +1203,30 @@ export function OnboardingWizard() {
           </details>
         )}
 
+        {/* Uploaded documents — collapsible */}
+        {uploadedDocNames.length > 0 && (
+          <details open className="group/docs">
+            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="w-3 h-3 text-white-40 transition-transform group-open/docs:rotate-90" />
+              <FileText className="w-3 h-3 text-accent-green-110" />
+              {uploadedDocNames.length} document{uploadedDocNames.length !== 1 ? 's' : ''} analyzed
+            </summary>
+            <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 mt-2">
+              {uploadedDocNames.map((name, i) => (
+                <div
+                  key={`doc-${i}`}
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[#1a1f2e] animate-in fade-in slide-in-from-left-2 duration-200"
+                  style={{ animationDelay: `${i * 50}ms` }}
+                >
+                  <FileText className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
+                  <span className="text-xs text-white-70 truncate flex-1">{name}</span>
+                  <Check className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
         {/* Business data items — collapsible */}
         {extractedDataItems.length > 0 && (
           <details open={stages.extractingData === 'active'} className="group/data">
@@ -1346,7 +1379,9 @@ export function OnboardingWizard() {
         {/* Real cards */}
         {generatedDrafts.map((draft, i) => {
           const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white-5' };
-          const previewBrandName = (analyzeResult?.brandData ?? earlyBrandData)?.name || 'Brand';
+          const brandInfo = analyzeResult?.brandData ?? earlyBrandData;
+          const previewBrandName = brandInfo?.name || 'Brand';
+          const previewLogoUrl = brandInfo?.logoUrl;
           const brandInitial = previewBrandName[0]?.toUpperCase() || '?';
           return (
             <div
@@ -1355,8 +1390,11 @@ export function OnboardingWizard() {
               style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className="flex items-center gap-3 px-4 py-3">
-                <div className="w-8 h-8 rounded-full bg-accent-green-110/20 flex items-center justify-center text-xs font-bold text-accent-green-110 flex-shrink-0">
-                  {brandInitial}
+                <div className="w-8 h-8 rounded-full bg-accent-green-110/20 flex items-center justify-center text-xs font-bold text-accent-green-110 flex-shrink-0 overflow-hidden">
+                  {previewLogoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={previewLogoUrl} alt={previewBrandName} className="w-full h-full object-cover" />
+                  ) : brandInitial}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-white truncate">

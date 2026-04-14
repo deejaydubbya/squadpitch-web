@@ -1861,6 +1861,7 @@ export interface OnboardingBrandData {
   offers: string;
   competitors: string;
   website?: string;
+  logoUrl?: string;
 }
 
 export interface OnboardingVoiceData {
