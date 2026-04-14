@@ -23,6 +23,7 @@ import {
   Link2,
   Pencil,
   Database,
+  SlidersHorizontal,
   Home,
   Car,
   Building2,
@@ -1091,7 +1092,8 @@ export function OnboardingWizard() {
         {/* Interactive options — collapsible, de-emphasized */}
         {analyzeResult && (
           <details className="pt-2">
-            <summary className="text-xs text-white-50 cursor-pointer hover:text-white-70 transition-colors select-none">
+            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5">
+              <SlidersHorizontal className="w-3 h-3 text-accent-green-110" />
               Customize tone, goal & channels
             </summary>
             <div className="space-y-3 mt-3">
