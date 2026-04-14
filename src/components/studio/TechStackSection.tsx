@@ -154,7 +154,7 @@ function ManualSetupCard({
             )}
           </div>
           {item.description && (
-            <p className="text-xs text-white-40 line-clamp-1">{item.description}</p>
+            <p className="text-xs text-white-40">{item.description}</p>
           )}
           {isConnected && summary && (
             <p className="text-xs text-accent-green-110 mt-1 flex items-center gap-1">
