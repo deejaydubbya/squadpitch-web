@@ -127,7 +127,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
 
       <div className="px-6 pb-6 space-y-5">
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 -mt-1">
+        <div className="grid grid-cols-3 gap-3 mt-2">
           <div className="card p-4 text-center">
             <p className="text-2xl font-bold text-white-100">{postsReady}</p>
             <p className="text-xs text-white-60 mt-0.5">Posts Ready</p>
@@ -210,31 +210,29 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
                 AI Strategy
               </h3>
             </div>
-            {goalText && (
-              <div className="flex items-start gap-3">
-                <span className="text-xs text-white-60 flex-shrink-0 pt-0.5">Goal</span>
-                <span className="text-xs font-medium text-white-100 text-right">
-                  {goalText}
-                </span>
-              </div>
-            )}
-            {recommendedPlatform && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-white-60 flex-shrink-0">Lead platform</span>
-                <span className="text-xs font-medium text-white-100 flex items-center gap-1 ml-auto">
-                  <Globe className="w-3 h-3" />
-                  {recommendedPlatform}
-                </span>
-              </div>
-            )}
-            {contentApproach && (
-              <div className="flex items-start gap-3">
-                <span className="text-xs text-white-60 flex-shrink-0 pt-0.5">Content approach</span>
-                <span className="text-xs font-medium text-white-100 text-right">
-                  {contentApproach}
-                </span>
-              </div>
-            )}
+            <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 items-baseline">
+              {goalText && (
+                <>
+                  <span className="text-xs text-white-40">Goal</span>
+                  <span className="text-xs font-medium text-white-100">{goalText}</span>
+                </>
+              )}
+              {recommendedPlatform && (
+                <>
+                  <span className="text-xs text-white-40">Lead platform</span>
+                  <span className="text-xs font-medium text-white-100 flex items-center gap-1">
+                    <Globe className="w-3 h-3" />
+                    {recommendedPlatform}
+                  </span>
+                </>
+              )}
+              {contentApproach && (
+                <>
+                  <span className="text-xs text-white-40">Content approach</span>
+                  <span className="text-xs font-medium text-white-100">{contentApproach}</span>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
