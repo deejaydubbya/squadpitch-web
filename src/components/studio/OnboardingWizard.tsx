@@ -24,6 +24,7 @@ import {
   Pencil,
   Database,
   SlidersHorizontal,
+  ChevronRight,
   Home,
   Car,
   Building2,
@@ -1091,8 +1092,9 @@ export function OnboardingWizard() {
 
         {/* Interactive options — collapsible, de-emphasized */}
         {analyzeResult && (
-          <details className="pt-2">
-            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5">
+          <details className="pt-2 group/customize">
+            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="w-3 h-3 text-white-40 transition-transform group-open/customize:rotate-90" />
               <SlidersHorizontal className="w-3 h-3 text-accent-green-110" />
               Customize tone, goal & channels
             </summary>
@@ -1166,8 +1168,9 @@ export function OnboardingWizard() {
 
         {/* Live crawl feed — collapsible */}
         {crawlPages.length > 0 && (
-          <details open={!crawlDone}>
-            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5">
+          <details open={!crawlDone} className="group/crawl">
+            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="w-3 h-3 text-white-40 transition-transform group-open/crawl:rotate-90" />
               <Globe className="w-3 h-3 text-accent-green-110" />
               {crawlDone ? `${crawlPages.length} pages explored` : 'Exploring pages...'}
             </summary>
@@ -1193,8 +1196,9 @@ export function OnboardingWizard() {
 
         {/* Business data items — collapsible */}
         {extractedDataItems.length > 0 && (
-          <details open={stages.extractingData === 'active'}>
-            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5">
+          <details open={stages.extractingData === 'active'} className="group/data">
+            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="w-3 h-3 text-white-40 transition-transform group-open/data:rotate-90" />
               <Database className="w-3 h-3 text-accent-green-110" />
               {stages.extractingData === 'done' || stages.importing === 'done'
                 ? `${extractedDataItems.length} business insight${extractedDataItems.length !== 1 ? 's' : ''} found`
