@@ -296,6 +296,7 @@ export function OnboardingWizard() {
 
   // Track if setup is running to prevent double-click
   const setupRunning = useRef(false);
+  const importedDataItemIds = useRef<string[]>([]);
 
   // Channel connections — for Step 2 publish flow
   const queryClient = useQueryClient();
@@ -524,7 +525,7 @@ export function OnboardingWizard() {
         setStages((prev) => ({ ...prev, importing: 'skipped' }));
       }
 
-      // Stage 4: Generate 3 posts
+      // Stage 4: Generate 3 posts — use imported data items when available
       setStage('generating', 'active');
       const channels = result.suggestedChannels.length > 0
         ? result.suggestedChannels
@@ -533,14 +534,28 @@ export function OnboardingWizard() {
       const angles = result.starterAngles ?? [];
       const defaultGuidance = `Create a specific, ready-to-publish social media post for ${brandName}. Use concrete details — real numbers, specific benefits, and direct language. Reference their ${result.brandData.industry || 'business'} expertise. No vague or generic statements.`;
 
+      // Fetch imported data items so posts are based on real business data
+      let importedItems: { id: string }[] = [];
+      try {
+        const itemsRes = await apiFetch<{ dataItems: { id: string }[] }>(
+          `workspaces/${client.id}/business-data?limit=10`,
+        );
+        importedItems = itemsRes.dataItems ?? [];
+        importedDataItemIds.current = importedItems.map((item) => item.id);
+      } catch {
+        // No data items available — fall back to guidance-only
+      }
+
       for (let i = 0; i < 3; i++) {
         const channel = channels[i % channels.length];
+        const dataItemId = importedItems[i]?.id;
         try {
           const draft = await generate.mutateAsync({
             clientId: client.id,
             kind: 'POST',
             channel,
             guidance: angles[i] || defaultGuidance,
+            ...(dataItemId ? { dataItemId } : {}),
           });
           setGeneratedDrafts((prev) => [...prev, draft]);
           setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
@@ -720,11 +735,14 @@ export function OnboardingWizard() {
       const angles = analyzeResult.starterAngles ?? [];
       const idx = generatedDrafts.length;
       const channel = channels[idx % channels.length];
+      const ids = importedDataItemIds.current;
+      const dataItemId = ids[idx];
       const draft = await generate.mutateAsync({
         clientId: createdClientId,
         kind: 'POST',
         channel,
         guidance: angles[idx % angles.length] || defaultGuidance,
+        ...(dataItemId ? { dataItemId } : {}),
       });
       setGeneratedDrafts((prev) => [...prev, draft]);
       if (draft.imageGuidance) {
