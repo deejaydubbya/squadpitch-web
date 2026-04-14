@@ -1013,19 +1013,20 @@ export function OnboardingWizard() {
           </div>
 
           {/* ── Primary CTA ── */}
+          {selectedIndustry && (
+            <p className="text-xs text-white-40 text-center">Takes about 60 seconds</p>
+          )}
           <button
             onClick={handleSetup}
             disabled={!canSubmit}
             className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-bold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-glow-green"
           >
             <Sparkles className="w-5 h-5" />
-            {selectedIndustry ? 'Generate My Content System' : 'Choose an industry to continue'}
+            {activeProfile ? `Generate My ${activeProfile.label} Marketing System` : 'Choose an industry to continue'}
           </button>
 
           <div className="flex items-center justify-center gap-4 text-[11px] text-white-30">
             <span>AI-powered</span>
-            <span className="w-1 h-1 rounded-full bg-white-15" />
-            <span>Takes about 60 seconds</span>
             <span className="w-1 h-1 rounded-full bg-white-15" />
             <span>No credit card needed</span>
           </div>
