@@ -707,50 +707,15 @@ export function OnboardingWizard() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
         <div className="text-center space-y-3">
-          <h1 className="text-4xl font-bold text-white-100">
-            Create your content system
+          <h1 className="text-4xl font-bold text-white">
+            Let&apos;s build your marketing system
           </h1>
-          <p className="text-lg text-white-50 max-w-lg">
-            Start with a website, a business description, or documents. You only need one to get started.
+          <p className="text-lg text-white-60 max-w-lg">
+            Paste a website, describe your business, or choose an industry — we&apos;ll handle the rest.
           </p>
         </div>
 
         <div className="w-full max-w-xl space-y-5">
-          {/* Industry selector grid */}
-          {industries.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {industries.map((profile) => {
-                const IconComponent = INDUSTRY_ICON_MAP[profile.ui.icon] ?? Briefcase;
-                const isSelected = selectedIndustry === profile.key;
-                return (
-                  <button
-                    key={profile.key}
-                    type="button"
-                    onClick={() => setSelectedIndustry(isSelected ? null : profile.key)}
-                    className={cn(
-                      'flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border transition-all text-center',
-                      isSelected
-                        ? 'border-accent-green-110 bg-accent-green-110/10 ring-1 ring-accent-green-110'
-                        : 'border-white-15 bg-sp-card hover:border-white-20',
-                    )}
-                  >
-                    <IconComponent className={cn('w-5 h-5', isSelected ? 'text-accent-green-110' : 'text-white-40')} />
-                    <span className={cn('text-[11px] leading-tight', isSelected ? 'text-accent-green-110 font-medium' : 'text-white-60')}>
-                      {profile.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Section header */}
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-white-10" />
-            <p className="text-xs font-medium text-white-60">Start with any info you already have</p>
-            <div className="h-px flex-1 bg-white-10" />
-          </div>
-
           {/* Website URL */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
@@ -765,9 +730,12 @@ export function OnboardingWizard() {
                 if (e.key === 'Enter' && canSubmit) handleSetup();
               }}
               placeholder={activeProfile?.onboarding.websitePlaceholder ?? 'yourwebsite.com'}
-              className="w-full px-4 py-3 rounded-xl bg-sp-card border border-white-15 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
+              className="w-full px-4 py-3.5 rounded-xl bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
               autoFocus
             />
+            <p className="text-xs text-white-40">
+              No website? No problem — start with anything.
+            </p>
           </div>
 
           {/* Business description */}
@@ -781,81 +749,119 @@ export function OnboardingWizard() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder={activeProfile?.onboarding.extraContextPlaceholder ?? 'What does your business do? Who do you serve?'}
               rows={3}
-              className="w-full px-4 py-3 rounded-xl bg-sp-card border border-white-15 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
+              className="w-full px-4 py-3 rounded-xl bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
             />
           </div>
 
-          {/* Document upload */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
-              <Upload className="w-3.5 h-3.5" />
-              Upload documents
-            </label>
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleFilesSelected(e.dataTransfer.files);
-              }}
-              className="w-full px-4 py-3.5 rounded-xl border border-dashed border-white-15 hover:border-accent-green-110/40 transition-colors cursor-pointer flex items-center gap-3"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={ACCEPTED_FILE_TYPES}
-                className="hidden"
-                onChange={(e) => {
-                  handleFilesSelected(e.target.files);
-                  e.target.value = '';
+          {/* Document upload — collapsed to reduce clutter */}
+          <details className="group/upload">
+            <summary className="text-xs text-white-40 cursor-pointer hover:text-white-60 transition-colors select-none flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="w-3 h-3 transition-transform group-open/upload:rotate-90" />
+              <Upload className="w-3 h-3" />
+              Upload documents instead (PDF, DOCX, TXT, CSV)
+            </summary>
+            <div className="mt-2">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleFilesSelected(e.dataTransfer.files);
                 }}
-              />
-              <FileText className="w-4 h-4 text-white-40 flex-shrink-0" />
-              <p className="text-xs text-white-50">
-                Brochures, menus, listings, service sheets, brand docs (PDF, DOCX, TXT, CSV)
-              </p>
-            </div>
-
-            {/* Attached files */}
-            {files.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {files.map((f, i) => (
-                  <div
-                    key={`${f.name}-${i}`}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sp-card border border-white-15 text-sm"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
-                    <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
-                    <span className="text-white-30 text-xs">
-                      {(f.size / 1024).toFixed(0)}KB
-                    </span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                      className="text-white-30 hover:text-white-80 transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                className="w-full px-4 py-3 rounded-xl border border-dashed border-white-15 hover:border-accent-green-110/40 transition-colors cursor-pointer flex items-center gap-3"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={ACCEPTED_FILE_TYPES}
+                  className="hidden"
+                  onChange={(e) => {
+                    handleFilesSelected(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <FileText className="w-4 h-4 text-white-40 flex-shrink-0" />
+                <p className="text-xs text-white-50">
+                  Brochures, menus, listings, service sheets, brand docs
+                </p>
               </div>
-            )}
-          </div>
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {files.map((f, i) => (
+                    <div
+                      key={`${f.name}-${i}`}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sp-card border border-white-15 text-sm"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
+                      <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
+                      <span className="text-white-30 text-xs">
+                        {(f.size / 1024).toFixed(0)}KB
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                        className="text-white-30 hover:text-white-80 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
 
-          {/* Helper text */}
-          <p className="text-xs text-white-50 text-center">
-            No website required. Use one, two, or all three — more context improves results.
-          </p>
-
+          {/* Primary CTA — dominant */}
           <button
             onClick={handleSetup}
             disabled={!canSubmit}
-            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-glow-green"
+            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-bold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-glow-green"
           >
             <Sparkles className="w-5 h-5" />
-            Create My Content System
+            Generate My Content System
           </button>
+
+          {/* Industry selector — de-emphasized, optional */}
+          {industries.length > 0 && (
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-white-10" />
+                <p className="text-xs text-white-40">Or choose your industry</p>
+                <div className="h-px flex-1 bg-white-10" />
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {industries.map((profile) => {
+                  const IconComponent = INDUSTRY_ICON_MAP[profile.ui.icon] ?? Briefcase;
+                  const isSelected = selectedIndustry === profile.key;
+                  return (
+                    <button
+                      key={profile.key}
+                      type="button"
+                      onClick={() => setSelectedIndustry(isSelected ? null : profile.key)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-2 rounded-full border whitespace-nowrap transition-all text-xs font-medium flex-shrink-0',
+                        isSelected
+                          ? 'border-accent-green-110 bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                          : 'border-white-10 bg-white-5 text-white-50 hover:border-white-20 hover:text-white-70',
+                      )}
+                    >
+                      <IconComponent className="w-3.5 h-3.5" />
+                      {profile.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selection feedback */}
+              {selectedIndustry && activeProfile && (
+                <p className="text-sm text-accent-green-110 text-center animate-in fade-in duration-200">
+                  Great — we&apos;ll tailor content for {activeProfile.label}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center justify-center gap-4 text-[11px] text-white-30">
             <span>AI-powered</span>
@@ -863,6 +869,29 @@ export function OnboardingWizard() {
             <span>Takes about 60 seconds</span>
             <span className="w-1 h-1 rounded-full bg-white-15" />
             <span>No credit card needed</span>
+          </div>
+        </div>
+
+        {/* Preview teaser — visual hint of output */}
+        <div className="w-full max-w-xl space-y-3 pt-2">
+          <p className="text-xs font-medium text-white-30 text-center">
+            We&apos;ll generate content like this instantly
+          </p>
+          <div className="grid grid-cols-3 gap-3 opacity-30 blur-[2px] pointer-events-none select-none">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-xl bg-sp-card border border-white-10 p-3 space-y-2.5">
+                <div className="w-full aspect-[4/3] rounded-lg bg-white-5" />
+                <div className="space-y-1.5">
+                  <div className="h-2.5 bg-white-10 rounded w-3/4" />
+                  <div className="h-2 bg-white-5 rounded w-full" />
+                  <div className="h-2 bg-white-5 rounded w-1/2" />
+                </div>
+                <div className="flex gap-1.5">
+                  <div className="h-5 w-14 bg-accent-green-110/10 rounded-full" />
+                  <div className="h-5 w-10 bg-white-5 rounded-full" />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
