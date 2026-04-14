@@ -22,6 +22,7 @@ import {
   Youtube,
   Link2,
   Pencil,
+  Database,
   Home,
   Car,
   Building2,
@@ -717,11 +718,11 @@ export function OnboardingWizard() {
                       'flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border transition-all text-center',
                       isSelected
                         ? 'border-accent-green-110 bg-accent-green-110/10 ring-1 ring-accent-green-110'
-                        : 'border-white-10 bg-white-5 hover:border-white-20',
+                        : 'border-white-15 bg-[#1a1f2e] hover:border-white-20',
                     )}
                   >
-                    <IconComponent className={cn('w-5 h-5', isSelected ? 'text-accent-green-110' : 'text-white-30')} />
-                    <span className={cn('text-[11px] leading-tight', isSelected ? 'text-accent-green-110 font-medium' : 'text-white-40')}>
+                    <IconComponent className={cn('w-5 h-5', isSelected ? 'text-accent-green-110' : 'text-white-40')} />
+                    <span className={cn('text-[11px] leading-tight', isSelected ? 'text-accent-green-110 font-medium' : 'text-white-60')}>
                       {profile.label}
                     </span>
                   </button>
@@ -732,7 +733,7 @@ export function OnboardingWizard() {
 
           {/* Expandable extra details */}
           <details className="group">
-            <summary className="text-xs text-white-30 cursor-pointer hover:text-white-40 transition-colors select-none text-center list-none [&::-webkit-details-marker]:hidden flex items-center justify-center gap-1.5">
+            <summary className="text-xs text-white-40 cursor-pointer hover:text-white-60 transition-colors select-none text-center list-none [&::-webkit-details-marker]:hidden flex items-center justify-center gap-1.5">
               <span className="border-b border-dashed border-white-20 group-open:border-transparent">
                 Add more details for better results
               </span>
@@ -741,7 +742,7 @@ export function OnboardingWizard() {
             <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-top-1 duration-200">
               {/* Business description (optional) */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-white-40">
+                <label className="text-xs font-medium text-white-60">
                   {activeProfile?.onboarding.extraContextLabel ?? 'Business description'}
                 </label>
                 <textarea
@@ -762,7 +763,7 @@ export function OnboardingWizard() {
                   e.stopPropagation();
                   handleFilesSelected(e.dataTransfer.files);
                 }}
-                className="w-full px-4 py-3 rounded-xl border border-dashed border-white-10 hover:border-white-20 transition-colors cursor-pointer flex items-center gap-3"
+                className="w-full px-4 py-3 rounded-xl border border-dashed border-white-15 hover:border-white-20 transition-colors cursor-pointer flex items-center gap-3"
               >
                 <input
                   ref={fileInputRef}
@@ -775,8 +776,8 @@ export function OnboardingWizard() {
                     e.target.value = '';
                   }}
                 />
-                <Upload className="w-4 h-4 text-white-20 flex-shrink-0" />
-                <p className="text-xs text-white-30">
+                <Upload className="w-4 h-4 text-white-30 flex-shrink-0" />
+                <p className="text-xs text-white-40">
                   Drop files here (PDF, DOCX, TXT, CSV)
                 </p>
               </div>
@@ -787,7 +788,7 @@ export function OnboardingWizard() {
                   {files.map((f, i) => (
                     <div
                       key={`${f.name}-${i}`}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-sm"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1a1f2e] border border-white-15 text-sm"
                     >
                       <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
                       <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
@@ -866,7 +867,7 @@ export function OnboardingWizard() {
 
         {/* ── Level 2: Post cards (the hero) ── */}
         {generatedDrafts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 w-full pt-6 pb-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full pt-6 pb-2">
             {generatedDrafts.map((draft, i) => (
               <div
                 key={draft.id}
@@ -884,8 +885,8 @@ export function OnboardingWizard() {
             ))}
           </div>
         ) : (
-          <div className="p-8 rounded-2xl bg-[#141420] border border-white-10 text-center w-full mt-6">
-            <p className="text-sm text-white-60">
+          <div className="p-8 rounded-2xl bg-[#1a1f2e] border border-white-15 text-center w-full mt-6">
+            <p className="text-sm text-white-70">
               No posts were generated. You can create content from your dashboard.
             </p>
           </div>
@@ -910,7 +911,7 @@ export function OnboardingWizard() {
             </button>
 
             {hasConnectedChannel && (
-              <p className="text-center text-xs text-white-50">
+              <p className="text-center text-xs text-white-60">
                 Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
               </p>
             )}
@@ -919,7 +920,7 @@ export function OnboardingWizard() {
               <button
                 onClick={() => handleFinish()}
                 disabled={bulkActionRunning}
-                className="text-sm text-white-50 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                className="text-sm text-white-60 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Pencil className="w-3.5 h-3.5" />
                 Edit posts in dashboard
@@ -928,7 +929,7 @@ export function OnboardingWizard() {
               <button
                 onClick={handleBulkApproveOnly}
                 disabled={bulkActionRunning}
-                className="text-sm text-white-50 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                className="text-sm text-white-60 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Check className="w-3.5 h-3.5" />
                 Approve all
@@ -941,12 +942,12 @@ export function OnboardingWizard() {
 
         {/* Connect prompt — shown when no channel connected and user tries to schedule */}
         {showConnectPrompt && !hasConnectedChannel && (
-          <div className="w-full p-5 rounded-2xl bg-[#141420] border border-accent-green-110/30 space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-full p-5 rounded-2xl bg-[#1a1f2e] border border-accent-green-110/30 space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="text-center space-y-1.5">
               <p className="text-base font-semibold text-white">
                 Connect a platform to publish
               </p>
-              <p className="text-sm text-white-60">
+              <p className="text-sm text-white-70">
                 Choose where you want to publish. You can add more later.
               </p>
             </div>
@@ -970,12 +971,12 @@ export function OnboardingWizard() {
 
         {/* ── Level 4: Brand context (de-emphasized) ── */}
         {analyzeResult && (
-          <div className="w-full pt-6 border-t border-white-10/50 mt-6">
+          <div className="w-full pt-6 border-t border-white-15 mt-6">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-accent-green-110/15 flex items-center justify-center text-xs font-bold text-accent-green-110 flex-shrink-0">
                 {analyzeResult.brandData.name?.[0]?.toUpperCase() || '?'}
               </div>
-              <p className="text-sm text-white-60 flex-1 min-w-0 truncate">
+              <p className="text-sm text-white-70 flex-1 min-w-0 truncate">
                 Built from <span className="text-white font-medium">{analyzeResult.brandData.name}</span>
                 {analyzeResult.brandData.industry && <span> · {analyzeResult.brandData.industry}</span>}
                 {analyzeResult.voiceData.tone && <span> · {analyzeResult.voiceData.tone} voice</span>}
@@ -1010,7 +1011,7 @@ export function OnboardingWizard() {
               ? `Building ${(analyzeResult?.brandData ?? earlyBrandData)!.name}\u2019s content system`
               : 'Building your content system'}
           </h2>
-          <p className="text-sm text-white-50 mt-1">
+          <p className="text-sm text-white-60 mt-1">
             {stages.generating === 'done'
               ? 'Everything\u2019s ready \u2014 let\u2019s review your content'
               : stages.generating === 'active'
@@ -1085,13 +1086,13 @@ export function OnboardingWizard() {
         {/* Interactive options — collapsible, de-emphasized */}
         {analyzeResult && (
           <details className="pt-2">
-            <summary className="text-xs text-white-40 cursor-pointer hover:text-white-60 transition-colors select-none">
+            <summary className="text-xs text-white-50 cursor-pointer hover:text-white-70 transition-colors select-none">
               Customize tone, goal & channels
             </summary>
             <div className="space-y-3 mt-3">
               {/* Tone selector — inline */}
               <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Tone</span>
+                <span className="text-xs font-medium text-white-60 w-16 flex-shrink-0">Tone</span>
                 <div className="flex gap-1.5">
                   {TONE_OPTIONS.map((t) => (
                     <button
@@ -1112,7 +1113,7 @@ export function OnboardingWizard() {
 
               {/* Goal selector — inline */}
               <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Goal</span>
+                <span className="text-xs font-medium text-white-60 w-16 flex-shrink-0">Goal</span>
                 <div className="flex gap-1.5">
                   {GOAL_OPTIONS.map((g) => (
                     <button
@@ -1134,7 +1135,7 @@ export function OnboardingWizard() {
 
               {/* Channel pills — inline */}
               <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-white-40 w-16 flex-shrink-0">Channels</span>
+                <span className="text-xs font-medium text-white-60 w-16 flex-shrink-0">Channels</span>
                 <div className="flex flex-wrap gap-1.5">
                   {ALL_CHANNELS.map((ch) => (
                     <button
@@ -1159,22 +1160,51 @@ export function OnboardingWizard() {
         {/* Live crawl feed — collapsible */}
         {crawlPages.length > 0 && (
           <details open={!crawlDone}>
-            <summary className="text-xs text-white-50 cursor-pointer hover:text-white-60 transition-colors select-none">
+            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5">
+              <Globe className="w-3 h-3 text-accent-green-110" />
               {crawlDone ? `${crawlPages.length} pages explored` : 'Exploring pages...'}
             </summary>
             <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 mt-2">
               {crawlPages.map((page, i) => (
                 <div
                   key={page.url}
-                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[#141420] animate-in fade-in slide-in-from-left-2 duration-200"
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[#1a1f2e] animate-in fade-in slide-in-from-left-2 duration-200"
                   style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <Globe className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
-                  <span className="text-xs text-white-50 truncate flex-1">
+                  <span className="text-xs text-white-70 truncate flex-1">
                     {page.title || shortenUrl(page.url)}
                   </span>
-                  <span className="text-[10px] text-white-40 flex-shrink-0 font-mono">
+                  <span className="text-[10px] text-white-50 flex-shrink-0 font-mono">
                     {page.pageNum}/{page.totalExpected}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {/* Business data items — collapsible */}
+        {extractedDataItems.length > 0 && (
+          <details open={stages.extractingData === 'active'}>
+            <summary className="text-xs text-white-60 cursor-pointer hover:text-white-70 transition-colors select-none flex items-center gap-1.5">
+              <Database className="w-3 h-3 text-accent-green-110" />
+              {stages.extractingData === 'done' || stages.importing === 'done'
+                ? `${extractedDataItems.length} business insight${extractedDataItems.length !== 1 ? 's' : ''} found`
+                : 'Extracting business data...'}
+            </summary>
+            <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 mt-2">
+              {extractedDataItems.map((item, i) => (
+                <div
+                  key={`data-${i}`}
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[#1a1f2e] animate-in fade-in slide-in-from-left-2 duration-200"
+                  style={{ animationDelay: `${i * 30}ms` }}
+                >
+                  <span className="text-[10px] text-accent-green-110 font-medium flex-shrink-0 px-1.5 py-0.5 rounded bg-accent-green-110/10 uppercase tracking-wide">
+                    {item.type.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-xs text-white-70 truncate flex-1">
+                    {item.title}
                   </span>
                 </div>
               ))}
@@ -1207,14 +1237,14 @@ export function OnboardingWizard() {
 
       {/* Right panel — Live Preview */}
       <div className="space-y-4">
-        <p className="text-xs font-semibold text-white-50 uppercase tracking-wider">Live preview</p>
+        <p className="text-xs font-semibold text-white-60 uppercase tracking-wider">Live preview</p>
 
         {/* Brand card — shows as soon as brand:done fires */}
         {(() => {
           const brand = analyzeResult?.brandData ?? earlyBrandData;
           if (brand) {
             return (
-              <div className="p-5 rounded-2xl space-y-3 bg-[#141420] border border-white-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="p-5 rounded-2xl space-y-3 bg-[#1a1f2e] border border-white-15 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
                     <span className="text-sm font-bold text-accent-green-110">
@@ -1226,20 +1256,20 @@ export function OnboardingWizard() {
                       {brand.name}
                     </h3>
                     {brand.industry && (
-                      <span className="text-xs text-white-50">
+                      <span className="text-xs text-white-60">
                         {brand.industry}
                       </span>
                     )}
                   </div>
                 </div>
-                <p className="text-sm text-white-60 leading-relaxed line-clamp-3">
+                <p className="text-sm text-white-70 leading-relaxed line-clamp-3">
                   {brand.description}
                 </p>
               </div>
             );
           }
           return (
-            <div className="p-5 rounded-2xl space-y-3 bg-[#141420] border border-white-10 animate-pulse">
+            <div className="p-5 rounded-2xl space-y-3 bg-[#1a1f2e] border border-white-15 animate-pulse">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white-10" />
                 <div className="flex-1 space-y-2">
@@ -1255,8 +1285,8 @@ export function OnboardingWizard() {
 
         {/* Brand discovery highlights */}
         {analyzeResult && (
-          <div className="p-4 rounded-2xl bg-[#141420] border border-white-10 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <p className="text-xs font-semibold text-white-50 uppercase tracking-wider">What we discovered</p>
+          <div className="p-4 rounded-2xl bg-[#1a1f2e] border border-white-15 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <p className="text-xs font-semibold text-white-60 uppercase tracking-wider">What we discovered</p>
             <div className="flex flex-wrap gap-2">
               {analyzeResult.voiceData.tone && (
                 <span className="px-2.5 py-1 rounded-full bg-accent-green-110/15 text-accent-green-110 text-xs font-medium">
@@ -1280,7 +1310,7 @@ export function OnboardingWizard() {
             {extractedDataItems.length > 0 && (
               <div className="flex items-center gap-2 pt-1">
                 <Check className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
-                <p className="text-xs text-white-60">
+                <p className="text-xs text-white-70">
                   {extractedDataItems.length} business insight{extractedDataItems.length !== 1 ? 's' : ''} found
                 </p>
               </div>
@@ -1290,8 +1320,8 @@ export function OnboardingWizard() {
 
         {/* Generated posts — progressive reveal with skeletons */}
         <div className="flex items-center gap-2 py-2">
-          <Sparkles className="w-4 h-4 text-white-40" />
-          <p className="text-xs text-white-50">
+          <Sparkles className="w-4 h-4 text-white-50" />
+          <p className="text-xs text-white-60">
             {generatedDrafts.length === 3
               ? 'All posts created'
               : stages.generating === 'active'
@@ -1310,7 +1340,7 @@ export function OnboardingWizard() {
           return (
             <div
               key={draft.id}
-              className="rounded-2xl border border-white-10 overflow-hidden bg-[#141420] animate-in fade-in slide-in-from-bottom-2 duration-300"
+              className="rounded-2xl border border-white-15 overflow-hidden bg-[#1a1f2e] animate-in fade-in slide-in-from-bottom-2 duration-300"
               style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className="flex items-center gap-3 px-4 py-3">
@@ -1321,13 +1351,13 @@ export function OnboardingWizard() {
                   <p className="text-sm font-semibold text-white truncate">
                     {previewBrandName}
                   </p>
-                  <p className="text-xs text-white-50">
+                  <p className="text-xs text-white-60">
                     {ALL_CHANNELS.find((c) => c.id === draft.channel)?.label || draft.channel}
                   </p>
                 </div>
               </div>
-              <div className="px-4 py-3 border-t border-white-10/50">
-                <p className="text-sm text-white whitespace-pre-wrap leading-relaxed line-clamp-5">
+              <div className="px-4 py-3 border-t border-white-15">
+                <p className="text-sm text-white-90 whitespace-pre-wrap leading-relaxed line-clamp-5">
                   {draft.body}
                 </p>
                 {draft.hashtags && draft.hashtags.length > 0 && (
@@ -1342,7 +1372,7 @@ export function OnboardingWizard() {
 
         {/* Skeleton placeholders */}
         {Array.from({ length: Math.max(0, 3 - generatedDrafts.length) }).map((_, i) => (
-          <div key={`skeleton-${i}`} className="rounded-2xl border border-white-10 overflow-hidden bg-[#141420] animate-pulse">
+          <div key={`skeleton-${i}`} className="rounded-2xl border border-white-15 overflow-hidden bg-[#1a1f2e] animate-pulse">
             <div className="flex items-center gap-3 px-4 py-3">
               <div className="w-8 h-8 rounded-full bg-white-10" />
               <div className="flex-1 space-y-1.5">
@@ -1350,7 +1380,7 @@ export function OnboardingWizard() {
                 <div className="h-2.5 w-16 bg-white-10/60 rounded" />
               </div>
             </div>
-            <div className="px-4 py-3 space-y-2.5 border-t border-white-10/50">
+            <div className="px-4 py-3 space-y-2.5 border-t border-white-15">
               <div className="h-3 w-full bg-white-10 rounded" />
               <div className="h-3 w-5/6 bg-white-10 rounded" />
               <div className="h-3 w-2/3 bg-white-10 rounded" />
@@ -1394,13 +1424,13 @@ function StageRow({
             'text-sm transition-colors',
             status === 'done' && 'text-white-100',
             status === 'active' && 'text-white-100 font-medium',
-            status === 'pending' && 'text-white-40'
+            status === 'pending' && 'text-white-50'
           )}
         >
           {status === 'done' ? doneLabel : activeLabel}
         </span>
         {status === 'active' && activeHint && (
-          <p className="text-xs text-white-50 mt-0.5">
+          <p className="text-xs text-white-60 mt-0.5">
             {activeHint}
           </p>
         )}

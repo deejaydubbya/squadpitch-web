@@ -174,12 +174,12 @@ export function OnboardingPostCard({
   return (
     <div className={cn(
       'rounded-2xl border overflow-hidden flex flex-col',
-      'bg-[#141420]',
+      'bg-[#1a1f2e]',
       isScheduled
         ? 'border-zone-blue/50 ring-1 ring-zone-blue/20'
         : isApproved
           ? 'border-zone-green/50 ring-1 ring-zone-green/20'
-          : 'border-white-10'
+          : 'border-white-15'
     )}>
       {/* Social-style header */}
       <div className="flex items-center gap-3 px-4 py-3">
@@ -192,7 +192,7 @@ export function OnboardingPostCard({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white truncate">{displayName}</p>
-          <p className="text-xs text-white-50">{channelLabel}</p>
+          <p className="text-xs text-white-60">{channelLabel}</p>
         </div>
         <span className={cn('px-2.5 py-1 rounded-full text-[11px] font-medium', colors.badge)}>
           {channelLabel}
@@ -208,7 +208,7 @@ export function OnboardingPostCard({
           className="w-full aspect-[4/3] object-cover"
         />
       ) : asset && asset.status !== 'FAILED' ? (
-        <div className="w-full aspect-[4/3] bg-[#1a1a2e] animate-pulse flex items-center justify-center">
+        <div className="w-full aspect-[4/3] bg-[#232840] animate-pulse flex items-center justify-center">
           <Loader2 className="w-5 h-5 text-white-40 animate-spin" />
         </div>
       ) : null}
@@ -285,11 +285,11 @@ export function OnboardingPostCard({
 
       {/* Action footer */}
       {!isScheduled && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-t border-white-10">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-t border-white-15">
           {!editing && (
             <button
               onClick={() => setEditing(true)}
-              className="text-xs px-2.5 py-1.5 rounded-lg bg-white-10 text-white-70 hover:bg-white-15 hover:text-white flex items-center gap-1"
+              className="text-xs px-2.5 py-1.5 rounded-lg bg-white-10 text-white-80 hover:bg-white-15 hover:text-white flex items-center gap-1"
             >
               <Pencil className="w-3 h-3" />
               Edit
@@ -324,7 +324,7 @@ export function OnboardingPostCard({
           <button
             onClick={handleRegenerate}
             disabled={regenerating}
-            className="text-xs px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 hover:bg-white-15 hover:text-white disabled:opacity-50 flex items-center gap-1"
+            className="text-xs px-2.5 py-1.5 rounded-lg bg-white-10 text-white-70 hover:bg-white-15 hover:text-white disabled:opacity-50 flex items-center gap-1"
           >
             {regenerating ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -338,7 +338,7 @@ export function OnboardingPostCard({
 
       {/* Schedule picker */}
       {showSchedule && (
-        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white-10">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white-15">
           <input
             type="datetime-local"
             value={scheduleDate}
