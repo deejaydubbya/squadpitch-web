@@ -335,6 +335,15 @@ export function OnboardingWizard() {
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
   const activeProfile = industries.find((p) => p.key === selectedIndustry) ?? null;
 
+  // Resolved industry-specific onboarding step labels (with defaults)
+  const industrySteps = activeProfile?.onboardingSteps ?? {
+    explore: 'Exploring your website...',
+    understand: 'Understanding your brand...',
+    insights: 'Discovering business insights...',
+    prepare: 'Preparing your workspace...',
+    generate: 'Creating your first posts...',
+  };
+
   // Step 1 state
   const [input, setInput] = useState('');
   const [description, setDescription] = useState('');
@@ -1399,7 +1408,7 @@ export function OnboardingWizard() {
           )}
           <StageRow
             status={stages.analyzing}
-            activeLabel={inputDetectedAsUrl ? 'Exploring your website...' : 'Learning about your business...'}
+            activeLabel={inputDetectedAsUrl ? industrySteps.explore : 'Learning about your business...'}
             doneLabel={
               inputDetectedAsUrl
                 ? `${crawlPages.length} page${crawlPages.length !== 1 ? 's' : ''} explored`
@@ -1409,7 +1418,7 @@ export function OnboardingWizard() {
           />
           <StageRow
             status={stages.extracting}
-            activeLabel="Understanding your brand..."
+            activeLabel={industrySteps.understand}
             doneLabel="Brand captured"
             activeHint="AI is analyzing your voice, audience, and positioning"
           />
@@ -1424,7 +1433,7 @@ export function OnboardingWizard() {
             return (
               <StageRow
                 status={dataStatus}
-                activeLabel="Discovering business insights..."
+                activeLabel={industrySteps.insights}
                 doneLabel={
                   importedCount > 0
                     ? `${importedCount} insight${importedCount !== 1 ? 's' : ''} imported`
@@ -1440,12 +1449,12 @@ export function OnboardingWizard() {
           })()}
           <StageRow
             status={stages.workspace}
-            activeLabel="Preparing your workspace..."
+            activeLabel={industrySteps.prepare}
             doneLabel="Workspace created"
           />
           <StageRow
             status={stages.generating}
-            activeLabel="Creating your first posts..."
+            activeLabel={industrySteps.generate}
             doneLabel={`${stages.postsGenerated} post${stages.postsGenerated !== 1 ? 's' : ''} ready to review`}
             activeHint={stages.postsGenerated > 0 ? `${stages.postsGenerated} of 3 done` : 'Writing content tailored to your brand'}
           />

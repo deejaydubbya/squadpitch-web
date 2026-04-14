@@ -1932,6 +1932,45 @@ export interface IndustryTechStackItem {
   capabilities: IntegrationCapability[];
 }
 
+export interface IndustryTerminology {
+  item: string;
+  items: string;
+  customer: string;
+  customers?: string;
+  service?: string;
+  services?: string;
+  offer?: string;
+  offers?: string;
+  contentUnit: string;
+  contentUnits?: string;
+  campaign?: string;
+  campaigns?: string;
+  primaryAction?: string;
+}
+
+export interface IndustryOnboardingSteps {
+  explore: string;
+  understand: string;
+  insights: string;
+  prepare: string;
+  generate: string;
+}
+
+export interface IndustryBusinessDataLabels {
+  itemSingular?: string;
+  itemPlural?: string;
+  launchLabel?: string;
+  categoryLabel?: string;
+  collectionLabel?: string;
+  serviceLabel?: string;
+  offerLabel?: string;
+}
+
+export interface IndustryContentTypeLabel {
+  key: string;
+  label: string;
+}
+
 export interface IndustryProfile {
   key: string;
   label: string;
@@ -1946,6 +1985,10 @@ export interface IndustryProfile {
     recommendedProviders: string[];
     starterAutomations: string[];
   };
+  terminology: IndustryTerminology | null;
+  onboardingSteps: IndustryOnboardingSteps | null;
+  businessDataLabels: IndustryBusinessDataLabels | null;
+  contentTypeLabels: IndustryContentTypeLabel[] | null;
   ui: { icon: string };
   techStack: IndustryTechStackItem[];
 }
