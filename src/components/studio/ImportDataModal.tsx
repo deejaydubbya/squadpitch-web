@@ -465,7 +465,7 @@ export function ImportDataModal({ clientId, onClose }: Props) {
                     No Google Sheets account connected.
                   </p>
                   <a
-                    href={`/clients/${clientId}/settings/integrations`}
+                    href={`/workspaces/${clientId}/settings/integrations`}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors"
                   >
                     Connect Google Sheets
@@ -559,7 +559,7 @@ export function ImportDataModal({ clientId, onClose }: Props) {
                 <div className="text-center py-8">
                   <p className="text-white-40 text-sm mb-3">No Notion account connected.</p>
                   <a
-                    href={`/clients/${clientId}/settings/integrations`}
+                    href={`/workspaces/${clientId}/settings/integrations`}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors"
                   >
                     Connect Notion

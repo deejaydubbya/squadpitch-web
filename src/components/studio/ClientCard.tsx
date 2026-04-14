@@ -19,7 +19,7 @@ export function ClientCard({ client }: Props) {
 
   return (
     <Link
-      href={`/clients/${client.id}`}
+      href={`/workspaces/${client.id}`}
       className="card-hover p-5 group"
     >
       <div className="flex items-start gap-4">

@@ -78,7 +78,7 @@ export default function OverviewPage() {
   const [genSuccess, setGenSuccess] = useState(false);
 
   if (!client) return null;
-  const base = `/clients/${clientId}`;
+  const base = `/workspaces/${clientId}`;
 
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
 
@@ -113,7 +113,7 @@ export default function OverviewPage() {
         });
       }
       setGenSuccess(true);
-      fetch('/api/proxy/clients/' + clientId + '/batch-complete', {
+      fetch('/api/proxy/workspaces/' + clientId + '/batch-complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ count: topics.length }),

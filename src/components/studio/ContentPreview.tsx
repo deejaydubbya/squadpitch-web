@@ -135,7 +135,7 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
           approve.mutate({
             onSuccess: () => {
               qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
-              router.push(`/clients/${clientId}/planner`);
+              router.push(`/workspaces/${clientId}/planner`);
             },
           });
         },
@@ -153,7 +153,7 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
-          router.push(`/clients/${clientId}/library`);
+          router.push(`/workspaces/${clientId}/library`);
         },
       }
     );

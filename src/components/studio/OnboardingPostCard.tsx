@@ -76,7 +76,7 @@ export function OnboardingPostCard({
     queryKey: ['draft-assets', draft.id],
     queryFn: () =>
       apiFetch<{ assets: MediaAsset[] }>(
-        `clients/${clientId}/assets?draftId=${draft.id}&limit=1`,
+        `workspaces/${clientId}/assets?draftId=${draft.id}&limit=1`,
       ),
     select: (d) => d.assets,
     refetchInterval: (query) => {

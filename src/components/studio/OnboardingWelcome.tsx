@@ -34,7 +34,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
   const { data: channels } = useChannelSettings(clientId);
   const { data: recommendations } = useDashboardRecommendations(clientId);
 
-  const base = `/clients/${clientId}`;
+  const base = `/workspaces/${clientId}`;
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
 
   // Stats

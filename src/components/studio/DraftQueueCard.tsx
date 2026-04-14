@@ -171,7 +171,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
               {draft.mediaType === 'video' ? 'Video attached — click to play' : 'Image attached — click to view'}
             </button>
             <Link
-              href={`/clients/${draft.clientId}/assets`}
+              href={`/workspaces/${draft.clientId}/assets`}
               className="text-[10px] text-accent-green-110 hover:underline"
             >
               Change
@@ -180,7 +180,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         ) : (
           <div className="flex items-center gap-3">
             <Link
-              href={`/clients/${draft.clientId}/assets?draftId=${draft.id}`}
+              href={`/workspaces/${draft.clientId}/assets?draftId=${draft.id}`}
               className="flex items-center gap-1.5 text-xs text-white-40 hover:text-accent-green-110 transition-colors"
             >
               <ImagePlus className="w-3.5 h-3.5" />

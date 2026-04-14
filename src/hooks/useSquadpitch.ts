@@ -650,7 +650,7 @@ export const squadpitchKeys = {
 export function useClients() {
   return useQuery({
     queryKey: squadpitchKeys.clients(),
-    queryFn: () => apiFetch<{ clients: Client[] }>('clients'),
+    queryFn: () => apiFetch<{ clients: Client[] }>('workspaces'),
     select: (data) => data.clients,
   });
 }
@@ -658,7 +658,7 @@ export function useClients() {
 export function useClient(id: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.client(id ?? ''),
-    queryFn: () => apiFetch<Client>(`clients/${id}`),
+    queryFn: () => apiFetch<Client>(`workspaces/${id}`),
     enabled: Boolean(id),
   });
 }
@@ -674,7 +674,7 @@ export function useCreateClient() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateClientInput) =>
-      apiFetch<Client>('clients', {
+      apiFetch<Client>('workspaces', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -688,7 +688,7 @@ export function useUpdateClient(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Partial<CreateClientInput> & { status?: ClientStatus }) =>
-      apiFetch<Client>(`clients/${id}`, {
+      apiFetch<Client>(`workspaces/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
@@ -703,7 +703,7 @@ export function useArchiveClient(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiFetch<Client>(`clients/${id}`, { method: 'DELETE' }),
+      apiFetch<Client>(`workspaces/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.client(id) });
       qc.invalidateQueries({ queryKey: squadpitchKeys.clients() });
@@ -717,7 +717,7 @@ export function useBrandProfile(clientId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.brand(clientId ?? ''),
     queryFn: () =>
-      apiFetch<{ brand: BrandProfile | null }>(`clients/${clientId}/brand`),
+      apiFetch<{ brand: BrandProfile | null }>(`workspaces/${clientId}/brand`),
     select: (data) => data.brand,
     enabled: Boolean(clientId),
   });
@@ -731,7 +731,7 @@ export function useUpsertBrandProfile(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: UpsertBrandProfileInput) =>
-      apiFetch<{ brand: BrandProfile }>(`clients/${clientId}/brand`, {
+      apiFetch<{ brand: BrandProfile }>(`workspaces/${clientId}/brand`, {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
@@ -748,7 +748,7 @@ export function useVoiceProfile(clientId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.voice(clientId ?? ''),
     queryFn: () =>
-      apiFetch<{ voice: VoiceProfile | null }>(`clients/${clientId}/voice`),
+      apiFetch<{ voice: VoiceProfile | null }>(`workspaces/${clientId}/voice`),
     select: (data) => data.voice,
     enabled: Boolean(clientId),
   });
@@ -766,7 +766,7 @@ export function useUpsertVoiceProfile(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: UpsertVoiceProfileInput) =>
-      apiFetch<{ voice: VoiceProfile }>(`clients/${clientId}/voice`, {
+      apiFetch<{ voice: VoiceProfile }>(`workspaces/${clientId}/voice`, {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
@@ -783,7 +783,7 @@ export function useMediaProfile(clientId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.media(clientId ?? ''),
     queryFn: () =>
-      apiFetch<{ media: MediaProfile | null }>(`clients/${clientId}/media`),
+      apiFetch<{ media: MediaProfile | null }>(`workspaces/${clientId}/media`),
     select: (data) => data.media,
     enabled: Boolean(clientId),
   });
@@ -797,7 +797,7 @@ export function useUpsertMediaProfile(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: UpsertMediaProfileInput) =>
-      apiFetch<{ media: MediaProfile }>(`clients/${clientId}/media`, {
+      apiFetch<{ media: MediaProfile }>(`workspaces/${clientId}/media`, {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
@@ -814,7 +814,7 @@ export function useChannelSettings(clientId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.channels(clientId ?? ''),
     queryFn: () =>
-      apiFetch<{ channels: ChannelSettings[] }>(`clients/${clientId}/channels`),
+      apiFetch<{ channels: ChannelSettings[] }>(`workspaces/${clientId}/channels`),
     select: (data) => data.channels,
     enabled: Boolean(clientId),
   });
@@ -833,7 +833,7 @@ export function useUpsertChannelSettings(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (items: UpsertChannelSettingsItem[]) =>
-      apiFetch<{ channels: ChannelSettings[] }>(`clients/${clientId}/channels`, {
+      apiFetch<{ channels: ChannelSettings[] }>(`workspaces/${clientId}/channels`, {
         method: 'PUT',
         body: JSON.stringify({ items }),
       }),
@@ -849,7 +849,7 @@ export function useUpsertChannelSettings(clientId: string) {
 export function useClientAnalytics(clientId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.analytics(clientId ?? ''),
-    queryFn: () => apiFetch<ClientAnalytics>(`clients/${clientId}/analytics`),
+    queryFn: () => apiFetch<ClientAnalytics>(`workspaces/${clientId}/analytics`),
     enabled: Boolean(clientId),
   });
 }
@@ -862,7 +862,7 @@ export function useAnalyticsOverview(
     queryKey: squadpitchKeys.analyticsOverview(clientId ?? '', range),
     queryFn: () =>
       apiFetch<AnalyticsOverview>(
-        `clients/${clientId}/analytics/overview?range=${range}`,
+        `workspaces/${clientId}/analytics/overview?range=${range}`,
       ),
     enabled: Boolean(clientId),
   });
@@ -888,7 +888,7 @@ export function usePostDetail(clientId: string | undefined, postId: string | und
   return useQuery({
     queryKey: squadpitchKeys.postDetail(clientId ?? '', postId ?? ''),
     queryFn: () =>
-      apiFetch<PostDetail>(`clients/${clientId}/analytics/posts/${postId}`),
+      apiFetch<PostDetail>(`workspaces/${clientId}/analytics/posts/${postId}`),
     enabled: Boolean(clientId) && Boolean(postId),
   });
 }
@@ -924,7 +924,7 @@ export interface ContentIdea {
 export function useGenerateIdeas(clientId: string) {
   return useMutation({
     mutationFn: () =>
-      apiFetch<{ ideas: ContentIdea[] }>(`clients/${clientId}/ideas`, {
+      apiFetch<{ ideas: ContentIdea[] }>(`workspaces/${clientId}/ideas`, {
         method: 'POST',
       }).then((r) => r.ideas),
   });
@@ -936,7 +936,7 @@ export function useAutoSchedule(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (draftIds: string[]) =>
-      apiFetch<{ scheduled: Draft[]; count: number }>(`clients/${clientId}/auto-schedule`, {
+      apiFetch<{ scheduled: Draft[]; count: number }>(`workspaces/${clientId}/auto-schedule`, {
         method: 'POST',
         body: JSON.stringify({ draftIds }),
       }),
@@ -1092,7 +1092,7 @@ export function useChannelConnections(clientId: string | undefined) {
     queryKey: squadpitchKeys.connections(clientId ?? ''),
     queryFn: () =>
       apiFetch<{ connections: ChannelConnection[] }>(
-        `clients/${clientId}/connections`
+        `workspaces/${clientId}/connections`
       ),
     select: (data) => data.connections,
     enabled: Boolean(clientId),
@@ -1103,7 +1103,7 @@ export function useStartOAuth(clientId: string) {
   return useMutation({
     mutationFn: (channel: Channel) =>
       apiFetch<OAuthStartResponse>(
-        `clients/${clientId}/connections/${channel}/oauth/start`,
+        `workspaces/${clientId}/connections/${channel}/oauth/start`,
         { method: 'POST', body: JSON.stringify({}) }
       ),
   });
@@ -1129,7 +1129,7 @@ export function useDisconnectChannel(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (channel: Channel) =>
-      apiFetch<{ ok: true }>(`clients/${clientId}/connections/${channel}`, {
+      apiFetch<{ ok: true }>(`workspaces/${clientId}/connections/${channel}`, {
         method: 'DELETE',
       }),
     onSuccess: () => {
@@ -1148,7 +1148,7 @@ export function useAssets(clientId: string, filters: AssetFilters = {}, poll = f
     if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
   });
   const qs = query.toString();
-  const path = `clients/${clientId}/assets${qs ? `?${qs}` : ''}`;
+  const path = `workspaces/${clientId}/assets${qs ? `?${qs}` : ''}`;
 
   return useQuery({
     queryKey: squadpitchKeys.assets(clientId, filters as Record<string, unknown>),
@@ -1183,7 +1183,7 @@ export function useUploadAsset(clientId: string) {
       const qs = params.toString();
 
       const res = await fetch(
-        `/api/proxy/clients/${clientId}/assets/upload${qs ? `?${qs}` : ''}`,
+        `/api/proxy/workspaces/${clientId}/assets/upload${qs ? `?${qs}` : ''}`,
         {
           method: 'POST',
           headers: { 'Content-Type': file.type || 'application/octet-stream' },
@@ -1368,7 +1368,7 @@ export function useDataItems(clientId: string, filters: DataItemFilters = {}) {
     if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
   });
   const qs = query.toString();
-  const path = `clients/${clientId}/business-data${qs ? `?${qs}` : ''}`;
+  const path = `workspaces/${clientId}/business-data${qs ? `?${qs}` : ''}`;
 
   return useQuery({
     queryKey: squadpitchKeys.dataItems(clientId, filters as Record<string, unknown>),
@@ -1399,7 +1399,7 @@ export function useCreateDataItem(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateDataItemInput) =>
-      apiFetch<WorkspaceDataItem>(`clients/${clientId}/business-data`, {
+      apiFetch<WorkspaceDataItem>(`workspaces/${clientId}/business-data`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -1510,7 +1510,7 @@ export interface ConfirmImportResult {
 export function useImportFromUrl(clientId: string) {
   return useMutation({
     mutationFn: (body: { url: string; hint?: string }) =>
-      apiFetch<UrlExtractResult>(`clients/${clientId}/data-import/url`, {
+      apiFetch<UrlExtractResult>(`workspaces/${clientId}/data-import/url`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -1520,7 +1520,7 @@ export function useImportFromUrl(clientId: string) {
 export function useImportFromText(clientId: string) {
   return useMutation({
     mutationFn: (body: { text: string; hint?: string }) =>
-      apiFetch<TextExtractResult>(`clients/${clientId}/data-import/text`, {
+      apiFetch<TextExtractResult>(`workspaces/${clientId}/data-import/text`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -1530,7 +1530,7 @@ export function useImportFromText(clientId: string) {
 export function useCSVPreview(clientId: string) {
   return useMutation({
     mutationFn: (body: { csvContent: string }) =>
-      apiFetch<CSVPreviewResult>(`clients/${clientId}/data-import/csv/preview`, {
+      apiFetch<CSVPreviewResult>(`workspaces/${clientId}/data-import/csv/preview`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -1540,7 +1540,7 @@ export function useCSVPreview(clientId: string) {
 export function useCSVExtract(clientId: string) {
   return useMutation({
     mutationFn: (body: { csvContent: string; columnMapping: CSVColumnMapping; defaultType?: DataItemType }) =>
-      apiFetch<CSVExtractResult>(`clients/${clientId}/data-import/csv/extract`, {
+      apiFetch<CSVExtractResult>(`workspaces/${clientId}/data-import/csv/extract`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -1551,7 +1551,7 @@ export function useImportFromSheets(clientId: string) {
   return useMutation({
     mutationFn: (body: { integrationId: string; spreadsheetId: string; sheetName?: string; hint?: string }) =>
       apiFetch<{ items: ExtractedItem[]; spreadsheetId: string; sheetName: string }>(
-        `clients/${clientId}/data-import/sheets`,
+        `workspaces/${clientId}/data-import/sheets`,
         { method: 'POST', body: JSON.stringify(body) },
       ),
   });
@@ -1561,7 +1561,7 @@ export function useImportFromNotion(clientId: string) {
   return useMutation({
     mutationFn: (body: { integrationId: string; hint?: string }) =>
       apiFetch<{ items: ExtractedItem[] }>(
-        `clients/${clientId}/data-import/notion`,
+        `workspaces/${clientId}/data-import/notion`,
         { method: 'POST', body: JSON.stringify(body) },
       ),
   });
@@ -1571,7 +1571,7 @@ export function useConfirmImport(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ConfirmImportInput) =>
-      apiFetch<ConfirmImportResult>(`clients/${clientId}/data-import/confirm`, {
+      apiFetch<ConfirmImportResult>(`workspaces/${clientId}/data-import/confirm`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
@@ -1622,14 +1622,14 @@ export interface UnusedDataResult {
 export function useUnusedData(clientId: string) {
   return useQuery({
     queryKey: [...squadpitchKeys.dataItems(clientId), 'unused'],
-    queryFn: () => apiFetch<UnusedDataResult>(`clients/${clientId}/business-data/unused`),
+    queryFn: () => apiFetch<UnusedDataResult>(`workspaces/${clientId}/business-data/unused`),
   });
 }
 
 export function useDataSuggestions(clientId: string) {
   return useQuery({
     queryKey: [...squadpitchKeys.dataItems(clientId), 'suggestions'],
-    queryFn: () => apiFetch<DataSuggestionsResult>(`clients/${clientId}/business-data/suggestions`),
+    queryFn: () => apiFetch<DataSuggestionsResult>(`workspaces/${clientId}/business-data/suggestions`),
   });
 }
 
@@ -1663,7 +1663,7 @@ export function useContentOpportunities(clientId: string) {
     queryKey: squadpitchKeys.opportunities(clientId),
     queryFn: () =>
       apiFetch<{ opportunities: ContentOpportunity[] }>(
-        `clients/${clientId}/content-opportunities`
+        `workspaces/${clientId}/content-opportunities`
       ),
     select: (data) => data.opportunities,
   });
@@ -1688,7 +1688,7 @@ export function useBulkGenerate(clientId: string) {
   return useMutation({
     mutationFn: (items: BulkGenerateItem[]) =>
       apiFetch<BulkGenerateResult>(
-        `clients/${clientId}/business-data/bulk-generate`,
+        `workspaces/${clientId}/business-data/bulk-generate`,
         {
           method: 'POST',
           body: JSON.stringify({ items }),
@@ -1708,7 +1708,7 @@ export function useTopPerformingDataItems(clientId: string | undefined) {
     queryKey: squadpitchKeys.topPerforming(clientId ?? ''),
     queryFn: () =>
       apiFetch<{ items: TopPerformingItem[] }>(
-        `clients/${clientId}/business-data/top-performing`
+        `workspaces/${clientId}/business-data/top-performing`
       ),
     select: (data) => data.items,
     enabled: Boolean(clientId),
@@ -1720,7 +1720,7 @@ export function useBestBlueprints(clientId: string | undefined) {
     queryKey: squadpitchKeys.bestBlueprints(clientId ?? ''),
     queryFn: () =>
       apiFetch<{ blueprints: BlueprintWithPerformance[] }>(
-        `clients/${clientId}/business-data/best-blueprints`
+        `workspaces/${clientId}/business-data/best-blueprints`
       ),
     select: (data) => data.blueprints,
     enabled: Boolean(clientId),
@@ -1732,7 +1732,7 @@ export function useRecalculatePerformance(clientId: string) {
   return useMutation({
     mutationFn: () =>
       apiFetch<{ recalculated: number }>(
-        `clients/${clientId}/business-data/recalculate`,
+        `workspaces/${clientId}/business-data/recalculate`,
         { method: 'POST' }
       ),
     onSuccess: () => {
@@ -1750,7 +1750,7 @@ export function useAutopilotPreview(clientId: string) {
   return useMutation({
     mutationFn: (body: AutopilotPreviewInput) =>
       apiFetch<{ suggestions: AutopilotSuggestion[] }>(
-        `clients/${clientId}/autopilot/preview`,
+        `workspaces/${clientId}/autopilot/preview`,
         { method: 'POST', body: JSON.stringify(body) }
       ),
   });
@@ -1761,7 +1761,7 @@ export function useAutopilotExecute(clientId: string) {
   return useMutation({
     mutationFn: (body: AutopilotExecuteInput) =>
       apiFetch<AutopilotExecuteResult>(
-        `clients/${clientId}/autopilot/execute`,
+        `workspaces/${clientId}/autopilot/execute`,
         { method: 'POST', body: JSON.stringify(body) }
       ),
     onSuccess: () => {
@@ -1826,7 +1826,7 @@ export function useDashboardRecommendations(clientId: string | undefined) {
     queryKey: squadpitchKeys.dashboardRecommendations(clientId ?? ''),
     queryFn: () =>
       apiFetch<DashboardRecommendationsResponse>(
-        `clients/${clientId}/dashboard/recommendations`,
+        `workspaces/${clientId}/dashboard/recommendations`,
       ),
     enabled: Boolean(clientId),
     staleTime: 60_000,
@@ -1838,7 +1838,7 @@ export function useDashboardActions(clientId: string | undefined) {
     queryKey: squadpitchKeys.dashboardActions(clientId ?? ''),
     queryFn: () =>
       apiFetch<DashboardActionsResponse>(
-        `clients/${clientId}/dashboard/actions`,
+        `workspaces/${clientId}/dashboard/actions`,
       ),
     enabled: Boolean(clientId),
     staleTime: 60_000,

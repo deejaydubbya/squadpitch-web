@@ -405,7 +405,7 @@ export function GenerateForm({ clientId }: Props) {
             </span>
           )}
           <Link
-            href={`/clients/${clientId}/queue`}
+            href={`/workspaces/${clientId}/queue`}
             className="text-xs text-accent-green-110 hover:underline flex items-center gap-1 ml-auto"
           >
             Go to queue <ArrowRight className="w-3 h-3" />

@@ -33,7 +33,7 @@ interface Props {
 
 export function Sidebar({ client }: Props) {
   const pathname = usePathname();
-  const base = `/clients/${client.id}`;
+  const base = `/workspaces/${client.id}`;
 
   const isSettingsRoute = pathname.startsWith(`${base}/settings`);
   const [settingsOpen, setSettingsOpen] = useState(isSettingsRoute);

@@ -18,7 +18,7 @@ const tabs = [
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ clientId: string }>();
   const pathname = usePathname();
-  const base = `/clients/${params.clientId}/settings`;
+  const base = `/workspaces/${params.clientId}/settings`;
 
   return (
     <div className="space-y-6">

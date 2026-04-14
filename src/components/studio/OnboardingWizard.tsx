@@ -325,7 +325,7 @@ export function OnboardingWizard() {
 
     try {
       const data = await apiFetch<OAuthStartResponse>(
-        `clients/${createdClientId}/connections/${channel}/oauth/start`,
+        `workspaces/${createdClientId}/connections/${channel}/oauth/start`,
         { method: 'POST' },
       );
       if (popup.closed) { oauthPopupRef.current = null; return; }
@@ -479,7 +479,7 @@ export function OnboardingWizard() {
         setStage('importing', 'active');
         try {
           const importSourceType = inputType === 'url' ? 'URL' : 'TEXT';
-          await apiFetch(`clients/${client.id}/data-import/confirm`, {
+          await apiFetch(`workspaces/${client.id}/data-import/confirm`, {
             method: 'POST',
             body: JSON.stringify({
               items: result.dataItems.map(({ type, title, summary, dataJson, tags, priority }) => ({
@@ -555,7 +555,7 @@ export function OnboardingWizard() {
     };
 
     // Brand profile
-    await checkedFetch(`/api/proxy/clients/${clientId}/brand`, {
+    await checkedFetch(`/api/proxy/workspaces/${clientId}/brand`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -569,7 +569,7 @@ export function OnboardingWizard() {
     });
 
     // Voice profile
-    await checkedFetch(`/api/proxy/clients/${clientId}/voice`, {
+    await checkedFetch(`/api/proxy/workspaces/${clientId}/voice`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -584,7 +584,7 @@ export function OnboardingWizard() {
     });
 
     // Media profile (default — enables image generation)
-    await checkedFetch(`/api/proxy/clients/${clientId}/media`, {
+    await checkedFetch(`/api/proxy/workspaces/${clientId}/media`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: 'BRAND_ASSETS_PLUS_AI' }),
@@ -594,7 +594,7 @@ export function OnboardingWizard() {
     const channels = result.suggestedChannels.length > 0
       ? result.suggestedChannels
       : ['INSTAGRAM' as Channel];
-    await checkedFetch(`/api/proxy/clients/${clientId}/channels`, {
+    await checkedFetch(`/api/proxy/workspaces/${clientId}/channels`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -605,7 +605,7 @@ export function OnboardingWizard() {
 
   const handleFinish = (onboarded = false) => {
     if (createdClientId) {
-      router.push(`/clients/${createdClientId}${onboarded ? '?onboarded=true' : ''}`);
+      router.push(`/workspaces/${createdClientId}${onboarded ? '?onboarded=true' : ''}`);
     } else {
       router.push('/dashboard');
     }
