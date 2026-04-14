@@ -12,11 +12,11 @@ module.exports = {
         // App dark theme backgrounds
         sp: {
           bg: '#0F0C1A',
-          surface: '#0F1E22',
-          'surface-variant': '#102A2E',
-          card: '#0B1413',
+          surface: '#141824',
+          'surface-variant': '#1a2030',
+          card: '#1a1f2e',
           overlay: '#0D1117',
-          'solid-card': '#081F20',
+          'solid-card': '#1e2438',
         },
 
         // White scales

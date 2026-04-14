@@ -174,7 +174,7 @@ export function OnboardingPostCard({
   return (
     <div className={cn(
       'rounded-2xl border overflow-hidden flex flex-col',
-      'bg-[#1a1f2e]',
+      'bg-sp-card',
       isScheduled
         ? 'border-zone-blue/50 ring-1 ring-zone-blue/20'
         : isApproved

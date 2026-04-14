@@ -706,7 +706,7 @@ export function OnboardingWizard() {
                       'flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border transition-all text-center',
                       isSelected
                         ? 'border-accent-green-110 bg-accent-green-110/10 ring-1 ring-accent-green-110'
-                        : 'border-white-15 bg-[#1a1f2e] hover:border-white-20',
+                        : 'border-white-15 bg-sp-card hover:border-white-20',
                     )}
                   >
                     <IconComponent className={cn('w-5 h-5', isSelected ? 'text-accent-green-110' : 'text-white-40')} />
@@ -740,7 +740,7 @@ export function OnboardingWizard() {
                 if (e.key === 'Enter' && canSubmit) handleSetup();
               }}
               placeholder={activeProfile?.onboarding.websitePlaceholder ?? 'yourwebsite.com'}
-              className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-white-15 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
+              className="w-full px-4 py-3 rounded-xl bg-sp-card border border-white-15 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
               autoFocus
             />
           </div>
@@ -756,7 +756,7 @@ export function OnboardingWizard() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder={activeProfile?.onboarding.extraContextPlaceholder ?? 'What does your business do? Who do you serve?'}
               rows={3}
-              className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-white-15 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
+              className="w-full px-4 py-3 rounded-xl bg-sp-card border border-white-15 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
             />
           </div>
 
@@ -799,7 +799,7 @@ export function OnboardingWizard() {
                 {files.map((f, i) => (
                   <div
                     key={`${f.name}-${i}`}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1a1f2e] border border-white-15 text-sm"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sp-card border border-white-15 text-sm"
                   >
                     <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
                     <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
@@ -901,7 +901,7 @@ export function OnboardingWizard() {
             ))}
           </div>
         ) : (
-          <div className="p-8 rounded-2xl bg-[#1a1f2e] border border-white-15 text-center w-full mt-6">
+          <div className="p-8 rounded-2xl bg-sp-card border border-white-15 text-center w-full mt-6">
             <p className="text-sm text-white-70">
               No posts were generated. You can create content from your dashboard.
             </p>
@@ -958,7 +958,7 @@ export function OnboardingWizard() {
 
         {/* Connect prompt — shown when no channel connected and user tries to schedule */}
         {showConnectPrompt && !hasConnectedChannel && (
-          <div className="w-full p-5 rounded-2xl bg-[#1a1f2e] border border-accent-green-110/30 space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-full p-5 rounded-2xl bg-sp-card border border-accent-green-110/30 space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="text-center space-y-1.5">
               <p className="text-base font-semibold text-white">
                 Connect a platform to publish
@@ -989,8 +989,13 @@ export function OnboardingWizard() {
         {analyzeResult && (
           <div className="w-full pt-6 border-t border-white-15 mt-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-accent-green-110/15 flex items-center justify-center text-xs font-bold text-accent-green-110 flex-shrink-0">
-                {analyzeResult.brandData.name?.[0]?.toUpperCase() || '?'}
+              <div className="w-8 h-8 rounded-full bg-accent-green-110/15 flex items-center justify-center text-xs font-bold text-accent-green-110 flex-shrink-0 overflow-hidden">
+                {analyzeResult.brandData.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={analyzeResult.brandData.logoUrl} alt={analyzeResult.brandData.name} className="w-full h-full object-cover" />
+                ) : (
+                  analyzeResult.brandData.name?.[0]?.toUpperCase() || '?'
+                )}
               </div>
               <p className="text-sm text-white-70 flex-1 min-w-0 truncate">
                 Built from <span className="text-white font-medium">{analyzeResult.brandData.name}</span>
@@ -1187,7 +1192,7 @@ export function OnboardingWizard() {
               {crawlPages.map((page, i) => (
                 <div
                   key={page.url}
-                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[#1a1f2e] animate-in fade-in slide-in-from-left-2 duration-200"
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-sp-card animate-in fade-in slide-in-from-left-2 duration-200"
                   style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <Globe className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
@@ -1215,7 +1220,7 @@ export function OnboardingWizard() {
               {uploadedDocNames.map((name, i) => (
                 <div
                   key={`doc-${i}`}
-                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[#1a1f2e] animate-in fade-in slide-in-from-left-2 duration-200"
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-sp-card animate-in fade-in slide-in-from-left-2 duration-200"
                   style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <FileText className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
@@ -1241,7 +1246,7 @@ export function OnboardingWizard() {
               {extractedDataItems.map((item, i) => (
                 <div
                   key={`data-${i}`}
-                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[#1a1f2e] animate-in fade-in slide-in-from-left-2 duration-200"
+                  className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-sp-card animate-in fade-in slide-in-from-left-2 duration-200"
                   style={{ animationDelay: `${i * 30}ms` }}
                 >
                   <span className="text-[10px] text-accent-green-110 font-medium flex-shrink-0 px-1.5 py-0.5 rounded bg-accent-green-110/10 uppercase tracking-wide">
@@ -1288,7 +1293,7 @@ export function OnboardingWizard() {
           const brand = analyzeResult?.brandData ?? earlyBrandData;
           if (brand) {
             return (
-              <div className="p-5 rounded-2xl space-y-3 bg-[#1a1f2e] border border-white-15 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="p-5 rounded-2xl space-y-3 bg-sp-card border border-white-15 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-accent-green-110/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {brand.logoUrl ? (
@@ -1318,7 +1323,7 @@ export function OnboardingWizard() {
             );
           }
           return (
-            <div className="p-5 rounded-2xl space-y-3 bg-[#1a1f2e] border border-white-15 animate-pulse">
+            <div className="p-5 rounded-2xl space-y-3 bg-sp-card border border-white-15 animate-pulse">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white-10" />
                 <div className="flex-1 space-y-2">
@@ -1334,7 +1339,7 @@ export function OnboardingWizard() {
 
         {/* Brand discovery highlights */}
         {analyzeResult && (
-          <div className="p-4 rounded-2xl bg-[#1a1f2e] border border-white-15 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="p-4 rounded-2xl bg-sp-card border border-white-15 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <p className="text-xs font-semibold text-white-60 uppercase tracking-wider">What we discovered</p>
             <div className="flex flex-wrap gap-2">
               {analyzeResult.voiceData.tone && (
@@ -1391,7 +1396,7 @@ export function OnboardingWizard() {
           return (
             <div
               key={draft.id}
-              className="rounded-2xl border border-white-15 overflow-hidden bg-[#1a1f2e] animate-in fade-in slide-in-from-bottom-2 duration-300"
+              className="rounded-2xl border border-white-15 overflow-hidden bg-sp-card animate-in fade-in slide-in-from-bottom-2 duration-300"
               style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className="flex items-center gap-3 px-4 py-3">
@@ -1426,7 +1431,7 @@ export function OnboardingWizard() {
 
         {/* Skeleton placeholders */}
         {Array.from({ length: Math.max(0, 3 - generatedDrafts.length) }).map((_, i) => (
-          <div key={`skeleton-${i}`} className="rounded-2xl border border-white-15 overflow-hidden bg-[#1a1f2e] animate-pulse">
+          <div key={`skeleton-${i}`} className="rounded-2xl border border-white-15 overflow-hidden bg-sp-card animate-pulse">
             <div className="flex items-center gap-3 px-4 py-3">
               <div className="w-8 h-8 rounded-full bg-white-10" />
               <div className="flex-1 space-y-1.5">

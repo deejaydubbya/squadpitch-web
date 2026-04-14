@@ -174,7 +174,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
 
         {/* Data Opportunities */}
         {!allDataUsed && (
-          <div className="rounded-xl border border-white-15 bg-[#1a1f2e] p-4 space-y-2">
+          <div className="rounded-xl border border-white-15 bg-sp-card p-4 space-y-2">
             <div className="flex items-center gap-2 mb-1">
               <Database className="w-4 h-4 text-purple-400" />
               <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
@@ -203,7 +203,7 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
 
         {/* AI Strategy card */}
         {(goalText || recommendedPlatform || contentApproach) && (
-          <div className="rounded-xl border border-white-15 bg-[#1a1f2e] p-4 space-y-2">
+          <div className="rounded-xl border border-white-15 bg-sp-card p-4 space-y-2">
             <div className="flex items-center gap-2 mb-1">
               <MessageSquare className="w-4 h-4 text-accent-green-110" />
               <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
