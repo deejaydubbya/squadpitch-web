@@ -211,26 +211,26 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
               </h3>
             </div>
             {goalText && (
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-white-60">Goal</span>
-                <span className="text-xs font-medium text-white-100 truncate ml-2 max-w-[200px]">
+              <div className="flex items-start gap-3">
+                <span className="text-xs text-white-60 flex-shrink-0 pt-0.5">Goal</span>
+                <span className="text-xs font-medium text-white-100 text-right">
                   {goalText}
                 </span>
               </div>
             )}
             {recommendedPlatform && (
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-white-60">Lead platform</span>
-                <span className="text-xs font-medium text-white-100 flex items-center gap-1">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-white-60 flex-shrink-0">Lead platform</span>
+                <span className="text-xs font-medium text-white-100 flex items-center gap-1 ml-auto">
                   <Globe className="w-3 h-3" />
                   {recommendedPlatform}
                 </span>
               </div>
             )}
             {contentApproach && (
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-white-60">Content approach</span>
-                <span className="text-xs font-medium text-white-100 truncate ml-2 max-w-[200px]">
+              <div className="flex items-start gap-3">
+                <span className="text-xs text-white-60 flex-shrink-0 pt-0.5">Content approach</span>
+                <span className="text-xs font-medium text-white-100 text-right">
                   {contentApproach}
                 </span>
               </div>
