@@ -12,6 +12,7 @@ import {
   useGenerateIdeas,
   useDataItems,
   useBlueprints,
+  useBusinessDataLabels,
   type Channel,
   type Draft,
   type ContentIdea,
@@ -42,6 +43,7 @@ function getGenerationError(error: Error | null) {
 }
 
 export function CreateContentForm({ clientId, onGenerated }: Props) {
+  const bdLabels = useBusinessDataLabels(clientId);
   const { data: channels } = useChannelSettings(clientId);
   const { data: mediaProfile } = useMediaProfile(clientId);
   const generate = useGenerateContent();
@@ -232,7 +234,7 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
             className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-white-60 hover:bg-white-5 transition-colors"
           >
             <Database className="w-4 h-4" />
-            Use Business Data
+            Use Business {bdLabels.itemPlural}
             {selectedDataItem && (
               <span className="ml-1 px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-[10px] font-semibold">
                 {selectedDataItem.title}
@@ -250,7 +252,7 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
               {/* Data item search + select */}
               <div className="mt-3">
                 <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
-                  Data Item
+                  {bdLabels.itemSingular}
                 </label>
                 {selectedDataItem ? (
                   <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white-5 border border-accent-green-110/30">
@@ -277,7 +279,7 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
                     <input
                       value={dataSearch}
                       onChange={(e) => setDataSearch(e.target.value)}
-                      placeholder="Search data items..."
+                      placeholder={`Search ${bdLabels.itemPlural.toLowerCase()}...`}
                       className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
                     />
                     {dataItems && dataItems.length > 0 && (

@@ -6,24 +6,27 @@ import { cn } from '@/lib/utils';
 import {
   useCreateDataItem,
   useUpdateDataItem,
+  useBusinessDataLabels,
   type WorkspaceDataItem,
   type DataItemType,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 
-const DATA_ITEM_TYPES: { value: DataItemType; label: string }[] = [
-  { value: 'TESTIMONIAL', label: 'Testimonial' },
-  { value: 'CASE_STUDY', label: 'Case Study' },
-  { value: 'PRODUCT_LAUNCH', label: 'Product Launch' },
-  { value: 'PROMOTION', label: 'Promotion' },
-  { value: 'STATISTIC', label: 'Statistic' },
-  { value: 'MILESTONE', label: 'Milestone' },
-  { value: 'FAQ', label: 'FAQ' },
-  { value: 'TEAM_SPOTLIGHT', label: 'Team Spotlight' },
-  { value: 'INDUSTRY_NEWS', label: 'Industry News' },
-  { value: 'EVENT', label: 'Event' },
-  { value: 'CUSTOM', label: 'Custom' },
-];
+function getDataItemTypes(launchLabel: string): { value: DataItemType; label: string }[] {
+  return [
+    { value: 'TESTIMONIAL', label: 'Testimonial' },
+    { value: 'CASE_STUDY', label: 'Case Study' },
+    { value: 'PRODUCT_LAUNCH', label: launchLabel },
+    { value: 'PROMOTION', label: 'Promotion' },
+    { value: 'STATISTIC', label: 'Statistic' },
+    { value: 'MILESTONE', label: 'Milestone' },
+    { value: 'FAQ', label: 'FAQ' },
+    { value: 'TEAM_SPOTLIGHT', label: 'Team Spotlight' },
+    { value: 'INDUSTRY_NEWS', label: 'Industry News' },
+    { value: 'EVENT', label: 'Event' },
+    { value: 'CUSTOM', label: 'Custom' },
+  ];
+}
 
 interface TypeField {
   key: string;
@@ -97,6 +100,7 @@ interface Props {
 
 export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
   const isEdit = Boolean(editItem);
+  const bdLabels = useBusinessDataLabels(clientId);
   const create = useCreateDataItem(clientId);
   const update = useUpdateDataItem(clientId);
 
@@ -166,7 +170,7 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
       <div className="bg-sp-bg border border-white-10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold text-white-100">
-            {isEdit ? 'Edit Data Item' : 'Add Business Data'}
+            {isEdit ? `Edit ${bdLabels.itemSingular}` : `Add ${bdLabels.itemSingular}`}
           </h2>
           <button
             onClick={onClose}
@@ -183,7 +187,7 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
               Type
             </label>
             <div className="flex flex-wrap gap-1.5">
-              {DATA_ITEM_TYPES.map((t) => (
+              {getDataItemTypes(bdLabels.launchLabel).map((t) => (
                 <button
                   key={t.value}
                   type="button"

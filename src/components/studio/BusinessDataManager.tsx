@@ -19,6 +19,7 @@ import {
   useDataItems,
   useArchiveDataItem,
   useDataSuggestions,
+  useBusinessDataLabels,
   type WorkspaceDataItem,
   type DataItemType,
   type DataItemStatus,
@@ -50,6 +51,7 @@ interface Props {
 }
 
 export function BusinessDataManager({ clientId }: Props) {
+  const bdLabels = useBusinessDataLabels(clientId);
   const [typeFilter, setTypeFilter] = useState<DataItemType | ''>('');
   const [statusFilter, setStatusFilter] = useState<DataItemStatus>('ACTIVE');
   const [search, setSearch] = useState('');
@@ -121,7 +123,7 @@ export function BusinessDataManager({ clientId }: Props) {
         <div>
           <h1 className="text-2xl font-bold text-white-100">Business Data</h1>
           <p className="text-white-40 mt-1 text-sm">
-            Add your testimonials, stats, and business data to generate
+            Add your testimonials, stats, and {bdLabels.itemPlural.toLowerCase()} to generate
             data-driven content.
           </p>
         </div>
@@ -284,7 +286,7 @@ export function BusinessDataManager({ clientId }: Props) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search data items..."
+            placeholder={`Search ${bdLabels.itemPlural.toLowerCase()}...`}
             className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
           />
         </div>
@@ -321,14 +323,14 @@ export function BusinessDataManager({ clientId }: Props) {
               ? 'No items match your search.'
               : statusFilter === 'ARCHIVED'
                 ? 'No archived items.'
-                : 'No business data yet. Add your first item to start generating data-driven content.'}
+                : `No business data yet. Add your first ${bdLabels.itemSingular.toLowerCase()} to start generating data-driven content.`}
           </p>
           {!search && statusFilter === 'ACTIVE' && (
             <button
               onClick={() => setShowAddModal(true)}
               className="mt-4 px-4 py-2 rounded-lg bg-white-10 text-white-60 text-sm font-medium hover:bg-white-20 transition-colors"
             >
-              Add your first data item
+              Add your first {bdLabels.itemSingular.toLowerCase()}
             </button>
           )}
         </div>

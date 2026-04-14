@@ -17,6 +17,7 @@ import {
   useAutopilotPreview,
   useAutopilotExecute,
   useBlueprints,
+  useBusinessDataLabels,
   type Channel,
   type AutopilotSuggestion,
 } from '@/hooks/useSquadpitch';
@@ -38,6 +39,7 @@ interface Props {
 }
 
 export function AutopilotPanel({ clientId, onClose }: Props) {
+  const bdLabels = useBusinessDataLabels(clientId);
   const [step, setStep] = useState<Step>('configure');
 
   // Configure state
@@ -138,8 +140,8 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
           {step === 'configure' && (
             <>
               <p className="text-sm text-white-60">
-                Autopilot analyzes your business data and picks the best
-                data + blueprint combinations. Review before generating.
+                Autopilot analyzes your {bdLabels.itemPlural.toLowerCase()} and picks the best
+                {bdLabels.itemSingular.toLowerCase()} + blueprint combinations. Review before generating.
               </p>
 
               {/* Channel selector */}

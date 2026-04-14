@@ -49,6 +49,7 @@ import {
   useGenerateContent,
   useChannelConnections,
   useIndustries,
+  resolveBusinessDataLabels,
   squadpitchKeys,
   type Channel,
   type Draft,
@@ -334,6 +335,7 @@ export function OnboardingWizard() {
   const { data: industries = [] } = useIndustries();
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
   const activeProfile = industries.find((p) => p.key === selectedIndustry) ?? null;
+  const bdLabels = resolveBusinessDataLabels(activeProfile?.businessDataLabels);
 
   // Resolved industry-specific onboarding step labels (with defaults)
   const industrySteps = activeProfile?.onboardingSteps ?? {
@@ -1436,13 +1438,13 @@ export function OnboardingWizard() {
                 activeLabel={industrySteps.insights}
                 doneLabel={
                   importedCount > 0
-                    ? `${importedCount} insight${importedCount !== 1 ? 's' : ''} imported`
-                    : 'Insights extracted'
+                    ? `${importedCount} ${importedCount !== 1 ? bdLabels.itemPlural.toLowerCase() : bdLabels.itemSingular.toLowerCase()} imported`
+                    : `${bdLabels.itemPlural} extracted`
                 }
                 activeHint={
                   extractedDataItems.length > 0
                     ? `${extractedDataItems.length} found so far — still searching...`
-                    : 'Finding testimonials, products, and key data'
+                    : `Finding testimonials, ${bdLabels.itemPlural.toLowerCase()}, and key data`
                 }
               />
             );
@@ -1599,8 +1601,8 @@ export function OnboardingWizard() {
               <ChevronRight className="w-3 h-3 text-white-40 transition-transform group-open/data:rotate-90" />
               <Database className="w-3 h-3 text-accent-green-110" />
               {stages.extractingData === 'done' || stages.importing === 'done'
-                ? `${extractedDataItems.length} business insight${extractedDataItems.length !== 1 ? 's' : ''} found`
-                : 'Extracting business data...'}
+                ? `${extractedDataItems.length} ${extractedDataItems.length !== 1 ? bdLabels.itemPlural.toLowerCase() : bdLabels.itemSingular.toLowerCase()} found`
+                : `Extracting ${bdLabels.itemPlural.toLowerCase()}...`}
             </summary>
             <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 mt-2">
               {extractedDataItems.map((item, i) => (
@@ -1725,7 +1727,7 @@ export function OnboardingWizard() {
               <div className="flex items-center gap-2 pt-1">
                 <Check className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
                 <p className="text-xs text-white-70">
-                  {extractedDataItems.length} business insight{extractedDataItems.length !== 1 ? 's' : ''} found
+                  {extractedDataItems.length} {extractedDataItems.length !== 1 ? bdLabels.itemPlural.toLowerCase() : bdLabels.itemSingular.toLowerCase()} found
                 </p>
               </div>
             )}

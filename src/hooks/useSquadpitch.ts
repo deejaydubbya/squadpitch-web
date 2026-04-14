@@ -2004,6 +2004,38 @@ export function useIndustries() {
   });
 }
 
+// ── Business Data Labels ──────────────────────────────────────────────
+
+const DEFAULT_BD_LABELS: Required<IndustryBusinessDataLabels> = {
+  itemSingular: 'Item',
+  itemPlural: 'Items',
+  launchLabel: 'New Item',
+  categoryLabel: 'Category',
+  collectionLabel: 'Collection',
+  serviceLabel: 'Service',
+  offerLabel: 'Offer',
+};
+
+export type ResolvedBusinessDataLabels = Required<IndustryBusinessDataLabels>;
+
+/** Merge industry-specific labels with defaults. */
+export function resolveBusinessDataLabels(
+  labels: IndustryBusinessDataLabels | null | undefined,
+): ResolvedBusinessDataLabels {
+  if (!labels) return { ...DEFAULT_BD_LABELS };
+  return { ...DEFAULT_BD_LABELS, ...labels };
+}
+
+/** Hook that resolves business-data labels for a workspace's industry. */
+export function useBusinessDataLabels(clientId: string | undefined): ResolvedBusinessDataLabels {
+  const { data: client } = useClient(clientId);
+  const { data: industries } = useIndustries();
+
+  const key = client?.industryKey;
+  const profile = key && industries ? industries.find((p) => p.key === key) : undefined;
+  return resolveBusinessDataLabels(profile?.businessDataLabels);
+}
+
 export interface UploadDocumentsResult {
   documents: Array<{ filename: string; text: string }>;
 }

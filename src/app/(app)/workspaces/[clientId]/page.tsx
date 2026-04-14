@@ -42,6 +42,7 @@ import {
   usePublishDraft,
   useScheduleDraft,
   useDuplicateDraft,
+  useBusinessDataLabels,
   type Channel,
   type Draft,
   type MediaAsset,
@@ -263,14 +264,14 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <PerformanceSnapshot overview={overview} base={base} />
         <ContentPipeline analytics={analytics} base={base} />
-        <BusinessDataSnapshot recommendations={recommendations} base={base} />
+        <BusinessDataSnapshot recommendations={recommendations} base={base} clientId={clientId} />
       </div>
 
       {/* Media Preview + Consistency Tracker + Autopilot Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <MediaPreview assets={recentAssets} base={base} />
         <ConsistencyTracker recommendations={recommendations} />
-        <AutopilotStatus recommendations={recommendations} base={base} />
+        <AutopilotStatus recommendations={recommendations} base={base} clientId={clientId} />
       </div>
 
       {/* Workspace links */}
@@ -702,10 +703,13 @@ const DATA_TYPE_LABELS: Record<string, string> = {
 function BusinessDataSnapshot({
   recommendations,
   base,
+  clientId,
 }: {
   recommendations: ReturnType<typeof useDashboardRecommendations>['data'];
   base: string;
+  clientId: string;
 }) {
+  const bdLabels = useBusinessDataLabels(clientId);
   const summary = recommendations?.summary;
   const dataByType = summary?.dataByType ?? {};
   const entries = Object.entries(dataByType).filter(([, count]) => (count ?? 0) > 0);
@@ -739,7 +743,7 @@ function BusinessDataSnapshot({
 
           {(summary?.unusedDataCount ?? 0) > 0 && (
             <p className="text-[11px] text-yellow-400">
-              {summary!.unusedDataCount} unused item{summary!.unusedDataCount === 1 ? '' : 's'}
+              {summary!.unusedDataCount} unused {summary!.unusedDataCount === 1 ? bdLabels.itemSingular.toLowerCase() : bdLabels.itemPlural.toLowerCase()}
             </p>
           )}
 
@@ -748,20 +752,20 @@ function BusinessDataSnapshot({
             className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
           >
             <Wand2 className="w-3 h-3" />
-            Generate content from data
+            Generate content from {bdLabels.itemPlural.toLowerCase()}
           </Link>
         </>
       ) : (
         <>
           <p className="text-xs text-white-40">
-            No data yet. Add testimonials, stats, or case studies.
+            No data yet. Add testimonials, stats, or {bdLabels.itemPlural.toLowerCase()}.
           </p>
           <Link
             href={`${base}/business-data`}
             className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
           >
             <FileText className="w-3 h-3" />
-            Add business data
+            Add your first {bdLabels.itemSingular.toLowerCase()}
           </Link>
         </>
       )}
@@ -914,10 +918,13 @@ function ConsistencyTracker({
 function AutopilotStatus({
   recommendations,
   base,
+  clientId,
 }: {
   recommendations: DashboardRecommendationsResponse | undefined;
   base: string;
+  clientId: string;
 }) {
+  const bdLabels = useBusinessDataLabels(clientId);
   const summary = recommendations?.summary;
   const lastUsed = summary?.lastAutopilotAt;
   const hasData = (summary?.totalDataItems ?? 0) > 0;
@@ -945,7 +952,7 @@ function AutopilotStatus({
           <span className="text-xs font-medium text-white-100">{lastUsedLabel}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">Data items</span>
+          <span className="text-xs text-white-40">{bdLabels.itemPlural}</span>
           <span className="text-xs font-medium text-white-100">
             {summary?.totalDataItems ?? 0}
           </span>
@@ -962,7 +969,7 @@ function AutopilotStatus({
         </Link>
       ) : (
         <p className="text-[11px] text-white-30">
-          Add business data to enable Autopilot.
+          Add {bdLabels.itemPlural.toLowerCase()} to enable Autopilot.
         </p>
       )}
     </div>
