@@ -170,6 +170,7 @@ interface StreamCallbacks {
   onCrawlPage: (page: CrawlPage) => void;
   onCrawlDone: () => void;
   onBrandDone: (brandData: OnboardingBrandData) => void;
+  onDataProgress: (items: OnboardingDataItem[], count: number) => void;
   onDataDone: (items: OnboardingDataItem[], count: number) => void;
   onError: (message: string) => void;
 }
@@ -218,6 +219,9 @@ async function consumeAnalyzeStream(
             break;
           case 'brand:done':
             callbacks.onBrandDone({ ...data.brandData, logoUrl: data.logoUrl || undefined });
+            break;
+          case 'data:progress':
+            callbacks.onDataProgress(data.items || [], data.count || 0);
             break;
           case 'data:done':
             callbacks.onDataDone(data.items || [], data.count || 0);
@@ -434,6 +438,9 @@ export function OnboardingWizard() {
             setEarlyBrandData(brandData);
             setStage('extracting', 'done');
             setStage('extractingData', 'active');
+          },
+          onDataProgress: (items) => {
+            setExtractedDataItems(items);
           },
           onDataDone: (items) => {
             setExtractedDataItems(items);
@@ -1095,7 +1102,11 @@ export function OnboardingWizard() {
                   ? `${extractedDataItems.length} insight${extractedDataItems.length !== 1 ? 's' : ''} found`
                   : 'Insights extracted'
               }
-              activeHint="Finding testimonials, stats, and key data"
+              activeHint={
+                extractedDataItems.length > 0
+                  ? `${extractedDataItems.length} found so far — still searching...`
+                  : 'Finding testimonials, products, and key data'
+              }
             />
           )}
           {stages.importing !== 'skipped' && (
