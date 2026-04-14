@@ -490,9 +490,27 @@ export function OnboardingWizard() {
             }),
           });
           setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: result!.dataItems.length }));
-        } catch (importErr) {
-          console.error('[onboarding] Data import failed:', importErr);
-          setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: 0 }));
+        } catch (importErr: unknown) {
+          const msg = importErr instanceof Error ? importErr.message : String(importErr);
+          console.error('[onboarding] Data import failed:', msg, '| items:', result!.dataItems.length);
+          // Retry once — the first attempt may fail due to a race condition
+          try {
+            const importSourceType = inputType === 'url' ? 'URL' : 'TEXT';
+            await apiFetch(`workspaces/${client.id}/data-import/confirm`, {
+              method: 'POST',
+              body: JSON.stringify({
+                items: result!.dataItems.map(({ type, title, summary, dataJson, tags, priority }) => ({
+                  type, title, summary, dataJson, tags, priority,
+                })),
+                sourceType: importSourceType,
+                sourceUrl: inputType === 'url' ? normalizeUrl(input) : undefined,
+              }),
+            });
+            setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: result!.dataItems.length }));
+          } catch (retryErr) {
+            console.error('[onboarding] Data import retry also failed:', retryErr instanceof Error ? retryErr.message : retryErr);
+            setStages((prev) => ({ ...prev, importing: 'done', dataItemsImported: 0 }));
+          }
         }
       } else {
         setStages((prev) => ({ ...prev, importing: 'skipped' }));
