@@ -75,6 +75,8 @@ interface OnboardingPostCardProps {
   isFirstPost?: boolean;
   industryKey?: string;
   postIndex?: number;
+  channelConnected?: boolean;
+  onConnectChannel?: () => void;
 }
 
 export function OnboardingPostCard({
@@ -88,6 +90,8 @@ export function OnboardingPostCard({
   isFirstPost,
   industryKey,
   postIndex = 0,
+  channelConnected,
+  onConnectChannel,
 }: OnboardingPostCardProps) {
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(draft.body);
@@ -242,7 +246,7 @@ export function OnboardingPostCard({
             </span>
           )}
           <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-medium', colors.badge)}>
-            {channelLabel}
+            {channelLabel} Preview
           </span>
         </div>
       </div>
@@ -374,13 +378,23 @@ export function OnboardingPostCard({
           )}
 
           {!showSchedule && (
-            <button
-              onClick={() => setShowSchedule(true)}
-              className="text-xs px-3 py-1.5 rounded-lg bg-zone-blue/15 text-zone-blue hover:bg-zone-blue/25 flex items-center gap-1.5 transition-colors"
-            >
-              <Calendar className="w-3 h-3" />
-              Schedule
-            </button>
+            channelConnected ? (
+              <button
+                onClick={() => setShowSchedule(true)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-zone-blue/15 text-zone-blue hover:bg-zone-blue/25 flex items-center gap-1.5 transition-colors"
+              >
+                <Calendar className="w-3 h-3" />
+                Schedule
+              </button>
+            ) : onConnectChannel ? (
+              <button
+                onClick={onConnectChannel}
+                className="text-xs px-3 py-1.5 rounded-lg bg-white-5 text-white-40 hover:bg-white-10 hover:text-white-60 flex items-center gap-1.5 transition-colors"
+              >
+                <Calendar className="w-3 h-3" />
+                Connect to schedule
+              </button>
+            ) : null
           )}
 
           <button

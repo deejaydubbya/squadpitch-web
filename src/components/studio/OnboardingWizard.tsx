@@ -20,7 +20,6 @@ import {
   Linkedin,
   Music2,
   Youtube,
-  Link2,
   Pencil,
   Database,
   SlidersHorizontal,
@@ -645,9 +644,23 @@ export function OnboardingWizard() {
   const handleBulkApproveAndSchedule = async () => {
     if (!createdClientId) return;
 
-    // Intercept: if no channel connected, show connect prompt instead
+    // If no channel connected, just approve all (don't try to schedule)
     if (!hasConnectedChannel) {
-      setShowConnectPrompt(true);
+      setBulkActionRunning(true);
+      setBulkError(null);
+      try {
+        for (const draft of generatedDrafts) {
+          if (draft.status !== 'APPROVED' && draft.status !== 'SCHEDULED') {
+            await apiFetch(`drafts/${draft.id}/approve`, { method: 'POST' });
+          }
+        }
+        setBulkSuccess(true);
+        await delay(1500);
+        handleFinish(true);
+      } catch (err) {
+        setBulkError(err instanceof Error ? err.message : 'Bulk action failed.');
+        setBulkActionRunning(false);
+      }
       return;
     }
 
@@ -1000,12 +1013,19 @@ export function OnboardingWizard() {
                       : 'bg-white-5 text-white-50 hover:bg-white-10',
                   )}
                 >
-                  {ch === 'X' ? 'X' : ch.charAt(0) + ch.slice(1).toLowerCase()}
+                  {(ch === 'X' ? 'X' : ch.charAt(0) + ch.slice(1).toLowerCase()) + ' Preview'}
                 </button>
               ))}
             </div>
           ) : null;
         })()}
+
+        {/* ── Preview microcopy ── */}
+        {generatedDrafts.length > 0 && (
+          <p className="text-xs text-white-40 pt-2">
+            Preview your content in different platform styles. Connect publishing channels anytime before scheduling.
+          </p>
+        )}
 
         {/* ── Weekly content plan ── */}
         {generatedDrafts.length > 0 && (() => {
@@ -1054,6 +1074,8 @@ export function OnboardingWizard() {
                       isFirstPost={originalIndex === 0}
                       industryKey={selectedIndustry ?? undefined}
                       postIndex={originalIndex}
+                      channelConnected={hasConnectedChannel}
+                      onConnectChannel={() => setShowConnectPrompt(true)}
                     />
                   </div>
                 );
@@ -1100,15 +1122,22 @@ export function OnboardingWizard() {
               ) : hasConnectedChannel ? (
                 <Calendar className="w-5 h-5" />
               ) : (
-                <Link2 className="w-5 h-5" />
+                <Check className="w-5 h-5" />
               )}
-              {hasConnectedChannel ? 'Approve & Schedule Posts' : 'Connect & Schedule'}
+              {hasConnectedChannel ? 'Approve & Schedule Posts' : 'Approve Posts'}
             </button>
 
-            {hasConnectedChannel && (
+            {hasConnectedChannel ? (
               <p className="text-center text-xs text-white-60">
                 Posts will be scheduled across the next {generatedDrafts.length} days at 10:00 AM
               </p>
+            ) : (
+              <button
+                onClick={() => setShowConnectPrompt(true)}
+                className="text-center text-xs text-accent-green-110 hover:text-accent-green-120 transition-colors cursor-pointer"
+              >
+                Connect a channel to schedule &amp; publish
+              </button>
             )}
 
             <div className="flex items-center justify-center gap-4 pt-1">
