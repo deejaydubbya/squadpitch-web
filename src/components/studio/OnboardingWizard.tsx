@@ -292,6 +292,8 @@ export function OnboardingWizard() {
   const [bulkActionRunning, setBulkActionRunning] = useState(false);
   const [bulkSuccess, setBulkSuccess] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [channelFilter, setChannelFilter] = useState<string | null>(null);
+  const [generatingMore, setGeneratingMore] = useState(false);
 
   // Track if setup is running to prevent double-click
   const setupRunning = useRef(false);
@@ -693,6 +695,43 @@ export function OnboardingWizard() {
     }
   };
 
+  const handleGenerateMore = async () => {
+    if (!createdClientId || !analyzeResult || generatingMore) return;
+    setGeneratingMore(true);
+    try {
+      const channels = analyzeResult.suggestedChannels.length > 0
+        ? analyzeResult.suggestedChannels
+        : ['INSTAGRAM' as Channel];
+      const brandName = analyzeResult.brandData.name || 'Your Brand';
+      const defaultGuidance = `Create an engaging social media post for ${brandName}. Focus on their ${analyzeResult.brandData.industry || 'business'} expertise. Make it authentic and ready to publish.`;
+      const angles = analyzeResult.starterAngles ?? [];
+      const idx = generatedDrafts.length;
+      const channel = channels[idx % channels.length];
+      const draft = await generate.mutateAsync({
+        clientId: createdClientId,
+        kind: 'POST',
+        channel,
+        guidance: angles[idx % angles.length] || defaultGuidance,
+      });
+      setGeneratedDrafts((prev) => [...prev, draft]);
+      if (draft.imageGuidance) {
+        apiFetch('assets/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            clientId: createdClientId,
+            guidance: draft.imageGuidance,
+            draftId: draft.id,
+            channel,
+          }),
+        }).catch(() => {});
+      }
+    } catch {
+      // Don't block the experience
+    } finally {
+      setGeneratingMore(false);
+    }
+  };
+
   const allDone = (stages.uploading === 'done' || stages.uploading === 'skipped') &&
     stages.analyzing === 'done' &&
     stages.extracting === 'done' &&
@@ -922,44 +961,108 @@ export function OnboardingWizard() {
         <div className="text-center space-y-3 pt-4 pb-2">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-semibold animate-in fade-in duration-500">
             <CheckCircle2 className="w-4 h-4" />
-            Your first week of content is ready
+            {analyzeResult?.brandData.name
+              ? `Created for ${analyzeResult.brandData.name}`
+              : 'Created for your business'}
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-white">
-            {analyzeResult?.brandData.name
-              ? `${analyzeResult.brandData.name}\u2019s content is ready`
-              : 'Your content is ready'}
+            Your marketing system is ready
           </h2>
           <p className="text-base text-white-60 max-w-md mx-auto">
-            We analyzed {analyzeResult?.brandData.website ? 'your website' : 'your business'} and created {generatedDrafts.length} on-brand post{generatedDrafts.length !== 1 ? 's' : ''} ready to publish.
+            Here&apos;s content created for your business — review, edit, or publish anytime.
           </p>
         </div>
 
-        {/* ── Level 2: Post cards (the hero) ── */}
-        {generatedDrafts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full pt-6 pb-2">
-            {generatedDrafts.map((draft, i) => (
-              <div
-                key={draft.id}
-                className="animate-in fade-in slide-in-from-bottom-3 duration-300"
-                style={{ animationDelay: `${i * 120}ms`, animationFillMode: 'backwards' }}
+        {/* ── Channel filter tabs ── */}
+        {generatedDrafts.length > 0 && (() => {
+          const draftChannels = Array.from(new Set(generatedDrafts.map((d) => d.channel)));
+          return draftChannels.length > 1 ? (
+            <div className="flex items-center gap-2 pt-4">
+              <button
+                onClick={() => setChannelFilter(null)}
+                className={cn(
+                  'px-4 py-2 rounded-full text-xs font-medium transition-all',
+                  !channelFilter
+                    ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                    : 'bg-white-5 text-white-50 hover:bg-white-10',
+                )}
               >
-                <OnboardingPostCard
-                  draft={draft}
-                  clientId={createdClientId!}
-                  brandName={analyzeResult?.brandData.name}
-                  logoUrl={analyzeResult?.brandData.logoUrl}
-                  defaultScheduleTime={getScheduleTime(i)}
-                  onRegenerated={(newDraft) => handleRegenerated(i, newDraft)}
-                />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="p-8 rounded-2xl bg-sp-card border border-white-15 text-center w-full mt-6">
-            <p className="text-sm text-white-70">
-              No posts were generated. You can create content from your dashboard.
+                All
+              </button>
+              {draftChannels.map((ch) => (
+                <button
+                  key={ch}
+                  onClick={() => setChannelFilter(ch === channelFilter ? null : ch)}
+                  className={cn(
+                    'px-4 py-2 rounded-full text-xs font-medium transition-all',
+                    channelFilter === ch
+                      ? 'bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
+                      : 'bg-white-5 text-white-50 hover:bg-white-10',
+                  )}
+                >
+                  {ch === 'X' ? 'X' : ch.charAt(0) + ch.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+          ) : null;
+        })()}
+
+        {/* ── Level 2: Post cards (the hero) ── */}
+        {generatedDrafts.length > 0 ? (() => {
+          const CONTENT_TYPES = ['Promote', 'Educate', 'Engage'];
+          const filteredDrafts = channelFilter
+            ? generatedDrafts.filter((d) => d.channel === channelFilter)
+            : generatedDrafts;
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full pt-6 pb-2">
+              {filteredDrafts.map((draft, i) => {
+                const originalIndex = generatedDrafts.indexOf(draft);
+                return (
+                  <div
+                    key={draft.id}
+                    className="animate-in fade-in slide-in-from-bottom-3 duration-300"
+                    style={{ animationDelay: `${i * 120}ms`, animationFillMode: 'backwards' }}
+                  >
+                    <OnboardingPostCard
+                      draft={draft}
+                      clientId={createdClientId!}
+                      brandName={analyzeResult?.brandData.name}
+                      logoUrl={analyzeResult?.brandData.logoUrl}
+                      defaultScheduleTime={getScheduleTime(originalIndex)}
+                      onRegenerated={(newDraft) => handleRegenerated(originalIndex, newDraft)}
+                      contentType={CONTENT_TYPES[originalIndex % CONTENT_TYPES.length]}
+                      isFirstPost={originalIndex === 0}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })() : (
+          <div className="p-8 rounded-2xl bg-sp-card border border-white-15 text-center w-full mt-6 space-y-3">
+            <p className="text-base font-semibold text-white">
+              We created starter content — customize anytime
+            </p>
+            <p className="text-sm text-white-60">
+              Head to your dashboard to create and schedule posts.
             </p>
           </div>
+        )}
+
+        {/* Generate More Content — lazy load additional posts */}
+        {generatedDrafts.length > 0 && generatedDrafts.length < 10 && (
+          <button
+            onClick={handleGenerateMore}
+            disabled={generatingMore}
+            className="mt-4 px-6 py-3 rounded-xl bg-white-5 border border-white-10 text-sm text-white-60 hover:bg-white-10 hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            {generatingMore ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            Generate More Content
+          </button>
         )}
 
         {/* ── Level 3: Primary CTA area ── */}
@@ -993,7 +1096,7 @@ export function OnboardingWizard() {
                 className="text-sm text-white-60 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Pencil className="w-3.5 h-3.5" />
-                Edit posts in dashboard
+                Review & Approve Posts
               </button>
               <span className="text-white-15">·</span>
               <button
@@ -1003,6 +1106,13 @@ export function OnboardingWizard() {
               >
                 <Check className="w-3.5 h-3.5" />
                 Approve all
+              </button>
+              <span className="text-white-15">·</span>
+              <button
+                onClick={() => setStep(0)}
+                className="text-sm text-white-40 hover:text-white-60 transition-colors"
+              >
+                Edit business info
               </button>
             </div>
           </div>

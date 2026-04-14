@@ -40,6 +40,12 @@ const CHANNEL_LABELS: Record<string, string> = {
   YOUTUBE: 'YouTube',
 };
 
+const CONTENT_TYPE_COLORS: Record<string, string> = {
+  Promote: 'bg-amber-500/15 text-amber-300',
+  Educate: 'bg-blue-500/15 text-blue-300',
+  Engage:  'bg-purple-500/15 text-purple-300',
+};
+
 interface OnboardingPostCardProps {
   draft: Draft;
   clientId: string;
@@ -47,6 +53,8 @@ interface OnboardingPostCardProps {
   logoUrl?: string;
   defaultScheduleTime: { iso: string; label: string };
   onRegenerated: (newDraft: Draft) => void;
+  contentType?: string;
+  isFirstPost?: boolean;
 }
 
 export function OnboardingPostCard({
@@ -56,6 +64,8 @@ export function OnboardingPostCard({
   logoUrl,
   defaultScheduleTime,
   onRegenerated,
+  contentType,
+  isFirstPost,
 }: OnboardingPostCardProps) {
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(draft.body);
@@ -177,8 +187,16 @@ export function OnboardingPostCard({
         ? 'border-zone-blue/40 ring-1 ring-zone-blue/15'
         : isApproved
           ? 'border-zone-green/40 ring-1 ring-zone-green/15'
-          : 'border-white-15'
+          : isFirstPost
+            ? 'border-accent-green-110/40 ring-1 ring-accent-green-110/20'
+            : 'border-white-15'
     )}>
+      {isFirstPost && !isApproved && !isScheduled && (
+        <div className="px-4 py-2 bg-accent-green-110/10 text-accent-green-110 text-xs font-medium flex items-center gap-1.5">
+          <Check className="w-3 h-3" />
+          Start here — approve or edit this post
+        </div>
+      )}
       {/* Social-style header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white-10">
         <div className="w-9 h-9 rounded-full bg-accent-green-110/15 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -192,9 +210,16 @@ export function OnboardingPostCard({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white truncate">{displayName}</p>
         </div>
-        <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-medium', colors.badge)}>
-          {channelLabel}
-        </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {contentType && (
+            <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-medium', CONTENT_TYPE_COLORS[contentType] || 'bg-white-10 text-white-60')}>
+              {contentType}
+            </span>
+          )}
+          <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-medium', colors.badge)}>
+            {channelLabel}
+          </span>
+        </div>
       </div>
 
       {/* Image */}
@@ -255,6 +280,9 @@ export function OnboardingPostCard({
                 {uniqueHashtags.join(' ')}
               </p>
             )}
+            <p className="text-[11px] text-white-30 pt-1">
+              Generated from your business data
+            </p>
           </div>
         )}
       </div>
