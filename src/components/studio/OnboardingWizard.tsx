@@ -117,6 +117,86 @@ const CHANNEL_COLORS: Record<string, { badge: string; bg: string }> = {
   YOUTUBE:   { badge: 'bg-red-500/20 text-red-400',   bg: 'from-red-500/5' },
 };
 
+const INDUSTRY_PREVIEW_CONTENT: Record<string, { title: string; snippet: string; channel: string }[]> = {
+  real_estate: [
+    { title: 'Just Listed in Austin', snippet: '3 Bed / 2 Bath on Maple Ave — open layout, updated kitchen, huge backyard. $425K. Open house this Saturday.', channel: 'Instagram' },
+    { title: 'Neighborhood Spotlight', snippet: 'Why families are moving to Westlake Hills — top schools, walkable parks, and homes under $500K.', channel: 'Facebook' },
+    { title: 'Client Success Story', snippet: '"We found our dream home in 3 weeks." See how we helped the Johnsons close on their first home.', channel: 'LinkedIn' },
+  ],
+  car_sales: [
+    { title: 'New Arrival', snippet: '2024 Toyota RAV4 XLE — 12K miles, one owner, loaded with safety features. Starting at $28,900.', channel: 'Instagram' },
+    { title: 'Featured Vehicle', snippet: 'This certified pre-owned Honda Accord won\'t last. Financing available from $299/mo.', channel: 'Facebook' },
+    { title: 'Limited-Time Offer', snippet: 'Memorial Day Sale — 0% APR on all new inventory this weekend only. Schedule your test drive.', channel: 'LinkedIn' },
+  ],
+  property_management: [
+    { title: 'Now Leasing', snippet: '2BR apartment in downtown — in-unit laundry, rooftop access, pet-friendly. $1,850/mo. Tour today.', channel: 'Instagram' },
+    { title: 'Resident Spotlight', snippet: '"Best management company we\'ve worked with." See why 95% of tenants renew their lease.', channel: 'Facebook' },
+    { title: 'Maintenance Tip', snippet: '5 things every tenant should check before winter — protect your unit and avoid costly repairs.', channel: 'LinkedIn' },
+  ],
+  ecommerce: [
+    { title: 'New Arrival', snippet: 'Introducing our best-selling wireless earbuds — 40hr battery, noise canceling, under $60.', channel: 'Instagram' },
+    { title: 'Customer Favorite', snippet: '"These changed my morning routine." 4.8 stars from 2,300+ reviews. Free shipping today.', channel: 'Facebook' },
+    { title: 'Limited-Time Promotion', snippet: 'Flash sale: 30% off all summer essentials. Use code SUMMER30 at checkout. Ends Friday.', channel: 'LinkedIn' },
+  ],
+  legal: [
+    { title: 'Know Your Rights', snippet: '3 things you should never say after a car accident — and what to do instead. Free consultation.', channel: 'LinkedIn' },
+    { title: 'Common Legal Mistakes', snippet: 'DIY estate planning? Here are 5 mistakes that could cost your family thousands.', channel: 'Facebook' },
+    { title: 'When to Contact an Attorney', snippet: 'Not sure if you have a case? Here are the signs you need legal representation.', channel: 'Instagram' },
+  ],
+  fitness: [
+    { title: 'Workout Tip', snippet: 'The #1 mistake killing your bench press gains — and the simple fix that works immediately.', channel: 'Instagram' },
+    { title: 'Client Transformation', snippet: '"Down 35 lbs in 4 months." See how Sarah transformed her health with our 12-week program.', channel: 'Facebook' },
+    { title: 'Training Offer', snippet: 'New member special — first month of personal training 50% off. Limited spots available.', channel: 'LinkedIn' },
+  ],
+  restaurant: [
+    { title: 'Today\'s Special', snippet: 'Pan-seared salmon with lemon butter, roasted vegetables, and garlic mashed potatoes. Dine-in only.', channel: 'Instagram' },
+    { title: 'Weekend Brunch', snippet: 'Bottomless mimosas + our new avocado toast menu. Every Saturday & Sunday 10am-2pm.', channel: 'Facebook' },
+    { title: '5-Star Review', snippet: '"Best Italian food outside of Italy." See why we\'re rated #1 on Google in the neighborhood.', channel: 'LinkedIn' },
+  ],
+  mortgage: [
+    { title: 'Rate Update', snippet: 'Rates just dropped to 6.25% — is now the right time to refinance? Free rate check in 2 minutes.', channel: 'LinkedIn' },
+    { title: 'First-Time Buyer Tip', snippet: '3 things every first-time buyer should know before applying for a mortgage. Free guide inside.', channel: 'Facebook' },
+    { title: 'Client Success', snippet: '"They saved us $400/month on our mortgage." See how we help families lower their payments.', channel: 'Instagram' },
+  ],
+  insurance: [
+    { title: 'Coverage Check', snippet: 'Is your home underinsured? 60% of homeowners are. Get a free coverage review today.', channel: 'Facebook' },
+    { title: 'Savings Tip', snippet: 'Bundle home + auto and save up to 25%. Most quotes take under 5 minutes.', channel: 'LinkedIn' },
+    { title: 'Storm Season Prep', snippet: 'Hurricane season starts June 1. Here\'s your 5-step checklist to protect your home and family.', channel: 'Instagram' },
+  ],
+  finance: [
+    { title: 'Tax Tip', snippet: '3 deductions most small business owners miss — could save you $5,000+ this year.', channel: 'LinkedIn' },
+    { title: 'Retirement Planning', snippet: 'Think you can\'t retire early? Here\'s the simple math that changes everything.', channel: 'Facebook' },
+    { title: 'Client Win', snippet: '"They found $12K in savings I didn\'t know existed." See how we optimize finances for business owners.', channel: 'Instagram' },
+  ],
+  home_services: [
+    { title: 'Before & After', snippet: 'This kitchen went from dated to stunning in just 3 weeks. See the full transformation.', channel: 'Instagram' },
+    { title: 'Seasonal Tip', snippet: 'Spring HVAC checklist — 4 things to do now to avoid a $2,000 repair this summer.', channel: 'Facebook' },
+    { title: '5-Star Review', snippet: '"On time, on budget, and the work was flawless." See why 200+ homeowners trust us.', channel: 'LinkedIn' },
+  ],
+  beauty: [
+    { title: 'New Service', snippet: 'Introducing our keratin smoothing treatment — silky, frizz-free hair for up to 12 weeks.', channel: 'Instagram' },
+    { title: 'Client Glow-Up', snippet: 'From grown-out roots to dimensional balayage — swipe to see the transformation.', channel: 'Facebook' },
+    { title: 'Book Now', snippet: 'Holiday appointments are filling fast. Book your color + cut before December 15.', channel: 'LinkedIn' },
+  ],
+  creator: [
+    { title: 'Behind the Scenes', snippet: 'Here\'s my exact workflow for shooting 30 days of content in one afternoon.', channel: 'Instagram' },
+    { title: 'New Drop', snippet: 'My brand new course on growing to 10K followers is live — early bird pricing ends Friday.', channel: 'LinkedIn' },
+    { title: 'Engagement Post', snippet: 'What\'s the one tool you can\'t live without? Drop it below — I\'ll share my top 5 tomorrow.', channel: 'Facebook' },
+  ],
+  small_business: [
+    { title: 'Grand Opening', snippet: 'We\'re officially open! Stop by this weekend for 20% off everything + free samples.', channel: 'Instagram' },
+    { title: 'Meet the Team', snippet: 'Meet Sarah, our lead designer. She brings 10 years of experience and a passion for detail.', channel: 'Facebook' },
+    { title: 'Customer Love', snippet: '"Best local shop in town." Thank you for 100+ five-star reviews. We couldn\'t do it without you.', channel: 'LinkedIn' },
+  ],
+  other: [
+    { title: 'What We Do', snippet: 'We help businesses grow with tailored solutions. Here\'s what makes us different.', channel: 'LinkedIn' },
+    { title: 'Client Spotlight', snippet: '"They exceeded every expectation." See how we helped this client achieve their goals.', channel: 'Facebook' },
+    { title: 'Behind the Scenes', snippet: 'A day in the life at our company — the people, the process, and the passion behind the work.', channel: 'Instagram' },
+  ],
+};
+
+const DEFAULT_PREVIEW_CONTENT = INDUSTRY_PREVIEW_CONTENT.small_business;
+
 const CONNECT_CHANNELS: { id: Channel; label: string; icon: typeof Instagram }[] = [
   { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram },
   { id: 'LINKEDIN', label: 'LinkedIn', icon: Linkedin },
@@ -347,7 +427,8 @@ export function OnboardingWizard() {
   const createClient = useCreateClient();
   const generate = useGenerateContent();
 
-  const canSubmit = input.trim().length >= 3 || description.trim().length >= 10 || files.length > 0;
+  const hasBusinessInput = input.trim().length >= 3 || description.trim().length >= 10 || files.length > 0;
+  const canSubmit = !!selectedIndustry && hasBusinessInput;
 
   const handleFilesSelected = (selected: FileList | null) => {
     if (!selected) return;
@@ -774,6 +855,8 @@ export function OnboardingWizard() {
   // ── Step 1: Business Input ──────────────────────────────────────────
 
   if (step === 0) {
+    const previewContent = INDUSTRY_PREVIEW_CONTENT[selectedIndustry ?? ''] ?? DEFAULT_PREVIEW_CONTENT;
+
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
         <div className="text-center space-y-3">
@@ -781,127 +864,18 @@ export function OnboardingWizard() {
             Let&apos;s build your marketing system
           </h1>
           <p className="text-lg text-white-60 max-w-lg">
-            Paste a website, describe your business, or choose an industry — we&apos;ll handle the rest.
+            First, choose your industry. Then add a website, business details, or documents — we&apos;ll generate tailored content for your business.
           </p>
         </div>
 
-        <div className="w-full max-w-xl space-y-5">
-          {/* Website URL */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5" />
-              Website URL
-            </label>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && canSubmit) handleSetup();
-              }}
-              placeholder={activeProfile?.onboarding.websitePlaceholder ?? 'yourwebsite.com'}
-              className="w-full px-4 py-3.5 rounded-xl bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
-              autoFocus
-            />
-            <p className="text-xs text-white-40">
-              No website? No problem — start with anything.
+        <div className="w-full max-w-xl space-y-6">
+          {/* ── Step 1: Industry Selection (primary) ── */}
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-white">
+              Choose your industry
             </p>
-          </div>
-
-          {/* Business description */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5" />
-              {activeProfile?.onboarding.extraContextLabel ?? 'Business description'}
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={activeProfile?.onboarding.extraContextPlaceholder ?? 'What does your business do? Who do you serve?'}
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
-            />
-          </div>
-
-          {/* Document upload — collapsed to reduce clutter */}
-          <details className="group/upload">
-            <summary className="text-xs text-white-40 cursor-pointer hover:text-white-60 transition-colors select-none flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
-              <ChevronRight className="w-3 h-3 transition-transform group-open/upload:rotate-90" />
-              <Upload className="w-3 h-3" />
-              Upload documents instead (PDF, DOCX, TXT, CSV)
-            </summary>
-            <div className="mt-2">
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleFilesSelected(e.dataTransfer.files);
-                }}
-                className="w-full px-4 py-3 rounded-xl border border-dashed border-white-15 hover:border-accent-green-110/40 transition-colors cursor-pointer flex items-center gap-3"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept={ACCEPTED_FILE_TYPES}
-                  className="hidden"
-                  onChange={(e) => {
-                    handleFilesSelected(e.target.files);
-                    e.target.value = '';
-                  }}
-                />
-                <FileText className="w-4 h-4 text-white-40 flex-shrink-0" />
-                <p className="text-xs text-white-50">
-                  Brochures, menus, listings, service sheets, brand docs
-                </p>
-              </div>
-              {files.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {files.map((f, i) => (
-                    <div
-                      key={`${f.name}-${i}`}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sp-card border border-white-15 text-sm"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
-                      <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
-                      <span className="text-white-30 text-xs">
-                        {(f.size / 1024).toFixed(0)}KB
-                      </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                        className="text-white-30 hover:text-white-80 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </details>
-
-          {/* Primary CTA — dominant */}
-          <button
-            onClick={handleSetup}
-            disabled={!canSubmit}
-            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-bold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-glow-green"
-          >
-            <Sparkles className="w-5 h-5" />
-            Generate My Content System
-          </button>
-
-          {/* Industry selector — de-emphasized, optional */}
-          {industries.length > 0 && (
-            <div className="space-y-3 pt-1">
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-white-10" />
-                <p className="text-xs text-white-40">Or choose your industry</p>
-                <div className="h-px flex-1 bg-white-10" />
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            {industries.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {industries.map((profile) => {
                   const IconComponent = INDUSTRY_ICON_MAP[profile.ui.icon] ?? Briefcase;
                   const isSelected = selectedIndustry === profile.key;
@@ -911,27 +885,139 @@ export function OnboardingWizard() {
                       type="button"
                       onClick={() => setSelectedIndustry(isSelected ? null : profile.key)}
                       className={cn(
-                        'flex items-center gap-1.5 px-3 py-2 rounded-full border whitespace-nowrap transition-all text-xs font-medium flex-shrink-0',
+                        'flex items-center gap-2 px-3.5 py-3 rounded-xl border transition-all text-sm font-medium text-left',
                         isSelected
                           ? 'border-accent-green-110 bg-accent-green-110/15 text-accent-green-110 ring-1 ring-accent-green-110'
-                          : 'border-white-10 bg-white-5 text-white-50 hover:border-white-20 hover:text-white-70',
+                          : 'border-white-10 bg-white-5 text-white-60 hover:border-white-20 hover:text-white-80',
                       )}
                     >
-                      <IconComponent className="w-3.5 h-3.5" />
-                      {profile.label}
+                      <IconComponent className="w-4 h-4 flex-shrink-0" />
+                      <span className="leading-tight">{profile.label}</span>
                     </button>
                   );
                 })}
               </div>
+            )}
 
-              {/* Selection feedback */}
-              {selectedIndustry && activeProfile && (
-                <p className="text-sm text-accent-green-110 text-center animate-in fade-in duration-200">
-                  Great — we&apos;ll tailor content for {activeProfile.label}
-                </p>
-              )}
+            {/* Selection feedback */}
+            {selectedIndustry && activeProfile && (
+              <p className="text-sm text-accent-green-110 text-center animate-in fade-in duration-200">
+                Great — we&apos;ll tailor content for {activeProfile.label}
+              </p>
+            )}
+          </div>
+
+          {/* ── Step 2: Business Details ── */}
+          <div className="space-y-4">
+            <p className="text-sm font-semibold text-white">
+              Add your business details
+            </p>
+
+            {/* Website URL */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5" />
+                Website URL
+              </label>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && canSubmit) handleSetup();
+                }}
+                placeholder={activeProfile?.onboarding.websitePlaceholder ?? 'yourwebsite.com'}
+                className="w-full px-4 py-3.5 rounded-xl bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
+              />
+              <p className="text-xs text-white-40">
+                No website? No problem — describe your business below.
+              </p>
             </div>
-          )}
+
+            {/* Business description */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5" />
+                {activeProfile?.onboarding.extraContextLabel ?? 'Business description'}
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={activeProfile?.onboarding.extraContextPlaceholder ?? 'What does your business do? Who do you serve?'}
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
+              />
+            </div>
+
+            {/* Document upload — collapsed to reduce clutter */}
+            <details className="group/upload">
+              <summary className="text-xs text-white-40 cursor-pointer hover:text-white-60 transition-colors select-none flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="w-3 h-3 transition-transform group-open/upload:rotate-90" />
+                <Upload className="w-3 h-3" />
+                Upload documents instead (PDF, DOCX, TXT, CSV)
+              </summary>
+              <div className="mt-2">
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleFilesSelected(e.dataTransfer.files);
+                  }}
+                  className="w-full px-4 py-3 rounded-xl border border-dashed border-white-15 hover:border-accent-green-110/40 transition-colors cursor-pointer flex items-center gap-3"
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept={ACCEPTED_FILE_TYPES}
+                    className="hidden"
+                    onChange={(e) => {
+                      handleFilesSelected(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                  <FileText className="w-4 h-4 text-white-40 flex-shrink-0" />
+                  <p className="text-xs text-white-50">
+                    Brochures, menus, listings, service sheets, brand docs
+                  </p>
+                </div>
+                {files.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {files.map((f, i) => (
+                      <div
+                        key={`${f.name}-${i}`}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sp-card border border-white-15 text-sm"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
+                        <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
+                        <span className="text-white-30 text-xs">
+                          {(f.size / 1024).toFixed(0)}KB
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                          className="text-white-30 hover:text-white-80 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+          </div>
+
+          {/* ── Primary CTA ── */}
+          <button
+            onClick={handleSetup}
+            disabled={!canSubmit}
+            className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-bold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-glow-green"
+          >
+            <Sparkles className="w-5 h-5" />
+            {selectedIndustry ? 'Generate My Content System' : 'Choose an industry to continue'}
+          </button>
 
           <div className="flex items-center justify-center gap-4 text-[11px] text-white-30">
             <span>AI-powered</span>
@@ -942,21 +1028,30 @@ export function OnboardingWizard() {
           </div>
         </div>
 
-        {/* Preview teaser — visual hint of output */}
+        {/* ── Preview section — industry-specific mock content ── */}
         <div className="w-full max-w-xl space-y-3 pt-2">
-          <p className="text-xs font-medium text-white-30 text-center">
-            We&apos;ll generate content like this instantly
+          <p className="text-xs font-medium text-white-40 text-center">
+            {selectedIndustry && activeProfile
+              ? `We'll generate ${activeProfile.label.toLowerCase()} content like this`
+              : 'We\u2019ll generate content like this for your business'}
           </p>
-          <div className="grid grid-cols-3 gap-3 opacity-30 blur-[2px] pointer-events-none select-none">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-xl bg-sp-card border border-white-10 p-3 space-y-2.5">
-                <div className="w-full aspect-[4/3] rounded-lg bg-white-5" />
-                <div className="space-y-1.5">
-                  <div className="h-2.5 bg-white-10 rounded w-3/4" />
-                  <div className="h-2 bg-white-5 rounded w-full" />
-                  <div className="h-2 bg-white-5 rounded w-1/2" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {previewContent.map((item, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'rounded-xl bg-sp-card border border-white-10 p-4 space-y-2.5 transition-all duration-300',
+                  selectedIndustry ? 'opacity-60' : 'opacity-30',
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-accent-green-110 uppercase tracking-wide">
+                    {item.channel}
+                  </span>
                 </div>
-                <div className="flex gap-1.5">
+                <p className="text-xs font-semibold text-white-80 leading-snug">{item.title}</p>
+                <p className="text-[11px] text-white-40 leading-relaxed line-clamp-3">{item.snippet}</p>
+                <div className="flex gap-1.5 pt-1">
                   <div className="h-5 w-14 bg-accent-green-110/10 rounded-full" />
                   <div className="h-5 w-10 bg-white-5 rounded-full" />
                 </div>
