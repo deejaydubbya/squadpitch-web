@@ -1923,6 +1923,18 @@ export type IntegrationCapability =
 
 export type ConnectionMode = 'oauth' | 'manual' | 'planned';
 
+export interface ManualSetupField {
+  key: string;
+  label: string;
+  type: 'url' | 'text';
+  required: boolean;
+  placeholder?: string;
+}
+
+export interface ManualSetupConfig {
+  fields: ManualSetupField[];
+}
+
 export interface IndustryTechStackItem {
   providerKey: string;
   label: string;
@@ -1933,6 +1945,8 @@ export interface IndustryTechStackItem {
   description?: string;
   useCases?: string[];
   capabilities: IntegrationCapability[];
+  manualSetup?: ManualSetupConfig;
+  channelRef?: string;
 }
 
 export interface IndustryTerminology {
@@ -2037,6 +2051,118 @@ export function useBusinessDataLabels(clientId: string | undefined): ResolvedBus
   const key = client?.industryKey;
   const profile = key && industries ? industries.find((p) => p.key === key) : undefined;
   return resolveBusinessDataLabels(profile?.businessDataLabels);
+}
+
+// ── Tech Stack View ───────────────────────────────────────────────────
+
+export type TechStackGroup = 'importData' | 'publishContent' | 'enhanceWorkflow';
+export type ConnectionStatus = 'not_connected' | 'connected' | 'pending' | 'error';
+
+/** Item returned from the workspace tech stack merged view API. */
+export interface WorkspaceTechStackItem {
+  providerKey: string;
+  label: string;
+  description?: string;
+  priority: 'core' | 'recommended' | 'optional';
+  status: 'live' | 'beta' | 'planned';
+  category: string;
+  capabilities: IntegrationCapability[];
+  connectionMode: ConnectionMode;
+  manualSetup?: ManualSetupConfig;
+  channelRef?: string;
+  connectionStatus: ConnectionStatus;
+  metadataJson: Record<string, unknown> | null;
+  isPublishing: boolean;
+  isImportSource: boolean;
+  isWorkflowTool: boolean;
+}
+
+export interface TechStackViewItem extends WorkspaceTechStackItem {
+  group: TechStackGroup;
+  statusBadge: 'Coming Soon' | 'Connected' | 'Connect' | 'Add Data';
+}
+
+export interface GroupedTechStack {
+  importData: TechStackViewItem[];
+  publishContent: TechStackViewItem[];
+  enhanceWorkflow: TechStackViewItem[];
+}
+
+const PRIORITY_ORDER: Record<string, number> = { core: 0, recommended: 1, optional: 2 };
+
+function resolveTechStackGroup(capabilities: IntegrationCapability[]): TechStackGroup {
+  if (capabilities.includes('publishing') || capabilities.includes('scheduling_target')) {
+    return 'publishContent';
+  }
+  if (capabilities.includes('imports') || capabilities.includes('content_source')) {
+    return 'importData';
+  }
+  return 'enhanceWorkflow';
+}
+
+function resolveStatusBadge(item: WorkspaceTechStackItem): TechStackViewItem['statusBadge'] {
+  // Rule 1: planned items are always "Coming Soon" (unless already connected)
+  if (item.status === 'planned' && item.connectionStatus !== 'connected') return 'Coming Soon';
+  // Rule 2: already connected
+  if (item.connectionStatus === 'connected') return 'Connected';
+  // Rule 3: oauth items not yet connected
+  if (item.connectionMode === 'oauth') return 'Connect';
+  // Rule 4: manual items not yet connected
+  if (item.connectionMode === 'manual') return 'Add Data';
+  return 'Coming Soon';
+}
+
+function sortByPriority(a: TechStackViewItem, b: TechStackViewItem): number {
+  const pa = PRIORITY_ORDER[a.priority] ?? 2;
+  const pb = PRIORITY_ORDER[b.priority] ?? 2;
+  if (pa !== pb) return pa - pb;
+  return a.label.localeCompare(b.label);
+}
+
+/** Fetch the merged workspace tech stack view from the API. */
+export function useWorkspaceTechStack(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ['workspace-tech-stack', clientId],
+    queryFn: () =>
+      apiFetch<{ techStack: WorkspaceTechStackItem[] }>(
+        `workspaces/${clientId}/tech-stack`,
+      ).then((r) => r.techStack),
+    enabled: !!clientId,
+  });
+}
+
+/** Hook that returns grouped & sorted tech stack items for a workspace. */
+export function useTechStack(clientId: string | undefined): GroupedTechStack | null {
+  const { data: items } = useWorkspaceTechStack(clientId);
+
+  if (!items || items.length === 0) return null;
+
+  const viewItems: TechStackViewItem[] = items.map((item) => ({
+    ...item,
+    group: resolveTechStackGroup(item.capabilities),
+    statusBadge: resolveStatusBadge(item),
+  }));
+
+  return {
+    importData: viewItems.filter((i) => i.group === 'importData').sort(sortByPriority),
+    publishContent: viewItems.filter((i) => i.group === 'publishContent').sort(sortByPriority),
+    enhanceWorkflow: viewItems.filter((i) => i.group === 'enhanceWorkflow').sort(sortByPriority),
+  };
+}
+
+/** Save metadata for a manual tech stack item and mark it as connected. */
+export function useSaveManualConnection(clientId: string, providerKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (metadata: Record<string, string>) =>
+      apiFetch(`workspaces/${clientId}/tech-stack/${providerKey}`, {
+        method: 'PUT',
+        body: JSON.stringify({ metadata }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workspace-tech-stack', clientId] });
+    },
+  });
 }
 
 export interface UploadDocumentsResult {

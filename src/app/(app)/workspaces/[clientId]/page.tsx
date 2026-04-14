@@ -52,6 +52,7 @@ import {
 } from '@/hooks/useSquadpitch';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
+import { TechStackSection } from '@/components/studio/TechStackSection';
 
 export default function OverviewPage() {
   const params = useParams<{ clientId: string }>();
@@ -273,6 +274,9 @@ export default function OverviewPage() {
         <ConsistencyTracker recommendations={recommendations} />
         <AutopilotStatus recommendations={recommendations} base={base} clientId={clientId} />
       </div>
+
+      {/* Tech Stack */}
+      <TechStackSection clientId={clientId} />
 
       {/* Workspace links */}
       <div>
