@@ -43,11 +43,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   YOUTUBE: 'YouTube',
 };
 
-const CONTENT_TYPE_COLORS: Record<string, string> = {
-  Promote: 'bg-amber-500/15 text-amber-300',
-  Educate: 'bg-blue-500/15 text-blue-300',
-  Engage:  'bg-purple-500/15 text-purple-300',
-};
+const CONTENT_TYPE_STYLE = 'bg-white-10 text-white-60';
 
 const INDUSTRY_ATTRIBUTION: Record<string, string> = {
   real_estate: 'Based on your listing data',
@@ -241,7 +237,7 @@ export function OnboardingPostCard({
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {contentType && (
-            <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-medium', CONTENT_TYPE_COLORS[contentType] || 'bg-white-10 text-white-60')}>
+            <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-medium', CONTENT_TYPE_STYLE)}>
               {contentType}
             </span>
           )}

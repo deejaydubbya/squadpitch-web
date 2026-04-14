@@ -127,8 +127,15 @@ export default function OverviewPage() {
     }
   };
 
-  const handleRecommendationAction = (action: string) => {
-    switch (action) {
+  const handleRecommendationAction = (rec: DashboardRecommendation) => {
+    switch (rec.action) {
+      case 'generate_post': {
+        const guidance = rec.metadata?.guidance ?? rec.description;
+        const tmpl = rec.metadata?.templateType;
+        const qs = `guidance=${encodeURIComponent(guidance)}${tmpl ? `&templateType=${encodeURIComponent(tmpl)}` : ''}`;
+        router.push(`${base}/create?${qs}`);
+        break;
+      }
       case 'generate_from_data':
         router.push(`${base}/business-data`);
         break;
@@ -196,7 +203,7 @@ export default function OverviewPage() {
               <RecommendationCard
                 key={rec.id}
                 rec={rec}
-                onAction={() => handleRecommendationAction(rec.action)}
+                onAction={() => handleRecommendationAction(rec)}
               />
             ))}
           </div>
@@ -378,6 +385,7 @@ function RecommendationCard({
     setup: <LinkIcon className="w-4 h-4 text-yellow-400" />,
     growth: <BarChart3 className="w-4 h-4 text-purple-400" />,
     workflow: <Check className="w-4 h-4 text-orange-400" />,
+    content: <Wand2 className="w-4 h-4 text-accent-green-110" />,
   };
 
   return (
@@ -387,7 +395,7 @@ function RecommendationCard({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white-100">{rec.title}</p>
-        <p className="text-xs text-white-40 line-clamp-1">{rec.description}</p>
+        <p className="text-xs text-white-40">{rec.reason ?? rec.description}</p>
       </div>
       <button
         onClick={onAction}

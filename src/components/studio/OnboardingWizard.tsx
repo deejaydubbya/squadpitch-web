@@ -387,6 +387,7 @@ export function OnboardingWizard() {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<string | null>(null);
   const [generatingMore, setGeneratingMore] = useState(false);
+  const [templateLabels, setTemplateLabels] = useState<string[]>([]);
 
   // Track if setup is running to prevent double-click
   const setupRunning = useRef(false);
@@ -620,12 +621,13 @@ export function OnboardingWizard() {
         setStages((prev) => ({ ...prev, importing: 'skipped' }));
       }
 
-      // Stage 4: Generate 3 posts — use imported data items when available
+      // Stage 4: Generate 3 posts — use core templates + imported data items
       setStage('generating', 'active');
       const channels = result.suggestedChannels.length > 0
         ? result.suggestedChannels
         : ['INSTAGRAM' as Channel];
 
+      const coreTemplates = result.coreTemplates ?? [];
       const angles = result.starterAngles ?? [];
       const defaultGuidance = `Create a specific, ready-to-publish social media post for ${brandName}. Use concrete details — real numbers, specific benefits, and direct language. Reference their ${result.brandData.industry || 'business'} expertise. No vague or generic statements.`;
 
@@ -642,6 +644,7 @@ export function OnboardingWizard() {
       }
 
       for (let i = 0; i < 3; i++) {
+        const template = coreTemplates[i];
         const channel = channels[i % channels.length];
         const dataItemId = importedItems[i]?.id;
         try {
@@ -649,10 +652,12 @@ export function OnboardingWizard() {
             clientId: client.id,
             kind: 'POST',
             channel,
-            guidance: angles[i] || defaultGuidance,
+            guidance: template?.guidance || angles[i] || defaultGuidance,
+            ...(template ? { templateType: template.type } : {}),
             ...(dataItemId ? { dataItemId } : {}),
           });
           setGeneratedDrafts((prev) => [...prev, draft]);
+          setTemplateLabels((prev) => [...prev, template?.title || '']);
           setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
 
           // Fire-and-forget image generation — skip if draft already has an image from business data
@@ -827,8 +832,10 @@ export function OnboardingWizard() {
         : ['INSTAGRAM' as Channel];
       const brandName = analyzeResult.brandData.name || 'Your Brand';
       const defaultGuidance = `Create a specific, ready-to-publish social media post for ${brandName}. Use concrete details — real numbers, specific benefits, and direct language. Reference their ${analyzeResult.brandData.industry || 'business'} expertise. No vague or generic statements.`;
+      const coreTemplates = analyzeResult.coreTemplates ?? [];
       const angles = analyzeResult.starterAngles ?? [];
       const idx = generatedDrafts.length;
+      const template = coreTemplates[idx % coreTemplates.length] ?? undefined;
       const channel = channels[idx % channels.length];
       const ids = importedDataItemIds.current;
       const dataItemId = ids[idx];
@@ -836,10 +843,12 @@ export function OnboardingWizard() {
         clientId: createdClientId,
         kind: 'POST',
         channel,
-        guidance: angles[idx % angles.length] || defaultGuidance,
+        guidance: template?.guidance || angles[idx % angles.length] || defaultGuidance,
+        ...(template ? { templateType: template.type } : {}),
         ...(dataItemId ? { dataItemId } : {}),
       });
       setGeneratedDrafts((prev) => [...prev, draft]);
+      setTemplateLabels((prev) => [...prev, template?.title || '']);
       // Fire-and-forget image generation — skip if draft already has an image from business data
       if (draft.imageGuidance && !draft.mediaUrl) {
         apiFetch('assets/generate', {
@@ -1122,7 +1131,7 @@ export function OnboardingWizard() {
             Your marketing system is ready
           </h2>
           <p className="text-base text-white-60 max-w-md mx-auto">
-            Here&apos;s content created for your business — review, edit, or publish anytime.
+            We created these posts based on your business. Review, edit, or schedule anytime.
           </p>
         </div>
 
@@ -1189,7 +1198,8 @@ export function OnboardingWizard() {
 
         {/* ── Level 2: Post cards (the hero) ── */}
         {generatedDrafts.length > 0 ? (() => {
-          const CONTENT_TYPES = ['Promote', 'Educate', 'Engage'];
+          const shortenTitle = (t: string) =>
+            t.replace(/^(Post|Share|Promote|Announce|Feature|Showcase|List)\s+(a |an |the |Your |Today's )?/i, '').trim();
           const filteredDrafts = channelFilter
             ? generatedDrafts.filter((d) => d.channel === channelFilter)
             : generatedDrafts;
@@ -1197,6 +1207,7 @@ export function OnboardingWizard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full pt-4 pb-2">
               {filteredDrafts.map((draft, i) => {
                 const originalIndex = generatedDrafts.indexOf(draft);
+                const label = templateLabels[originalIndex];
                 return (
                   <div
                     key={draft.id}
@@ -1210,7 +1221,7 @@ export function OnboardingWizard() {
                       logoUrl={analyzeResult?.brandData.logoUrl}
                       defaultScheduleTime={getScheduleTime(originalIndex)}
                       onRegenerated={(newDraft) => handleRegenerated(originalIndex, newDraft)}
-                      contentType={CONTENT_TYPES[originalIndex % CONTENT_TYPES.length]}
+                      contentType={label ? shortenTitle(label) : undefined}
                       isFirstPost={originalIndex === 0}
                       industryKey={selectedIndustry ?? undefined}
                       postIndex={originalIndex}

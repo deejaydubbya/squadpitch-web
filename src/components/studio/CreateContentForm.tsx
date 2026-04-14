@@ -26,6 +26,8 @@ import { ServiceAlert } from '@/components/billing/ServiceAlert';
 
 interface Props {
   clientId: string;
+  initialGuidance?: string;
+  initialTemplateType?: string;
   onGenerated: (draft: Draft) => void;
 }
 
@@ -42,7 +44,7 @@ function getGenerationError(error: Error | null) {
   return { type: 'generic' as const, message: msg };
 }
 
-export function CreateContentForm({ clientId, onGenerated }: Props) {
+export function CreateContentForm({ clientId, initialGuidance, initialTemplateType, onGenerated }: Props) {
   const bdLabels = useBusinessDataLabels(clientId);
   const { data: channels } = useChannelSettings(clientId);
   const { data: mediaProfile } = useMediaProfile(clientId);
@@ -53,7 +55,7 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
 
   const { data: usage } = useUsage();
 
-  const [guidance, setGuidance] = useState('');
+  const [guidance, setGuidance] = useState(initialGuidance ?? '');
   const [selectedChannels, setSelectedChannels] = useState<Channel[]>([]);
   const [goal, setGoal] = useState<typeof GOALS[number]>('Growth');
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
@@ -105,6 +107,7 @@ export function CreateContentForm({ clientId, onGenerated }: Props) {
         kind: 'POST',
         channel,
         guidance: fullGuidance,
+        templateType: initialTemplateType,
         dataItemId: selectedDataItem?.id,
         blueprintId: selectedBlueprint?.id,
       },

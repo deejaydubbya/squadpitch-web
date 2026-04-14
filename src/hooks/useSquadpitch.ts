@@ -571,6 +571,7 @@ export interface GenerateContentInput {
   channel: Channel;
   bucketKey?: string;
   guidance: string;
+  templateType?: string;
   dataItemId?: string;
   blueprintId?: string;
 }
@@ -1778,10 +1779,12 @@ export interface DashboardRecommendation {
   id: string;
   title: string;
   description: string;
+  reason?: string;
   action: string;
   actionLabel: string;
   priority: number;
   category: string;
+  metadata?: { guidance?: string; templateType?: string };
 }
 
 export interface DashboardRecommendationsResponse {
@@ -1888,6 +1891,7 @@ export interface OnboardingAnalyzeResult {
   images: string[];
   dataItems: OnboardingDataItem[];
   starterAngles?: string[];
+  coreTemplates?: { type: string; title: string; guidance: string }[];
 }
 
 export interface IndustryOnboarding {
