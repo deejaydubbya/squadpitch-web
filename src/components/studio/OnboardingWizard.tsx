@@ -641,8 +641,8 @@ export function OnboardingWizard() {
           setGeneratedDrafts((prev) => [...prev, draft]);
           setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
 
-          // Fire-and-forget image generation so images are ready by content preview
-          if (draft.imageGuidance) {
+          // Fire-and-forget image generation — skip if draft already has an image from business data
+          if (draft.imageGuidance && !draft.mediaUrl) {
             apiFetch('assets/generate', {
               method: 'POST',
               body: JSON.stringify({
@@ -826,7 +826,8 @@ export function OnboardingWizard() {
         ...(dataItemId ? { dataItemId } : {}),
       });
       setGeneratedDrafts((prev) => [...prev, draft]);
-      if (draft.imageGuidance) {
+      // Fire-and-forget image generation — skip if draft already has an image from business data
+      if (draft.imageGuidance && !draft.mediaUrl) {
         apiFetch('assets/generate', {
           method: 'POST',
           body: JSON.stringify({
