@@ -1897,6 +1897,41 @@ export interface IndustryOnboarding {
   helperText: string;
 }
 
+export type TechStackCategory =
+  | 'data_source'
+  | 'crm'
+  | 'publishing'
+  | 'analytics'
+  | 'website'
+  | 'operations'
+  | 'documents'
+  | 'compliance';
+
+export type IntegrationCapability =
+  | 'imports'
+  | 'content_source'
+  | 'publishing'
+  | 'analytics_source'
+  | 'lead_sync'
+  | 'client_sync'
+  | 'document_source'
+  | 'data_enrichment'
+  | 'workflow_trigger'
+  | 'scheduling_target'
+  | 'reporting_source'
+  | 'compliance_context';
+
+export interface IndustryTechStackItem {
+  providerKey: string;
+  label: string;
+  category: TechStackCategory;
+  priority: 'core' | 'recommended' | 'optional';
+  status: 'live' | 'beta' | 'planned';
+  description?: string;
+  useCases?: string[];
+  capabilities: IntegrationCapability[];
+}
+
 export interface IndustryProfile {
   key: string;
   label: string;
@@ -1912,6 +1947,7 @@ export interface IndustryProfile {
     starterAutomations: string[];
   };
   ui: { icon: string };
+  techStack: IndustryTechStackItem[];
 }
 
 export function useIndustries() {
