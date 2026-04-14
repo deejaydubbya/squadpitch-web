@@ -52,7 +52,7 @@ const GROUP_META = [
 // ── Status badge ──────────────────────────────────────────────────────
 
 const BADGE_STYLES: Record<TechStackViewItem['statusBadge'], string> = {
-  'Coming Soon': 'bg-white-10 text-white-40',
+  'Coming Soon': 'bg-white-10 text-white-30',
   'Connected': 'bg-accent-green-110/10 text-accent-green-110',
   'Connect': 'bg-accent-green-110/10 text-accent-green-110',
   'Add Data': 'bg-blue-500/10 text-blue-400',
@@ -61,7 +61,7 @@ const BADGE_STYLES: Record<TechStackViewItem['statusBadge'], string> = {
 function StatusBadge({ badge }: { badge: TechStackViewItem['statusBadge'] }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${BADGE_STYLES[badge]}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${BADGE_STYLES[badge]}`}
     >
       {badge === 'Coming Soon' && <Clock className="w-3 h-3" />}
       {badge === 'Connected' && <CheckCircle className="w-3 h-3" />}
@@ -72,6 +72,18 @@ function StatusBadge({ badge }: { badge: TechStackViewItem['statusBadge'] }) {
   );
 }
 
+// ── Card styling helpers ─────────────────────────────────────────────
+
+function cardClass(item: TechStackViewItem): string {
+  if (item.connectionStatus === 'connected') {
+    return 'card p-4 border-l-2 border-l-accent-green-110';
+  }
+  if (item.statusBadge === 'Coming Soon') {
+    return 'card p-4 opacity-60';
+  }
+  return 'card p-4';
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 /** Extract a display-friendly summary from saved metadata (e.g. domain from URL). */
@@ -80,7 +92,6 @@ function getMetadataSummary(
   metadataJson: Record<string, unknown> | null,
 ): string | null {
   if (!metadataJson) return null;
-  // For url fields, show the hostname; for text, show the value
   for (const field of fields) {
     const value = metadataJson[field.key];
     if (typeof value !== 'string' || !value) continue;
@@ -118,7 +129,6 @@ function ManualSetupCard({
   };
 
   const handleSave = () => {
-    // Client-side required check
     for (const field of fields) {
       if (field.required && !values[field.key]?.trim()) {
         setError(`${field.label} is required.`);
@@ -137,12 +147,11 @@ function ManualSetupCard({
     });
   };
 
-  // Determine the action button label from the first field type
   const actionLabel = fields[0]?.type === 'url' ? 'Add Website' : 'Set Up';
   const ActionIcon = fields[0]?.type === 'url' ? Globe : LinkIcon;
 
   return (
-    <div className="card p-4 space-y-2">
+    <div className={`${cardClass(item)} space-y-2`}>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
@@ -223,7 +232,7 @@ function ManualSetupCard({
 
 function TechStackCard({ item }: { item: TechStackViewItem }) {
   return (
-    <div className="card p-4 flex items-start gap-3">
+    <div className={`${cardClass(item)} flex items-start gap-3`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <p className="text-sm font-medium text-white-100">{item.label}</p>
@@ -234,7 +243,7 @@ function TechStackCard({ item }: { item: TechStackViewItem }) {
           )}
         </div>
         {item.description && (
-          <p className="text-xs text-white-40 line-clamp-1">{item.description}</p>
+          <p className="text-xs text-white-40">{item.description}</p>
         )}
       </div>
       <StatusBadge badge={item.statusBadge} />
@@ -258,7 +267,7 @@ function ChannelCard({
       : null;
 
   return (
-    <div className="card p-4 flex items-start gap-3">
+    <div className={`${cardClass(item)} flex items-start gap-3`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <p className="text-sm font-medium text-white-100">{item.label}</p>
@@ -269,7 +278,7 @@ function ChannelCard({
           )}
         </div>
         {item.description && (
-          <p className="text-xs text-white-40 line-clamp-1">{item.description}</p>
+          <p className="text-xs text-white-40">{item.description}</p>
         )}
         {isConnected && displayName && (
           <p className="text-xs text-accent-green-110 mt-1 flex items-center gap-1">
@@ -313,6 +322,8 @@ function TechStackGroup({
 }) {
   if (items.length === 0) return null;
 
+  const activeInGroup = items.filter((i) => i.connectionStatus === 'connected').length;
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
@@ -322,6 +333,11 @@ function TechStackGroup({
         <h3 className="text-xs font-semibold text-white-60 uppercase tracking-wider">
           {label}
         </h3>
+        {activeInGroup > 0 && (
+          <span className="text-[10px] font-medium text-accent-green-110 ml-auto">
+            {activeInGroup} ready
+          </span>
+        )}
       </div>
       <div className="space-y-2">
         {items.map((item) =>
@@ -352,16 +368,30 @@ export function TechStackSection({ clientId }: { clientId: string }) {
 
   if (!hasItems) return null;
 
+  const { activeCount, totalCount } = techStack;
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-1">
         <Sparkles className="w-4 h-4 text-accent-green-110" />
         <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-          Power Up Your Marketing System
+          Your Marketing System
         </h2>
+        <span className="text-xs text-white-40 ml-auto">
+          {activeCount} of {totalCount} tools ready
+        </span>
       </div>
+
+      {/* Progress bar */}
+      <div className="w-full h-1 rounded-full bg-white-10 mb-3">
+        <div
+          className="h-1 rounded-full bg-accent-green-110 transition-all duration-500"
+          style={{ width: `${totalCount > 0 ? (activeCount / totalCount) * 100 : 0}%` }}
+        />
+      </div>
+
       <p className="text-xs text-white-40 mb-4">
-        Connect your tools to import data, publish content, and automate more of your workflow.
+        Connect your tools to import data, publish content, and automate your workflow.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

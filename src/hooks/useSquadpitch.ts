@@ -2086,6 +2086,8 @@ export interface GroupedTechStack {
   importData: TechStackViewItem[];
   publishContent: TechStackViewItem[];
   enhanceWorkflow: TechStackViewItem[];
+  totalCount: number;
+  activeCount: number;
 }
 
 const PRIORITY_ORDER: Record<string, number> = { core: 0, recommended: 1, optional: 2 };
@@ -2147,6 +2149,8 @@ export function useTechStack(clientId: string | undefined): GroupedTechStack | n
     importData: viewItems.filter((i) => i.group === 'importData').sort(sortByPriority),
     publishContent: viewItems.filter((i) => i.group === 'publishContent').sort(sortByPriority),
     enhanceWorkflow: viewItems.filter((i) => i.group === 'enhanceWorkflow').sort(sortByPriority),
+    totalCount: viewItems.length,
+    activeCount: viewItems.filter((i) => i.connectionStatus === 'connected').length,
   };
 }
 
