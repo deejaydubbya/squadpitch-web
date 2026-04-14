@@ -9,6 +9,9 @@ import {
   Calendar,
   RefreshCw,
   X,
+  Heart,
+  MessageCircle,
+  Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -46,6 +49,21 @@ const CONTENT_TYPE_COLORS: Record<string, string> = {
   Engage:  'bg-purple-500/15 text-purple-300',
 };
 
+const INDUSTRY_ATTRIBUTION: Record<string, string> = {
+  real_estate: 'Based on your listing data',
+  car_sales: 'Based on your inventory',
+  property_management: 'Based on your property data',
+  restaurant: 'Based on your menu & offerings',
+  ecommerce: 'Based on your product catalog',
+  fitness: 'Based on your programs',
+  legal: 'Based on your services',
+  mortgage: 'Based on your services',
+  insurance: 'Based on your coverage options',
+  finance: 'Based on your services',
+};
+
+const FAKE_TIMESTAMPS = ['2h ago', '4h ago', '1h ago', '6h ago', '30m ago'];
+
 interface OnboardingPostCardProps {
   draft: Draft;
   clientId: string;
@@ -55,6 +73,8 @@ interface OnboardingPostCardProps {
   onRegenerated: (newDraft: Draft) => void;
   contentType?: string;
   isFirstPost?: boolean;
+  industryKey?: string;
+  postIndex?: number;
 }
 
 export function OnboardingPostCard({
@@ -66,6 +86,8 @@ export function OnboardingPostCard({
   onRegenerated,
   contentType,
   isFirstPost,
+  industryKey,
+  postIndex = 0,
 }: OnboardingPostCardProps) {
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(draft.body);
@@ -161,6 +183,8 @@ export function OnboardingPostCard({
 
   const displayName = brandName || 'Your Brand';
   const brandInitial = displayName[0]?.toUpperCase() || '?';
+  const handle = '@' + displayName.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 20);
+  const fakeTimestamp = FAKE_TIMESTAMPS[postIndex % FAKE_TIMESTAMPS.length];
 
   // Split body into caption and hashtags for display
   const bodyLines = draft.body.split('\n');
@@ -182,7 +206,7 @@ export function OnboardingPostCard({
 
   return (
     <div className={cn(
-      'rounded-2xl border overflow-hidden flex flex-col bg-sp-card',
+      'rounded-2xl border overflow-hidden flex flex-col bg-sp-card shadow-lg shadow-black/20',
       isScheduled
         ? 'border-zone-blue/40 ring-1 ring-zone-blue/15'
         : isApproved
@@ -209,6 +233,7 @@ export function OnboardingPostCard({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white truncate">{displayName}</p>
+          <p className="text-[11px] text-white-40 truncate">{handle} · {fakeTimestamp}</p>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {contentType && (
@@ -281,11 +306,22 @@ export function OnboardingPostCard({
               </p>
             )}
             <p className="text-[11px] text-white-30 pt-1">
-              Generated from your business data
+              {industryKey && INDUSTRY_ATTRIBUTION[industryKey]
+                ? INDUSTRY_ATTRIBUTION[industryKey]
+                : 'Generated from your business data'}
             </p>
           </div>
         )}
       </div>
+
+      {/* Static social engagement icons */}
+      {!editing && (
+        <div className="flex items-center gap-5 px-4 pb-3 text-white-30">
+          <Heart className="w-4 h-4 hover:text-pink-400 transition-colors cursor-default" />
+          <MessageCircle className="w-4 h-4 hover:text-blue-400 transition-colors cursor-default" />
+          <Share2 className="w-4 h-4 hover:text-white-50 transition-colors cursor-default" />
+        </div>
+      )}
 
       {/* Status indicator */}
       {(isApproved || isScheduled) && (

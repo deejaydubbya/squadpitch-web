@@ -532,7 +532,7 @@ export function OnboardingWizard() {
         : ['INSTAGRAM' as Channel];
 
       const angles = result.starterAngles ?? [];
-      const defaultGuidance = `Create an engaging social media post for ${brandName}. Focus on their ${result.brandData.industry} expertise. Make it authentic and ready to publish.`;
+      const defaultGuidance = `Create a specific, ready-to-publish social media post for ${brandName}. Use concrete details — real numbers, specific benefits, and direct language. Reference their ${result.brandData.industry || 'business'} expertise. No vague or generic statements.`;
 
       for (let i = 0; i < 3; i++) {
         const channel = channels[i % channels.length];
@@ -703,7 +703,7 @@ export function OnboardingWizard() {
         ? analyzeResult.suggestedChannels
         : ['INSTAGRAM' as Channel];
       const brandName = analyzeResult.brandData.name || 'Your Brand';
-      const defaultGuidance = `Create an engaging social media post for ${brandName}. Focus on their ${analyzeResult.brandData.industry || 'business'} expertise. Make it authentic and ready to publish.`;
+      const defaultGuidance = `Create a specific, ready-to-publish social media post for ${brandName}. Use concrete details — real numbers, specific benefits, and direct language. Reference their ${analyzeResult.brandData.industry || 'business'} expertise. No vague or generic statements.`;
       const angles = analyzeResult.starterAngles ?? [];
       const idx = generatedDrafts.length;
       const channel = channels[idx % channels.length];
@@ -1007,6 +1007,26 @@ export function OnboardingWizard() {
           ) : null;
         })()}
 
+        {/* ── Weekly content plan ── */}
+        {generatedDrafts.length > 0 && (() => {
+          const SCHEDULE_DAYS = ['Monday', 'Wednesday', 'Friday', 'Tuesday', 'Thursday'];
+          const channelLabel = (ch: string) => ch === 'X' ? 'X' : ch.charAt(0) + ch.slice(1).toLowerCase();
+          return (
+            <div className="w-full pt-6 pb-2 animate-in fade-in duration-500">
+              <p className="text-sm font-semibold text-white-70 mb-3">Your weekly content plan</p>
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {generatedDrafts.slice(0, 5).map((d, i) => (
+                  <div key={d.id} className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 flex-shrink-0">
+                    <span className="text-xs font-semibold text-accent-green-110">{SCHEDULE_DAYS[i % SCHEDULE_DAYS.length]}</span>
+                    <span className="text-white-20">·</span>
+                    <span className="text-xs text-white-60">{channelLabel(d.channel)} post</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Level 2: Post cards (the hero) ── */}
         {generatedDrafts.length > 0 ? (() => {
           const CONTENT_TYPES = ['Promote', 'Educate', 'Engage'];
@@ -1014,7 +1034,7 @@ export function OnboardingWizard() {
             ? generatedDrafts.filter((d) => d.channel === channelFilter)
             : generatedDrafts;
           return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full pt-6 pb-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full pt-4 pb-2">
               {filteredDrafts.map((draft, i) => {
                 const originalIndex = generatedDrafts.indexOf(draft);
                 return (
@@ -1032,6 +1052,8 @@ export function OnboardingWizard() {
                       onRegenerated={(newDraft) => handleRegenerated(originalIndex, newDraft)}
                       contentType={CONTENT_TYPES[originalIndex % CONTENT_TYPES.length]}
                       isFirstPost={originalIndex === 0}
+                      industryKey={selectedIndustry ?? undefined}
+                      postIndex={originalIndex}
                     />
                   </div>
                 );
@@ -1071,7 +1093,7 @@ export function OnboardingWizard() {
             <button
               onClick={handleBulkApproveAndSchedule}
               disabled={bulkActionRunning}
-              className="w-full py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2.5 hover:bg-accent-green-120 transition-colors disabled:opacity-50 shadow-glow-green"
+              className="w-full py-5 rounded-2xl bg-accent-green-110 text-sp-surface font-bold text-lg flex items-center justify-center gap-2.5 hover:bg-accent-green-120 transition-colors disabled:opacity-50 shadow-glow-green"
             >
               {bulkActionRunning ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -1080,7 +1102,7 @@ export function OnboardingWizard() {
               ) : (
                 <Link2 className="w-5 h-5" />
               )}
-              {hasConnectedChannel ? 'Approve & Schedule All' : 'Connect & Schedule'}
+              {hasConnectedChannel ? 'Approve & Schedule Posts' : 'Connect & Schedule'}
             </button>
 
             {hasConnectedChannel && (
