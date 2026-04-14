@@ -118,81 +118,83 @@ const CHANNEL_COLORS: Record<string, { badge: string; bg: string }> = {
   YOUTUBE:   { badge: 'bg-red-500/20 text-red-400',   bg: 'from-red-500/5' },
 };
 
+const PREVIEW_DAYS = ['Monday', 'Wednesday', 'Friday'] as const;
+
 const INDUSTRY_PREVIEW_CONTENT: Record<string, { title: string; snippet: string; channel: string }[]> = {
   real_estate: [
-    { title: 'Just Listed in Austin', snippet: '3 Bed / 2 Bath on Maple Ave — open layout, updated kitchen, huge backyard. $425K. Open house this Saturday.', channel: 'Instagram' },
-    { title: 'Neighborhood Spotlight', snippet: 'Why families are moving to Westlake Hills — top schools, walkable parks, and homes under $500K.', channel: 'Facebook' },
-    { title: 'Client Success Story', snippet: '"We found our dream home in 3 weeks." See how we helped the Johnsons close on their first home.', channel: 'LinkedIn' },
+    { title: '\u{1F3E1} Just Listed in Austin \u2014 3 Bed Home on Maple Ave for $425K', snippet: 'Open layout, updated kitchen, huge backyard. Open house this Saturday 1\u20134pm. DM for details.', channel: 'Instagram' },
+    { title: '\u{1F4CD} Living in Westlake Hills \u2014 What Buyers Should Know', snippet: 'Top schools, walkable parks, and homes still under $500K. Here\u2019s why families are moving here.', channel: 'Facebook' },
+    { title: '\u{1F4C5} Open House This Weekend \u2014 Don\u2019t Miss It', snippet: '"We found our dream home in 3 weeks." See how we helped the Johnsons close on their first home.', channel: 'LinkedIn' },
   ],
   car_sales: [
-    { title: 'New Arrival', snippet: '2024 Toyota RAV4 XLE — 12K miles, one owner, loaded with safety features. Starting at $28,900.', channel: 'Instagram' },
-    { title: 'Featured Vehicle', snippet: 'This certified pre-owned Honda Accord won\'t last. Financing available from $299/mo.', channel: 'Facebook' },
-    { title: 'Limited-Time Offer', snippet: 'Memorial Day Sale — 0% APR on all new inventory this weekend only. Schedule your test drive.', channel: 'LinkedIn' },
+    { title: '\u{1F697} 2024 Toyota RAV4 XLE \u2014 Just Arrived, 12K Miles', snippet: 'One owner, loaded with safety features. Starting at $28,900. Schedule your test drive today.', channel: 'Instagram' },
+    { title: '\u{1F525} Limited-Time Offer \u2014 Save $2,000 This Week', snippet: 'Memorial Day Sale \u2014 0% APR on all new inventory this weekend only. Don\u2019t wait.', channel: 'Facebook' },
+    { title: '\u2B50 Why Drivers Love the 2023 Honda CR-V', snippet: 'Certified pre-owned, financing from $299/mo. 4.9 stars from 180+ buyer reviews.', channel: 'LinkedIn' },
   ],
   property_management: [
-    { title: 'Now Leasing', snippet: '2BR apartment in downtown — in-unit laundry, rooftop access, pet-friendly. $1,850/mo. Tour today.', channel: 'Instagram' },
-    { title: 'Resident Spotlight', snippet: '"Best management company we\'ve worked with." See why 95% of tenants renew their lease.', channel: 'Facebook' },
-    { title: 'Maintenance Tip', snippet: '5 things every tenant should check before winter — protect your unit and avoid costly repairs.', channel: 'LinkedIn' },
+    { title: '\u{1F3E2} Now Leasing \u2014 2BR Downtown, $1,850/mo', snippet: 'In-unit laundry, rooftop access, pet-friendly. Tour available this week.', channel: 'Instagram' },
+    { title: '\u2B50 Resident Spotlight \u2014 95% Renewal Rate', snippet: '"Best management company we\u2019ve worked with." See why tenants stay year after year.', channel: 'Facebook' },
+    { title: '\u{1F527} 5 Things Every Tenant Should Check Before Winter', snippet: 'Protect your unit and avoid costly repairs. Quick checklist inside.', channel: 'LinkedIn' },
   ],
   ecommerce: [
-    { title: 'New Arrival', snippet: 'Introducing our best-selling wireless earbuds — 40hr battery, noise canceling, under $60.', channel: 'Instagram' },
-    { title: 'Customer Favorite', snippet: '"These changed my morning routine." 4.8 stars from 2,300+ reviews. Free shipping today.', channel: 'Facebook' },
-    { title: 'Limited-Time Promotion', snippet: 'Flash sale: 30% off all summer essentials. Use code SUMMER30 at checkout. Ends Friday.', channel: 'LinkedIn' },
+    { title: '\u{1F381} New Arrival \u2014 Wireless Earbuds, 40hr Battery, Under $60', snippet: 'Noise canceling, one-touch pairing, 4.8 stars. Free shipping today only.', channel: 'Instagram' },
+    { title: '\u2B50 Customer Favorite \u2014 2,300+ Five-Star Reviews', snippet: '"These changed my morning routine." See what everyone\u2019s talking about.', channel: 'Facebook' },
+    { title: '\u{1F525} Flash Sale \u2014 30% Off All Summer Essentials', snippet: 'Use code SUMMER30 at checkout. Ends Friday at midnight.', channel: 'LinkedIn' },
   ],
   legal: [
-    { title: 'Know Your Rights', snippet: '3 things you should never say after a car accident — and what to do instead. Free consultation.', channel: 'LinkedIn' },
-    { title: 'Common Legal Mistakes', snippet: 'DIY estate planning? Here are 5 mistakes that could cost your family thousands.', channel: 'Facebook' },
-    { title: 'When to Contact an Attorney', snippet: 'Not sure if you have a case? Here are the signs you need legal representation.', channel: 'Instagram' },
+    { title: '\u2696\uFE0F What to Do After a Car Accident in Ohio', snippet: '3 things you should never say \u2014 and what to do instead. Free consultation available.', channel: 'LinkedIn' },
+    { title: '\u{1F4D8} 3 Legal Mistakes That Can Hurt Your Case', snippet: 'DIY estate planning? Here are 5 mistakes that could cost your family thousands.', channel: 'Facebook' },
+    { title: '\u2705 When It\u2019s Time to Call an Attorney', snippet: 'Not sure if you have a case? Here are the signs you need legal representation.', channel: 'Instagram' },
   ],
   fitness: [
-    { title: 'Workout Tip', snippet: 'The #1 mistake killing your bench press gains — and the simple fix that works immediately.', channel: 'Instagram' },
-    { title: 'Client Transformation', snippet: '"Down 35 lbs in 4 months." See how Sarah transformed her health with our 12-week program.', channel: 'Facebook' },
-    { title: 'Training Offer', snippet: 'New member special — first month of personal training 50% off. Limited spots available.', channel: 'LinkedIn' },
+    { title: '\u{1F4AA} 3 Exercises to Build Strength Faster', snippet: 'The #1 mistake killing your bench press gains \u2014 and the simple fix that works immediately.', channel: 'Instagram' },
+    { title: '\u{1F525} Client Spotlight: 8 Weeks of Progress', snippet: '"Down 35 lbs in 4 months." See how Sarah transformed her health with our 12-week program.', channel: 'Facebook' },
+    { title: '\u{1F3CB}\uFE0F New Member Special \u2014 50% Off First Month', snippet: 'Personal training, group classes, and nutrition coaching. Limited spots available.', channel: 'LinkedIn' },
   ],
   restaurant: [
-    { title: 'Today\'s Special', snippet: 'Pan-seared salmon with lemon butter, roasted vegetables, and garlic mashed potatoes. Dine-in only.', channel: 'Instagram' },
-    { title: 'Weekend Brunch', snippet: 'Bottomless mimosas + our new avocado toast menu. Every Saturday & Sunday 10am-2pm.', channel: 'Facebook' },
-    { title: '5-Star Review', snippet: '"Best Italian food outside of Italy." See why we\'re rated #1 on Google in the neighborhood.', channel: 'LinkedIn' },
+    { title: '\u{1F37D}\uFE0F Today\u2019s Special \u2014 Pan-Seared Salmon', snippet: 'Lemon butter, roasted vegetables, garlic mashed potatoes. Dine-in only tonight.', channel: 'Instagram' },
+    { title: '\u{1F95D} Weekend Brunch \u2014 Bottomless Mimosas', snippet: 'New avocado toast menu + bottomless mimosas. Every Saturday & Sunday 10am\u20132pm.', channel: 'Facebook' },
+    { title: '\u2B50 Rated #1 on Google \u2014 See Why', snippet: '"Best Italian food outside of Italy." 4.9 stars from 500+ reviews in the neighborhood.', channel: 'LinkedIn' },
   ],
   mortgage: [
-    { title: 'Rate Update', snippet: 'Rates just dropped to 6.25% — is now the right time to refinance? Free rate check in 2 minutes.', channel: 'LinkedIn' },
-    { title: 'First-Time Buyer Tip', snippet: '3 things every first-time buyer should know before applying for a mortgage. Free guide inside.', channel: 'Facebook' },
-    { title: 'Client Success', snippet: '"They saved us $400/month on our mortgage." See how we help families lower their payments.', channel: 'Instagram' },
+    { title: '\u{1F4C9} Rates Just Dropped to 6.25%', snippet: 'Is now the right time to refinance? Free rate check in 2 minutes. No commitment.', channel: 'LinkedIn' },
+    { title: '\u{1F3E0} First-Time Buyer? Read This First', snippet: '3 things every first-time buyer should know before applying for a mortgage. Free guide inside.', channel: 'Facebook' },
+    { title: '\u{1F4B0} "They Saved Us $400/Month"', snippet: 'See how we help families lower their mortgage payments. Free consultation.', channel: 'Instagram' },
   ],
   insurance: [
-    { title: 'Coverage Check', snippet: 'Is your home underinsured? 60% of homeowners are. Get a free coverage review today.', channel: 'Facebook' },
-    { title: 'Savings Tip', snippet: 'Bundle home + auto and save up to 25%. Most quotes take under 5 minutes.', channel: 'LinkedIn' },
-    { title: 'Storm Season Prep', snippet: 'Hurricane season starts June 1. Here\'s your 5-step checklist to protect your home and family.', channel: 'Instagram' },
+    { title: '\u{1F3E0} Is Your Home Underinsured?', snippet: '60% of homeowners are. Get a free coverage review today \u2014 takes 5 minutes.', channel: 'Facebook' },
+    { title: '\u{1F4B5} Bundle & Save Up to 25%', snippet: 'Home + auto bundle. Most quotes take under 5 minutes. No obligation.', channel: 'LinkedIn' },
+    { title: '\u26C8\uFE0F Storm Season Starts June 1', snippet: 'Your 5-step checklist to protect your home and family before hurricane season.', channel: 'Instagram' },
   ],
   finance: [
-    { title: 'Tax Tip', snippet: '3 deductions most small business owners miss — could save you $5,000+ this year.', channel: 'LinkedIn' },
-    { title: 'Retirement Planning', snippet: 'Think you can\'t retire early? Here\'s the simple math that changes everything.', channel: 'Facebook' },
-    { title: 'Client Win', snippet: '"They found $12K in savings I didn\'t know existed." See how we optimize finances for business owners.', channel: 'Instagram' },
+    { title: '\u{1F4CA} 3 Deductions Most Business Owners Miss', snippet: 'Could save you $5,000+ this year. Here\u2019s what your accountant might not tell you.', channel: 'LinkedIn' },
+    { title: '\u{1F4B0} Think You Can\u2019t Retire Early?', snippet: 'Here\u2019s the simple math that changes everything. Free retirement calculator inside.', channel: 'Facebook' },
+    { title: '\u2B50 "They Found $12K in Savings"', snippet: 'See how we optimize finances for business owners. Free consultation available.', channel: 'Instagram' },
   ],
   home_services: [
-    { title: 'Before & After', snippet: 'This kitchen went from dated to stunning in just 3 weeks. See the full transformation.', channel: 'Instagram' },
-    { title: 'Seasonal Tip', snippet: 'Spring HVAC checklist — 4 things to do now to avoid a $2,000 repair this summer.', channel: 'Facebook' },
-    { title: '5-Star Review', snippet: '"On time, on budget, and the work was flawless." See why 200+ homeowners trust us.', channel: 'LinkedIn' },
+    { title: '\u{1F3E0} Before & After \u2014 Kitchen Transformation', snippet: 'From dated to stunning in just 3 weeks. Swipe to see the full transformation.', channel: 'Instagram' },
+    { title: '\u{1F527} Spring HVAC Checklist', snippet: '4 things to do now to avoid a $2,000 repair this summer. Takes 15 minutes.', channel: 'Facebook' },
+    { title: '\u2B50 200+ Homeowners Trust Us', snippet: '"On time, on budget, and the work was flawless." See our latest 5-star reviews.', channel: 'LinkedIn' },
   ],
   beauty: [
-    { title: 'New Service', snippet: 'Introducing our keratin smoothing treatment — silky, frizz-free hair for up to 12 weeks.', channel: 'Instagram' },
-    { title: 'Client Glow-Up', snippet: 'From grown-out roots to dimensional balayage — swipe to see the transformation.', channel: 'Facebook' },
-    { title: 'Book Now', snippet: 'Holiday appointments are filling fast. Book your color + cut before December 15.', channel: 'LinkedIn' },
+    { title: '\u2728 New \u2014 Keratin Smoothing Treatment', snippet: 'Silky, frizz-free hair for up to 12 weeks. Book your consultation today.', channel: 'Instagram' },
+    { title: '\u{1F485} Client Glow-Up \u2014 Balayage Transformation', snippet: 'From grown-out roots to dimensional balayage. Swipe to see the before & after.', channel: 'Facebook' },
+    { title: '\u{1F4C5} Holiday Appointments Filling Fast', snippet: 'Book your color + cut before December 15. Limited availability remaining.', channel: 'LinkedIn' },
   ],
   creator: [
-    { title: 'Behind the Scenes', snippet: 'Here\'s my exact workflow for shooting 30 days of content in one afternoon.', channel: 'Instagram' },
-    { title: 'New Drop', snippet: 'My brand new course on growing to 10K followers is live — early bird pricing ends Friday.', channel: 'LinkedIn' },
-    { title: 'Engagement Post', snippet: 'What\'s the one tool you can\'t live without? Drop it below — I\'ll share my top 5 tomorrow.', channel: 'Facebook' },
+    { title: '\u{1F3AC} 30 Days of Content in One Afternoon', snippet: 'Here\u2019s my exact workflow for batch-creating a full month of posts. Save this.', channel: 'Instagram' },
+    { title: '\u{1F680} New Course \u2014 Grow to 10K Followers', snippet: 'Early bird pricing ends Friday. 500+ students enrolled already.', channel: 'LinkedIn' },
+    { title: '\u{1F4AC} What\u2019s Your #1 Tool?', snippet: 'Drop it below \u2014 I\u2019ll share my top 5 tomorrow. Let\u2019s compare notes.', channel: 'Facebook' },
   ],
   small_business: [
-    { title: 'Grand Opening', snippet: 'We\'re officially open! Stop by this weekend for 20% off everything + free samples.', channel: 'Instagram' },
-    { title: 'Meet the Team', snippet: 'Meet Sarah, our lead designer. She brings 10 years of experience and a passion for detail.', channel: 'Facebook' },
-    { title: 'Customer Love', snippet: '"Best local shop in town." Thank you for 100+ five-star reviews. We couldn\'t do it without you.', channel: 'LinkedIn' },
+    { title: '\u{1F389} Grand Opening \u2014 20% Off Everything', snippet: 'We\u2019re officially open! Stop by this weekend for discounts + free samples.', channel: 'Instagram' },
+    { title: '\u{1F44B} Meet Sarah, Our Lead Designer', snippet: '10 years of experience and a passion for detail. Learn why clients love working with her.', channel: 'Facebook' },
+    { title: '\u2B50 100+ Five-Star Reviews', snippet: '"Best local shop in town." Thank you for the love \u2014 we couldn\u2019t do it without you.', channel: 'LinkedIn' },
   ],
   other: [
-    { title: 'What We Do', snippet: 'We help businesses grow with tailored solutions. Here\'s what makes us different.', channel: 'LinkedIn' },
-    { title: 'Client Spotlight', snippet: '"They exceeded every expectation." See how we helped this client achieve their goals.', channel: 'Facebook' },
-    { title: 'Behind the Scenes', snippet: 'A day in the life at our company — the people, the process, and the passion behind the work.', channel: 'Instagram' },
+    { title: '\u{1F4A1} Here\u2019s What Makes Us Different', snippet: 'We help businesses grow with tailored solutions. See our approach in action.', channel: 'LinkedIn' },
+    { title: '\u2B50 Client Spotlight \u2014 Exceeding Expectations', snippet: '"They exceeded every expectation." See how we helped this client achieve their goals.', channel: 'Facebook' },
+    { title: '\u{1F3AC} A Day Behind the Scenes', snippet: 'The people, the process, and the passion behind the work. Take a look inside.', channel: 'Instagram' },
   ],
 };
 
@@ -869,6 +871,9 @@ export function OnboardingWizard() {
           <p className="text-sm text-white-50 max-w-md mx-auto">
             Choose your industry and add your business details — we&apos;ll generate tailored content in seconds.
           </p>
+          <p className="text-sm font-medium text-accent-green-110/80">
+            You&apos;ll get posts, ideas, and a full content plan instantly.
+          </p>
         </div>
 
         <div className="w-full max-w-xl space-y-6">
@@ -912,9 +917,14 @@ export function OnboardingWizard() {
 
           {/* ── Step 2: Business Details ── */}
           <div className="space-y-4">
-            <p className="text-sm font-semibold text-white">
-              Add your business details
-            </p>
+            <div>
+              <p className="text-sm font-semibold text-white">
+                Add your business details
+              </p>
+              <p className="text-xs text-white-40 mt-0.5">
+                Optional, but improves results. We can generate content even if you skip this.
+              </p>
+            </div>
 
             {/* Website URL */}
             <div className="space-y-1.5">
@@ -1032,12 +1042,10 @@ export function OnboardingWizard() {
           </div>
         </div>
 
-        {/* ── Preview section — industry-specific mock content ── */}
+        {/* ── Preview section — weekly content plan ── */}
         <div className="w-full max-w-xl space-y-3 pt-2">
-          <p className="text-xs font-medium text-white-40 text-center">
-            {selectedIndustry && activeProfile
-              ? `We'll generate ${activeProfile.label.toLowerCase()} content like this`
-              : 'We\u2019ll generate content like this for your business'}
+          <p className="text-sm font-semibold text-white-60 text-center">
+            We&apos;ll create your weekly content plan
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {previewContent.map((item, i) => (
@@ -1051,6 +1059,9 @@ export function OnboardingWizard() {
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-semibold text-accent-green-110 uppercase tracking-wide">
                     {item.channel}
+                  </span>
+                  <span className="text-[10px] font-medium text-white-30">
+                    {PREVIEW_DAYS[i]}
                   </span>
                 </div>
                 <p className="text-xs font-semibold text-white-80 leading-snug">{item.title}</p>
