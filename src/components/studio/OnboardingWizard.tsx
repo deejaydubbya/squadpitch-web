@@ -676,33 +676,11 @@ export function OnboardingWizard() {
             Create your content system
           </h1>
           <p className="text-lg text-white-50 max-w-lg">
-            Drop in your website and we&apos;ll build your brand voice, content strategy, and first posts automatically.
+            Start with a website, a business description, or documents. You only need one to get started.
           </p>
         </div>
 
-        <div className="w-full max-w-xl space-y-4">
-          {/* URL input */}
-          <div className="relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white-30">
-              <Globe className="w-5 h-5" />
-            </div>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && canSubmit) handleSetup();
-              }}
-              placeholder={activeProfile?.onboarding.websitePlaceholder ?? 'yourwebsite.com'}
-              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
-              autoFocus
-            />
-          </div>
-
-          <p className="text-xs text-white-30 text-center">
-            {activeProfile?.onboarding.helperText ?? "Your website alone is enough — we'll extract everything we need."}
-          </p>
-
+        <div className="w-full max-w-xl space-y-5">
           {/* Industry selector grid */}
           {industries.length > 0 && (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
@@ -731,82 +709,109 @@ export function OnboardingWizard() {
             </div>
           )}
 
-          {/* Expandable extra details */}
-          <details className="group">
-            <summary className="text-xs text-white-40 cursor-pointer hover:text-white-60 transition-colors select-none text-center list-none [&::-webkit-details-marker]:hidden flex items-center justify-center gap-1.5">
-              <span className="border-b border-dashed border-white-20 group-open:border-transparent">
-                Add more details for better results
-              </span>
-            </summary>
+          {/* Section header */}
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-white-10" />
+            <p className="text-xs font-medium text-white-60">Start with any info you already have</p>
+            <div className="h-px flex-1 bg-white-10" />
+          </div>
 
-            <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-top-1 duration-200">
-              {/* Business description (optional) */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-white-60">
-                  {activeProfile?.onboarding.extraContextLabel ?? 'Business description'}
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={activeProfile?.onboarding.extraContextPlaceholder ?? 'What does your business do? Who do you serve?'}
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-2xl bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
-                />
-              </div>
+          {/* Website URL */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" />
+              Website URL
+            </label>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canSubmit) handleSetup();
+              }}
+              placeholder={activeProfile?.onboarding.websitePlaceholder ?? 'yourwebsite.com'}
+              className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-white-15 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30"
+              autoFocus
+            />
+          </div>
 
-              {/* Compact file upload */}
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleFilesSelected(e.dataTransfer.files);
+          {/* Business description */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" />
+              {activeProfile?.onboarding.extraContextLabel ?? 'Business description'}
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={activeProfile?.onboarding.extraContextPlaceholder ?? 'What does your business do? Who do you serve?'}
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-white-15 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 placeholder:text-white-30 resize-none"
+            />
+          </div>
+
+          {/* Document upload */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white-60 flex items-center gap-1.5">
+              <Upload className="w-3.5 h-3.5" />
+              Upload documents
+            </label>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleFilesSelected(e.dataTransfer.files);
+              }}
+              className="w-full px-4 py-3.5 rounded-xl border border-dashed border-white-15 hover:border-accent-green-110/40 transition-colors cursor-pointer flex items-center gap-3"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ACCEPTED_FILE_TYPES}
+                className="hidden"
+                onChange={(e) => {
+                  handleFilesSelected(e.target.files);
+                  e.target.value = '';
                 }}
-                className="w-full px-4 py-3 rounded-xl border border-dashed border-white-15 hover:border-white-20 transition-colors cursor-pointer flex items-center gap-3"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept={ACCEPTED_FILE_TYPES}
-                  className="hidden"
-                  onChange={(e) => {
-                    handleFilesSelected(e.target.files);
-                    e.target.value = '';
-                  }}
-                />
-                <Upload className="w-4 h-4 text-white-30 flex-shrink-0" />
-                <p className="text-xs text-white-40">
-                  Drop files here (PDF, DOCX, TXT, CSV)
-                </p>
-              </div>
-
-              {/* Attached files */}
-              {files.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {files.map((f, i) => (
-                    <div
-                      key={`${f.name}-${i}`}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1a1f2e] border border-white-15 text-sm"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
-                      <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
-                      <span className="text-white-30 text-xs">
-                        {(f.size / 1024).toFixed(0)}KB
-                      </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                        className="text-white-30 hover:text-white-80 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              />
+              <FileText className="w-4 h-4 text-white-40 flex-shrink-0" />
+              <p className="text-xs text-white-50">
+                Brochures, menus, listings, service sheets, brand docs (PDF, DOCX, TXT, CSV)
+              </p>
             </div>
-          </details>
+
+            {/* Attached files */}
+            {files.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {files.map((f, i) => (
+                  <div
+                    key={`${f.name}-${i}`}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1a1f2e] border border-white-15 text-sm"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-white-40 flex-shrink-0" />
+                    <span className="text-white-80 truncate max-w-[160px]">{f.name}</span>
+                    <span className="text-white-30 text-xs">
+                      {(f.size / 1024).toFixed(0)}KB
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                      className="text-white-30 hover:text-white-80 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Helper text */}
+          <p className="text-xs text-white-50 text-center">
+            No website required. Use one, two, or all three — more context improves results.
+          </p>
 
           <button
             onClick={handleSetup}
