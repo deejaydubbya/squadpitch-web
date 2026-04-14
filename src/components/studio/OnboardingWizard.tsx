@@ -1232,29 +1232,31 @@ export function OnboardingWizard() {
             doneLabel="Brand captured"
             activeHint="AI is analyzing your voice, audience, and positioning"
           />
-          {stages.extractingData !== 'skipped' && (
-            <StageRow
-              status={stages.extractingData}
-              activeLabel="Discovering business insights..."
-              doneLabel={
-                extractedDataItems.length > 0
-                  ? `${extractedDataItems.length} insight${extractedDataItems.length !== 1 ? 's' : ''} found`
-                  : 'Insights extracted'
-              }
-              activeHint={
-                extractedDataItems.length > 0
-                  ? `${extractedDataItems.length} found so far — still searching...`
-                  : 'Finding testimonials, products, and key data'
-              }
-            />
-          )}
-          {stages.importing !== 'skipped' && (
-            <StageRow
-              status={stages.importing}
-              activeLabel="Saving your business insights..."
-              doneLabel={`${stages.dataItemsImported} insight${stages.dataItemsImported !== 1 ? 's' : ''} imported`}
-            />
-          )}
+          {stages.extractingData !== 'skipped' && (() => {
+            const dataStatus =
+              (stages.importing === 'done' || stages.importing === 'skipped')
+                ? 'done'
+                : stages.extractingData === 'done' && stages.importing === 'active'
+                  ? 'active'
+                  : stages.extractingData;
+            const importedCount = stages.dataItemsImported ?? extractedDataItems.length;
+            return (
+              <StageRow
+                status={dataStatus}
+                activeLabel="Discovering business insights..."
+                doneLabel={
+                  importedCount > 0
+                    ? `${importedCount} insight${importedCount !== 1 ? 's' : ''} imported`
+                    : 'Insights extracted'
+                }
+                activeHint={
+                  extractedDataItems.length > 0
+                    ? `${extractedDataItems.length} found so far — still searching...`
+                    : 'Finding testimonials, products, and key data'
+                }
+              />
+            );
+          })()}
           <StageRow
             status={stages.workspace}
             activeLabel="Preparing your workspace..."
