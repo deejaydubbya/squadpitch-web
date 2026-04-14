@@ -1921,12 +1921,15 @@ export type IntegrationCapability =
   | 'reporting_source'
   | 'compliance_context';
 
+export type ConnectionMode = 'oauth' | 'manual' | 'planned';
+
 export interface IndustryTechStackItem {
   providerKey: string;
   label: string;
   category: TechStackCategory;
   priority: 'core' | 'recommended' | 'optional';
   status: 'live' | 'beta' | 'planned';
+  connectionMode?: ConnectionMode;
   description?: string;
   useCases?: string[];
   capabilities: IntegrationCapability[];
