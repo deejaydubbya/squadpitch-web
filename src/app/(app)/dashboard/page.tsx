@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Briefcase, Plus } from 'lucide-react';
+import Image from 'next/image';
+import { Plus } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useClients } from '@/hooks/useSquadpitch';
@@ -25,7 +26,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white-100 flex items-center gap-3">
-            <Briefcase className="w-6 h-6 text-accent-green-110" />
+            <Image src="/icon-192.png" alt="Squadpitch" width={32} height={32} />
             Squadpitch
           </h1>
           <p className="text-white-60 mt-1">

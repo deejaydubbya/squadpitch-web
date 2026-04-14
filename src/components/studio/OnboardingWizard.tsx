@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
@@ -861,6 +862,7 @@ export function OnboardingWizard() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
         <div className="text-center space-y-2">
+          <Image src="/icon-192.png" alt="Squadpitch" width={48} height={48} className="mx-auto mb-2" />
           <h1 className="text-3xl font-bold text-white">
             Let&apos;s build your marketing system
           </h1>
@@ -1086,6 +1088,7 @@ export function OnboardingWizard() {
 
         {/* ── Level 1: Wow moment headline ── */}
         <div className="text-center space-y-3 pt-4 pb-2">
+          <Image src="/icon-192.png" alt="Squadpitch" width={40} height={40} className="mx-auto" />
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-semibold animate-in fade-in duration-500">
             <CheckCircle2 className="w-4 h-4" />
             {analyzeResult?.brandData.name
@@ -1356,6 +1359,7 @@ export function OnboardingWizard() {
       {/* Left panel — Progress + Options */}
       <div className="space-y-6">
         <div>
+          <Image src="/icon-192.png" alt="Squadpitch" width={36} height={36} className="mb-3" />
           <h2 className="text-2xl font-bold text-white-100">
             {(analyzeResult?.brandData ?? earlyBrandData)
               ? `Building ${(analyzeResult?.brandData ?? earlyBrandData)!.name}\u2019s content system`

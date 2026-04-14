@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -7,8 +8,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <nav className="border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Link href="/" className="text-xl font-bold text-teal">
-              Squadpitch
+            <Link href="/" className="flex items-center gap-2">
+              <Image src="/icon-192.png" alt="Squadpitch" width={28} height={28} />
+              <span className="text-xl font-bold text-teal">Squadpitch</span>
             </Link>
             <div className="hidden md:flex items-center gap-8">
               <Link href="/features" className="text-sm text-gray-600 hover:text-gray-900">Features</Link>
@@ -54,7 +56,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               </div>
             </div>
             <div>
-              <p className="font-semibold text-teal mb-3">Squadpitch</p>
+              <div className="flex items-center gap-2 mb-3">
+                <Image src="/icon-192.png" alt="Squadpitch" width={24} height={24} />
+                <p className="font-semibold text-teal">Squadpitch</p>
+              </div>
               <p className="text-sm text-gray-500">AI-powered social media content studio.</p>
             </div>
           </div>
