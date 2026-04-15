@@ -1101,7 +1101,7 @@ function RefreshListingsButton({ clientId }: { clientId: string }) {
   const refresh = useRefreshListingFeed(clientId);
   return (
     <button
-      onClick={() => refresh.mutate()}
+      onClick={() => refresh.mutate({})}
       disabled={refresh.isPending}
       className="flex items-center gap-1.5 text-xs font-semibold text-white-40 hover:text-white-100 transition-colors"
     >
