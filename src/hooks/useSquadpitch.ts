@@ -2766,6 +2766,42 @@ export function useCRMDisconnect(clientId: string) {
   });
 }
 
+// ── Integration Requests ─────────────────────────────────────────────────
+
+export function useRequestIntegration(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { providerKey: string; providerLabel: string }) =>
+      apiFetch<{ requested?: boolean; alreadyRequested?: boolean }>(
+        `workspaces/${clientId}/integrations/request`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+  });
+}
+
+// ── Listing Campaign ─────────────────────────────────────────────────────
+
+export interface ListingCampaignOutput {
+  instagramCaption: { body: string; hashtags: string[]; cta: string };
+  facebookPost: { body: string; hashtags: string[]; cta: string };
+  listingDescription: { body: string };
+  emailPromo: { subject: string; body: string; cta: string };
+}
+
+export interface ListingCampaignResult {
+  dataItemId: string | null;
+  campaign: ListingCampaignOutput;
+}
+
+export function useGenerateListingCampaign(clientId: string) {
+  return useMutation({
+    mutationFn: (propertyData: Record<string, unknown>) =>
+      apiFetch<ListingCampaignResult>(
+        `workspaces/${clientId}/listing-campaign/generate`,
+        { method: 'POST', body: JSON.stringify({ propertyData }) }
+      ),
+  });
+}
+
 // ── Listing Feeds (multi-source) ────────────────────────────────────────
 
 export interface ListingSource {

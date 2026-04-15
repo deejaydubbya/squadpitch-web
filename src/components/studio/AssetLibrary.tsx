@@ -287,6 +287,13 @@ export function AssetLibrary({ clientId }: Props) {
           Upload
         </button>
         <button
+          onClick={() => setShowCloudModal(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-80 text-sm font-medium hover:bg-white-20 transition-colors flex-shrink-0"
+        >
+          <Cloud className="w-4 h-4" />
+          Import
+        </button>
+        <button
           onClick={() => setShowGenerateModal(true)}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-green-110 text-sp-dark text-sm font-medium hover:bg-accent-green-110/90 transition-colors flex-shrink-0"
         >
@@ -312,13 +319,6 @@ export function AssetLibrary({ clientId }: Props) {
           options={TYPE_OPTIONS}
           onChange={(v) => setTypeFilter(v as MediaAssetType | 'ALL')}
         />
-        <button
-          onClick={() => setShowCloudModal(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white-40 hover:text-white-60 hover:bg-white-10 transition-colors ml-auto"
-        >
-          <Cloud className="w-3.5 h-3.5" />
-          Import from Cloud
-        </button>
       </div>
 
       {/* Polling indicator */}
@@ -417,6 +417,13 @@ export function AssetLibrary({ clientId }: Props) {
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
             >
               <Film className="w-3.5 h-3.5" /> Generate Video
+            </button>
+            <div className="border-t border-white-10 my-0.5" />
+            <button
+              onClick={() => { setShowCloudModal(true); setShowFab(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
+            >
+              <Cloud className="w-3.5 h-3.5" /> Import from Cloud
             </button>
           </div>
         )}

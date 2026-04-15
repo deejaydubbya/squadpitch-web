@@ -120,9 +120,9 @@ export function ListingFeedsManager({ clientId, onImportCSV, onAddManual }: Prop
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-white-100">Listing Feeds</h3>
+          <h3 className="text-sm font-semibold text-white-100">Property Sources</h3>
           <p className="text-xs text-white-40 mt-0.5">
-            Import your property inventory from one or more sources
+            Manage where your property data comes from
           </p>
         </div>
         <button
@@ -172,7 +172,7 @@ export function ListingFeedsManager({ clientId, onImportCSV, onAddManual }: Prop
                 })}
               </div>
               <p className="text-[11px] text-white-30 pt-1">
-                MLS and IDX feeds can be added as URL sources
+                Paste a listing page URL and we'll extract what we can
               </p>
               <button
                 onClick={resetAddForm}
@@ -183,7 +183,7 @@ export function ListingFeedsManager({ clientId, onImportCSV, onAddManual }: Prop
             </>
           ) : addType === 'URL' ? (
             <>
-              <p className="text-sm font-medium text-white-100">Add listings URL source</p>
+              <p className="text-sm font-medium text-white-100">Add property URL source</p>
               <input
                 type="text"
                 value={newName}
@@ -231,7 +231,7 @@ export function ListingFeedsManager({ clientId, onImportCSV, onAddManual }: Prop
         </div>
       ) : sources.length === 0 ? (
         <div className="card p-6 text-center text-sm text-white-40">
-          No listing sources connected yet. Add a URL, upload a CSV, or enter listings manually.
+          No property sources yet. Add a URL, upload a CSV, or enter properties manually.
         </div>
       ) : (
         <div className="space-y-2">

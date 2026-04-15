@@ -31,8 +31,7 @@ import { GenerateFromDataModal } from './GenerateFromDataModal';
 import { BulkGenerateModal } from './BulkGenerateModal';
 import { AutopilotPanel } from './AutopilotPanel';
 import { ImportDataModal } from './ImportDataModal';
-import { ListingIngestionModal } from './ListingIngestionModal';
-import { ListingFeedsManager } from './ListingFeedsManager';
+import Link from 'next/link';
 
 const TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: '', label: 'All Types' },
@@ -51,7 +50,7 @@ const TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
 
 const RE_TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: '', label: 'All Types' },
-  { value: 'CUSTOM', label: 'Listings' },
+  { value: 'CUSTOM', label: 'Properties' },
   { value: 'TESTIMONIAL', label: 'Testimonials' },
   { value: 'STATISTIC', label: 'Statistics' },
   { value: 'TEAM_SPOTLIGHT', label: 'Team' },
@@ -65,7 +64,7 @@ const RE_TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
 ];
 
 const RE_SECTION_LABELS: Record<string, string> = {
-  CUSTOM: 'Listings',
+  CUSTOM: 'Properties',
   TESTIMONIAL: 'Testimonials',
   STATISTIC: 'Market Stats',
   TEAM_SPOTLIGHT: 'Team',
@@ -101,7 +100,6 @@ export function BusinessDataManager({ clientId }: Props) {
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
   const [showAutopilot, setShowAutopilot] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showListingModal, setShowListingModal] = useState(false);
 
   const { data: items, isLoading } = useDataItems(clientId, {
     type: typeFilter || undefined,
@@ -181,7 +179,7 @@ export function BusinessDataManager({ clientId }: Props) {
           </h1>
           <p className="text-white-40 mt-1 text-sm">
             {isRE
-              ? 'Listings, testimonials, and stats become content automatically. Generate content directly from your imported assets.'
+              ? 'Your properties, testimonials, and market data power your marketing campaigns.'
               : `Add your testimonials, stats, and ${bdLabels.itemPlural.toLowerCase()} to generate data-driven content.`}
           </p>
         </div>
@@ -201,13 +199,13 @@ export function BusinessDataManager({ clientId }: Props) {
             {isRE ? 'Import' : 'Import Data'}
           </button>
           {isRE && (
-            <button
-              onClick={() => setShowListingModal(true)}
+            <Link
+              href={`/workspaces/${clientId}/listing-campaign`}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              Add Listing
-            </button>
+              New Campaign
+            </Link>
           )}
           <button
             onClick={() => setShowAddModal(true)}
@@ -223,15 +221,6 @@ export function BusinessDataManager({ clientId }: Props) {
           </button>
         </div>
       </div>
-
-      {/* Listing Feeds (RE only) */}
-      {isRE && (
-        <ListingFeedsManager
-          clientId={clientId}
-          onImportCSV={() => setShowImportModal(true)}
-          onAddManual={() => setShowListingModal(true)}
-        />
-      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -405,7 +394,7 @@ export function BusinessDataManager({ clientId }: Props) {
               : statusFilter === 'ARCHIVED'
                 ? 'No archived items.'
                 : isRE
-                  ? 'Import listings, testimonials, or market data to power your content.'
+                  ? 'Add properties, testimonials, or market data to power your campaigns.'
                   : `No business data yet. Add your first ${bdLabels.itemSingular.toLowerCase()} to start generating data-driven content.`}
           </p>
           {!search && statusFilter === 'ACTIVE' && (
@@ -515,12 +504,6 @@ export function BusinessDataManager({ clientId }: Props) {
         />
       )}
 
-      {showListingModal && (
-        <ListingIngestionModal
-          clientId={clientId}
-          onClose={() => setShowListingModal(false)}
-        />
-      )}
     </div>
   );
 }

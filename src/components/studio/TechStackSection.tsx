@@ -167,9 +167,9 @@ function ManualSetupCard({
   const summary = isConnected ? getMetadataSummary(fields, item.metadataJson) : null;
 
   const isWebsite = item.providerKey === 'idx_website';
-  const syncLabel = isWebsite ? 'Refresh' : 'Sync now';
-  const syncingLabel = isWebsite ? 'Scanning...' : 'Syncing...';
-  const lastSyncLabel = isWebsite ? 'Last scanned' : 'Last sync';
+  const syncLabel = isWebsite ? 'Refresh' : 'Refresh';
+  const syncingLabel = isWebsite ? 'Refreshing...' : 'Refreshing...';
+  const lastSyncLabel = isWebsite ? 'Last refreshed' : 'Last refreshed';
   const lastSyncedAt = (item.metadataJson as Record<string, unknown> | null)?.lastSyncedAt;
 
   const handleSync = () => {
@@ -217,71 +217,21 @@ function ManualSetupCard({
 
   return (
     <div className={`${cardClass(item)} space-y-2`}>
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <p className="text-sm font-medium text-white-100">{item.label}</p>
-            {item.priority === 'core' && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
-                Core
-              </span>
-            )}
-          </div>
-          {item.description && (
-            <p className="text-xs text-white-40">{item.description}</p>
-          )}
-          {isConnected && summary && (
-            <p className="text-xs text-accent-green-110 mt-1 flex items-center gap-1">
-              <Globe className="w-3 h-3" />
-              {summary}
-            </p>
-          )}
-
-          {/* Sync status row */}
-          {hasError && (
-            <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              Connection error — reconnect required
-            </p>
-          )}
-          {canSync && !hasError && (
-            <div className="text-xs text-white-40 mt-1 flex items-center gap-1">
-              {sync.isPending ? (
-                <>
-                  <Loader2 className="w-3 h-3 animate-spin text-white-60" />
-                  <span className="text-white-60">{syncingLabel}</span>
-                </>
-              ) : syncFlash === 'success' ? (
-                <>
-                  <CheckCircle className="w-3 h-3 text-accent-green-110" />
-                  <span className="text-accent-green-110">Synced</span>
-                </>
-              ) : syncFlash === 'error' ? (
-                <span className="text-red-400">Sync failed</span>
-              ) : (
-                <>
-                  {typeof lastSyncedAt === 'string' && (
-                    <span>{lastSyncLabel}: {formatRelativeTime(lastSyncedAt)}</span>
-                  )}
-                  <span className="mx-0.5">&middot;</span>
-                  <button
-                    onClick={handleSync}
-                    className="text-accent-green-110 hover:underline inline-flex items-center gap-0.5"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    {syncLabel}
-                  </button>
-                </>
-              )}
-            </div>
+      {/* Title row */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-medium text-white-100 truncate">{item.label}</p>
+          {item.priority === 'core' && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
+              Core
+            </span>
           )}
         </div>
-
         {isConnected ? (
           item.managedIn ? (
             <Link
               href={`/workspaces/${clientId}/${MANAGED_ROUTES[item.managedIn] ?? 'business-data'}`}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
             >
               <ExternalLink className="w-3 h-3" />
               Manage
@@ -292,13 +242,68 @@ function ManualSetupCard({
         ) : !editing ? (
           <button
             onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
           >
             <ActionIcon className="w-3 h-3" />
             {actionLabel}
           </button>
         ) : null}
       </div>
+
+      {/* Description */}
+      {item.description && (
+        <p className="text-xs text-white-40">{item.description}</p>
+      )}
+
+      {/* Connected metadata */}
+      {isConnected && (summary || canSync || hasError) && (
+        <div className="space-y-1.5 pt-0.5">
+          {summary && (
+            <p className="text-xs text-accent-green-110 flex items-center gap-1.5">
+              <Globe className="w-3 h-3 shrink-0" />
+              <span className="truncate">{summary}</span>
+            </p>
+          )}
+          {hasError && (
+            <p className="text-xs text-red-400 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              Connection error — reconnect required
+            </p>
+          )}
+          {canSync && !hasError && (
+            <div className="flex items-center justify-between text-xs">
+              {sync.isPending ? (
+                <span className="text-white-60 flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                  {syncingLabel}
+                </span>
+              ) : syncFlash === 'success' ? (
+                <span className="text-accent-green-110 flex items-center gap-1.5">
+                  <CheckCircle className="w-3 h-3 shrink-0" />
+                  Updated
+                </span>
+              ) : syncFlash === 'error' ? (
+                <span className="text-red-400">Refresh failed</span>
+              ) : (
+                <>
+                  <span className="text-white-40">
+                    {typeof lastSyncedAt === 'string'
+                      ? `${lastSyncLabel}: ${formatRelativeTime(lastSyncedAt)}`
+                      : '\u00A0'}
+                  </span>
+                  <button
+                    onClick={handleSync}
+                    className="shrink-0 text-accent-green-110 hover:underline inline-flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    {syncLabel}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {editing && !isConnected && (
         <div className="space-y-2 pt-1">
@@ -363,36 +368,38 @@ function ManagedCard({
   const listingCount = meta?.listingCount ?? 0;
 
   return (
-    <div className={`${cardClass(item)} space-y-1`}>
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <p className="text-sm font-medium text-white-100">{item.label}</p>
-            {item.priority === 'core' && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
-                Core
-              </span>
-            )}
-          </div>
-          {item.description && (
-            <p className="text-xs text-white-40">{item.description}</p>
-          )}
-          {isConnected && sourceCount > 0 && (
-            <p className="text-xs text-accent-green-110 mt-1 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              {listingCount} listing{listingCount !== 1 ? 's' : ''} from {sourceCount} source{sourceCount !== 1 ? 's' : ''}
-            </p>
+    <div className={`${cardClass(item)} space-y-2`}>
+      {/* Title row */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-medium text-white-100 truncate">{item.label}</p>
+          {item.priority === 'core' && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
+              Core
+            </span>
           )}
         </div>
-
         <Link
           href={`/workspaces/${clientId}/${route}`}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+          className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
         >
           <ExternalLink className="w-3 h-3" />
           {isConnected ? 'Manage' : 'Add Sources'}
         </Link>
       </div>
+
+      {/* Description */}
+      {item.description && (
+        <p className="text-xs text-white-40">{item.description}</p>
+      )}
+
+      {/* Connected details */}
+      {isConnected && sourceCount > 0 && (
+        <p className="text-xs text-accent-green-110 flex items-center gap-1.5">
+          <CheckCircle className="w-3 h-3 shrink-0" />
+          {listingCount} listing{listingCount !== 1 ? 's' : ''} from {sourceCount} source{sourceCount !== 1 ? 's' : ''}
+        </p>
+      )}
     </div>
   );
 }
@@ -433,79 +440,86 @@ function IntegrationCard({
 
   return (
     <div className={`${cardClass(item)} space-y-2`}>
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <p className="text-sm font-medium text-white-100">{item.label}</p>
-            {item.priority === 'core' && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
-                Core
-              </span>
-            )}
-          </div>
-          {item.description && (
-            <p className="text-xs text-white-40">{item.description}</p>
-          )}
-          {isConnected && typeof businessName === 'string' && (
-            <p className="text-xs text-accent-green-110 mt-1 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              {businessName}
-              {typeof reviewCount === 'number' && ` — ${reviewCount} review${reviewCount !== 1 ? 's' : ''}`}
-            </p>
-          )}
-
-          {/* Sync status row */}
-          {hasError && (
-            <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              Connection error — reconnect required
-            </p>
-          )}
-          {canSync && !hasError && (
-            <div className="text-xs text-white-40 mt-1 flex items-center gap-1">
-              {sync.isPending ? (
-                <>
-                  <Loader2 className="w-3 h-3 animate-spin text-white-60" />
-                  <span className="text-white-60">Syncing...</span>
-                </>
-              ) : syncFlash === 'success' ? (
-                <>
-                  <CheckCircle className="w-3 h-3 text-accent-green-110" />
-                  <span className="text-accent-green-110">Synced</span>
-                </>
-              ) : syncFlash === 'error' ? (
-                <span className="text-red-400">Sync failed</span>
-              ) : (
-                <>
-                  {typeof lastSyncedAt === 'string' && (
-                    <span>Last sync: {formatRelativeTime(lastSyncedAt)}</span>
-                  )}
-                  <span className="mx-0.5">&middot;</span>
-                  <button
-                    onClick={handleSync}
-                    className="text-accent-green-110 hover:underline inline-flex items-center gap-0.5"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    Sync now
-                  </button>
-                </>
-              )}
-            </div>
+      {/* Title row */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-medium text-white-100 truncate">{item.label}</p>
+          {item.priority === 'core' && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
+              Core
+            </span>
           )}
         </div>
-
         {isConnected ? (
           <StatusBadge badge="Connected" />
         ) : (
           <Link
             href={`/workspaces/${clientId}/settings/integrations`}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
           >
             <LinkIcon className="w-3 h-3" />
             Connect
           </Link>
         )}
       </div>
+
+      {/* Description */}
+      {item.description && (
+        <p className="text-xs text-white-40">{item.description}</p>
+      )}
+
+      {/* Connected metadata */}
+      {isConnected && (
+        <div className="space-y-1.5 pt-0.5">
+          {typeof businessName === 'string' && (
+            <p className="text-xs text-accent-green-110 flex items-center gap-1.5">
+              <CheckCircle className="w-3 h-3 shrink-0" />
+              <span className="truncate">
+                {businessName}
+                {typeof reviewCount === 'number' && ` — ${reviewCount} review${reviewCount !== 1 ? 's' : ''}`}
+              </span>
+            </p>
+          )}
+          {hasError && (
+            <p className="text-xs text-red-400 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              Connection error — reconnect required
+            </p>
+          )}
+          {canSync && !hasError && (
+            <div className="flex items-center justify-between text-xs">
+              {sync.isPending ? (
+                <span className="text-white-60 flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                  Refreshing...
+                </span>
+              ) : syncFlash === 'success' ? (
+                <span className="text-accent-green-110 flex items-center gap-1.5">
+                  <CheckCircle className="w-3 h-3 shrink-0" />
+                  Updated
+                </span>
+              ) : syncFlash === 'error' ? (
+                <span className="text-red-400">Refresh failed</span>
+              ) : (
+                <>
+                  <span className="text-white-40">
+                    {typeof lastSyncedAt === 'string'
+                      ? `Last refreshed: ${formatRelativeTime(lastSyncedAt)}`
+                      : '\u00A0'}
+                  </span>
+                  <button
+                    onClick={handleSync}
+                    className="shrink-0 text-accent-green-110 hover:underline inline-flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Refresh
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -514,21 +528,14 @@ function IntegrationCard({
 
 function TechStackCard({ item }: { item: TechStackViewItem }) {
   return (
-    <div className={`${cardClass(item)} flex items-start gap-3`}>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <p className="text-sm font-medium text-white-100">{item.label}</p>
-          {item.priority === 'core' && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
-              Core
-            </span>
-          )}
-        </div>
-        {item.description && (
-          <p className="text-xs text-white-40">{item.description}</p>
-        )}
+    <div className={`${cardClass(item)} space-y-2`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-white-100 truncate">{item.label}</p>
+        <StatusBadge badge={item.statusBadge} />
       </div>
-      <StatusBadge badge={item.statusBadge} />
+      {item.description && (
+        <p className="text-xs text-white-40">{item.description}</p>
+      )}
     </div>
   );
 }
@@ -554,48 +561,52 @@ function ChannelCard({
     : oauthPopup.error?.message ?? null;
 
   return (
-    <div className={`${cardClass(item)} flex items-start gap-3`}>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <p className="text-sm font-medium text-white-100">{item.label}</p>
+    <div className={`${cardClass(item)} space-y-2`}>
+      {/* Title row */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-medium text-white-100 truncate">{item.label}</p>
           {item.priority === 'core' && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
+            <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
               Core
             </span>
           )}
         </div>
-        {item.description && (
-          <p className="text-xs text-white-40">{item.description}</p>
-        )}
-        {isConnected && displayName && (
-          <p className="text-xs text-accent-green-110 mt-1 flex items-center gap-1">
-            <CheckCircle className="w-3 h-3" />
-            {displayName}
-          </p>
-        )}
-        {errorMessage && (
-          <div className="mt-1 flex items-start gap-1.5 text-xs text-accent-red">
-            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-            <span>{errorMessage}</span>
-          </div>
+        {isConnected ? (
+          <StatusBadge badge="Connected" />
+        ) : (
+          <button
+            onClick={() => oauthPopup.connect(item.channelRef as Channel)}
+            disabled={oauthPopup.isPending}
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
+          >
+            {oauthPopup.isPending ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <LinkIcon className="w-3 h-3" />
+            )}
+            Connect
+          </button>
         )}
       </div>
 
-      {isConnected ? (
-        <StatusBadge badge="Connected" />
-      ) : (
-        <button
-          onClick={() => oauthPopup.connect(item.channelRef as Channel)}
-          disabled={oauthPopup.isPending}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
-        >
-          {oauthPopup.isPending ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <LinkIcon className="w-3 h-3" />
-          )}
-          Connect
-        </button>
+      {/* Description */}
+      {item.description && (
+        <p className="text-xs text-white-40">{item.description}</p>
+      )}
+
+      {/* Connected details */}
+      {isConnected && displayName && (
+        <p className="text-xs text-accent-green-110 flex items-center gap-1.5">
+          <CheckCircle className="w-3 h-3 shrink-0" />
+          <span className="truncate">{displayName}</span>
+        </p>
+      )}
+      {errorMessage && (
+        <div className="flex items-start gap-1.5 text-xs text-accent-red">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>{errorMessage}</span>
+        </div>
       )}
     </div>
   );
@@ -712,7 +723,7 @@ export function TechStackSection({ clientId }: { clientId: string }) {
       </div>
 
       <p className="text-xs text-white-40 mb-4">
-        Squadpitch uses your data to automatically generate and plan your marketing.
+        Squadpitch uses your data to generate and plan your marketing.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

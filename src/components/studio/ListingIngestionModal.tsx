@@ -96,9 +96,9 @@ export function ListingIngestionModal({ clientId, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white-10">
           <div>
-            <h2 className="text-lg font-bold text-white-100">Add Listing</h2>
+            <h2 className="text-lg font-bold text-white-100">Add Property</h2>
             <p className="text-xs text-white-40 mt-0.5">
-              Import property listings from any source
+              Add a property manually, from CSV, or paste a link
             </p>
           </div>
           <button

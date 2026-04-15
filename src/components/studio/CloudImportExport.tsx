@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Cloud,
   HardDrive,
@@ -12,10 +12,14 @@ import {
   Check,
   X,
   ArrowLeft,
+  ExternalLink,
+  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useGenericIntegrations,
+  useMediaImportConnect,
   useMediaImportFiles,
   useMediaImportFile,
   useMediaExportFile,
@@ -30,6 +34,11 @@ interface Props {
 }
 
 const MEDIA_PROVIDERS = ['google_drive', 'dropbox'] as const;
+
+const CONNECT_PROVIDERS = [
+  { type: 'google_drive' as const, label: 'Google Drive', icon: HardDrive },
+  { type: 'dropbox' as const, label: 'Dropbox', icon: Cloud },
+];
 
 function providerLabel(type: string) {
   return type === 'google_drive' ? 'Google Drive' : type === 'dropbox' ? 'Dropbox' : type;
@@ -46,19 +55,83 @@ function canImport(file: MediaImportFile) {
 }
 
 export function CloudImportExport({ clientId, assets }: Props) {
+  const qc = useQueryClient();
   const { data: integrations } = useGenericIntegrations();
+  const connect = useMediaImportConnect();
 
   const cloudIntegrations = integrations?.filter(
     (i) => i.isActive && MEDIA_PROVIDERS.includes(i.type as typeof MEDIA_PROVIDERS[number]),
   );
 
-  if (!cloudIntegrations?.length) return null;
+  // Listen for OAuth popup completion → refresh integrations
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const expectedOrigin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+      if (e.origin !== expectedOrigin && e.origin !== window.location.origin) return;
+      const ch = e.data?.channel?.toUpperCase();
+      if (e.data?.type === 'sp-oauth-complete' && (ch === 'DRIVE' || ch === 'DROPBOX')) {
+        qc.invalidateQueries({ queryKey: ['integrations'] });
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [qc]);
 
+  const handleConnect = (provider: 'google_drive' | 'dropbox') => {
+    connect.mutate(provider, {
+      onSuccess: (data) => {
+        window.open(data.authUrl, 'sp-oauth-popup', 'width=600,height=720');
+      },
+    });
+  };
+
+  const connectedTypes = new Set(cloudIntegrations?.map((i) => i.type) ?? []);
+  const unconnectedProviders = CONNECT_PROVIDERS.filter((p) => !connectedTypes.has(p.type));
+
+  // No providers connected — show connect cards
+  if (!cloudIntegrations?.length) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-white-40">
+          Connect a cloud storage provider to browse and import media.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {CONNECT_PROVIDERS.map(({ type, label, icon: Icon }) => (
+            <div
+              key={type}
+              className="rounded-lg border border-white-10 bg-white-5 p-4 flex flex-col items-center gap-3"
+            >
+              <div className="w-10 h-10 rounded-xl bg-white-10 flex items-center justify-center">
+                <Icon className="w-5 h-5 text-white-60" />
+              </div>
+              <span className="text-sm font-medium text-white-100">{label}</span>
+              <button
+                onClick={() => handleConnect(type)}
+                disabled={connect.isPending}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-green-110 text-sp-dark text-xs font-medium hover:bg-accent-green-110/90 transition-colors disabled:opacity-50"
+              >
+                {connect.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ExternalLink className="w-3.5 h-3.5" />
+                )}
+                Connect
+              </button>
+            </div>
+          ))}
+        </div>
+        {connect.error && (
+          <p className="text-xs text-accent-red text-center">
+            {(connect.error as Error).message}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Some providers connected
   return (
-    <div className="card p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-white-100 flex items-center gap-2">
-        <Cloud className="w-4 h-4" /> Cloud Storage
-      </h3>
+    <div className="space-y-3">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {cloudIntegrations.map((integration) => (
           <CloudProvider
@@ -69,6 +142,35 @@ export function CloudImportExport({ clientId, assets }: Props) {
           />
         ))}
       </div>
+
+      {/* Connect additional providers */}
+      {unconnectedProviders.length > 0 && (
+        <div className="border-t border-white-10 pt-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {unconnectedProviders.map(({ type, label, icon: Icon }) => (
+              <button
+                key={type}
+                onClick={() => handleConnect(type)}
+                disabled={connect.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-xs text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors disabled:opacity-50"
+              >
+                {connect.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Link2 className="w-3 h-3" />
+                )}
+                <Icon className="w-3 h-3" />
+                Connect {label}
+              </button>
+            ))}
+          </div>
+          {connect.error && (
+            <p className="text-xs text-accent-red mt-2">
+              {(connect.error as Error).message}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

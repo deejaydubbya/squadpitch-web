@@ -30,10 +30,10 @@ export function PlannerSetupChecklist({
   const items: ChecklistItem[] = [
     {
       key: 'listing_feed',
-      label: 'Connect property listings',
-      description: 'Import your active listings automatically',
+      label: 'Add your properties',
+      description: 'Add properties to generate listing campaigns',
       done: hasListingFeed,
-      href: `/workspaces/${clientId}/settings/channels`,
+      href: `/workspaces/${clientId}/listing-campaign`,
     },
     {
       key: 'testimonial',
