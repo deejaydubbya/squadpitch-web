@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { OnboardingWelcome } from '@/components/studio/OnboardingWelcome';
@@ -20,7 +20,6 @@ import {
   Check,
   Database,
   LinkIcon,
-  Trophy,
   TrendingUp,
   FileText,
   ChevronRight,
@@ -30,6 +29,8 @@ import {
   Home,
   Clock,
   RefreshCw,
+  Eye,
+  Activity,
 } from 'lucide-react';
 import {
   useClient,
@@ -78,6 +79,7 @@ export default function OverviewPage() {
   const { data: recentAssets } = useAssets(clientId, { limit: 4, status: 'READY' });
   const { data: recommendations } = useDashboardRecommendations(clientId);
   const { data: actionsData } = useDashboardActions(clientId);
+  const { data: apSettings } = useAutopilotSettings(clientId);
   const generate = useGenerateContent();
   const duplicate = useDuplicateDraft();
 
@@ -89,6 +91,8 @@ export default function OverviewPage() {
   const base = `/workspaces/${clientId}`;
 
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
+  const summary = recommendations?.summary;
+  const isAPEnabled = apSettings?.enabled ?? summary?.autopilot?.enabled ?? false;
 
   const quickLinks = [
     { href: `${base}/create`, icon: Wand2, label: 'Create', desc: 'Generate posts' },
@@ -98,6 +102,128 @@ export default function OverviewPage() {
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics', desc: 'Performance' },
     { href: `${base}/settings/brand`, icon: Settings, label: 'Settings', desc: 'Brand & channels' },
   ];
+
+  // ── Compute Next Actions from real state ──────────────────────────────
+  const nextActions = useMemo(() => {
+    const items: {
+      id: string;
+      icon: React.ReactNode;
+      title: string;
+      description: string;
+      href?: string;
+      action?: string;
+      cta: string;
+      priority: number;
+      accent?: string;
+    }[] = [];
+
+    const approved = analytics?.byStatus?.APPROVED ?? 0;
+    if (approved > 0) {
+      items.push({
+        id: 'publish-approved',
+        icon: <Send className="w-5 h-5" />,
+        title: `Publish ${approved} approved post${approved > 1 ? 's' : ''}`,
+        description: 'Approved content is ready to go live',
+        href: `${base}/planner`,
+        cta: 'Publish',
+        priority: 1,
+        accent: 'text-accent-green-110 bg-accent-green-110/15',
+      });
+    }
+
+    const pending = analytics?.byStatus?.PENDING_REVIEW ?? 0;
+    if (pending > 0) {
+      items.push({
+        id: 'review-pending',
+        icon: <Eye className="w-5 h-5" />,
+        title: `Review ${pending} pending draft${pending > 1 ? 's' : ''}`,
+        description: 'Drafts waiting for your approval',
+        href: `${base}/library`,
+        cta: 'Review',
+        priority: 2,
+        accent: 'text-yellow-400 bg-yellow-400/15',
+      });
+    }
+
+    const unused = summary?.unusedDataCount ?? 0;
+    if (unused > 0) {
+      items.push({
+        id: 'create-from-data',
+        icon: <Sparkles className="w-5 h-5" />,
+        title: `Create posts from ${unused} unused opportunit${unused > 1 ? 'ies' : 'y'}`,
+        description: 'Business data ready for content creation',
+        href: `${base}/create`,
+        cta: 'Create',
+        priority: 3,
+        accent: 'text-purple-400 bg-purple-400/15',
+      });
+    }
+
+    const published = summary?.publishedThisWeek ?? 0;
+    if (published < 5 && items.length < 4) {
+      items.push({
+        id: 'hit-target',
+        icon: <Target className="w-5 h-5" />,
+        title: published === 0
+          ? "You haven't posted this week yet"
+          : `You're at ${published}/5 posts this week`,
+        description: published === 0
+          ? 'Start publishing to build momentum'
+          : 'Schedule more to hit your weekly target',
+        href: `${base}/planner`,
+        cta: 'Schedule',
+        priority: 4,
+        accent: 'text-orange-400 bg-orange-400/15',
+      });
+    }
+
+    const hasData = (summary?.totalDataItems ?? 0) > 0;
+    if (!isAPEnabled && hasData && items.length < 4) {
+      items.push({
+        id: 'enable-autopilot',
+        icon: <Zap className="w-5 h-5" />,
+        title: 'Turn on Autopilot',
+        description: 'Let Squadpitch generate and plan content automatically',
+        action: 'toggle_autopilot',
+        cta: 'Enable',
+        priority: 5,
+        accent: 'text-yellow-400 bg-yellow-400/15',
+      });
+    }
+
+    if (enabledChannels.length === 0 && items.length < 4) {
+      items.push({
+        id: 'setup-channels',
+        icon: <LinkIcon className="w-5 h-5" />,
+        title: 'Connect a publishing channel',
+        description: 'Link Instagram, TikTok, or LinkedIn to start publishing',
+        href: `${base}/settings/media`,
+        cta: 'Connect',
+        priority: 6,
+        accent: 'text-blue-400 bg-blue-400/15',
+      });
+    }
+
+    // Fill remaining slots from API recommendations
+    if (items.length < 2 && recommendations?.recommendations) {
+      for (const rec of recommendations.recommendations) {
+        if (items.length >= 4) break;
+        if (items.some((i) => i.id === rec.id)) continue;
+        items.push({
+          id: rec.id,
+          icon: <Sparkles className="w-5 h-5" />,
+          title: rec.title,
+          description: rec.description,
+          action: rec.action,
+          cta: rec.actionLabel,
+          priority: 10 + rec.priority,
+          accent: 'text-accent-green-110 bg-accent-green-110/15',
+        });
+      }
+    }
+
+    return items.sort((a, b) => a.priority - b.priority).slice(0, 4);
+  }, [analytics, summary, isAPEnabled, enabledChannels, recommendations, base]);
 
   const handleGenerateSuggested = async () => {
     if (enabledChannels.length === 0) return;
@@ -165,6 +291,20 @@ export default function OverviewPage() {
     }
   };
 
+  const handleNextAction = (action: (typeof nextActions)[number]) => {
+    if (action.href) {
+      router.push(action.href);
+    } else if (action.action) {
+      // Find matching recommendation for action dispatch
+      const rec = recommendations?.recommendations.find((r) => r.action === action.action);
+      if (rec) handleRecommendationAction(rec);
+      else if (action.action === 'toggle_autopilot') {
+        // handled by AutopilotCard directly, but navigate as fallback
+        router.push(`${base}/business-data`);
+      }
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-5xl">
       {/* Onboarding welcome */}
@@ -178,65 +318,80 @@ export default function OverviewPage() {
         />
       )}
 
-      {/* Next Best Action */}
-      {recommendations && recommendations.recommendations.length > 0 && (
-        <NextBestAction
-          rec={recommendations.recommendations[0]}
-          summary={recommendations.summary}
-          onAction={() => handleRecommendationAction(recommendations.recommendations[0])}
-        />
-      )}
+      {/* ═══════════════ TOP ═══════════════ */}
 
-      {/* System Status — real estate workspaces */}
-      {client.industryKey === 'real_estate' && recommendations?.summary && (
-        <SystemStatus summary={recommendations.summary} base={base} />
-      )}
-
-      {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Total drafts" value={analytics?.total ?? 0} />
-        <StatCard
-          label="Approved"
-          value={
-            (analytics?.byStatus?.APPROVED ?? 0) +
-            (analytics?.byStatus?.PUBLISHED ?? 0) +
-            (analytics?.byStatus?.SCHEDULED ?? 0)
-          }
-        />
-        <StatCard label="Pending" value={analytics?.byStatus?.PENDING_REVIEW ?? 0} />
-        <StatCard
-          label="Approval rate"
-          value={`${Math.round((analytics?.approvalRate ?? 0) * 100)}%`}
-        />
-      </div>
-
-      {/* Opportunities — secondary, lighter feel */}
-      <div className="card p-5 border-white-10">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-white-30" />
-            <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">Opportunities</h2>
+      {/* Next Actions — AI Recommended */}
+      {nextActions.length > 0 && (
+        <div className="card p-6 bg-gradient-to-br from-accent-green-110/8 via-transparent to-transparent border-accent-green-110/20">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-4 h-4 text-accent-green-110" />
+            <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+              Next Actions
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
+              AI Recommended
+            </span>
           </div>
-          <button
-            onClick={handleGenerateSuggested}
-            disabled={isGenerating || enabledChannels.length === 0}
-            className="px-4 py-2 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold flex items-center gap-1.5 hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-3.5 h-3.5" />
-                Generate Content
-              </>
-            )}
-          </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {nextActions.map((action) => (
+              <button
+                key={action.id}
+                onClick={() => handleNextAction(action)}
+                className="flex items-center gap-3 p-4 rounded-xl bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-all text-left group"
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${action.accent ?? 'text-accent-green-110 bg-accent-green-110/15'}`}>
+                  {action.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white-100 group-hover:text-white transition-colors">
+                    {action.title}
+                  </p>
+                  <p className="text-xs text-white-40 mt-0.5">{action.description}</p>
+                </div>
+                <span className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                  {action.cta}
+                </span>
+                <ChevronRight className="w-4 h-4 text-white-20 flex-shrink-0 group-hover:hidden" />
+              </button>
+            ))}
+          </div>
         </div>
+      )}
 
-        {recommendations && recommendations.recommendations.length > 0 ? (
+      {/* Opportunities — moved up, action-oriented */}
+      {recommendations && recommendations.recommendations.length > 0 && (
+        <div className="card p-5 border-white-10">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-accent-green-110" />
+              <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">
+                Opportunities
+              </h2>
+              {(summary?.unusedDataCount ?? 0) > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-400/10 text-purple-400">
+                  {summary!.unusedDataCount} ready
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleGenerateSuggested}
+              disabled={isGenerating || enabledChannels.length === 0}
+              className="px-4 py-2 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold flex items-center gap-1.5 hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Generate Content
+                </>
+              )}
+            </button>
+          </div>
+
           <div className="space-y-2">
             {recommendations.recommendations.slice(0, 3).map((rec) => (
               <RecommendationCard
@@ -246,29 +401,42 @@ export default function OverviewPage() {
               />
             ))}
           </div>
-        ) : (
-          <p className="text-sm text-white-40">
-            On track. Keep publishing for more insights.
-          </p>
-        )}
 
-        {enabledChannels.length === 0 && (
-          <p className="text-xs text-white-30 mt-2">
-            Enable a channel in{' '}
-            <Link href={`${base}/settings/media`} className="text-accent-green-110 hover:underline">
-              Settings
-            </Link>{' '}
-            first.
-          </p>
-        )}
-        {genSuccess && (
-          <p className="text-xs text-accent-green-110 mt-2">
-            Content ready.{' '}
-            <Link href={`${base}/library`} className="underline">View in library</Link>
-          </p>
-        )}
-        {genError && <StatusBanner error={genError} />}
+          {enabledChannels.length === 0 && (
+            <p className="text-xs text-white-30 mt-2">
+              Enable a channel in{' '}
+              <Link href={`${base}/settings/media`} className="text-accent-green-110 hover:underline">
+                Settings
+              </Link>{' '}
+              first.
+            </p>
+          )}
+          {genSuccess && (
+            <p className="text-xs text-accent-green-110 mt-2">
+              Content ready.{' '}
+              <Link href={`${base}/library`} className="underline">View in library</Link>
+            </p>
+          )}
+          {genError && <StatusBanner error={genError} />}
+        </div>
+      )}
+
+      {/* ═══════════════ UPPER-MIDDLE ═══════════════ */}
+
+      {/* Weekly Snapshot — consolidated stats */}
+      <WeeklySnapshot analytics={analytics} recommendations={recommendations} base={base} />
+
+      {/* Content Pipeline + Content Assets + Consistency */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <ContentPipeline analytics={analytics} base={base} />
+        <BusinessDataSnapshot recommendations={recommendations} base={base} clientId={clientId} />
+        <ConsistencyTracker recommendations={recommendations} />
       </div>
+
+      {/* ═══════════════ MIDDLE ═══════════════ */}
+
+      {/* Autopilot — prominent full-width card */}
+      <AutopilotCard recommendations={recommendations} base={base} clientId={clientId} />
 
       {/* Quick Actions */}
       {actionsData && actionsData.actions.length > 0 && (
@@ -288,59 +456,33 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Performance Snapshot + Content Pipeline + Business Data Snapshot */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <PerformanceSnapshot overview={overview} base={base} />
-        <ContentPipeline analytics={analytics} base={base} />
-        <BusinessDataSnapshot recommendations={recommendations} base={base} clientId={clientId} />
+      {/* Media + System Freshness */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <MediaPreview assets={recentAssets} base={base} recommendations={recommendations} />
+        <SystemFreshness recommendations={recommendations} base={base} />
       </div>
 
-      {/* Media Preview + Consistency Tracker + Autopilot Status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <MediaPreview assets={recentAssets} base={base} />
-        <ConsistencyTracker recommendations={recommendations} />
-        <AutopilotStatus recommendations={recommendations} base={base} clientId={clientId} />
-      </div>
+      {/* ═══════════════ LOWER ═══════════════ */}
 
-      {/* Recent Activity — real estate workspaces */}
-      {client.industryKey === 'real_estate' && (
-        <RecentActivity drafts={drafts} recommendations={recommendations} />
+      {/* System Status — real estate workspaces */}
+      {client.industryKey === 'real_estate' && recommendations?.summary && (
+        <SystemStatus summary={recommendations.summary} base={base} />
       )}
 
-      {/* Tech Stack */}
-      <TechStackSection clientId={clientId} />
-
-      {/* Workspace links */}
-      <div>
-        <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider mb-3">
-          Workspace
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {quickLinks.map((ql) => (
-            <Link
-              key={ql.href}
-              href={ql.href}
-              className="card-hover p-4 flex items-center gap-3"
-            >
-              <div className="w-10 h-10 rounded-xl bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
-                <ql.icon className="w-5 h-5 text-accent-green-110" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white-100">{ql.label}</p>
-                <p className="text-xs text-white-40">{ql.desc}</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-white-40" />
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent drafts — improved with actions */}
+      {/* Recent drafts — system output */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-            Recent drafts
-          </h2>
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-accent-green-110" />
+            <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+              Recent Drafts
+            </h2>
+            {drafts && drafts.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
+                {drafts.length} latest
+              </span>
+            )}
+          </div>
           <Link
             href={`${base}/library`}
             className="text-xs text-accent-green-110 hover:underline"
@@ -378,20 +520,138 @@ export default function OverviewPage() {
           </div>
         )}
       </div>
+
+      {/* Recent Activity — real estate workspaces */}
+      {client.industryKey === 'real_estate' && (
+        <RecentActivity drafts={drafts} recommendations={recommendations} />
+      )}
+
+      {/* Tech Stack */}
+      <TechStackSection clientId={clientId} />
+
+      {/* Workspace links */}
+      <div>
+        <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider mb-3">
+          Workspace
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {quickLinks.map((ql) => (
+            <Link
+              key={ql.href}
+              href={ql.href}
+              className="card-hover p-4 flex items-center gap-3"
+            >
+              <div className="w-10 h-10 rounded-xl bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
+                <ql.icon className="w-5 h-5 text-accent-green-110" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white-100">{ql.label}</p>
+                <p className="text-xs text-white-40">{ql.desc}</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-white-40" />
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// Sub-components
+// ══════════════════════════════════════════════════════════════════════════
 
-function StatCard({ label, value }: { label: string; value: number | string }) {
+// ── Weekly Snapshot (replaces 4 stat cards) ──────────────────────────────
+
+function WeeklySnapshot({
+  analytics,
+  recommendations,
+  base,
+}: {
+  analytics: ReturnType<typeof useClientAnalytics>['data'];
+  recommendations: DashboardRecommendationsResponse | undefined;
+  base: string;
+}) {
+  const summary = recommendations?.summary;
+  const published = summary?.publishedThisWeek ?? 0;
+  const scheduled = summary?.scheduledUpcoming ?? 0;
+  const target = 5;
+  const pct = Math.min(100, Math.round((published / target) * 100));
+
+  const approved =
+    (analytics?.byStatus?.APPROVED ?? 0) +
+    (analytics?.byStatus?.PUBLISHED ?? 0) +
+    (analytics?.byStatus?.SCHEDULED ?? 0);
+  const pending = analytics?.byStatus?.PENDING_REVIEW ?? 0;
+  const approvalRate = Math.round((analytics?.approvalRate ?? 0) * 100);
+  const pipelineSize = analytics?.total ?? 0;
+
   return (
-    <div className="card p-4">
-      <p className="text-xs text-white-40 uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold text-white-100 mt-1">{value}</p>
+    <div className="card p-5 border-white-10">
+      <div className="flex items-center gap-2 mb-4">
+        <BarChart3 className="w-4 h-4 text-accent-green-110" />
+        <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+          Weekly Snapshot
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div>
+          <p className="text-xs text-white-40 mb-1">Posts this week</p>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold text-white-100">{published}</span>
+            <span className="text-xs text-white-40">/ {target}</span>
+          </div>
+        </div>
+        <div>
+          <p className="text-xs text-white-40 mb-1">Approval rate</p>
+          <span className="text-2xl font-bold text-white-100">{approvalRate}%</span>
+        </div>
+        <div>
+          <p className="text-xs text-white-40 mb-1">Pipeline</p>
+          <span className="text-2xl font-bold text-white-100">{pipelineSize}</span>
+        </div>
+        <div>
+          <p className="text-xs text-white-40 mb-1">Needs review</p>
+          <span className={`text-2xl font-bold ${pending > 0 ? 'text-yellow-400' : 'text-white-100'}`}>
+            {pending}
+          </span>
+        </div>
+      </div>
+
+      {/* Weekly progress bar */}
+      <div className="space-y-1.5">
+        <div className="h-2 rounded-full bg-white-5 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${
+              pct >= 100 ? 'bg-accent-green-110' : pct >= 60 ? 'bg-yellow-400' : 'bg-orange-400'
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className={pct >= 100 ? 'text-accent-green-110 font-medium' : 'text-white-40'}>
+            {pct >= 100
+              ? 'Weekly target reached!'
+              : published === 0
+                ? "You're below your target this week"
+                : `${pct}% of weekly target`}
+          </span>
+          {scheduled > 0 && (
+            <Link
+              href={`${base}/planner`}
+              className="text-white-30 hover:text-accent-green-110 transition-colors"
+            >
+              +{scheduled} scheduled
+            </Link>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
+
+// ── Recommendation Card ──────────────────────────────────────────────────
 
 function RecommendationCard({
   rec,
@@ -430,6 +690,8 @@ function RecommendationCard({
   );
 }
 
+// ── Action Card ──────────────────────────────────────────────────────────
+
 function ActionCard({ action, base }: { action: DashboardAction; base: string }) {
   const iconMap: Record<string, React.ReactNode> = {
     review: <Pencil className="w-5 h-5 text-yellow-400" />,
@@ -457,6 +719,8 @@ function ActionCard({ action, base }: { action: DashboardAction; base: string })
     </Link>
   );
 }
+
+// ── Draft Card ───────────────────────────────────────────────────────────
 
 function DraftCard({
   draft,
@@ -604,58 +868,7 @@ function DraftCard({
   );
 }
 
-// ── Phase 2 Components ─────────────────────────────────────────────────
-
-function PerformanceSnapshot({
-  overview,
-  base,
-}: {
-  overview: ReturnType<typeof useAnalyticsOverview>['data'];
-  base: string;
-}) {
-  const topPost = overview?.topPosts?.[0];
-
-  return (
-    <Link href={`${base}/analytics`} className="card-hover p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Trophy className="w-4 h-4 text-yellow-400" />
-        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          Performance
-        </h3>
-        <ChevronRight className="w-3 h-3 text-white-30 ml-auto" />
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">Top platform</span>
-          <span className="text-xs font-medium text-white-100">
-            {overview?.kpis?.topPlatform ?? '—'}
-          </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">Best content type</span>
-          <span className="text-xs font-medium text-white-100">
-            {overview?.kpis?.bestContentType ?? '—'}
-          </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">Top post</span>
-          <span className="text-xs font-medium text-white-100 truncate ml-2 max-w-[120px]">
-            {topPost
-              ? `${Math.round(topPost.performanceScore ?? 0)}pts`
-              : '—'}
-          </span>
-        </div>
-      </div>
-
-      {topPost && (
-        <p className="text-[11px] text-white-30 line-clamp-1 italic">
-          {topPost.body?.slice(0, 60)}...
-        </p>
-      )}
-    </Link>
-  );
-}
+// ── Content Pipeline ─────────────────────────────────────────────────────
 
 function ContentPipeline({
   analytics,
@@ -721,6 +934,8 @@ function ContentPipeline({
   );
 }
 
+// ── Content Assets (enhanced with action suggestions) ────────────────────
+
 const DATA_TYPE_LABELS: Record<string, string> = {
   TESTIMONIAL: 'Testimonials',
   CASE_STUDY: 'Case Studies',
@@ -738,6 +953,18 @@ const DATA_TYPE_LABELS: Record<string, string> = {
 const RE_TYPE_LABELS: Record<string, string> = {
   ...DATA_TYPE_LABELS,
   CUSTOM: 'Listings',
+};
+
+const ACTION_SUGGESTIONS: Record<string, string> = {
+  TESTIMONIAL: 'Create trust-building post',
+  MILESTONE: 'Create celebration content',
+  CUSTOM: 'Create listing post',
+  STATISTIC: 'Create data-driven post',
+  CASE_STUDY: 'Create success story',
+  PROMOTION: 'Create promo post',
+  EVENT: 'Create event highlight',
+  TEAM_SPOTLIGHT: 'Create team spotlight',
+  INDUSTRY_NEWS: 'Create thought leadership',
 };
 
 function BusinessDataSnapshot({
@@ -770,12 +997,18 @@ function BusinessDataSnapshot({
         <>
           <div className="space-y-1.5">
             {entries.slice(0, 5).map(([type, count]) => (
-              <div key={type} className="flex items-center justify-between">
-                <span className="text-xs text-white-40">
-                  {labels[type] ?? type}
+              <Link
+                key={type}
+                href={`${base}/create?guidance=${encodeURIComponent(ACTION_SUGGESTIONS[type] ?? 'Create post')}`}
+                className="flex items-center justify-between group"
+              >
+                <span className="text-xs text-white-40 group-hover:text-white-60 transition-colors">
+                  {count} {labels[type] ?? type}
                 </span>
-                <span className="text-xs font-semibold text-white-100">{count}</span>
-              </div>
+                <span className="text-[10px] text-accent-green-110 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {ACTION_SUGGESTIONS[type] ?? 'Create post'} →
+                </span>
+              </Link>
             ))}
             {entries.length > 5 && (
               <p className="text-[11px] text-white-30">
@@ -785,8 +1018,8 @@ function BusinessDataSnapshot({
           </div>
 
           {(summary?.unusedDataCount ?? 0) > 0 && (
-            <p className="text-[11px] text-accent-green-110">
-              {summary!.unusedDataCount} ready for content
+            <p className="text-[11px] text-accent-green-110 font-medium">
+              {summary!.unusedDataCount} unused opportunit{summary!.unusedDataCount > 1 ? 'ies' : 'y'} ready
             </p>
           )}
 
@@ -795,7 +1028,7 @@ function BusinessDataSnapshot({
             className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
           >
             <Wand2 className="w-3 h-3" />
-            Generate content
+            Generate content from assets
           </Link>
         </>
       ) : (
@@ -818,84 +1051,7 @@ function BusinessDataSnapshot({
   );
 }
 
-// ── Phase 3 Components ─────────────────────────────────────────────────
-
-function MediaPreview({
-  assets,
-  base,
-}: {
-  assets: MediaAsset[] | undefined;
-  base: string;
-}) {
-  const recent = assets?.slice(0, 4) ?? [];
-
-  return (
-    <div className="card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <ImageIcon className="w-4 h-4 text-blue-400" />
-        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          Media
-        </h3>
-        <Link
-          href={`${base}/assets`}
-          className="ml-auto text-[11px] text-accent-green-110 hover:underline"
-        >
-          View all
-        </Link>
-      </div>
-
-      {recent.length > 0 ? (
-        <>
-          <div className="grid grid-cols-4 gap-1.5">
-            {recent.map((asset) => (
-              <div
-                key={asset.id}
-                className="relative aspect-square rounded-lg overflow-hidden bg-white-5"
-              >
-                {asset.thumbnailUrl || asset.url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={asset.thumbnailUrl ?? asset.url!}
-                    alt={asset.altText ?? asset.filename ?? 'Asset'}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Film className="w-4 h-4 text-white-30" />
-                  </div>
-                )}
-                {asset.assetType === 'video' && (
-                  <div className="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-black/60">
-                    <Film className="w-2.5 h-2.5 text-white" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <Link
-            href={`${base}/create`}
-            className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
-          >
-            <Wand2 className="w-3 h-3" />
-            Create post from media
-          </Link>
-        </>
-      ) : (
-        <>
-          <p className="text-xs text-white-40">No media assets yet.</p>
-          <Link
-            href={`${base}/assets`}
-            className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
-          >
-            <ImageIcon className="w-3 h-3" />
-            Upload media
-          </Link>
-        </>
-      )}
-    </div>
-  );
-}
+// ── Consistency Tracker ──────────────────────────────────────────────────
 
 function ConsistencyTracker({
   recommendations,
@@ -960,7 +1116,9 @@ function ConsistencyTracker({
   );
 }
 
-function AutopilotStatus({
+// ── Autopilot Card (full-width, prominent) ───────────────────────────────
+
+function AutopilotCard({
   recommendations,
   base,
   clientId,
@@ -986,113 +1144,147 @@ function AutopilotStatus({
   };
 
   const lastRunAt = ap?.lastActionAt ?? summary?.lastAutopilotAt;
-  const lastRunLabel = lastRunAt
-    ? formatTimeAgo(new Date(lastRunAt))
-    : 'Never';
+  const lastRunLabel = lastRunAt ? formatTimeAgo(new Date(lastRunAt)) : 'Never';
   const draftsThisWeek = ap?.draftsThisWeek ?? 0;
   const maxPerWeek = ap?.maxDraftsPerWeek ?? 3;
   const coverageGaps = ap?.coverageGaps ?? [];
 
+  // Human-readable status line
+  const statusLine = isEnabled
+    ? draftsThisWeek > 0
+      ? `Autopilot is active — created ${draftsThisWeek} draft${draftsThisWeek > 1 ? 's' : ''} this week`
+      : "Autopilot is active — this week's plan is running"
+    : hasData
+      ? "Autopilot is off — you're manually managing content"
+      : 'Autopilot is off — add business data to get started';
+
+  const ctaLabel = isEnabled
+    ? 'Review Autopilot Plan'
+    : hasData
+      ? 'Turn On Autopilot'
+      : `Add ${bdLabels.itemPlural}`;
+
   return (
-    <div className="card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Zap className="w-4 h-4 text-yellow-400" />
-        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          Autopilot
-        </h3>
-        <button
-          onClick={handleToggle}
-          disabled={updateSettings.isPending}
-          className={`ml-auto relative w-9 h-5 rounded-full transition-colors ${
-            isEnabled ? 'bg-accent-green-110' : 'bg-white-20'
-          } ${updateSettings.isPending ? 'opacity-50' : ''}`}
+    <div
+      className={`card p-6 border-2 transition-colors ${
+        isEnabled
+          ? 'border-accent-green-110/30 bg-gradient-to-br from-accent-green-110/5 via-transparent to-transparent'
+          : 'border-white-10'
+      }`}
+    >
+      <div className="flex items-center gap-4">
+        <div
+          className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+            isEnabled ? 'bg-accent-green-110/15 text-accent-green-110' : 'bg-white-10 text-white-40'
+          }`}
         >
-          <span
-            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-              isEnabled ? 'translate-x-4' : 'translate-x-0'
-            }`}
-          />
-        </button>
+          <Zap className="w-7 h-7" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-base font-bold text-white-100">Autopilot</h2>
+            <div className={`w-2 h-2 rounded-full ${isEnabled ? 'bg-accent-green-110 animate-pulse' : 'bg-white-20'}`} />
+            <span className={`text-xs font-medium ${isEnabled ? 'text-accent-green-110' : 'text-white-40'}`}>
+              {isEnabled ? 'ON' : 'OFF'}
+            </span>
+          </div>
+          <p className="text-sm text-white-40">{statusLine}</p>
+        </div>
+
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {isEnabled ? (
+            <Link
+              href={`${base}/business-data`}
+              className="px-5 py-2.5 rounded-xl bg-accent-green-110/10 text-accent-green-110 text-sm font-semibold hover:bg-accent-green-110/20 transition-colors"
+            >
+              {ctaLabel}
+            </Link>
+          ) : hasData ? (
+            <button
+              onClick={handleToggle}
+              disabled={updateSettings.isPending}
+              className="px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-dark text-sm font-semibold hover:bg-accent-green-110/90 transition-colors disabled:opacity-50"
+            >
+              {updateSettings.isPending ? 'Enabling...' : ctaLabel}
+            </button>
+          ) : (
+            <Link
+              href={`${base}/business-data`}
+              className="px-5 py-2.5 rounded-xl bg-white-10 text-white-60 text-sm font-semibold hover:bg-white-20 transition-colors"
+            >
+              {ctaLabel}
+            </Link>
+          )}
+
+          <button
+            onClick={handleToggle}
+            disabled={updateSettings.isPending}
+            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
+              isEnabled ? 'bg-accent-green-110' : 'bg-white-20'
+            } ${updateSettings.isPending ? 'opacity-50' : ''}`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                isEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
-      {/* Status line */}
-      <div className="flex items-center gap-2">
-        <div className={`w-2 h-2 rounded-full ${isEnabled ? 'bg-accent-green-110 animate-pulse' : 'bg-white-20'}`} />
-        <span className={`text-sm font-medium ${isEnabled ? 'text-accent-green-110' : 'text-white-40'}`}>
-          {isEnabled ? 'Autopilot is active' : 'Autopilot is off'}
-        </span>
-      </div>
-
-      {/* Explainer */}
-      {!isEnabled && (
-        <p className="text-[11px] text-white-30 leading-relaxed">
-          When on, Autopilot creates draft posts when new listings arrive, content gaps appear, or channels go quiet. All drafts stay as drafts for your review.
-        </p>
+      {/* Details row */}
+      {(isEnabled || lastRunAt) && (
+        <div className="mt-4 pt-4 border-t border-white-10 grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-[10px] text-white-30 uppercase tracking-wider mb-0.5">Last run</p>
+            <p className="text-xs font-medium text-white-80">
+              {lastRunAt
+                ? `Created ${ap?.lastActionType === 'draft' ? 'drafts' : 'content'} · ${lastRunLabel}`
+                : 'No runs yet'}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-white-30 uppercase tracking-wider mb-0.5">This week</p>
+            <p className="text-xs font-medium text-white-80">
+              {draftsThisWeek}/{maxPerWeek} drafts created
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-white-30 uppercase tracking-wider mb-0.5">Next</p>
+            <p className="text-xs font-medium text-white-60">
+              {!isEnabled
+                ? 'Enable to start'
+                : !hasData
+                  ? 'Waiting for data'
+                  : draftsThisWeek >= maxPerWeek
+                    ? 'Weekly limit reached'
+                    : 'Runs automatically'}
+            </p>
+          </div>
+        </div>
       )}
 
-      <div className="space-y-2">
-        {/* Last run result */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">Last run</span>
-          <span className="text-xs font-medium text-white-100">
-            {lastRunAt
-              ? `Created ${ap?.lastActionType === 'draft' ? 'drafts' : 'content'} · ${lastRunLabel}`
-              : 'No runs yet'}
+      {coverageGaps.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-white-10">
+          <span className="text-[10px] font-medium text-white-30 uppercase tracking-wider">
+            Opportunity detected
           </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">This week</span>
-          <span className="text-xs font-medium text-white-100">
-            {draftsThisWeek}/{maxPerWeek} drafts
-          </span>
-        </div>
-        {/* Next run hint */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">Next</span>
-          <span className="text-xs font-medium text-white-60">
-            {!isEnabled
-              ? 'Enable to start'
-              : !hasData
-                ? 'Waiting for data'
-                : draftsThisWeek >= maxPerWeek
-                  ? 'Weekly limit reached'
-                  : 'Runs automatically'}
-          </span>
-        </div>
-        {coverageGaps.length > 0 && (
-          <div className="pt-1">
-            <span className="text-[10px] font-medium text-white-30 uppercase tracking-wider">
-              Opportunities
-            </span>
-            <div className="mt-1 space-y-0.5">
-              {coverageGaps.slice(0, 2).map((gap, i) => (
-                <p key={i} className="text-[11px] text-white-40">
-                  {gap}
-                </p>
-              ))}
-            </div>
+          <div className="mt-1 space-y-0.5">
+            {coverageGaps.slice(0, 2).map((gap, i) => (
+              <p key={i} className="text-[11px] text-white-40">
+                {gap}
+              </p>
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="flex items-center gap-3">
-        {hasData ? (
-          <Link
-            href={`${base}/business-data`}
-            className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
-          >
-            <Zap className="w-3 h-3" />
-            Run Autopilot
-          </Link>
-        ) : (
-          <p className="text-[11px] text-white-30">
-            Add {bdLabels.itemPlural.toLowerCase()} to enable Autopilot.
-          </p>
-        )}
-        {summary?.realEstate?.listingFeedConnected && (
+      {summary?.realEstate?.listingFeedConnected && (
+        <div className="mt-3 pt-3 border-t border-white-10">
           <RefreshListingsButton clientId={clientId} />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1111,82 +1303,253 @@ function RefreshListingsButton({ clientId }: { clientId: string }) {
   );
 }
 
-function formatTimeAgo(date: Date): string {
-  const diff = Date.now() - date.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString();
-}
+// ── Media Preview (enhanced) ─────────────────────────────────────────────
 
-// ── Guidance Components ─────────────────────────────────────────────────
-
-function NextBestAction({
-  rec,
-  summary,
-  onAction,
+function MediaPreview({
+  assets,
+  base,
+  recommendations,
 }: {
-  rec: DashboardRecommendation;
-  summary: DashboardRecommendationsResponse['summary'];
-  onAction: () => void;
+  assets: MediaAsset[] | undefined;
+  base: string;
+  recommendations: DashboardRecommendationsResponse | undefined;
 }) {
-  const whyLines: string[] = [];
-
-  if (rec.category === 'data' || rec.action === 'generate_from_data') {
-    const unused = summary.unusedDataCount ?? 0;
-    if (unused > 0) whyLines.push(`You have ${unused} unused data items ready for content.`);
-  }
-  if (rec.category === 'frequency' || rec.category === 'cadence') {
-    const days = summary.daysSinceLastGeneration;
-    if (days != null && days > 3) whyLines.push(`It's been ${days} days since your last content.`);
-    whyLines.push('Posting regularly increases visibility and lead flow.');
-  }
-  if (rec.category === 'real_estate') {
-    const re = summary.realEstate;
-    if (re?.listingCount) whyLines.push(`You have ${re.listingCount} listings ready for content.`);
-  }
-  if (whyLines.length === 0 && rec.reason) whyLines.push(rec.reason);
-  if (whyLines.length === 0) whyLines.push(rec.description);
-
-  const iconMap: Record<string, React.ReactNode> = {
-    data: <Database className="w-5 h-5" />,
-    frequency: <Calendar className="w-5 h-5" />,
-    setup: <LinkIcon className="w-5 h-5" />,
-    growth: <BarChart3 className="w-5 h-5" />,
-    workflow: <Check className="w-5 h-5" />,
-    content: <Wand2 className="w-5 h-5" />,
-    cadence: <Clock className="w-5 h-5" />,
-    real_estate: <Home className="w-5 h-5" />,
-  };
+  const recent = assets?.slice(0, 4) ?? [];
+  const imageCount = recent.filter((a) => a.assetType === 'image').length;
+  const videoCount = recent.filter((a) => a.assetType === 'video').length;
 
   return (
-    <div className="card p-6 bg-gradient-to-br from-accent-green-110/8 via-transparent to-transparent border-accent-green-110/20">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-accent-green-110/15 flex items-center justify-center flex-shrink-0 text-accent-green-110">
-          {iconMap[rec.category] ?? <Sparkles className="w-5 h-5" />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-semibold text-accent-green-110 uppercase tracking-widest mb-1">
-            Recommended
-          </p>
-          <h2 className="text-lg font-bold text-white-100">{rec.title}</h2>
-          <p className="text-sm text-white-40 mt-0.5">{whyLines[0]}</p>
-        </div>
-        <button
-          onClick={onAction}
-          className="flex-shrink-0 px-6 py-3 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-all hover:scale-[1.02]"
+    <div className="card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <ImageIcon className="w-4 h-4 text-blue-400" />
+        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
+          Media
+        </h3>
+        <Link
+          href={`${base}/assets`}
+          className="ml-auto text-[11px] text-accent-green-110 hover:underline"
         >
-          {rec.actionLabel}
-        </button>
+          View all
+        </Link>
       </div>
+
+      {recent.length > 0 ? (
+        <>
+          {/* Summary line */}
+          <p className="text-xs text-white-60">
+            {imageCount > 0 && `${imageCount} image${imageCount > 1 ? 's' : ''}`}
+            {imageCount > 0 && videoCount > 0 && ', '}
+            {videoCount > 0 && `${videoCount} video${videoCount > 1 ? 's' : ''}`}
+            {' '}ready to use
+          </p>
+
+          <div className="grid grid-cols-4 gap-1.5">
+            {recent.map((asset) => (
+              <div
+                key={asset.id}
+                className="relative aspect-square rounded-lg overflow-hidden bg-white-5"
+              >
+                {asset.thumbnailUrl || asset.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={asset.thumbnailUrl ?? asset.url!}
+                    alt={asset.altText ?? asset.filename ?? 'Asset'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Film className="w-4 h-4 text-white-30" />
+                  </div>
+                )}
+                {asset.assetType === 'video' && (
+                  <div className="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-black/60">
+                    <Film className="w-2.5 h-2.5 text-white" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href={`${base}/create`}
+              className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
+            >
+              <Wand2 className="w-3 h-3" />
+              Create post from media
+            </Link>
+            <Link
+              href={`${base}/assets`}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white-40 hover:text-white-100 transition-colors"
+            >
+              <ImageIcon className="w-3 h-3" />
+              Upload more
+            </Link>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-white-40">
+            No media assets yet. Upload images or videos to enhance your posts.
+          </p>
+          <Link
+            href={`${base}/assets`}
+            className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
+          >
+            <ImageIcon className="w-3 h-3" />
+            Upload media
+          </Link>
+        </>
+      )}
     </div>
   );
 }
 
-// ── Real Estate Components ──────────────────────────────────────────────
+// ── System Freshness (NEW) ───────────────────────────────────────────────
+
+function SystemFreshness({
+  recommendations,
+  base,
+}: {
+  recommendations: DashboardRecommendationsResponse | undefined;
+  base: string;
+}) {
+  const summary = recommendations?.summary;
+  const ap = summary?.autopilot;
+  const re = summary?.realEstate;
+
+  const signals: { label: string; status: 'fresh' | 'stale' | 'missing'; detail: string }[] = [];
+
+  // Autopilot last run
+  if (ap) {
+    const lastRun = ap.lastActionAt ? new Date(ap.lastActionAt) : null;
+    const hoursSince = lastRun ? (Date.now() - lastRun.getTime()) / 3600000 : null;
+    if (ap.enabled && lastRun && hoursSince != null) {
+      signals.push({
+        label: 'Autopilot',
+        status: hoursSince < 48 ? 'fresh' : 'stale',
+        detail: `Last ran ${formatTimeAgo(lastRun)}`,
+      });
+    } else if (!ap.enabled) {
+      signals.push({
+        label: 'Autopilot',
+        status: 'missing',
+        detail: 'Not enabled',
+      });
+    }
+  }
+
+  // Listing feed
+  if (re) {
+    if (re.listingFeedConnected) {
+      signals.push({
+        label: 'Listings',
+        status: re.listingCount > 0 ? 'fresh' : 'stale',
+        detail: re.listingCount > 0 ? `${re.listingCount} imported` : 'Feed connected, no listings yet',
+      });
+    } else {
+      signals.push({
+        label: 'Listings',
+        status: 'missing',
+        detail: 'Feed not connected',
+      });
+    }
+  }
+
+  // Channels
+  const channels = re?.availableChannels ?? [];
+  if (summary?.enabledChannels != null) {
+    signals.push({
+      label: 'Channels',
+      status: (summary.enabledChannels ?? 0) > 0 ? 'fresh' : 'missing',
+      detail: (summary.enabledChannels ?? 0) > 0
+        ? `${summary.enabledChannels} connected`
+        : 'No channels connected',
+    });
+  }
+
+  // Content freshness
+  const daysSince = summary?.daysSinceLastGeneration;
+  if (daysSince != null) {
+    signals.push({
+      label: 'Content',
+      status: daysSince <= 3 ? 'fresh' : daysSince <= 7 ? 'stale' : 'missing',
+      detail: daysSince === 0
+        ? 'Generated today'
+        : daysSince === 1
+          ? 'Generated yesterday'
+          : `${daysSince} days since last content`,
+    });
+  }
+
+  if (signals.length === 0) return null;
+
+  const statusIcon = (s: 'fresh' | 'stale' | 'missing') => {
+    switch (s) {
+      case 'fresh':
+        return <div className="w-2 h-2 rounded-full bg-accent-green-110 flex-shrink-0" />;
+      case 'stale':
+        return <div className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" />;
+      case 'missing':
+        return <div className="w-2 h-2 rounded-full bg-white-20 flex-shrink-0" />;
+    }
+  };
+
+  return (
+    <div className="card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Activity className="w-4 h-4 text-white-40" />
+        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
+          System Status
+        </h3>
+      </div>
+
+      <div className="space-y-2">
+        {signals.map((signal) => (
+          <div key={signal.label} className="flex items-center gap-2">
+            {statusIcon(signal.status)}
+            <span className="text-xs text-white-60 w-16 flex-shrink-0">{signal.label}</span>
+            <span className={`text-xs flex-1 ${
+              signal.status === 'fresh'
+                ? 'text-white-80'
+                : signal.status === 'stale'
+                  ? 'text-yellow-400'
+                  : 'text-white-30'
+            }`}>
+              {signal.detail}
+            </span>
+            {signal.status === 'missing' && signal.label === 'Listings' && (
+              <Link
+                href={`${base}/settings/integrations`}
+                className="text-[10px] text-accent-green-110 hover:underline flex-shrink-0"
+              >
+                Connect
+              </Link>
+            )}
+            {signal.status === 'missing' && signal.label === 'Channels' && (
+              <Link
+                href={`${base}/settings/media`}
+                className="text-[10px] text-accent-green-110 hover:underline flex-shrink-0"
+              >
+                Setup
+              </Link>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-white-20">
+        {signals.every((s) => s.status === 'fresh')
+          ? 'All systems running normally'
+          : signals.some((s) => s.status === 'missing')
+            ? 'Complete setup to get the most from Squadpitch'
+            : 'Some systems may need attention'}
+      </p>
+    </div>
+  );
+}
+
+// ── System Status (real estate) ──────────────────────────────────────────
 
 function SystemStatus({
   summary,
@@ -1233,7 +1596,7 @@ function SystemStatus({
   if ((summary.unusedDataCount ?? 0) > 0) {
     signals.push({
       label: 'Opportunity',
-      value: `${summary.unusedDataCount} unused data items`,
+      value: `${summary.unusedDataCount} unused opportunities`,
       accent: true,
     });
   }
@@ -1300,6 +1663,8 @@ function SystemStatus({
   );
 }
 
+// ── Recent Activity (real estate) ────────────────────────────────────────
+
 function RecentActivity({
   drafts,
   recommendations,
@@ -1309,7 +1674,6 @@ function RecentActivity({
 }) {
   const events: { icon: React.ReactNode; text: string; time: string }[] = [];
 
-  // Derive activity from autopilot summary
   const ap = recommendations?.summary?.autopilot;
   if (ap && ap.draftsThisWeek > 0) {
     events.push({
@@ -1319,7 +1683,6 @@ function RecentActivity({
     });
   }
 
-  // Derive activity from recent drafts
   if (drafts) {
     const recentPublished = drafts.filter((d) => d.status === 'PUBLISHED');
     if (recentPublished.length > 0) {
@@ -1349,7 +1712,6 @@ function RecentActivity({
     }
   }
 
-  // Listing feed activity from summary
   const re = recommendations?.summary?.realEstate;
   if (re && re.listingCount > 0) {
     events.push({
@@ -1380,4 +1742,17 @@ function RecentActivity({
       </div>
     </div>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function formatTimeAgo(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
 }
