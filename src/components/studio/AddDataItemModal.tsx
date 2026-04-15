@@ -50,6 +50,24 @@ interface TypeField {
   multiline?: boolean;
 }
 
+const RE_LISTING_FIELDS: TypeField[] = [
+  { key: 'street', label: 'Street Address' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State' },
+  { key: 'zip', label: 'ZIP Code' },
+  { key: 'price', label: 'Price' },
+  { key: 'bedrooms', label: 'Bedrooms' },
+  { key: 'bathrooms', label: 'Bathrooms' },
+  { key: 'sqft', label: 'Sq Ft' },
+  { key: 'propertyType', label: 'Property Type' },
+  { key: 'status', label: 'Status (active/pending/sold)' },
+  { key: 'listingUrl', label: 'Listing URL' },
+  { key: 'agentName', label: 'Agent Name' },
+  { key: 'brokerage', label: 'Brokerage' },
+  { key: 'yearBuilt', label: 'Year Built' },
+  { key: 'description', label: 'Description', multiline: true },
+];
+
 const TYPE_FIELDS: Record<string, TypeField[]> = {
   TESTIMONIAL: [
     { key: 'quote', label: 'Quote', multiline: true },
@@ -146,7 +164,7 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
     setDataJson((prev) => ({ ...prev, [key]: value }));
   };
 
-  const fields = TYPE_FIELDS[type] ?? [];
+  const fields = (isRE && type === 'CUSTOM') ? RE_LISTING_FIELDS : (TYPE_FIELDS[type] ?? []);
   const isPending = create.isPending || update.isPending;
   const error = create.error || update.error;
 

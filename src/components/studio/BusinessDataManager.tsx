@@ -31,6 +31,8 @@ import { GenerateFromDataModal } from './GenerateFromDataModal';
 import { BulkGenerateModal } from './BulkGenerateModal';
 import { AutopilotPanel } from './AutopilotPanel';
 import { ImportDataModal } from './ImportDataModal';
+import { ListingIngestionModal } from './ListingIngestionModal';
+import { ListingFeedsManager } from './ListingFeedsManager';
 
 const TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: '', label: 'All Types' },
@@ -99,6 +101,7 @@ export function BusinessDataManager({ clientId }: Props) {
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
   const [showAutopilot, setShowAutopilot] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showListingModal, setShowListingModal] = useState(false);
 
   const { data: items, isLoading } = useDataItems(clientId, {
     type: typeFilter || undefined,
@@ -171,8 +174,8 @@ export function BusinessDataManager({ clientId }: Props) {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white-100">
             {isRE ? 'Content Assets' : 'Business Data'}
           </h1>
@@ -182,30 +185,53 @@ export function BusinessDataManager({ clientId }: Props) {
               : `Add your testimonials, stats, and ${bdLabels.itemPlural.toLowerCase()} to generate data-driven content.`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setShowAutopilot(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors whitespace-nowrap"
           >
             <Zap className="w-4 h-4" />
             Autopilot
           </button>
           <button
             onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors whitespace-nowrap"
           >
             <Download className="w-4 h-4" />
             {isRE ? 'Import' : 'Import Data'}
           </button>
+          {isRE && (
+            <button
+              onClick={() => setShowListingModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" />
+              Add Listing
+            </button>
+          )}
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
+            className={cn(
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors whitespace-nowrap',
+              isRE
+                ? 'bg-white-10 text-white-60 hover:bg-white-20'
+                : 'bg-accent-green-110 text-sp-surface hover:bg-accent-green-120'
+            )}
           >
             <Plus className="w-4 h-4" />
-            Add {bdLabels.itemSingular}
+            {isRE ? 'Add Other' : `Add ${bdLabels.itemSingular}`}
           </button>
         </div>
       </div>
+
+      {/* Listing Feeds (RE only) */}
+      {isRE && (
+        <ListingFeedsManager
+          clientId={clientId}
+          onImportCSV={() => setShowImportModal(true)}
+          onAddManual={() => setShowListingModal(true)}
+        />
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -486,6 +512,13 @@ export function BusinessDataManager({ clientId }: Props) {
         <ImportDataModal
           clientId={clientId}
           onClose={() => setShowImportModal(false)}
+        />
+      )}
+
+      {showListingModal && (
+        <ListingIngestionModal
+          clientId={clientId}
+          onClose={() => setShowListingModal(false)}
         />
       )}
     </div>

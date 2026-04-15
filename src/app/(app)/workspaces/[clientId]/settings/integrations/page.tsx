@@ -59,6 +59,7 @@ import {
 } from '@/hooks/useIntegrations';
 import { useQueryClient } from '@tanstack/react-query';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { IntegrationsConnectionPanel } from '@/components/studio/IntegrationsConnectionPanel';
 
 const INTEGRATION_EVENTS = [
   { key: 'POST_PUBLISHED', label: 'Post published' },
@@ -1100,8 +1101,11 @@ function FileBrowser({
 // ── Main Page ─────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
+  const { clientId } = useParams<{ clientId: string }>();
+
   return (
     <div className="space-y-8 max-w-2xl">
+      <IntegrationsConnectionPanel clientId={clientId} />
       <GenericIntegrationsSection />
       <MediaImportSection />
       <WebhooksSection />

@@ -3,12 +3,15 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Draft } from '@/hooks/useSquadpitch';
+import type { Draft, PlannerSuggestion } from '@/hooks/useSquadpitch';
+import { shortAngleLabel, angleCategoryStyle } from './AngleBadge';
 
 interface Props {
   drafts: Draft[];
+  suggestions?: PlannerSuggestion[];
   selectedDay?: string | null;
   onSelectDay?: (dayKey: string | null) => void;
+  onSelectSuggestion?: (suggestion: PlannerSuggestion) => void;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -27,7 +30,19 @@ const MONTH_NAMES = [
   'December',
 ];
 
-export function CalendarGrid({ drafts, selectedDay, onSelectDay }: Props) {
+/** Convert ISO date "2026-04-16" to calendar key "2026-3-16" (JS 0-indexed month) */
+function isoToCalendarKey(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+export function CalendarGrid({
+  drafts,
+  suggestions = [],
+  selectedDay,
+  onSelectDay,
+  onSelectSuggestion,
+}: Props) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -46,6 +61,17 @@ export function CalendarGrid({ drafts, selectedDay, onSelectDay }: Props) {
     });
     return map;
   }, [drafts]);
+
+  const suggestionsByDay = useMemo(() => {
+    const map = new Map<string, PlannerSuggestion[]>();
+    suggestions.forEach((s) => {
+      const key = isoToCalendarKey(s.suggestedDate);
+      const arr = map.get(key) ?? [];
+      arr.push(s);
+      map.set(key, arr);
+    });
+    return map;
+  }, [suggestions]);
 
   const firstDay = new Date(cursor.year, cursor.month, 1);
   const lastDay = new Date(cursor.year, cursor.month + 1, 0);
@@ -124,8 +150,16 @@ export function CalendarGrid({ drafts, selectedDay, onSelectDay }: Props) {
           }
           const dayDrafts =
             draftsByDay.get(`${cursor.year}-${cursor.month}-${cell.day}`) ?? [];
+          const daySuggestions =
+            suggestionsByDay.get(`${cursor.year}-${cursor.month}-${cell.day}`) ?? [];
           const isSelected = selectedDay === cell.key;
           const clickable = !!onSelectDay;
+
+          // Max 3 total items per cell (drafts take priority)
+          const draftSlots = Math.min(dayDrafts.length, 3);
+          const suggestionSlots = Math.min(daySuggestions.length, 3 - draftSlots);
+          const hiddenDrafts = dayDrafts.length - draftSlots;
+          const hiddenSuggestions = daySuggestions.length - suggestionSlots;
 
           return (
             <div
@@ -154,23 +188,42 @@ export function CalendarGrid({ drafts, selectedDay, onSelectDay }: Props) {
                 {cell.day}
               </p>
               <div className="mt-1 space-y-1">
-                {dayDrafts.slice(0, 3).map((d) => {
-                  const time = d.scheduledFor
-                    ? new Date(d.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-                    : null;
+                {dayDrafts.slice(0, draftSlots).map((d) => {
+                  const angle = shortAngleLabel(
+                    d.sourceMeta?.contentAngleKey,
+                    d.sourceMeta?.contentAngle
+                  );
                   return (
                     <div
                       key={d.id}
                       className="text-[10px] px-1.5 py-0.5 rounded bg-white-10 text-white-80 truncate font-mono"
                       title={d.body}
                     >
-                      {d.channel}{time ? ` · ${time}` : ''}
+                      {d.channel}{angle ? ` · ${angle}` : ''}
                     </div>
                   );
                 })}
-                {dayDrafts.length > 3 && (
+                {daySuggestions.slice(0, suggestionSlots).map((s) => {
+                  const angle = shortAngleLabel(null, s.angleLabel);
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectSuggestion?.(s);
+                      }}
+                      className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-accent-green-110/30 bg-accent-green-110/5 text-accent-green-110/60 truncate font-mono cursor-pointer hover:bg-accent-green-110/10 transition-colors"
+                      title={s.dataItem.title}
+                    >
+                      {s.channel ?? s.blueprint.name}{angle ? ` · ${angle}` : ' · Suggested'}
+                    </div>
+                  );
+                })}
+                {(hiddenDrafts > 0 || hiddenSuggestions > 0) && (
                   <p className="text-[10px] text-white-40">
-                    +{dayDrafts.length - 3} more
+                    {hiddenDrafts > 0 && `+${hiddenDrafts} more`}
+                    {hiddenDrafts > 0 && hiddenSuggestions > 0 && ', '}
+                    {hiddenSuggestions > 0 && `+${hiddenSuggestions} suggested`}
                   </p>
                 )}
               </div>

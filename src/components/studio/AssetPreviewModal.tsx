@@ -218,9 +218,9 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
               <Paperclip className="w-3.5 h-3.5" /> Attach to post
             </button>
 
-            <div className="relative">
+            {!showChannelPicker ? (
               <button
-                onClick={() => setShowChannelPicker((v) => !v)}
+                onClick={() => setShowChannelPicker(true)}
                 disabled={generatePost.isPending}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/20 text-purple-400 text-xs font-medium hover:bg-purple-500/30 transition-colors disabled:opacity-50"
               >
@@ -231,21 +231,48 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
                 )}
                 Generate post
               </button>
-              {showChannelPicker && (
-                <div className="absolute left-0 right-0 mt-1 bg-sp-surface border border-white-10 rounded-xl p-1.5 space-y-0.5 z-10 shadow-lg">
-                  <p className="text-[10px] text-white-40 px-2 py-1">Select channel:</p>
+            ) : (
+              <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  {asset.thumbnailUrl || (asset.assetType !== 'video' && asset.url) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={asset.thumbnailUrl ?? asset.url!}
+                      alt=""
+                      className="w-8 h-8 rounded object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <Film className="w-8 h-8 text-white-20 flex-shrink-0" />
+                  )}
+                  <p className="text-xs text-white-60 min-w-0 truncate">
+                    Generate a post using this {asset.assetType === 'video' ? 'video' : 'image'}
+                  </p>
+                </div>
+                <div className="space-y-1">
                   {CHANNELS.map((ch) => (
                     <button
                       key={ch}
                       onClick={() => handleGeneratePost(ch)}
-                      className="w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-white-10 text-white-60 hover:text-white-100 transition-colors"
+                      disabled={generatePost.isPending}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors disabled:opacity-50"
                     >
+                      {generatePost.isPending && generatePost.variables?.channel === ch ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Wand2 className="w-3 h-3 text-purple-400" />
+                      )}
                       {ch}
                     </button>
                   ))}
                 </div>
-              )}
-            </div>
+                <button
+                  onClick={() => setShowChannelPicker(false)}
+                  className="text-[10px] text-white-40 hover:text-white-60 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {asset.url && (
               <button

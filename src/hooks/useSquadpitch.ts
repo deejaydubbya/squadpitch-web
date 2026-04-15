@@ -522,6 +522,68 @@ export interface AutopilotExecuteResult {
   scheduled: number;
 }
 
+// ── Planner Suggestion Types ─────────────────────────────────────────
+
+export interface PlannerSuggestion {
+  id: string;
+  suggestedDate: string;
+  suggestedHour: number;
+  rank: number;
+  dataItem: {
+    id: string;
+    type: DataItemType;
+    title: string;
+    summary: string | null;
+    usageCount: number;
+    lastUsedAt: string | null;
+  };
+  blueprint: {
+    id: string;
+    slug: string;
+    name: string;
+    category: BlueprintCategory;
+  };
+  opportunityScore: number;
+  adjustedScore: number;
+  angle: string | null;
+  angleLabel: string | null;
+  angleCategory: string | null;
+  reasoning: string;
+  channel: Channel | null;
+}
+
+export interface WeekSummary {
+  published: number;
+  scheduled: number;
+  projected: number;
+  target: number;
+  gap: number;
+  gapDays: string[];
+  coverageGaps: string[];
+  missingAngleCategories: string[];
+  status: 'on_track' | 'below' | 'ahead';
+}
+
+export interface PlannerSuggestionsResult {
+  suggestions: PlannerSuggestion[];
+  weekSummary: WeekSummary;
+}
+
+export interface PlanMyWeekInput {
+  weekStart?: string;
+  weekEnd?: string;
+}
+
+export interface SwapSuggestionInput {
+  excludeDataItemIds: string[];
+  targetDate: string;
+  channel?: Channel;
+}
+
+export interface SwapSuggestionResult {
+  suggestion: PlannerSuggestion | null;
+}
+
 export interface ContentBlueprint {
   id: string;
   slug: string;
@@ -2313,6 +2375,454 @@ export function useOnboardingUploadDocuments() {
         throw new Error(data.message || `Upload failed (${res.status})`);
       }
       return res.json() as Promise<UploadDocumentsResult>;
+    },
+  });
+}
+
+// ── Planner Suggestions ─────────────────────────────────────────────────
+
+export function usePlannerSuggestions(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { weekStart: string; weekEnd: string }) =>
+      apiFetch<PlannerSuggestionsResult>(
+        `workspaces/${clientId}/planner/suggestions`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+  });
+}
+
+export function usePlanMyWeek(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body?: PlanMyWeekInput) =>
+      apiFetch<AutopilotExecuteResult>(
+        `workspaces/${clientId}/planner/plan-week`,
+        { method: 'POST', body: JSON.stringify(body ?? {}) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.drafts() });
+      qc.invalidateQueries({
+        queryKey: squadpitchKeys.dashboardRecommendations(clientId),
+      });
+    },
+  });
+}
+
+export function useSwapSuggestion(clientId: string) {
+  return useMutation({
+    mutationFn: (body: SwapSuggestionInput) =>
+      apiFetch<SwapSuggestionResult>(
+        `workspaces/${clientId}/planner/swap-suggestion`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+  });
+}
+
+// ── Listing Ingestion ───────────────────────────────────────────────────────
+
+export interface CanonicalListing {
+  title: string | null;
+  description: string | null;
+  price: number | null;
+  status: string;
+  address: {
+    street: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+  };
+  beds: number | null;
+  baths: number | null;
+  sqft: number | null;
+  lotSize: string | null;
+  propertyType: string | null;
+  images: string[];
+  listingUrl: string | null;
+  agentName: string | null;
+  brokerage: string | null;
+  yearBuilt: number | null;
+  garage: number | null;
+  features: string[];
+  sourceType: string;
+  sourceId: string | null;
+}
+
+export interface ListingValidation {
+  valid: boolean;
+  complete: boolean;
+  issues: string[];
+}
+
+export interface ManualListingInput {
+  title?: string;
+  description?: string;
+  price?: string | number;
+  status?: string;
+  address?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  beds?: string | number;
+  baths?: string | number;
+  sqft?: string | number;
+  lotSize?: string;
+  propertyType?: string;
+  images?: string | string[];
+  imageUrl?: string;
+  listingUrl?: string;
+  agentName?: string;
+  brokerage?: string;
+  yearBuilt?: string | number;
+  garage?: string | number;
+  features?: string | string[];
+}
+
+export interface ManualListingResult {
+  listing: WorkspaceDataItem;
+  created: boolean;
+  existingId?: string;
+}
+
+export interface ListingCSVPreviewResult {
+  headers: string[];
+  rowCount: number;
+  sampleRows: Record<string, string>[];
+  autoMapping: Record<string, string>;
+}
+
+export interface ListingCSVImportResult {
+  imported: number;
+  updated: number;
+  skipped: number;
+  listings: WorkspaceDataItem[];
+}
+
+export interface ListingUrlPreviewResult {
+  preview: CanonicalListing & { validation: ListingValidation };
+  normalized: CanonicalListing;
+}
+
+export function useManualListingImport(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ManualListingInput) =>
+      apiFetch<ManualListingResult>(
+        `workspaces/${clientId}/listings/manual`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useListingCSVPreview(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { csvContent: string }) =>
+      apiFetch<ListingCSVPreviewResult>(
+        `workspaces/${clientId}/listings/csv/preview`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+  });
+}
+
+export function useListingCSVImport(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { csvContent: string; columnMapping: Record<string, string> }) =>
+      apiFetch<ListingCSVImportResult>(
+        `workspaces/${clientId}/listings/csv/import`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useListingUrlImport(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { url: string }) =>
+      apiFetch<ListingUrlPreviewResult>(
+        `workspaces/${clientId}/listings/url`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+  });
+}
+
+export function useListingUrlConfirm(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      apiFetch<ManualListingResult>(
+        `workspaces/${clientId}/listings/url/confirm`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+// ── Integration Status (GBP + CRM) ─────────────────────────────────────
+
+export interface GBPConnectionStatus {
+  status: string;
+  email: string | null;
+  locationName: string | null;
+  businessName: string | null;
+  lastSyncedAt: string | null;
+  reviewCount: number;
+  averageRating: string | null;
+  lastError: string | null;
+}
+
+export interface CRMConnectionStatus {
+  status: string;
+  provider: string | null;
+  userName: string | null;
+  lastSyncedAt: string | null;
+  dealCount: number;
+  contactCount: number;
+  lastError: string | null;
+}
+
+export interface IntegrationStatusResult {
+  gbp: GBPConnectionStatus;
+  crm: CRMConnectionStatus;
+}
+
+export interface GBPCallbackResult {
+  connected: boolean;
+  email: string | null;
+  accounts: Array<{ name: string; accountName: string; type: string }>;
+  locations: Array<{ name: string; title: string; address: unknown }>;
+  needsLocationSelection: boolean;
+}
+
+export interface GBPSyncResult {
+  reviewsImported: number;
+  reviewsUpdated: number;
+  businessInfo: Record<string, unknown> | null;
+}
+
+export interface CRMSyncResult {
+  dealsImported: number;
+  testimonialsImported: number;
+  milestonesImported: number;
+  signals: Array<{ type: string; message: string }>;
+}
+
+export function useIntegrationStatus(clientId: string) {
+  return useQuery({
+    queryKey: ['integrationStatus', clientId],
+    queryFn: () =>
+      apiFetch<IntegrationStatusResult>(
+        `workspaces/${clientId}/integrations/status`
+      ),
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useGBPConnect(clientId: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ authUrl: string }>(
+        `workspaces/${clientId}/integrations/gbp/connect`,
+        { method: 'POST' }
+      ),
+  });
+}
+
+export function useGBPCallback(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { code: string; state: string }) =>
+      apiFetch<GBPCallbackResult>(
+        `workspaces/${clientId}/integrations/gbp/callback`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+    },
+  });
+}
+
+export function useGBPSetLocation(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { accountId: string; locationId: string; locationName?: string }) =>
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/integrations/gbp/set-location`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+    },
+  });
+}
+
+export function useGBPSync(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<GBPSyncResult>(
+        `workspaces/${clientId}/integrations/gbp/sync`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useGBPDisconnect(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/integrations/gbp/disconnect`,
+        { method: 'DELETE' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+    },
+  });
+}
+
+export function useCRMConnect(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { apiKey: string }) =>
+      apiFetch<{ connected: boolean; userName: string | null }>(
+        `workspaces/${clientId}/integrations/crm/connect`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+    },
+  });
+}
+
+export function useCRMSync(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<CRMSyncResult>(
+        `workspaces/${clientId}/integrations/crm/sync`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useCRMDisconnect(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/integrations/crm/disconnect`,
+        { method: 'DELETE' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+    },
+  });
+}
+
+// ── Listing Feeds (multi-source) ────────────────────────────────────────
+
+export interface ListingSource {
+  id: string;
+  name: string;
+  type: 'URL' | 'CSV' | 'MANUAL';
+  sourceUrl: string | null;
+  syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  isEnabled: boolean;
+  listingCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListingFeedStats {
+  sourceCount: number;
+  totalListings: number;
+  lastSyncedAt: string | null;
+}
+
+export function useListingSources(clientId: string) {
+  return useQuery({
+    queryKey: ['listingSources', clientId],
+    queryFn: () =>
+      apiFetch<{ sources: ListingSource[]; stats: ListingFeedStats }>(
+        `workspaces/${clientId}/listing-feeds`
+      ),
+    enabled: !!clientId,
+  });
+}
+
+export function useCreateListingSource(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name?: string; type: 'URL' | 'CSV' | 'MANUAL'; sourceUrl?: string }) =>
+      apiFetch<ListingSource>(
+        `workspaces/${clientId}/listing-feeds`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['listingSources', clientId] });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useUpdateListingSource(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sourceId, ...body }: { sourceId: string; name?: string; sourceUrl?: string; isEnabled?: boolean }) =>
+      apiFetch<ListingSource>(
+        `workspaces/${clientId}/listing-feeds/${sourceId}`,
+        { method: 'PATCH', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['listingSources', clientId] });
+    },
+  });
+}
+
+export function useSyncListingSource(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sourceId: string) =>
+      apiFetch<{ listingsFound: number; lastSyncedAt: string }>(
+        `workspaces/${clientId}/listing-feeds/${sourceId}/sync`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['listingSources', clientId] });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+export function useRemoveListingSource(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sourceId: string) =>
+      apiFetch<{ deleted: true; itemsRemoved: number }>(
+        `workspaces/${clientId}/listing-feeds/${sourceId}`,
+        { method: 'DELETE' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['listingSources', clientId] });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
   });
 }

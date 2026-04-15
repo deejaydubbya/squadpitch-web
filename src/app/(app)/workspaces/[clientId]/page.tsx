@@ -1292,7 +1292,7 @@ function SystemStatus({
           href={`${base}/settings/media`}
           className="inline-flex items-center gap-1 mt-3 text-[11px] text-accent-green-110 hover:underline"
         >
-          Connect your listing feed to unlock more opportunities
+          Connect property listings to unlock more opportunities
           <ChevronRight className="w-3 h-3" />
         </Link>
       )}

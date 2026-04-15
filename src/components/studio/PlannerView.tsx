@@ -1,20 +1,33 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
-import { Inbox, Check, Loader2, Calendar, List, Clock } from 'lucide-react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useDrafts,
   useAutoSchedule,
   useDashboardRecommendations,
+  usePlannerSuggestions,
+  usePlanMyWeek,
+  useSwapSuggestion,
+  useAutopilotExecute,
   type DraftStatus,
   type Channel,
   type Draft,
+  type PlannerSuggestion,
+  type WeekSummary,
 } from '@/hooks/useSquadpitch';
+import { usePlannerOnboarding } from '@/hooks/usePlannerOnboarding';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { CalendarGrid } from './CalendarGrid';
 import { DraftQueueCard } from './DraftQueueCard';
+import { WeekPlanSummary } from './WeekPlanSummary';
+import { SuggestionCard } from './SuggestionCard';
+import { PlannerWelcomeCard } from './PlannerWelcomeCard';
+import { PlannerTour } from './PlannerTour';
+import { FirstWeekProgress } from './FirstWeekProgress';
+import { PlannerSetupChecklist } from './PlannerSetupChecklist';
 
 interface Props {
   clientId: string;
@@ -47,12 +60,37 @@ const CHANNEL_FILTERS: Array<{
   { label: 'YouTube', value: 'YOUTUBE' },
 ];
 
+function getCurrentWeekRange() {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return {
+    weekStart: monday.toISOString().slice(0, 10),
+    weekEnd: sunday.toISOString().slice(0, 10),
+  };
+}
+
 export function PlannerView({ clientId }: Props) {
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [statusFilter, setStatusFilter] = useState<DraftStatus | 'ALL'>('ALL');
   const [channelFilter, setChannelFilter] = useState<Channel | 'ALL'>('ALL');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Planner suggestion state
+  const [activeSuggestion, setActiveSuggestion] = useState<PlannerSuggestion | null>(null);
+  const [suggestions, setSuggestions] = useState<PlannerSuggestion[]>([]);
+  const [weekSummary, setWeekSummary] = useState<WeekSummary | null>(null);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [planResult, setPlanResult] = useState<{ generated: number; scheduled: number } | null>(null);
+
+  // Onboarding state
+  const onboarding = usePlannerOnboarding(clientId);
+  const [tourActive, setTourActive] = useState(false);
+  const [firstWeekInProgress, setFirstWeekInProgress] = useState(false);
+  const [firstWeekResult, setFirstWeekResult] = useState<{ generated: number; scheduled: number } | null>(null);
 
   const { data: allDrafts, isLoading, error } = useDrafts({
     clientId,
@@ -61,6 +99,54 @@ export function PlannerView({ clientId }: Props) {
   });
   const autoSchedule = useAutoSchedule(clientId);
   const { data: recommendations } = useDashboardRecommendations(clientId);
+
+  // Planner hooks
+  const plannerSuggestions = usePlannerSuggestions(clientId);
+  const planMyWeek = usePlanMyWeek(clientId);
+  const swapSuggestion = useSwapSuggestion(clientId);
+  const autopilotExecute = useAutopilotExecute(clientId);
+
+  // Fetch suggestions on mount and when drafts change
+  const weekRange = useMemo(() => getCurrentWeekRange(), []);
+  useEffect(() => {
+    plannerSuggestions.mutate(weekRange, {
+      onSuccess: (data) => {
+        setSuggestions(data.suggestions);
+        setWeekSummary(data.weekSummary);
+        setDismissedIds(new Set());
+        setPlanResult(null);
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDrafts?.length]);
+
+  // ── Derived state ─────────────────────────────────────────────────────
+
+  // Detect "new user" — no drafts at all
+  const isNewUser = !isLoading && (allDrafts?.length ?? 0) === 0;
+
+  // Detect insufficient assets for setup checklist
+  const summary = recommendations?.summary;
+  const hasListingFeed = summary?.realEstate?.listingFeedConnected ?? false;
+  const hasTestimonials = (summary?.realEstate?.reviewCount ?? 0) > 0;
+  const hasDataItems = (summary?.totalDataItems ?? 0) > 0;
+  const hasDrafts = (allDrafts?.length ?? 0) > 0;
+  const hasEnoughAssets = hasDataItems;
+
+  // Show welcome card for first-run users who haven't dismissed
+  const showWelcome = onboarding.isFirstRun && isNewUser;
+
+  // Show setup checklist when user is new and doesn't have enough assets
+  const showChecklist = isNewUser && !hasEnoughAssets && !firstWeekInProgress && !firstWeekResult;
+
+  // Filter out dismissed suggestions, apply channel filter
+  const visibleSuggestions = useMemo(() => {
+    let filtered = suggestions.filter((s) => !dismissedIds.has(s.id));
+    if (channelFilter !== 'ALL') {
+      filtered = filtered.filter((s) => !s.channel || s.channel === channelFilter);
+    }
+    return filtered;
+  }, [suggestions, dismissedIds, channelFilter]);
 
   // Client-side channel filter
   const channelFiltered = useMemo(() => {
@@ -127,40 +213,198 @@ export function PlannerView({ clientId }: Props) {
     autoSchedule.mutate(approvedUnscheduled.map((d) => d.id));
   };
 
+  // ── Suggestion handlers ───────────────────────────────────────────────
+
+  const handleSelectSuggestion = (s: PlannerSuggestion) => {
+    setActiveSuggestion(activeSuggestion?.id === s.id ? null : s);
+  };
+
+  const handleDismiss = (s: PlannerSuggestion) => {
+    setDismissedIds((prev) => new Set(prev).add(s.id));
+    if (activeSuggestion?.id === s.id) setActiveSuggestion(null);
+  };
+
+  const handleSwap = (s: PlannerSuggestion) => {
+    const excludeIds = suggestions.map((sg) => sg.dataItem.id);
+    swapSuggestion.mutate(
+      {
+        excludeDataItemIds: excludeIds,
+        targetDate: s.suggestedDate,
+        channel: s.channel ?? undefined,
+      },
+      {
+        onSuccess: (data) => {
+          if (data.suggestion) {
+            setSuggestions((prev) =>
+              prev.map((sg) => (sg.id === s.id ? data.suggestion! : sg))
+            );
+            if (activeSuggestion?.id === s.id) setActiveSuggestion(data.suggestion);
+          } else {
+            handleDismiss(s);
+          }
+        },
+      }
+    );
+  };
+
+  const handleCreateDraft = (s: PlannerSuggestion) => {
+    autopilotExecute.mutate(
+      {
+        suggestions: [{ dataItem: { id: s.dataItem.id }, blueprint: { id: s.blueprint.id } }],
+        autoSchedule: false,
+      },
+      {
+        onSuccess: () => {
+          setSuggestions((prev) => prev.filter((sg) => sg.id !== s.id));
+          if (activeSuggestion?.id === s.id) setActiveSuggestion(null);
+        },
+      }
+    );
+  };
+
+  const handleSchedule = (s: PlannerSuggestion) => {
+    autopilotExecute.mutate(
+      {
+        suggestions: [{ dataItem: { id: s.dataItem.id }, blueprint: { id: s.blueprint.id } }],
+        autoSchedule: true,
+      },
+      {
+        onSuccess: () => {
+          setSuggestions((prev) => prev.filter((sg) => sg.id !== s.id));
+          if (activeSuggestion?.id === s.id) setActiveSuggestion(null);
+        },
+      }
+    );
+  };
+
+  const handlePlanMyWeek = () => {
+    planMyWeek.mutate(weekRange, {
+      onSuccess: (data) => {
+        setPlanResult({ generated: data.generated, scheduled: data.scheduled });
+        setSuggestions([]);
+        setActiveSuggestion(null);
+      },
+    });
+  };
+
+  // ── First-run handlers ────────────────────────────────────────────────
+
+  const handlePlanFirstWeek = () => {
+    onboarding.dismissWelcome();
+    setFirstWeekInProgress(true);
+
+    planMyWeek.mutate(weekRange, {
+      onSuccess: (data) => {
+        setFirstWeekResult({ generated: data.generated, scheduled: data.scheduled });
+        onboarding.markFirstWeekGenerated();
+        setPlanResult({ generated: data.generated, scheduled: data.scheduled });
+        setSuggestions([]);
+        setActiveSuggestion(null);
+      },
+      onError: () => {
+        setFirstWeekInProgress(false);
+      },
+    });
+  };
+
+  const handleFirstWeekDone = () => {
+    setFirstWeekInProgress(false);
+    setFirstWeekResult(null);
+  };
+
+  const handleStartTour = () => {
+    onboarding.dismissWelcome();
+    setTourActive(true);
+  };
+
+  const handleTourComplete = () => {
+    setTourActive(false);
+    onboarding.markTourSeen();
+  };
+
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-white-100">Planner</h1>
-        <div className="flex items-center gap-1 bg-white-5 rounded-lg p-0.5">
+        <div className="flex items-center gap-2">
+          {/* Tour replay button */}
           <button
-            onClick={() => setView('calendar')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-              view === 'calendar'
-                ? 'bg-white-10 text-white-100'
-                : 'text-white-40 hover:text-white-60'
-            )}
+            onClick={handleStartTour}
+            className="p-1.5 rounded-lg text-white-30 hover:text-white-60 hover:bg-white-10 transition-colors"
+            title="Take a quick tour"
           >
-            <Calendar className="w-3.5 h-3.5" />
-            Calendar
+            <HelpCircle className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setView('list')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-              view === 'list'
-                ? 'bg-white-10 text-white-100'
-                : 'text-white-40 hover:text-white-60'
-            )}
-          >
-            <List className="w-3.5 h-3.5" />
-            List
-          </button>
+          <div className="flex items-center gap-1 bg-white-5 rounded-lg p-0.5">
+            <button
+              onClick={() => setView('calendar')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                view === 'calendar'
+                  ? 'bg-white-10 text-white-100'
+                  : 'text-white-40 hover:text-white-60'
+              )}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Calendar
+            </button>
+            <button
+              onClick={() => setView('list')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                view === 'list'
+                  ? 'bg-white-10 text-white-100'
+                  : 'text-white-40 hover:text-white-60'
+              )}
+            >
+              <List className="w-3.5 h-3.5" />
+              List
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Weekly guidance */}
-      {recommendations?.summary && <PlannerGuidance summary={recommendations.summary} autopilotEnabled={recommendations.summary.autopilot?.enabled} />}
+      {/* First-run welcome card */}
+      {showWelcome && !firstWeekInProgress && !firstWeekResult && (
+        <PlannerWelcomeCard
+          onPlanFirstWeek={handlePlanFirstWeek}
+          onStartTour={handleStartTour}
+          onDismiss={onboarding.dismissWelcome}
+          isPlanningWeek={planMyWeek.isPending}
+        />
+      )}
+
+      {/* First-week progress overlay */}
+      {(firstWeekInProgress || firstWeekResult) && (
+        <FirstWeekProgress
+          isPending={planMyWeek.isPending}
+          result={firstWeekResult}
+          onDone={handleFirstWeekDone}
+        />
+      )}
+
+      {/* Setup checklist fallback — shown when user lacks assets */}
+      {showChecklist && (
+        <PlannerSetupChecklist
+          clientId={clientId}
+          hasListingFeed={hasListingFeed}
+          hasTestimonials={hasTestimonials}
+          hasDataItems={hasDataItems}
+          hasDrafts={hasDrafts}
+        />
+      )}
+
+      {/* Week plan summary */}
+      <div data-tour-step="week-summary">
+        <WeekPlanSummary
+          weekSummary={weekSummary}
+          onPlanMyWeek={handlePlanMyWeek}
+          isPlanningWeek={planMyWeek.isPending}
+          planResult={planResult}
+          hasSuggestions={visibleSuggestions.length > 0}
+        />
+      </div>
 
       {/* Filters */}
       <div className="space-y-3">
@@ -207,7 +451,7 @@ export function PlannerView({ clientId }: Props) {
 
         {/* Auto-schedule */}
         {approvedUnscheduled.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" data-tour-step="plan-week">
             <button
               onClick={handleAutoSchedule}
               disabled={autoSchedule.isPending}
@@ -231,10 +475,27 @@ export function PlannerView({ clientId }: Props) {
 
       {/* Calendar view */}
       {view === 'calendar' && channelFiltered && (
-        <CalendarGrid
-          drafts={channelFiltered}
-          selectedDay={selectedDay}
-          onSelectDay={setSelectedDay}
+        <div data-tour-step="calendar">
+          <CalendarGrid
+            drafts={channelFiltered}
+            suggestions={visibleSuggestions}
+            selectedDay={selectedDay}
+            onSelectDay={setSelectedDay}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
+        </div>
+      )}
+
+      {/* Suggestion detail card */}
+      {activeSuggestion && (
+        <SuggestionCard
+          suggestion={activeSuggestion}
+          onCreateDraft={handleCreateDraft}
+          onSchedule={handleSchedule}
+          onSwap={handleSwap}
+          onDismiss={handleDismiss}
+          isSwapping={swapSuggestion.isPending}
+          isCreating={autopilotExecute.isPending}
         />
       )}
 
@@ -271,102 +532,39 @@ export function PlannerView({ clientId }: Props) {
       )}
 
       {/* Draft list */}
-      {isLoading && (
-        <div className="flex items-center gap-2 py-6">
-          <LoadingSpinner size="sm" />
-          <span className="text-white-40 text-sm">Loading drafts…</span>
-        </div>
-      )}
-
-      {error && <StatusBanner error={(error as Error).message} />}
-
-      {drafts && drafts.length === 0 && (
-        <div className="card p-8 text-center">
-          <Inbox className="w-8 h-8 text-white-40 mx-auto mb-2" />
-          <p className="text-sm text-white-60">No drafts match this filter.</p>
-        </div>
-      )}
-
-      {drafts && drafts.length > 0 && (
-        <div className="space-y-3">
-          {drafts.map((draft) => (
-            <DraftQueueCard
-              key={draft.id}
-              draft={draft}
-              selected={selected.has(draft.id)}
-              onSelect={hasApprovable ? handleSelect : undefined}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PlannerGuidance({
-  summary,
-  autopilotEnabled,
-}: {
-  summary: { publishedThisWeek?: number; scheduledUpcoming?: number };
-  autopilotEnabled?: boolean;
-}) {
-  const published = summary.publishedThisWeek ?? 0;
-  const scheduled = summary.scheduledUpcoming ?? 0;
-  const projected = published + scheduled;
-  const target = 5;
-
-  let status: 'on_track' | 'below' | 'ahead';
-  if (projected >= target) status = 'on_track';
-  else if (published >= 3) status = 'on_track';
-  else status = 'below';
-  if (projected > target) status = 'ahead';
-
-  const colors = {
-    on_track: 'border-accent-green-110/20 bg-accent-green-110/5',
-    below: 'border-orange-400/20 bg-orange-400/5',
-    ahead: 'border-accent-green-110/20 bg-accent-green-110/5',
-  };
-
-  return (
-    <div className={`rounded-xl border p-4 ${colors[status]}`}>
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-white-40" />
-          <span className="text-sm font-medium text-white-100">
-            This week: {published} posted{scheduled > 0 ? `, ${scheduled} scheduled` : ''}
-          </span>
-        </div>
-        <span className="text-xs text-white-30">|</span>
-        <span className="text-xs text-white-40">
-          Recommended: 3-5 posts per week
-        </span>
-        {status === 'below' && (
-          <>
-            <span className="text-xs text-white-30">|</span>
-            <span className="text-xs text-orange-400 font-medium">
-              Below target — {target - projected} more needed
-            </span>
-          </>
+      <div data-tour-step="draft-list">
+        {isLoading && (
+          <div className="flex items-center gap-2 py-6">
+            <LoadingSpinner size="sm" />
+            <span className="text-white-40 text-sm">Loading drafts…</span>
+          </div>
         )}
-        {status === 'on_track' && (
-          <>
-            <span className="text-xs text-white-30">|</span>
-            <span className="text-xs text-accent-green-110 font-medium">On track</span>
-          </>
+
+        {error && <StatusBanner error={(error as Error).message} />}
+
+        {drafts && drafts.length === 0 && !showChecklist && (
+          <div className="card p-8 text-center">
+            <Inbox className="w-8 h-8 text-white-40 mx-auto mb-2" />
+            <p className="text-sm text-white-60">No drafts match this filter.</p>
+          </div>
         )}
-        {status === 'ahead' && (
-          <>
-            <span className="text-xs text-white-30">|</span>
-            <span className="text-xs text-accent-green-110 font-medium">Ahead of target</span>
-          </>
-        )}
-        {autopilotEnabled && status === 'below' && (
-          <>
-            <span className="text-xs text-white-30">|</span>
-            <span className="text-xs text-white-40">Autopilot will fill gaps automatically</span>
-          </>
+
+        {drafts && drafts.length > 0 && (
+          <div className="space-y-3">
+            {drafts.map((draft) => (
+              <DraftQueueCard
+                key={draft.id}
+                draft={draft}
+                selected={selected.has(draft.id)}
+                onSelect={hasApprovable ? handleSelect : undefined}
+              />
+            ))}
+          </div>
         )}
       </div>
+
+      {/* Tour overlay */}
+      <PlannerTour active={tourActive} onComplete={handleTourComplete} />
     </div>
   );
 }

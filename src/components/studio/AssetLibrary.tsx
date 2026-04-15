@@ -12,6 +12,11 @@ import {
   Video,
   Eye,
   Search,
+  X,
+  Plus,
+  Download,
+  Cloud,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -39,14 +44,14 @@ interface Props {
 }
 
 const SOURCE_OPTIONS: { label: string; value: MediaAssetSource | 'ALL' }[] = [
-  { label: 'All', value: 'ALL' },
+  { label: 'All sources', value: 'ALL' },
   { label: 'Uploads', value: 'UPLOAD' },
   { label: 'AI Generated', value: 'AI_GENERATED' },
   { label: 'Imported', value: 'IMPORTED' },
 ];
 
 const STATUS_OPTIONS: { label: string; value: MediaAssetStatus | 'ALL' }[] = [
-  { label: 'All', value: 'ALL' },
+  { label: 'All statuses', value: 'ALL' },
   { label: 'Ready', value: 'READY' },
   { label: 'Generating', value: 'GENERATING' },
   { label: 'Pending', value: 'PENDING' },
@@ -54,7 +59,7 @@ const STATUS_OPTIONS: { label: string; value: MediaAssetStatus | 'ALL' }[] = [
 ];
 
 const TYPE_OPTIONS: { label: string; value: MediaAssetType | 'ALL' }[] = [
-  { label: 'All', value: 'ALL' },
+  { label: 'All types', value: 'ALL' },
   { label: 'Images', value: 'image' },
   { label: 'Videos', value: 'video' },
 ];
@@ -97,6 +102,12 @@ export function AssetLibrary({ clientId }: Props) {
   const [typeFilter, setTypeFilter] = useState<MediaAssetType | 'ALL'>('ALL');
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Modal state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [showCloudModal, setShowCloudModal] = useState(false);
+  const [showFab, setShowFab] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -149,7 +160,6 @@ export function AssetLibrary({ clientId }: Props) {
 
   // ── Upload ────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
   const [uploadAltText, setUploadAltText] = useState('');
   const [uploadCaption, setUploadCaption] = useState('');
   const [showUploadMeta, setShowUploadMeta] = useState(false);
@@ -168,6 +178,7 @@ export function AssetLibrary({ clientId }: Props) {
           setUploadAltText('');
           setUploadCaption('');
           setShowUploadMeta(false);
+          setShowUploadModal(false);
         },
       });
     },
@@ -177,7 +188,6 @@ export function AssetLibrary({ clientId }: Props) {
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      setDragOver(false);
       handleFiles(e.dataTransfer.files);
     },
     [handleFiles]
@@ -201,6 +211,7 @@ export function AssetLibrary({ clientId }: Props) {
           onSuccess: () => {
             setGuidance('');
             setGenDraftId('');
+            setShowGenerateModal(false);
           },
         }
       );
@@ -215,6 +226,7 @@ export function AssetLibrary({ clientId }: Props) {
           onSuccess: () => {
             setGuidance('');
             setGenDraftId('');
+            setShowGenerateModal(false);
           },
         }
       );
@@ -237,13 +249,27 @@ export function AssetLibrary({ clientId }: Props) {
     });
   };
 
+  const handleDownloadAsset = async (asset: MediaAsset) => {
+    if (!asset.url) return;
+    try {
+      const res = await fetch(asset.url);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = asset.filename || 'download';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(asset.url, '_blank');
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
-      {/* Filter bar + Search */}
-      <div className="card p-4 space-y-3">
-        {/* Search bar */}
-        <div className="relative">
+    <div className="space-y-4">
+      {/* Row 1: Search + action buttons */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white-40" />
           <input
             type="text"
@@ -253,212 +279,327 @@ export function AssetLibrary({ clientId }: Props) {
             className="w-full pl-10 pr-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
           />
         </div>
-
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-white-40 font-medium">Source:</span>
-            <div className="flex gap-1">
-              {SOURCE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setSourceFilter(opt.value)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-                    sourceFilter === opt.value
-                      ? 'bg-accent-green-110 text-white-100'
-                      : 'bg-white-10 text-white-60 hover:bg-white-20'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-white-40 font-medium">Status:</span>
-            <div className="flex gap-1">
-              {STATUS_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setStatusFilter(opt.value)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-                    statusFilter === opt.value
-                      ? 'bg-accent-green-110 text-white-100'
-                      : 'bg-white-10 text-white-60 hover:bg-white-20'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-white-40 font-medium">Type:</span>
-            <div className="flex gap-1">
-              {TYPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setTypeFilter(opt.value)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-                    typeFilter === opt.value
-                      ? 'bg-accent-green-110 text-white-100'
-                      : 'bg-white-10 text-white-60 hover:bg-white-20'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-80 text-sm font-medium hover:bg-white-20 transition-colors flex-shrink-0"
+        >
+          <Upload className="w-4 h-4" />
+          Upload
+        </button>
+        <button
+          onClick={() => setShowGenerateModal(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-green-110 text-sp-dark text-sm font-medium hover:bg-accent-green-110/90 transition-colors flex-shrink-0"
+        >
+          <Wand2 className="w-4 h-4" />
+          Generate
+        </button>
       </div>
 
-      {/* Upload + Generate row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Upload section */}
-        <div className="card p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-white-100 flex items-center gap-2">
-            <Upload className="w-4 h-4" /> Upload
-          </h3>
-          {/* Image / Video toggle */}
-          <div className="flex gap-1">
-            <button
-              onClick={() => setUploadMode('image')}
-              className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-                uploadMode === 'image'
-                  ? 'bg-accent-green-110 text-white-100'
-                  : 'bg-white-10 text-white-60 hover:bg-white-20'
-              )}
-            >
-              Image
-            </button>
-            <button
-              onClick={() => setUploadMode('video')}
-              className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-                uploadMode === 'video'
-                  ? 'bg-accent-green-110 text-white-100'
-                  : 'bg-white-10 text-white-60 hover:bg-white-20'
-              )}
-            >
-              Video
-            </button>
-          </div>
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={cn(
-              'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
-              dragOver
-                ? 'border-accent-green-110 bg-accent-green-110/10'
-                : 'border-white-10 bg-white-5 hover:border-white-20'
-            )}
-          >
-            {uploadAsset.isPending ? (
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin text-accent-green-110" />
-                <span className="text-sm text-white-60">Uploading...</span>
-              </div>
-            ) : uploadMode === 'video' ? (
-              <div className="space-y-1">
-                <Video className="w-6 h-6 mx-auto text-white-40" />
-                <p className="text-sm text-white-60">
-                  Drop an MP4 video or <span className="text-accent-green-110">click to browse</span>
-                </p>
-                <p className="text-xs text-white-40">MP4 only, max 500 MB, max 10 min</p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <Upload className="w-6 h-6 mx-auto text-white-40" />
-                <p className="text-sm text-white-60">
-                  Drop an image here or <span className="text-accent-green-110">click to browse</span>
-                </p>
-                <p className="text-xs text-white-40">JPG, PNG, WebP, GIF</p>
-              </div>
-            )}
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={uploadMode === 'video' ? 'video/mp4' : 'image/jpeg,image/png,image/webp,image/gif'}
-            className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
-          />
+      {/* Row 2: Compact dropdown filters */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <CompactSelect
+          value={sourceFilter}
+          options={SOURCE_OPTIONS}
+          onChange={(v) => setSourceFilter(v as MediaAssetSource | 'ALL')}
+        />
+        <CompactSelect
+          value={statusFilter}
+          options={STATUS_OPTIONS}
+          onChange={(v) => setStatusFilter(v as MediaAssetStatus | 'ALL')}
+        />
+        <CompactSelect
+          value={typeFilter}
+          options={TYPE_OPTIONS}
+          onChange={(v) => setTypeFilter(v as MediaAssetType | 'ALL')}
+        />
+        <button
+          onClick={() => setShowCloudModal(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white-40 hover:text-white-60 hover:bg-white-10 transition-colors ml-auto"
+        >
+          <Cloud className="w-3.5 h-3.5" />
+          Import from Cloud
+        </button>
+      </div>
 
-          <button
-            onClick={() => setShowUploadMeta((v) => !v)}
-            className="text-xs text-white-40 hover:text-white-100 transition-colors"
-          >
-            {showUploadMeta ? 'Hide' : 'Add'} alt text / caption
-          </button>
-          {showUploadMeta && (
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={uploadAltText}
-                onChange={(e) => setUploadAltText(e.target.value)}
-                placeholder="Alt text"
-                className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
-              />
-              <input
-                type="text"
-                value={uploadCaption}
-                onChange={(e) => setUploadCaption(e.target.value)}
-                placeholder="Caption"
-                className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
-              />
+      {/* Polling indicator */}
+      {hasInProgress && (
+        <div className="flex items-center gap-2 text-xs text-zone-yellow">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Assets are being processed — auto-refreshing...
+        </div>
+      )}
+
+      {/* Loading / error state */}
+      {isLoading && (
+        <div className="flex items-center gap-2 py-6">
+          <LoadingSpinner size="sm" />
+          <span className="text-white-40 text-sm">Loading assets...</span>
+        </div>
+      )}
+      {error && <StatusBanner error={(error as Error).message} />}
+
+      {/* Asset grid — immediately after toolbar */}
+      {!isLoading && assets && (
+        <>
+          {assets.length === 0 ? (
+            <div className="card p-8 text-center space-y-4">
+              <ImageOff className="w-10 h-10 mx-auto text-white-20" />
+              <p className="text-sm text-white-40">
+                Upload images or generate visuals to start building your media library.
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="px-4 py-2 rounded-lg bg-white-10 text-white-60 text-sm font-medium hover:bg-white-20 flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" /> Upload
+                </button>
+                <button
+                  onClick={() => { setGenMode('image'); setShowGenerateModal(true); }}
+                  className="px-4 py-2 rounded-lg bg-accent-green-110 text-sp-dark text-sm font-medium hover:bg-accent-green-110/90 flex items-center gap-2"
+                >
+                  <Wand2 className="w-4 h-4" /> Generate Image
+                </button>
+                <button
+                  onClick={() => { setGenMode('video'); setShowGenerateModal(true); }}
+                  className="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 text-sm font-medium hover:bg-purple-500/30 flex items-center gap-2"
+                >
+                  <Video className="w-4 h-4" /> Generate Video
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {assets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  onPreview={() => setPreviewAsset(asset)}
+                  onAttach={() => setAttachAssetId(asset.id)}
+                  onDownload={() => handleDownloadAsset(asset)}
+                  isConfirmingDelete={deletingAssetId === asset.id}
+                  onDeleteClick={() => setDeletingAssetId(asset.id)}
+                  onDeleteConfirm={() => handleDelete(asset.id)}
+                  onDeleteCancel={() => setDeletingAssetId(null)}
+                  isDeleting={deleteAsset.isPending}
+                />
+              ))}
             </div>
           )}
+        </>
+      )}
 
-          {uploadAsset.error && (
-            <StatusBanner error={(uploadAsset.error as Error).message} />
-          )}
-        </div>
-
-        {/* AI Generation section */}
-        <div className="card p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-white-100 flex items-center gap-2">
-            <Wand2 className="w-4 h-4" /> AI Generate
-          </h3>
-          {/* Image / Video toggle */}
-          <div className="flex gap-1">
+      {/* ── Floating action button ─────────────────────────────────── */}
+      <div className="fixed bottom-6 right-6 z-40">
+        {showFab && (
+          <div className="absolute bottom-14 right-0 w-48 rounded-xl bg-sp-surface border border-white-10 shadow-2xl shadow-black/40 p-1.5 space-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-150">
             <button
-              onClick={() => setGenMode('image')}
-              className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-                genMode === 'image'
-                  ? 'bg-accent-green-110 text-white-100'
-                  : 'bg-white-10 text-white-60 hover:bg-white-20'
-              )}
+              onClick={() => { setUploadMode('image'); setShowUploadModal(true); setShowFab(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
             >
-              Image
+              <Upload className="w-3.5 h-3.5" /> Upload Image
             </button>
             <button
-              onClick={() => setGenMode('video')}
-              className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-                genMode === 'video'
-                  ? 'bg-accent-green-110 text-white-100'
-                  : 'bg-white-10 text-white-60 hover:bg-white-20'
-              )}
+              onClick={() => { setUploadMode('video'); setShowUploadModal(true); setShowFab(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
             >
-              Video
+              <Video className="w-3.5 h-3.5" /> Upload Video
+            </button>
+            <div className="border-t border-white-10 my-0.5" />
+            <button
+              onClick={() => { setGenMode('image'); setShowGenerateModal(true); setShowFab(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
+            >
+              <Wand2 className="w-3.5 h-3.5" /> Generate Image
+            </button>
+            <button
+              onClick={() => { setGenMode('video'); setShowGenerateModal(true); setShowFab(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
+            >
+              <Film className="w-3.5 h-3.5" /> Generate Video
             </button>
           </div>
-          <textarea
-            value={guidance}
-            onChange={(e) => setGuidance(e.target.value)}
-            placeholder={genMode === 'video' ? 'Describe the video you want to generate...' : 'Describe the image you want to generate...'}
-            rows={3}
-            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none"
-          />
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
+        )}
+        <button
+          onClick={() => setShowFab((v) => !v)}
+          className={cn(
+            'w-12 h-12 rounded-full shadow-lg shadow-black/30 flex items-center justify-center transition-all',
+            showFab
+              ? 'bg-white-20 text-white-100 rotate-45'
+              : 'bg-accent-green-110 text-sp-dark hover:bg-accent-green-110/90'
+          )}
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Close FAB when clicking outside */}
+      {showFab && (
+        <div className="fixed inset-0 z-30" onClick={() => setShowFab(false)} />
+      )}
+
+      {/* ── Upload Modal ───────────────────────────────────────────── */}
+      {showUploadModal && (
+        <ModalOverlay onClose={() => setShowUploadModal(false)}>
+          <div className="w-full max-w-md mx-4 bg-sp-surface rounded-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-white-100 flex items-center gap-2">
+                <Upload className="w-4 h-4" /> Upload Media
+              </h3>
+              <button
+                onClick={() => setShowUploadModal(false)}
+                className="p-1 rounded hover:bg-white-10 text-white-40"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Image / Video toggle */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => setUploadMode('image')}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
+                  uploadMode === 'image'
+                    ? 'bg-accent-green-110 text-sp-dark'
+                    : 'bg-white-10 text-white-60 hover:bg-white-20'
+                )}
+              >
+                Image
+              </button>
+              <button
+                onClick={() => setUploadMode('video')}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
+                  uploadMode === 'video'
+                    ? 'bg-accent-green-110 text-sp-dark'
+                    : 'bg-white-10 text-white-60 hover:bg-white-20'
+                )}
+              >
+                Video
+              </button>
+            </div>
+
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors border-white-10 bg-white-5 hover:border-white-20"
+            >
+              {uploadAsset.isPending ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-accent-green-110" />
+                  <span className="text-sm text-white-60">Uploading...</span>
+                </div>
+              ) : uploadMode === 'video' ? (
+                <div className="space-y-1">
+                  <Video className="w-6 h-6 mx-auto text-white-40" />
+                  <p className="text-sm text-white-60">
+                    Drop an MP4 video or <span className="text-accent-green-110">click to browse</span>
+                  </p>
+                  <p className="text-xs text-white-40">MP4 only, max 500 MB, max 10 min</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Upload className="w-6 h-6 mx-auto text-white-40" />
+                  <p className="text-sm text-white-60">
+                    Drop an image here or <span className="text-accent-green-110">click to browse</span>
+                  </p>
+                  <p className="text-xs text-white-40">JPG, PNG, WebP, GIF</p>
+                </div>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={uploadMode === 'video' ? 'video/mp4' : 'image/jpeg,image/png,image/webp,image/gif'}
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+            />
+
+            <button
+              onClick={() => setShowUploadMeta((v) => !v)}
+              className="text-xs text-white-40 hover:text-white-100 transition-colors"
+            >
+              {showUploadMeta ? 'Hide' : 'Add'} alt text / caption
+            </button>
+            {showUploadMeta && (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={uploadAltText}
+                  onChange={(e) => setUploadAltText(e.target.value)}
+                  placeholder="Alt text"
+                  className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+                />
+                <input
+                  type="text"
+                  value={uploadCaption}
+                  onChange={(e) => setUploadCaption(e.target.value)}
+                  placeholder="Caption"
+                  className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+                />
+              </div>
+            )}
+
+            {uploadAsset.error && (
+              <StatusBanner error={(uploadAsset.error as Error).message} />
+            )}
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* ── Generate Modal ─────────────────────────────────────────── */}
+      {showGenerateModal && (
+        <ModalOverlay onClose={() => setShowGenerateModal(false)}>
+          <div className="w-full max-w-md mx-4 bg-sp-surface rounded-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-white-100 flex items-center gap-2">
+                <Wand2 className="w-4 h-4" /> AI Generate
+              </h3>
+              <button
+                onClick={() => setShowGenerateModal(false)}
+                className="p-1 rounded hover:bg-white-10 text-white-40"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Image / Video toggle */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => setGenMode('image')}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
+                  genMode === 'image'
+                    ? 'bg-accent-green-110 text-sp-dark'
+                    : 'bg-white-10 text-white-60 hover:bg-white-20'
+                )}
+              >
+                Image
+              </button>
+              <button
+                onClick={() => setGenMode('video')}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
+                  genMode === 'video'
+                    ? 'bg-accent-green-110 text-sp-dark'
+                    : 'bg-white-10 text-white-60 hover:bg-white-20'
+                )}
+              >
+                Video
+              </button>
+            </div>
+
+            <textarea
+              value={guidance}
+              onChange={(e) => setGuidance(e.target.value)}
+              placeholder={genMode === 'video' ? 'Describe the video you want to generate...' : 'Describe the image you want to generate...'}
+              rows={4}
+              className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none"
+            />
+
+            <div>
               <label className="text-xs text-white-40 mb-1 block">Link to draft (optional)</label>
               <select
                 value={genDraftId}
@@ -474,10 +615,11 @@ export function AssetLibrary({ clientId }: Props) {
                 ))}
               </select>
             </div>
+
             <button
               onClick={handleGenerate}
               disabled={!guidance.trim() || isGenerating}
-              className="px-4 py-2 rounded-lg bg-accent-green-110 text-white-100 text-sm font-medium hover:bg-accent-green-110/80 disabled:opacity-50 flex items-center gap-2"
+              className="w-full px-4 py-2.5 rounded-lg bg-accent-green-110 text-sp-dark text-sm font-medium hover:bg-accent-green-110/90 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isGenerating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -486,100 +628,50 @@ export function AssetLibrary({ clientId }: Props) {
               )}
               Generate {genMode === 'video' ? 'Video' : 'Image'}
             </button>
+
+            {generateError && (
+              <StatusBanner error={(generateError as Error).message} />
+            )}
+
+            {/* Usage remaining */}
+            {usage && (
+              <>
+                <p className="text-xs text-white-40 text-center">
+                  {genMode === 'image'
+                    ? `${Math.max(0, (usage.limits.images ?? 0) - (usage.usage.images ?? 0))} of ${usage.limits.images ?? 0} image generations remaining`
+                    : `${Math.max(0, (usage.limits.videos ?? 0) - (usage.usage.videos ?? 0))} of ${usage.limits.videos ?? 0} video generations remaining`}
+                </p>
+                {((genMode === 'image' && usage.usage.images >= usage.limits.images) ||
+                  (genMode === 'video' && usage.usage.videos >= usage.limits.videos)) && (
+                  <UpgradePrompt
+                    currentTier={usage.tier}
+                    limitType={genMode === 'video' ? 'Video' : 'Image'}
+                  />
+                )}
+              </>
+            )}
           </div>
-
-          {generateError && (
-            <StatusBanner error={(generateError as Error).message} />
-          )}
-
-          {/* Usage remaining + upgrade prompt */}
-          {usage && (
-            <>
-              <p className="text-xs text-white-40">
-                {genMode === 'image'
-                  ? `${Math.max(0, (usage.limits.images ?? 0) - (usage.usage.images ?? 0))} of ${usage.limits.images ?? 0} image generations remaining`
-                  : `${Math.max(0, (usage.limits.videos ?? 0) - (usage.usage.videos ?? 0))} of ${usage.limits.videos ?? 0} video generations remaining`}
-              </p>
-              {((genMode === 'image' && usage.usage.images >= usage.limits.images) ||
-                (genMode === 'video' && usage.usage.videos >= usage.limits.videos)) && (
-                <UpgradePrompt
-                  currentTier={usage.tier}
-                  limitType={genMode === 'video' ? 'Video' : 'Image'}
-                />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Cloud Import/Export */}
-      <CloudImportExport clientId={clientId} assets={assets} />
-
-      {/* Loading / error state */}
-      {isLoading && (
-        <div className="flex items-center gap-2 py-6">
-          <LoadingSpinner size="sm" />
-          <span className="text-white-40 text-sm">Loading assets...</span>
-        </div>
-      )}
-      {error && <StatusBanner error={(error as Error).message} />}
-
-      {/* Polling indicator */}
-      {hasInProgress && (
-        <div className="flex items-center gap-2 text-xs text-zone-yellow">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          Assets are being processed — auto-refreshing...
-        </div>
+        </ModalOverlay>
       )}
 
-      {/* Asset grid */}
-      {!isLoading && assets && (
-        <>
-          {assets.length === 0 ? (
-            <div className="card p-8 text-center space-y-4">
-              <ImageOff className="w-10 h-10 mx-auto text-white-20" />
-              <p className="text-sm text-white-40">
-                Upload images or generate visuals to start building your media library.
-              </p>
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 rounded-lg bg-white-10 text-white-60 text-sm font-medium hover:bg-white-20 flex items-center gap-2"
-                >
-                  <Upload className="w-4 h-4" /> Upload
-                </button>
-                <button
-                  onClick={() => { setGenMode('image'); document.querySelector<HTMLTextAreaElement>('textarea')?.focus(); }}
-                  className="px-4 py-2 rounded-lg bg-accent-green-110 text-white-100 text-sm font-medium hover:bg-accent-green-110/80 flex items-center gap-2"
-                >
-                  <Wand2 className="w-4 h-4" /> Generate Image
-                </button>
-                <button
-                  onClick={() => { setGenMode('video'); document.querySelector<HTMLTextAreaElement>('textarea')?.focus(); }}
-                  className="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 text-sm font-medium hover:bg-purple-500/30 flex items-center gap-2"
-                >
-                  <Video className="w-4 h-4" /> Generate Video
-                </button>
-              </div>
+      {/* ── Cloud Import Modal ─────────────────────────────────────── */}
+      {showCloudModal && (
+        <ModalOverlay onClose={() => setShowCloudModal(false)}>
+          <div className="w-full max-w-2xl mx-4 bg-sp-surface rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-white-100 flex items-center gap-2">
+                <Cloud className="w-4 h-4" /> Import from Cloud
+              </h3>
+              <button
+                onClick={() => setShowCloudModal(false)}
+                className="p-1 rounded hover:bg-white-10 text-white-40"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {assets.map((asset) => (
-                <AssetCard
-                  key={asset.id}
-                  asset={asset}
-                  onPreview={() => setPreviewAsset(asset)}
-                  onAttach={() => setAttachAssetId(asset.id)}
-                  isConfirmingDelete={deletingAssetId === asset.id}
-                  onDeleteClick={() => setDeletingAssetId(asset.id)}
-                  onDeleteConfirm={() => handleDelete(asset.id)}
-                  onDeleteCancel={() => setDeletingAssetId(null)}
-                  isDeleting={deleteAsset.isPending}
-                />
-              ))}
-            </div>
-          )}
-        </>
+            <CloudImportExport clientId={clientId} assets={assets} />
+          </div>
+        </ModalOverlay>
       )}
 
       {/* Preview modal */}
@@ -607,12 +699,63 @@ export function AssetLibrary({ clientId }: Props) {
   );
 }
 
+// ── Shared modal overlay ──────────────────────────────────────────────
+
+function ModalOverlay({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div onClick={(e) => e.stopPropagation()}>{children}</div>
+    </div>
+  );
+}
+
+// ── Compact dropdown select ───────────────────────────────────────────
+
+function CompactSelect<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: Array<{ label: string; value: T }>;
+  onChange: (value: T) => void;
+}) {
+  const current = options.find((o) => o.value === value);
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as T)}
+        style={{ colorScheme: 'dark' }}
+        className="appearance-none pl-2.5 pr-7 py-1.5 rounded-lg bg-white-5 border border-white-10 text-xs text-white-80 font-medium focus:outline-none focus:border-accent-green-110 cursor-pointer [&>option]:bg-[#1a1a1a] [&>option]:text-white"
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white-40 pointer-events-none" />
+    </div>
+  );
+}
+
 // ── Asset Card sub-component ──────────────────────────────────────────
 
 interface AssetCardProps {
   asset: MediaAsset;
   onPreview: () => void;
   onAttach: () => void;
+  onDownload: () => void;
   isConfirmingDelete: boolean;
   onDeleteClick: () => void;
   onDeleteConfirm: () => void;
@@ -624,6 +767,7 @@ function AssetCard({
   asset,
   onPreview,
   onAttach,
+  onDownload,
   isConfirmingDelete,
   onDeleteClick,
   onDeleteConfirm,
@@ -718,9 +862,16 @@ function AssetCard({
             <button
               onClick={(e) => { e.stopPropagation(); onAttach(); }}
               className="p-2 rounded-full bg-white-10 text-white-100 hover:bg-zone-blue/30 hover:text-zone-blue transition-colors"
-              title="Attach to post"
+              title="Use in post"
             >
               <Paperclip className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDownload(); }}
+              className="p-2 rounded-full bg-white-10 text-white-100 hover:bg-white-20 transition-colors"
+              title="Download"
+            >
+              <Download className="w-4 h-4" />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onPreview(); }}
