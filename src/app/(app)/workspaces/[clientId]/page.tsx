@@ -938,12 +938,16 @@ function AutopilotStatus({
 }) {
   const bdLabels = useBusinessDataLabels(clientId);
   const summary = recommendations?.summary;
-  const lastUsed = summary?.lastAutopilotAt;
+  const ap = summary?.autopilot;
   const hasData = (summary?.totalDataItems ?? 0) > 0;
 
-  const lastUsedLabel = lastUsed
-    ? formatTimeAgo(new Date(lastUsed))
-    : 'Never used';
+  const lastRunAt = ap?.lastActionAt ?? summary?.lastAutopilotAt;
+  const lastRunLabel = lastRunAt
+    ? formatTimeAgo(new Date(lastRunAt))
+    : 'Never';
+  const draftsThisWeek = ap?.draftsThisWeek ?? 0;
+  const maxPerWeek = ap?.maxDraftsPerWeek ?? 3;
+  const coverageGaps = ap?.coverageGaps ?? [];
 
   return (
     <div className="card p-4 space-y-3">
@@ -956,19 +960,29 @@ function AutopilotStatus({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">Status</span>
-          <span className="text-xs font-medium text-white-100">On-demand</span>
-        </div>
-        <div className="flex items-center justify-between">
           <span className="text-xs text-white-40">Last run</span>
-          <span className="text-xs font-medium text-white-100">{lastUsedLabel}</span>
+          <span className="text-xs font-medium text-white-100">{lastRunLabel}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">{bdLabels.itemPlural}</span>
+          <span className="text-xs text-white-40">Drafts this week</span>
           <span className="text-xs font-medium text-white-100">
-            {summary?.totalDataItems ?? 0}
+            {draftsThisWeek}/{maxPerWeek}
           </span>
         </div>
+        {coverageGaps.length > 0 && (
+          <div className="pt-1">
+            <span className="text-[10px] font-medium text-white-30 uppercase tracking-wider">
+              Opportunities
+            </span>
+            <div className="mt-1 space-y-0.5">
+              {coverageGaps.slice(0, 2).map((gap, i) => (
+                <p key={i} className="text-[11px] text-white-40">
+                  {gap}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {hasData ? (

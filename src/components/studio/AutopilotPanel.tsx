@@ -8,9 +8,9 @@ import {
   ChevronLeft,
   Check,
   AlertCircle,
-  Calendar,
   Trash2,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -44,11 +44,10 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
 
   // Configure state
   const [channel, setChannel] = useState<Channel | undefined>(undefined);
-  const [count, setCount] = useState(5);
+  const [count, setCount] = useState(1);
 
   // Review state
   const [suggestions, setSuggestions] = useState<AutopilotSuggestion[]>([]);
-  const [autoSchedule, setAutoSchedule] = useState(false);
 
   // Results state
   const [results, setResults] = useState<{
@@ -101,7 +100,7 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
   const handleExecute = async () => {
     const result = await execute.mutateAsync({
       channel,
-      autoSchedule,
+      autoSchedule: false,
       suggestions: suggestions.map((s) => ({
         dataItem: { id: s.dataItem.id },
         blueprint: { id: s.blueprint.id },
@@ -139,10 +138,16 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
           {/* ── Step 1: Configure ── */}
           {step === 'configure' && (
             <>
-              <p className="text-sm text-white-60">
-                Autopilot analyzes your {bdLabels.itemPlural.toLowerCase()} and picks the best
-                {bdLabels.itemSingular.toLowerCase()} + blueprint combinations. Review before generating.
-              </p>
+              <div className="space-y-1.5">
+                <p className="text-sm text-white-60">
+                  Autopilot reviews your {bdLabels.itemPlural.toLowerCase()} and
+                  creates draft post ideas for the best content opportunities.
+                </p>
+                <p className="text-xs text-white-30">
+                  All output is saved as drafts for your review — nothing is
+                  published automatically.
+                </p>
+              </div>
 
               {/* Channel selector */}
               <div>
@@ -178,23 +183,27 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                 </div>
               </div>
 
-              {/* Count input */}
+              {/* Count selector */}
               <div>
                 <label className="block text-xs font-medium text-white-60 mb-2">
-                  Number of suggestions (1-20)
+                  Drafts to generate
                 </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={count}
-                  onChange={(e) =>
-                    setCount(
-                      Math.max(1, Math.min(20, parseInt(e.target.value) || 1))
-                    )
-                  }
-                  className="w-24 px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
-                />
+                <div className="flex gap-2">
+                  {[1, 2, 3].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setCount(n)}
+                      className={cn(
+                        'w-10 h-10 rounded-lg text-sm font-semibold transition-colors',
+                        count === n
+                          ? 'bg-accent-green-110 text-sp-surface'
+                          : 'bg-white-5 border border-white-10 text-white-60 hover:bg-white-10'
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <button
@@ -203,16 +212,21 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors disabled:opacity-50"
               >
                 {preview.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyzing content opportunities...
+                  </>
                 ) : (
-                  <Sparkles className="w-4 h-4" />
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Find Opportunities
+                  </>
                 )}
-                Generate Suggestions
               </button>
 
               {preview.isError && (
                 <p className="text-red-400 text-xs">
-                  Failed to generate suggestions. Try again.
+                  Failed to find opportunities. Try again.
                 </p>
               )}
             </>
@@ -229,16 +243,21 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                   <ChevronLeft className="w-4 h-4 text-white-40" />
                 </button>
                 <p className="text-sm text-white-60">
-                  {suggestions.length} suggestion
-                  {suggestions.length !== 1 ? 's' : ''} — remove or swap
-                  blueprints, then execute.
+                  {suggestions.length} draft idea
+                  {suggestions.length !== 1 ? 's' : ''} found — review and
+                  adjust, then create drafts.
                 </p>
               </div>
 
               {suggestions.length === 0 ? (
-                <p className="text-white-40 text-sm text-center py-8">
-                  No suggestions remaining. Go back and try different settings.
-                </p>
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-white-40 text-sm">
+                    No strong opportunities found right now.
+                  </p>
+                  <p className="text-white-30 text-xs">
+                    Try a different channel or add more data to your workspace.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {suggestions.map((s) => (
@@ -256,14 +275,13 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                               {s.dataItem.title}
                             </p>
                             <p className="text-xs text-white-40">
-                              {s.dataItem.type.replace(/_/g, ' ')} — Score:{' '}
-                              {Math.round(s.adjustedScore)}
+                              {s.dataItem.type.replace(/_/g, ' ')}
                             </p>
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             {s.autoSelected && (
                               <span className="px-1.5 py-0.5 rounded bg-accent-green-110/10 text-accent-green-110 text-[10px] font-semibold">
-                                Auto-selected
+                                Best match
                               </span>
                             )}
                             <button
@@ -279,10 +297,10 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                           {s.reasoning}
                         </p>
 
-                        {/* Blueprint selector */}
+                        {/* Content style selector */}
                         <div>
                           <label className="block text-[10px] font-medium text-white-30 mb-1">
-                            Blueprint
+                            Content style
                           </label>
                           <select
                             value={s.blueprint.id}
@@ -309,32 +327,13 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                 </div>
               )}
 
-              {/* Auto-schedule toggle */}
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-white-5 border border-white-10">
-                <button
-                  onClick={() => setAutoSchedule(!autoSchedule)}
-                  className={cn(
-                    'mt-0.5 w-9 h-5 rounded-full transition-colors flex-shrink-0 relative',
-                    autoSchedule ? 'bg-accent-green-110' : 'bg-white-20'
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
-                      autoSchedule ? 'translate-x-4' : 'translate-x-0.5'
-                    )}
-                  />
-                </button>
-                <div>
-                  <p className="text-sm font-medium text-white-100 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" />
-                    Auto-schedule
-                  </p>
-                  <p className="text-xs text-white-40 mt-0.5">
-                    Automatically approve and schedule drafts across the next 7
-                    days at optimal posting times (max 2/day).
-                  </p>
-                </div>
+              {/* Draft-only notice */}
+              <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-white-5 border border-white-10">
+                <FileText className="w-4 h-4 text-white-30 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-white-40">
+                  Drafts are created for your review. Nothing is published or
+                  scheduled until you approve it.
+                </p>
               </div>
 
               {/* Actions */}
@@ -351,12 +350,17 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors disabled:opacity-50"
                 >
                   {execute.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Creating drafts...
+                    </>
                   ) : (
-                    <Zap className="w-4 h-4" />
+                    <>
+                      <Zap className="w-4 h-4" />
+                      Create {suggestions.length} Draft
+                      {suggestions.length !== 1 ? 's' : ''}
+                    </>
                   )}
-                  Execute ({suggestions.length} draft
-                  {suggestions.length !== 1 ? 's' : ''})
                 </button>
               </div>
             </>
@@ -366,53 +370,73 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
           {step === 'results' && results && (
             <>
               <div className="text-center space-y-3 py-4">
-                <div className="mx-auto w-12 h-12 rounded-full bg-accent-green-110/10 flex items-center justify-center">
-                  <Check className="w-6 h-6 text-accent-green-110" />
+                <div
+                  className={cn(
+                    'mx-auto w-12 h-12 rounded-full flex items-center justify-center',
+                    results.generated > 0
+                      ? 'bg-accent-green-110/10'
+                      : 'bg-white-10'
+                  )}
+                >
+                  {results.generated > 0 ? (
+                    <Check className="w-6 h-6 text-accent-green-110" />
+                  ) : (
+                    <AlertCircle className="w-6 h-6 text-white-40" />
+                  )}
                 </div>
                 <h3 className="text-lg font-bold text-white-100">
-                  Autopilot Complete
+                  {results.generated > 0
+                    ? `Created ${results.generated} Draft${results.generated !== 1 ? 's' : ''}`
+                    : 'No Drafts Created'}
                 </h3>
                 <p className="text-sm text-white-60">
-                  Generated {results.generated} of {results.total} draft
-                  {results.total !== 1 ? 's' : ''}
-                  {results.scheduled > 0 &&
-                    ` — ${results.scheduled} scheduled`}
+                  {results.generated > 0
+                    ? 'Saved as drafts for your review. You can edit, approve, or schedule them from the library.'
+                    : 'Autopilot could not generate drafts this time. Try different settings or add more data.'}
                 </p>
               </div>
 
-              <div className="space-y-2">
-                {results.results.map((r, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-white-5 border border-white-10"
-                  >
-                    {r.status === 'success' ? (
-                      <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                    )}
-                    <span className="text-xs text-white-60 truncate">
-                      {r.dataItemId}
-                    </span>
-                    <span
-                      className={cn(
-                        'ml-auto text-xs font-medium',
-                        r.status === 'success'
-                          ? 'text-green-400'
-                          : r.status === 'limit_reached'
-                            ? 'text-yellow-400'
-                            : 'text-red-400'
-                      )}
+              {results.generated > 0 && (
+                <div className="space-y-2">
+                  {results.results.map((r, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-white-5 border border-white-10"
                     >
-                      {r.status === 'success'
-                        ? 'Created'
-                        : r.status === 'limit_reached'
-                          ? 'Limit reached'
-                          : 'Error'}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                      {r.status === 'success' ? (
+                        <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+                      ) : r.status === 'limit_reached' ? (
+                        <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                      )}
+                      <span className="text-xs text-white-60 flex-1">
+                        {r.status === 'success'
+                          ? 'Draft created'
+                          : r.status === 'limit_reached'
+                            ? 'Usage limit reached'
+                            : 'Generation failed'}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-xs font-medium',
+                          r.status === 'success'
+                            ? 'text-green-400'
+                            : r.status === 'limit_reached'
+                              ? 'text-yellow-400'
+                              : 'text-red-400'
+                        )}
+                      >
+                        {r.status === 'success'
+                          ? 'Saved'
+                          : r.status === 'limit_reached'
+                            ? 'Skipped'
+                            : 'Error'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="flex justify-end">
                 <button

@@ -1798,6 +1798,19 @@ export interface DashboardRecommendationsResponse {
     publishedThisWeek: number;
     scheduledUpcoming: number;
     lastAutopilotAt: string | null;
+    lastGeneratedAt: string | null;
+    daysSinceLastGeneration: number | null;
+    autopilot?: {
+      enabled: boolean;
+      mode: string;
+      maxDraftsPerWeek: number;
+      draftsThisWeek: number;
+      lastActionAt: string | null;
+      lastActionType: string | null;
+      lastActionChannel: string | null;
+      lastRunMode: string | null;
+      coverageGaps: string[];
+    };
   };
 }
 
