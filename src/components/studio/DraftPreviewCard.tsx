@@ -275,23 +275,21 @@ function SourceBadges({ draft }: { draft: Draft }) {
     });
   }
 
-  // Content angle from autopilot reason
-  if (sm.autopilotReason) {
-    const reason = sm.autopilotReason;
-    const angleLabel =
-      reason.includes('spotlight') ? 'Listing Spotlight' :
-      reason.includes('buyer') ? 'Buyer Guidance' :
-      reason.includes('neighborhood') ? 'Neighborhood' :
-      reason.includes('market') ? 'Market Insight' :
-      reason.includes('trust') || reason.includes('review') ? 'Trust & Social Proof' :
-      null;
-    if (angleLabel) {
-      badges.push({
-        icon: null,
-        text: `Angle: ${angleLabel}`,
-        color: 'text-white-40',
-      });
-    }
+  // Content angle — prefer explicit field, fall back to inference
+  const angleLabel = sm.contentAngle ?? (
+    sm.autopilotReason?.includes('spotlight') ? 'Listing Spotlight' :
+    sm.autopilotReason?.includes('buyer') ? 'Buyer Guidance' :
+    sm.autopilotReason?.includes('neighborhood') ? 'Neighborhood' :
+    sm.autopilotReason?.includes('market') ? 'Market Insight' :
+    sm.autopilotReason?.includes('trust') || sm.autopilotReason?.includes('review') ? 'Trust & Social Proof' :
+    null
+  );
+  if (angleLabel) {
+    badges.push({
+      icon: null,
+      text: `Angle: ${angleLabel}`,
+      color: 'text-white-40',
+    });
   }
 
   if (badges.length === 0) return null;

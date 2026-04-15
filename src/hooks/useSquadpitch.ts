@@ -154,6 +154,8 @@ export interface Draft {
     autopilotChannel?: string;
     autopilotAsset?: string;
     autopilotMode?: string;
+    contentAngle?: string;
+    contentAngleKey?: string;
     recommendationId?: string;
     autoBlueprint?: string;
     rotated?: boolean;
