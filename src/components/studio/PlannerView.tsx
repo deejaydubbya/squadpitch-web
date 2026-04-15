@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import {
   useDrafts,
   useAutoSchedule,
+  useDashboardRecommendations,
   type DraftStatus,
   type Channel,
   type Draft,
@@ -59,6 +60,7 @@ export function PlannerView({ clientId }: Props) {
     limit: 200,
   });
   const autoSchedule = useAutoSchedule(clientId);
+  const { data: recommendations } = useDashboardRecommendations(clientId);
 
   // Client-side channel filter
   const channelFiltered = useMemo(() => {
@@ -156,6 +158,9 @@ export function PlannerView({ clientId }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Weekly guidance */}
+      {recommendations?.summary && <PlannerGuidance summary={recommendations.summary} autopilotEnabled={recommendations.summary.autopilot?.enabled} />}
 
       {/* Filters */}
       <div className="space-y-3">
@@ -294,6 +299,74 @@ export function PlannerView({ clientId }: Props) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function PlannerGuidance({
+  summary,
+  autopilotEnabled,
+}: {
+  summary: { publishedThisWeek?: number; scheduledUpcoming?: number };
+  autopilotEnabled?: boolean;
+}) {
+  const published = summary.publishedThisWeek ?? 0;
+  const scheduled = summary.scheduledUpcoming ?? 0;
+  const projected = published + scheduled;
+  const target = 5;
+
+  let status: 'on_track' | 'below' | 'ahead';
+  if (projected >= target) status = 'on_track';
+  else if (published >= 3) status = 'on_track';
+  else status = 'below';
+  if (projected > target) status = 'ahead';
+
+  const colors = {
+    on_track: 'border-accent-green-110/20 bg-accent-green-110/5',
+    below: 'border-orange-400/20 bg-orange-400/5',
+    ahead: 'border-accent-green-110/20 bg-accent-green-110/5',
+  };
+
+  return (
+    <div className={`rounded-xl border p-4 ${colors[status]}`}>
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-white-40" />
+          <span className="text-sm font-medium text-white-100">
+            This week: {published} posted{scheduled > 0 ? `, ${scheduled} scheduled` : ''}
+          </span>
+        </div>
+        <span className="text-xs text-white-30">|</span>
+        <span className="text-xs text-white-40">
+          Recommended: 3-5 posts per week
+        </span>
+        {status === 'below' && (
+          <>
+            <span className="text-xs text-white-30">|</span>
+            <span className="text-xs text-orange-400 font-medium">
+              Below target — {target - projected} more needed
+            </span>
+          </>
+        )}
+        {status === 'on_track' && (
+          <>
+            <span className="text-xs text-white-30">|</span>
+            <span className="text-xs text-accent-green-110 font-medium">On track</span>
+          </>
+        )}
+        {status === 'ahead' && (
+          <>
+            <span className="text-xs text-white-30">|</span>
+            <span className="text-xs text-accent-green-110 font-medium">Ahead of target</span>
+          </>
+        )}
+        {autopilotEnabled && status === 'below' && (
+          <>
+            <span className="text-xs text-white-30">|</span>
+            <span className="text-xs text-white-40">Autopilot will fill gaps automatically</span>
+          </>
+        )}
+      </div>
     </div>
   );
 }

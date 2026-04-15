@@ -174,6 +174,15 @@ export default function OverviewPage() {
         />
       )}
 
+      {/* Next Best Action */}
+      {recommendations && recommendations.recommendations.length > 0 && (
+        <NextBestAction
+          rec={recommendations.recommendations[0]}
+          summary={recommendations.summary}
+          onAction={() => handleRecommendationAction(recommendations.recommendations[0])}
+        />
+      )}
+
       {/* System Status — real estate workspaces */}
       {client.industryKey === 'real_estate' && recommendations?.summary && (
         <SystemStatus summary={recommendations.summary} base={base} />
@@ -987,15 +996,41 @@ function AutopilotStatus({
         </h3>
       </div>
 
+      {/* Status line */}
+      <div className="flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${ap?.enabled ? 'bg-accent-green-110 animate-pulse' : 'bg-white-20'}`} />
+        <span className={`text-sm font-medium ${ap?.enabled ? 'text-accent-green-110' : 'text-white-40'}`}>
+          {ap?.enabled ? 'Autopilot is active' : 'Autopilot is off'}
+        </span>
+      </div>
+
       <div className="space-y-2">
+        {/* Last run result */}
         <div className="flex items-center justify-between">
           <span className="text-xs text-white-40">Last run</span>
-          <span className="text-xs font-medium text-white-100">{lastRunLabel}</span>
+          <span className="text-xs font-medium text-white-100">
+            {lastRunAt
+              ? `Created ${ap?.lastActionType === 'draft' ? 'drafts' : 'content'} · ${lastRunLabel}`
+              : 'No runs yet'}
+          </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white-40">Drafts this week</span>
+          <span className="text-xs text-white-40">This week</span>
           <span className="text-xs font-medium text-white-100">
-            {draftsThisWeek}/{maxPerWeek}
+            {draftsThisWeek}/{maxPerWeek} drafts
+          </span>
+        </div>
+        {/* Next run hint */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-white-40">Next</span>
+          <span className="text-xs font-medium text-white-60">
+            {!ap?.enabled
+              ? 'Enable to start'
+              : !hasData
+                ? 'Waiting for data'
+                : draftsThisWeek >= maxPerWeek
+                  ? 'Weekly limit reached'
+                  : 'Runs automatically'}
           </span>
         </div>
         {coverageGaps.length > 0 && (
@@ -1040,6 +1075,72 @@ function formatTimeAgo(date: Date): string {
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
   return date.toLocaleDateString();
+}
+
+// ── Guidance Components ─────────────────────────────────────────────────
+
+function NextBestAction({
+  rec,
+  summary,
+  onAction,
+}: {
+  rec: DashboardRecommendation;
+  summary: DashboardRecommendationsResponse['summary'];
+  onAction: () => void;
+}) {
+  const whyLines: string[] = [];
+
+  if (rec.category === 'data' || rec.action === 'generate_from_data') {
+    const unused = summary.unusedDataCount ?? 0;
+    if (unused > 0) whyLines.push(`You have ${unused} unused data items ready for content.`);
+  }
+  if (rec.category === 'frequency' || rec.category === 'cadence') {
+    const days = summary.daysSinceLastGeneration;
+    if (days != null && days > 3) whyLines.push(`It's been ${days} days since your last content.`);
+    whyLines.push('Posting regularly increases visibility and lead flow.');
+  }
+  if (rec.category === 'real_estate') {
+    const re = summary.realEstate;
+    if (re?.listingCount) whyLines.push(`You have ${re.listingCount} listings ready for content.`);
+  }
+  if (whyLines.length === 0 && rec.reason) whyLines.push(rec.reason);
+  if (whyLines.length === 0) whyLines.push(rec.description);
+
+  const iconMap: Record<string, React.ReactNode> = {
+    data: <Database className="w-5 h-5" />,
+    frequency: <Calendar className="w-5 h-5" />,
+    setup: <LinkIcon className="w-5 h-5" />,
+    growth: <BarChart3 className="w-5 h-5" />,
+    workflow: <Check className="w-5 h-5" />,
+    content: <Wand2 className="w-5 h-5" />,
+    cadence: <Clock className="w-5 h-5" />,
+    real_estate: <Home className="w-5 h-5" />,
+  };
+
+  return (
+    <div className="card p-5 bg-gradient-to-r from-accent-green-110/10 via-accent-green-110/5 to-transparent border-accent-green-110/30">
+      <div className="flex items-start gap-4">
+        <div className="w-10 h-10 rounded-xl bg-accent-green-110/20 flex items-center justify-center flex-shrink-0 text-accent-green-110">
+          {iconMap[rec.category] ?? <Sparkles className="w-5 h-5" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-semibold text-accent-green-110 uppercase tracking-wider mb-1">
+            Next Best Action
+          </p>
+          <h2 className="text-base font-bold text-white-100 mb-1">{rec.title}</h2>
+          {whyLines.map((line, i) => (
+            <p key={i} className="text-sm text-white-40">{line}</p>
+          ))}
+        </div>
+        <button
+          onClick={onAction}
+          className="flex-shrink-0 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
+        >
+          {rec.actionLabel}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── Real Estate Components ──────────────────────────────────────────────
@@ -1094,7 +1195,33 @@ function SystemStatus({
     });
   }
 
-  if (signals.length === 0) return null;
+  // Momentum messaging
+  const published = summary.publishedThisWeek ?? 0;
+  const daysSince = summary.daysSinceLastGeneration;
+  let momentumText = '';
+  let momentumTone: 'positive' | 'neutral' | 'warn' = 'neutral';
+
+  if (published >= 3) {
+    momentumText = `You posted ${published} times this week — on track for consistent posting`;
+    momentumTone = 'positive';
+  } else if (published > 0) {
+    momentumText = `You posted ${published} time${published > 1 ? 's' : ''} this week — keep going to stay consistent`;
+    momentumTone = 'neutral';
+  } else if (daysSince != null && daysSince > 4) {
+    momentumText = `No posts in ${daysSince} days — activity is low`;
+    momentumTone = 'warn';
+  } else if (daysSince != null && daysSince > 0) {
+    momentumText = `Last content ${daysSince} day${daysSince > 1 ? 's' : ''} ago`;
+    momentumTone = 'neutral';
+  }
+
+  if (signals.length === 0 && !momentumText) return null;
+
+  const momentumColors = {
+    positive: 'text-accent-green-110',
+    neutral: 'text-white-40',
+    warn: 'text-orange-400',
+  };
 
   return (
     <div className="card p-5 bg-gradient-to-r from-accent-green-110/5 to-transparent border-accent-green-110/10">
@@ -1102,6 +1229,11 @@ function SystemStatus({
         <Home className="w-4 h-4 text-accent-green-110" />
         <h2 className="text-sm font-semibold text-white-100">Your Marketing System</h2>
       </div>
+      {momentumText && (
+        <p className={`text-xs font-medium mb-3 ${momentumColors[momentumTone]}`}>
+          {momentumText}
+        </p>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {signals.slice(0, 4).map((s) => (
           <div key={s.label}>
