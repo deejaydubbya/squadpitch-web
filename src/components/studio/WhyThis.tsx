@@ -85,7 +85,7 @@ export function generateReasons(ctx: ReasonContext): string[] {
   }
 
   // Deduplicate and limit to 3
-  const unique = [...new Set(reasons)];
+  const unique = Array.from(new Set(reasons));
   return unique.slice(0, 3);
 }
 
