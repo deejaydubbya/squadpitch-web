@@ -397,6 +397,119 @@ function ManagedCard({
   );
 }
 
+// ── Integration card (OAuth without channelRef, e.g. GBP) ────────────
+
+function IntegrationCard({
+  item,
+  clientId,
+}: {
+  item: TechStackViewItem;
+  clientId: string;
+}) {
+  const isConnected = item.connectionStatus === 'connected';
+  const hasError = item.connectionStatus === 'error';
+  const canSync = isConnected && isSyncable(item.providerKey);
+  const sync = useSyncIntegration(clientId);
+  const [syncFlash, setSyncFlash] = useState<'success' | 'error' | null>(null);
+
+  const meta = item.metadataJson as Record<string, unknown> | null;
+  const lastSyncedAt = meta?.lastSyncedAt;
+  const reviewCount = meta?.reviewCount;
+  const businessName = meta?.businessName ?? meta?.locationName;
+
+  const handleSync = () => {
+    setSyncFlash(null);
+    sync.mutate(item.providerKey, {
+      onSuccess: () => {
+        setSyncFlash('success');
+        setTimeout(() => setSyncFlash(null), 3000);
+      },
+      onError: () => {
+        setSyncFlash('error');
+        setTimeout(() => setSyncFlash(null), 5000);
+      },
+    });
+  };
+
+  return (
+    <div className={`${cardClass(item)} space-y-2`}>
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <p className="text-sm font-medium text-white-100">{item.label}</p>
+            {item.priority === 'core' && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
+                Core
+              </span>
+            )}
+          </div>
+          {item.description && (
+            <p className="text-xs text-white-40">{item.description}</p>
+          )}
+          {isConnected && typeof businessName === 'string' && (
+            <p className="text-xs text-accent-green-110 mt-1 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              {businessName}
+              {typeof reviewCount === 'number' && ` — ${reviewCount} review${reviewCount !== 1 ? 's' : ''}`}
+            </p>
+          )}
+
+          {/* Sync status row */}
+          {hasError && (
+            <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Connection error — reconnect required
+            </p>
+          )}
+          {canSync && !hasError && (
+            <div className="text-xs text-white-40 mt-1 flex items-center gap-1">
+              {sync.isPending ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin text-white-60" />
+                  <span className="text-white-60">Syncing...</span>
+                </>
+              ) : syncFlash === 'success' ? (
+                <>
+                  <CheckCircle className="w-3 h-3 text-accent-green-110" />
+                  <span className="text-accent-green-110">Synced</span>
+                </>
+              ) : syncFlash === 'error' ? (
+                <span className="text-red-400">Sync failed</span>
+              ) : (
+                <>
+                  {typeof lastSyncedAt === 'string' && (
+                    <span>Last sync: {formatRelativeTime(lastSyncedAt)}</span>
+                  )}
+                  <span className="mx-0.5">&middot;</span>
+                  <button
+                    onClick={handleSync}
+                    className="text-accent-green-110 hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Sync now
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {isConnected ? (
+          <StatusBadge badge="Connected" />
+        ) : (
+          <Link
+            href={`/workspaces/${clientId}/settings/integrations`}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+          >
+            <LinkIcon className="w-3 h-3" />
+            Connect
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Generic card ─────────────────────────────────────────────────────
 
 function TechStackCard({ item }: { item: TechStackViewItem }) {
@@ -528,6 +641,8 @@ function TechStackGroup({
         {items.map((item) =>
           item.channelRef ? (
             <ChannelCard key={item.providerKey} item={item} clientId={clientId} />
+          ) : item.connectionMode === 'oauth' ? (
+            <IntegrationCard key={item.providerKey} item={item} clientId={clientId} />
           ) : item.manualSetup?.fields?.length ? (
             <ManualSetupCard key={item.providerKey} item={item} clientId={clientId} />
           ) : item.managedIn ? (
