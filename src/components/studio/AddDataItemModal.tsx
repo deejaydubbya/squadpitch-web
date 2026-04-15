@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, ImageIcon, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
+  useClient,
   useCreateDataItem,
   useUpdateDataItem,
   useBusinessDataLabels,
@@ -12,7 +13,22 @@ import {
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 
-function getDataItemTypes(launchLabel: string): { value: DataItemType; label: string }[] {
+function getDataItemTypes(launchLabel: string, isRealEstate = false): { value: DataItemType; label: string }[] {
+  if (isRealEstate) {
+    return [
+      { value: 'CUSTOM', label: 'New Listing' },
+      { value: 'TESTIMONIAL', label: 'Testimonial' },
+      { value: 'STATISTIC', label: 'Market Stat' },
+      { value: 'TEAM_SPOTLIGHT', label: 'Team Spotlight' },
+      { value: 'MILESTONE', label: 'Milestone' },
+      { value: 'EVENT', label: 'Open House / Event' },
+      { value: 'CASE_STUDY', label: 'Success Story' },
+      { value: 'PROMOTION', label: 'Promotion' },
+      { value: 'FAQ', label: 'FAQ' },
+      { value: 'INDUSTRY_NEWS', label: 'Market News' },
+      { value: 'PRODUCT_LAUNCH', label: launchLabel },
+    ];
+  }
   return [
     { value: 'TESTIMONIAL', label: 'Testimonial' },
     { value: 'CASE_STUDY', label: 'Case Study' },
@@ -100,11 +116,13 @@ interface Props {
 
 export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
   const isEdit = Boolean(editItem);
+  const { data: client } = useClient(clientId);
+  const isRE = client?.industryKey === 'real_estate';
   const bdLabels = useBusinessDataLabels(clientId);
   const create = useCreateDataItem(clientId);
   const update = useUpdateDataItem(clientId);
 
-  const [type, setType] = useState<DataItemType>(editItem?.type ?? 'TESTIMONIAL');
+  const [type, setType] = useState<DataItemType>(editItem?.type ?? (isRE ? 'CUSTOM' : 'TESTIMONIAL'));
   const [title, setTitle] = useState(editItem?.title ?? '');
   const [summary, setSummary] = useState(editItem?.summary ?? '');
   const [dataJson, setDataJson] = useState<Record<string, string>>(
@@ -187,7 +205,7 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
               Type
             </label>
             <div className="flex flex-wrap gap-1.5">
-              {getDataItemTypes(bdLabels.launchLabel).map((t) => (
+              {getDataItemTypes(bdLabels.launchLabel, isRE).map((t) => (
                 <button
                   key={t.value}
                   type="button"
@@ -213,7 +231,7 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Sarah's 50% productivity increase"
+              placeholder={isRE ? 'e.g. 123 Oak Street, 4BR/3BA' : "e.g. Sarah's 50% productivity increase"}
               maxLength={200}
               className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
             />

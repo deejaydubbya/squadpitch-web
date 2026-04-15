@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
+  useClient,
   useDataItems,
   useArchiveDataItem,
   useDataSuggestions,
@@ -46,11 +47,28 @@ const TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: 'CUSTOM', label: 'Custom' },
 ];
 
+const RE_TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
+  { value: '', label: 'All Types' },
+  { value: 'CUSTOM', label: 'Listings' },
+  { value: 'TESTIMONIAL', label: 'Testimonials' },
+  { value: 'STATISTIC', label: 'Statistics' },
+  { value: 'TEAM_SPOTLIGHT', label: 'Team' },
+  { value: 'CASE_STUDY', label: 'Case Studies' },
+  { value: 'PRODUCT_LAUNCH', label: 'Launches' },
+  { value: 'PROMOTION', label: 'Promotions' },
+  { value: 'FAQ', label: 'FAQ' },
+  { value: 'MILESTONE', label: 'Milestones' },
+  { value: 'INDUSTRY_NEWS', label: 'News' },
+  { value: 'EVENT', label: 'Events' },
+];
+
 interface Props {
   clientId: string;
 }
 
 export function BusinessDataManager({ clientId }: Props) {
+  const { data: client } = useClient(clientId);
+  const isRE = client?.industryKey === 'real_estate';
   const bdLabels = useBusinessDataLabels(clientId);
   const [typeFilter, setTypeFilter] = useState<DataItemType | ''>('');
   const [statusFilter, setStatusFilter] = useState<DataItemStatus>('ACTIVE');
@@ -121,10 +139,13 @@ export function BusinessDataManager({ clientId }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white-100">Business Data</h1>
+          <h1 className="text-2xl font-bold text-white-100">
+            {isRE ? 'Content Assets' : 'Business Data'}
+          </h1>
           <p className="text-white-40 mt-1 text-sm">
-            Add your testimonials, stats, and {bdLabels.itemPlural.toLowerCase()} to generate
-            data-driven content.
+            {isRE
+              ? 'Listings, testimonials, and stats become content automatically. Generate content directly from your imported assets.'
+              : `Add your testimonials, stats, and ${bdLabels.itemPlural.toLowerCase()} to generate data-driven content.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -156,7 +177,7 @@ export function BusinessDataManager({ clientId }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         {/* Type pills */}
         <div className="flex flex-wrap gap-1.5">
-          {TYPE_FILTERS.map((t) => (
+          {(isRE ? RE_TYPE_FILTERS : TYPE_FILTERS).map((t) => (
             <button
               key={t.value}
               onClick={() => setTypeFilter(t.value)}
@@ -323,7 +344,9 @@ export function BusinessDataManager({ clientId }: Props) {
               ? 'No items match your search.'
               : statusFilter === 'ARCHIVED'
                 ? 'No archived items.'
-                : `No business data yet. Add your first ${bdLabels.itemSingular.toLowerCase()} to start generating data-driven content.`}
+                : isRE
+                  ? 'Import listings, testimonials, or market data to power your content.'
+                  : `No business data yet. Add your first ${bdLabels.itemSingular.toLowerCase()} to start generating data-driven content.`}
           </p>
           {!search && statusFilter === 'ACTIVE' && (
             <button

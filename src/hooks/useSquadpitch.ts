@@ -1800,6 +1800,13 @@ export interface DashboardRecommendationsResponse {
     lastAutopilotAt: string | null;
     lastGeneratedAt: string | null;
     daysSinceLastGeneration: number | null;
+    realEstate?: {
+      listingCount: number;
+      reviewCount: number;
+      listingFeedConnected: boolean;
+      websiteConnected: boolean;
+      availableChannels: string[];
+    };
     autopilot?: {
       enabled: boolean;
       mode: string;

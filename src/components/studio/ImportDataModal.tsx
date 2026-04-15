@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
+  useClient,
   useImportFromUrl,
   useImportFromText,
   useCSVPreview,
@@ -67,6 +68,8 @@ interface Props {
 }
 
 export function ImportDataModal({ clientId, onClose }: Props) {
+  const { data: client } = useClient(clientId);
+  const isRE = client?.industryKey === 'real_estate';
   const [tab, setTab] = useState<TabKey>('url');
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [sourceType, setSourceType] = useState<DataSourceType>('URL');
@@ -265,7 +268,14 @@ export function ImportDataModal({ clientId, onClose }: Props) {
       <div className="w-full max-w-3xl max-h-[90vh] flex flex-col bg-sp-bg border border-white-10 rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white-10">
-          <h2 className="text-lg font-bold text-white-100">Import Data</h2>
+          <div>
+            <h2 className="text-lg font-bold text-white-100">Import Data</h2>
+            {isRE && (
+              <p className="text-xs text-white-40 mt-0.5">
+                Import listings, testimonials, or market data from a webpage
+              </p>
+            )}
+          </div>
           <button onClick={onClose} className="p-1 text-white-40 hover:text-white-100 transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -310,16 +320,23 @@ export function ImportDataModal({ clientId, onClose }: Props) {
                 <input
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://example.com/about"
+                  placeholder={isRE ? 'https://yoursite.com/listings' : 'https://example.com/about'}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
                 />
+                {isRE && (
+                  <p className="text-[10px] text-white-30 mt-1">
+                    Try your listings page, homepage, or testimonials page
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs text-white-60 mb-1.5">Hint (optional)</label>
                 <textarea
                   value={urlHint}
                   onChange={(e) => setUrlHint(e.target.value)}
-                  placeholder="e.g. Extract testimonials and statistics from this page"
+                  placeholder={isRE
+                    ? 'e.g. Extract property listings with price, beds, baths, and address'
+                    : 'e.g. Extract testimonials and statistics from this page'}
                   rows={2}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none placeholder:text-white-30"
                 />
@@ -343,7 +360,9 @@ export function ImportDataModal({ clientId, onClose }: Props) {
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="Paste testimonials, stats, company info, product details..."
+                  placeholder={isRE
+                    ? 'Paste listing details, client testimonials, market stats, or neighborhood info...'
+                    : 'Paste testimonials, stats, company info, product details...'}
                   rows={8}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none placeholder:text-white-30"
                 />

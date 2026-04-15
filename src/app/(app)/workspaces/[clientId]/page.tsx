@@ -27,6 +27,8 @@ import {
   Zap,
   Target,
   Film,
+  Home,
+  Clock,
 } from 'lucide-react';
 import {
   useClient,
@@ -172,6 +174,11 @@ export default function OverviewPage() {
         />
       )}
 
+      {/* System Status — real estate workspaces */}
+      {client.industryKey === 'real_estate' && recommendations?.summary && (
+        <SystemStatus summary={recommendations.summary} base={base} />
+      )}
+
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Total drafts" value={analytics?.total ?? 0} />
@@ -190,12 +197,15 @@ export default function OverviewPage() {
         />
       </div>
 
-      {/* AI Recommendations — replaces Quick Start */}
+      {/* Opportunities */}
       <div className="card p-6 bg-gradient-to-r from-accent-green-110/10 to-transparent border-accent-green-110/20">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-5 h-5 text-accent-green-110" />
-          <h2 className="text-lg font-bold text-white-100">AI Recommendations</h2>
+          <h2 className="text-lg font-bold text-white-100">Opportunities</h2>
         </div>
+        <p className="text-xs text-white-30 mb-4">
+          Based on your data, channels, and recent activity
+        </p>
 
         {recommendations && recommendations.recommendations.length > 0 ? (
           <div className="space-y-2 mb-4">
@@ -281,6 +291,11 @@ export default function OverviewPage() {
         <ConsistencyTracker recommendations={recommendations} />
         <AutopilotStatus recommendations={recommendations} base={base} clientId={clientId} />
       </div>
+
+      {/* Recent Activity — real estate workspaces */}
+      {client.industryKey === 'real_estate' && (
+        <RecentActivity drafts={drafts} recommendations={recommendations} />
+      )}
 
       {/* Tech Stack */}
       <TechStackSection clientId={clientId} />
@@ -386,6 +401,8 @@ function RecommendationCard({
     growth: <BarChart3 className="w-4 h-4 text-purple-400" />,
     workflow: <Check className="w-4 h-4 text-orange-400" />,
     content: <Wand2 className="w-4 h-4 text-accent-green-110" />,
+    cadence: <Clock className="w-4 h-4 text-orange-400" />,
+    real_estate: <Home className="w-4 h-4 text-accent-green-110" />,
   };
 
   return (
@@ -395,11 +412,13 @@ function RecommendationCard({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white-100">{rec.title}</p>
-        <p className="text-xs text-white-40">{rec.reason ?? rec.description}</p>
+        <p className="text-xs text-white-40">
+          {rec.reason ? `${rec.reason}` : rec.description}
+        </p>
       </div>
       <button
         onClick={onAction}
-        className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+        className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors"
       >
         {rec.actionLabel}
       </button>
@@ -712,6 +731,11 @@ const DATA_TYPE_LABELS: Record<string, string> = {
   CUSTOM: 'Custom',
 };
 
+const RE_TYPE_LABELS: Record<string, string> = {
+  ...DATA_TYPE_LABELS,
+  CUSTOM: 'Listings',
+};
+
 function BusinessDataSnapshot({
   recommendations,
   base,
@@ -721,17 +745,20 @@ function BusinessDataSnapshot({
   base: string;
   clientId: string;
 }) {
+  const { data: client } = useClient(clientId);
   const bdLabels = useBusinessDataLabels(clientId);
   const summary = recommendations?.summary;
   const dataByType = summary?.dataByType ?? {};
   const entries = Object.entries(dataByType).filter(([, count]) => (count ?? 0) > 0);
+  const isRE = client?.industryKey === 'real_estate';
+  const labels = isRE ? RE_TYPE_LABELS : DATA_TYPE_LABELS;
 
   return (
     <div className="card p-4 space-y-3">
       <div className="flex items-center gap-2">
         <Database className="w-4 h-4 text-purple-400" />
         <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          Business Data
+          Content Assets
         </h3>
       </div>
 
@@ -741,7 +768,7 @@ function BusinessDataSnapshot({
             {entries.slice(0, 5).map(([type, count]) => (
               <div key={type} className="flex items-center justify-between">
                 <span className="text-xs text-white-40">
-                  {DATA_TYPE_LABELS[type] ?? type}
+                  {labels[type] ?? type}
                 </span>
                 <span className="text-xs font-semibold text-white-100">{count}</span>
               </div>
@@ -754,8 +781,8 @@ function BusinessDataSnapshot({
           </div>
 
           {(summary?.unusedDataCount ?? 0) > 0 && (
-            <p className="text-[11px] text-yellow-400">
-              {summary!.unusedDataCount} unused {summary!.unusedDataCount === 1 ? bdLabels.itemSingular.toLowerCase() : bdLabels.itemPlural.toLowerCase()}
+            <p className="text-[11px] text-accent-green-110">
+              {summary!.unusedDataCount} ready for content
             </p>
           )}
 
@@ -764,20 +791,22 @@ function BusinessDataSnapshot({
             className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
           >
             <Wand2 className="w-3 h-3" />
-            Generate content from {bdLabels.itemPlural.toLowerCase()}
+            Generate content
           </Link>
         </>
       ) : (
         <>
           <p className="text-xs text-white-40">
-            No data yet. Add testimonials, stats, or {bdLabels.itemPlural.toLowerCase()}.
+            {isRE
+              ? 'Import listings, testimonials, or market data to power your content.'
+              : `No data yet. Add testimonials, stats, or ${bdLabels.itemPlural.toLowerCase()}.`}
           </p>
           <Link
             href={`${base}/business-data`}
             className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
           >
             <FileText className="w-3 h-3" />
-            Add your first {bdLabels.itemSingular.toLowerCase()}
+            {isRE ? 'Import your first listing' : `Add your first ${bdLabels.itemSingular.toLowerCase()}`}
           </Link>
         </>
       )}
@@ -1011,4 +1040,169 @@ function formatTimeAgo(date: Date): string {
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
   return date.toLocaleDateString();
+}
+
+// ── Real Estate Components ──────────────────────────────────────────────
+
+function SystemStatus({
+  summary,
+  base,
+}: {
+  summary: DashboardRecommendationsResponse['summary'];
+  base: string;
+}) {
+  const re = summary.realEstate;
+  const ap = summary.autopilot;
+
+  const signals: { label: string; value: string; accent?: boolean }[] = [];
+
+  if (re) {
+    if (re.listingCount > 0) {
+      signals.push({
+        label: 'Listings ready',
+        value: `${re.listingCount} ready for content`,
+        accent: true,
+      });
+    }
+    if (re.availableChannels.length > 0) {
+      signals.push({
+        label: 'Channels',
+        value: re.availableChannels.map((c) => c.charAt(0) + c.slice(1).toLowerCase()).join(', '),
+      });
+    }
+  }
+
+  if (ap) {
+    signals.push({
+      label: 'Autopilot',
+      value: ap.enabled ? 'Active' : 'Off',
+      accent: ap.enabled,
+    });
+    if (ap.draftsThisWeek > 0) {
+      signals.push({
+        label: 'This week',
+        value: `${ap.draftsThisWeek} drafts created`,
+      });
+    }
+  }
+
+  if ((summary.unusedDataCount ?? 0) > 0) {
+    signals.push({
+      label: 'Opportunity',
+      value: `${summary.unusedDataCount} unused data items`,
+      accent: true,
+    });
+  }
+
+  if (signals.length === 0) return null;
+
+  return (
+    <div className="card p-5 bg-gradient-to-r from-accent-green-110/5 to-transparent border-accent-green-110/10">
+      <div className="flex items-center gap-2 mb-3">
+        <Home className="w-4 h-4 text-accent-green-110" />
+        <h2 className="text-sm font-semibold text-white-100">Your Marketing System</h2>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {signals.slice(0, 4).map((s) => (
+          <div key={s.label}>
+            <p className="text-[10px] text-white-30 uppercase tracking-wider mb-0.5">{s.label}</p>
+            <p className={`text-xs font-medium ${s.accent ? 'text-accent-green-110' : 'text-white-80'}`}>
+              {s.value}
+            </p>
+          </div>
+        ))}
+      </div>
+      {re && !re.listingFeedConnected && (
+        <Link
+          href={`${base}/settings/media`}
+          className="inline-flex items-center gap-1 mt-3 text-[11px] text-accent-green-110 hover:underline"
+        >
+          Connect your listing feed to unlock more opportunities
+          <ChevronRight className="w-3 h-3" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function RecentActivity({
+  drafts,
+  recommendations,
+}: {
+  drafts: Draft[] | undefined;
+  recommendations: DashboardRecommendationsResponse | undefined;
+}) {
+  const events: { icon: React.ReactNode; text: string; time: string }[] = [];
+
+  // Derive activity from autopilot summary
+  const ap = recommendations?.summary?.autopilot;
+  if (ap && ap.draftsThisWeek > 0) {
+    events.push({
+      icon: <Zap className="w-3.5 h-3.5 text-yellow-400" />,
+      text: `Autopilot created ${ap.draftsThisWeek} draft${ap.draftsThisWeek > 1 ? 's' : ''} this week`,
+      time: ap.lastActionAt ? formatTimeAgo(new Date(ap.lastActionAt)) : '',
+    });
+  }
+
+  // Derive activity from recent drafts
+  if (drafts) {
+    const recentPublished = drafts.filter((d) => d.status === 'PUBLISHED');
+    if (recentPublished.length > 0) {
+      events.push({
+        icon: <Send className="w-3.5 h-3.5 text-accent-green-110" />,
+        text: `${recentPublished.length} post${recentPublished.length > 1 ? 's' : ''} published`,
+        time: formatTimeAgo(new Date(recentPublished[0].createdAt)),
+      });
+    }
+
+    const recentScheduled = drafts.filter((d) => d.status === 'SCHEDULED');
+    if (recentScheduled.length > 0) {
+      events.push({
+        icon: <Calendar className="w-3.5 h-3.5 text-blue-400" />,
+        text: `${recentScheduled.length} post${recentScheduled.length > 1 ? 's' : ''} scheduled`,
+        time: formatTimeAgo(new Date(recentScheduled[0].createdAt)),
+      });
+    }
+
+    const recentDrafts = drafts.filter((d) => d.status === 'DRAFT');
+    if (recentDrafts.length > 0) {
+      events.push({
+        icon: <Wand2 className="w-3.5 h-3.5 text-purple-400" />,
+        text: `${recentDrafts.length} draft${recentDrafts.length > 1 ? 's' : ''} generated`,
+        time: formatTimeAgo(new Date(recentDrafts[0].createdAt)),
+      });
+    }
+  }
+
+  // Listing feed activity from summary
+  const re = recommendations?.summary?.realEstate;
+  if (re && re.listingCount > 0) {
+    events.push({
+      icon: <Home className="w-3.5 h-3.5 text-accent-green-110" />,
+      text: `${re.listingCount} listings imported from your feed`,
+      time: '',
+    });
+  }
+
+  if (events.length === 0) return null;
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Clock className="w-4 h-4 text-white-40" />
+        <h2 className="text-sm font-semibold text-white-100">Recent Activity</h2>
+      </div>
+      <div className="space-y-2">
+        {events.slice(0, 5).map((ev, i) => (
+          <div key={i} className="flex items-center gap-2.5">
+            <div className="flex-shrink-0">{ev.icon}</div>
+            <p className="text-xs text-white-80 flex-1">{ev.text}</p>
+            {ev.time && (
+              <span className="text-[10px] text-white-30 flex-shrink-0">{ev.time}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
