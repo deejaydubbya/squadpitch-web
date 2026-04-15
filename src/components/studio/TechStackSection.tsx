@@ -457,7 +457,7 @@ export function TechStackSection({ clientId }: { clientId: string }) {
       </div>
 
       <p className="text-xs text-white-40 mb-4">
-        Connect your tools to import data, publish content, and automate your workflow.
+        Squadpitch uses your data to automatically generate and plan your marketing.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

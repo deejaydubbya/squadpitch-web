@@ -15,7 +15,6 @@ import {
   Pause,
   Play,
   AlertCircle,
-  Server,
 } from 'lucide-react';
 import {
   useListingSources,
@@ -172,10 +171,9 @@ export function ListingFeedsManager({ clientId, onImportCSV, onAddManual }: Prop
                   );
                 })}
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Server className="w-3.5 h-3.5 text-white-20" />
-                <span className="text-[11px] text-white-30">MLS / IDX API coming soon</span>
-              </div>
+              <p className="text-[11px] text-white-30 pt-1">
+                MLS and IDX feeds can be added as URL sources
+              </p>
               <button
                 onClick={resetAddForm}
                 className="text-xs text-white-40 hover:text-white-100"
