@@ -195,14 +195,14 @@ export function BusinessDataManager({ clientId }: Props) {
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors"
           >
             <Download className="w-4 h-4" />
-            Import Data
+            {isRE ? 'Import' : 'Import Data'}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Add Data
+            Add {bdLabels.itemSingular}
           </button>
         </div>
       </div>

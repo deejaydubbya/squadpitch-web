@@ -1000,7 +1000,7 @@ export function useUpdateDraft(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (
-      body: Partial<Pick<Draft, 'body' | 'hooks' | 'hashtags' | 'cta' | 'altText'>>
+      body: Partial<Pick<Draft, 'body' | 'hooks' | 'hashtags' | 'cta' | 'altText' | 'channel'>>
     ) =>
       apiFetch<Draft>(`drafts/${id}`, {
         method: 'PATCH',
@@ -1114,6 +1114,22 @@ export function useChannelConnections(clientId: string | undefined) {
     select: (data) => data.connections,
     enabled: Boolean(clientId),
   });
+}
+
+/**
+ * Returns a Map<Channel, boolean> indicating which channels are connected.
+ */
+export function useChannelConnectionStatus(clientId: string | undefined) {
+  const { data: connections } = useChannelConnections(clientId);
+  const statusMap = new Map<Channel, boolean>();
+  if (connections) {
+    for (const conn of connections) {
+      if (conn.status === 'CONNECTED') {
+        statusMap.set(conn.channel, true);
+      }
+    }
+  }
+  return statusMap;
 }
 
 export function useStartOAuth(clientId: string) {
@@ -1785,6 +1801,64 @@ export function useAutopilotExecute(clientId: string) {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
       qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
       qc.invalidateQueries({ queryKey: squadpitchKeys.topPerforming(clientId) });
+    },
+  });
+}
+
+// ── Autopilot Settings ───────────────────────────────────────────────────
+
+export interface AutopilotSettings {
+  enabled: boolean;
+  mode: 'off' | 'draft_assist';
+  preferredChannels: Channel[];
+  maxDraftsPerWeek: number;
+  maxDraftsPerScheduledRun: number;
+  minimumHoursBetweenDrafts: number;
+  allowListingPosts: boolean;
+  allowTestimonialPosts: boolean;
+  allowFallbackPosts: boolean;
+}
+
+export function useAutopilotSettings(clientId: string | undefined) {
+  return useQuery({
+    queryKey: [...squadpitchKeys.autopilot(clientId ?? ''), 'settings'],
+    queryFn: () =>
+      apiFetch<{ settings: AutopilotSettings }>(
+        `workspaces/${clientId}/autopilot/settings`,
+      ).then((r) => r.settings),
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useUpdateAutopilotSettings(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<AutopilotSettings>) =>
+      apiFetch<{ settings: AutopilotSettings }>(
+        `workspaces/${clientId}/autopilot/settings`,
+        { method: 'PUT', body: JSON.stringify(body) },
+      ).then((r) => r.settings),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilot(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dashboardRecommendations(clientId) });
+    },
+  });
+}
+
+// ── Listing Feed ─────────────────────────────────────────────────────────
+
+export function useRefreshListingFeed(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body?: { sourceUrl?: string }) =>
+      apiFetch<{ listings: number; lastSyncedAt: string; autopilotTriggered: boolean }>(
+        `workspaces/${clientId}/tech-stack/listing_feed/refresh`,
+        { method: 'POST', body: JSON.stringify(body ?? {}) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+      qc.invalidateQueries({ queryKey: ['workspace-tech-stack', clientId] });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dashboardRecommendations(clientId) });
     },
   });
 }

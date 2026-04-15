@@ -6,16 +6,21 @@ import {
   Zap,
   Loader2,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
   Check,
   AlertCircle,
   Trash2,
   Sparkles,
   FileText,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useAutopilotPreview,
   useAutopilotExecute,
+  useAutopilotSettings,
+  useUpdateAutopilotSettings,
   useBlueprints,
   useBusinessDataLabels,
   type Channel,
@@ -40,6 +45,9 @@ interface Props {
 
 export function AutopilotPanel({ clientId, onClose }: Props) {
   const bdLabels = useBusinessDataLabels(clientId);
+  const { data: apSettings } = useAutopilotSettings(clientId);
+  const updateSettings = useUpdateAutopilotSettings(clientId);
+  const [showSettings, setShowSettings] = useState(false);
   const [step, setStep] = useState<Step>('configure');
 
   // Configure state
@@ -147,6 +155,104 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                   All output is saved as drafts for your review — nothing is
                   published automatically.
                 </p>
+              </div>
+
+              {/* Settings section */}
+              <div className="rounded-xl border border-white-10 overflow-hidden">
+                <button
+                  onClick={() => setShowSettings((v) => !v)}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-xs font-medium text-white-60 hover:bg-white-5 transition-colors"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span className="flex-1 text-left">Settings</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${apSettings?.enabled ? 'bg-accent-green-110' : 'bg-white-20'}`} />
+                    <span className="text-white-30">{apSettings?.enabled ? 'On' : 'Off'}</span>
+                  </span>
+                  {showSettings ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+                {showSettings && (
+                  <div className="px-4 pb-4 space-y-4 border-t border-white-10">
+                    {/* Enable/disable */}
+                    <div className="flex items-center justify-between pt-3">
+                      <div>
+                        <p className="text-xs font-medium text-white-100">Enable Autopilot</p>
+                        <p className="text-[10px] text-white-30 mt-0.5">Auto-create drafts when opportunities arise</p>
+                      </div>
+                      <button
+                        onClick={() => updateSettings.mutate({
+                          enabled: !apSettings?.enabled,
+                          mode: !apSettings?.enabled ? 'draft_assist' : 'off',
+                        })}
+                        disabled={updateSettings.isPending}
+                        className={`relative w-9 h-5 rounded-full transition-colors ${
+                          apSettings?.enabled ? 'bg-accent-green-110' : 'bg-white-20'
+                        }`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                          apSettings?.enabled ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Max drafts per week */}
+                    <div>
+                      <label className="block text-xs font-medium text-white-60 mb-2">
+                        Max drafts per week
+                      </label>
+                      <div className="flex gap-1.5">
+                        {[1, 3, 5, 7, 10].map((n) => (
+                          <button
+                            key={n}
+                            onClick={() => updateSettings.mutate({ maxDraftsPerWeek: n })}
+                            disabled={updateSettings.isPending}
+                            className={cn(
+                              'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                              (apSettings?.maxDraftsPerWeek ?? 3) === n
+                                ? 'bg-accent-green-110 text-sp-surface'
+                                : 'bg-white-5 border border-white-10 text-white-60 hover:bg-white-10'
+                            )}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Preferred channels */}
+                    <div>
+                      <label className="block text-xs font-medium text-white-60 mb-2">
+                        Preferred channels
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CHANNELS.map((ch) => {
+                          const selected = apSettings?.preferredChannels?.includes(ch.value) ?? false;
+                          return (
+                            <button
+                              key={ch.value}
+                              onClick={() => {
+                                const current = apSettings?.preferredChannels ?? [];
+                                const next = selected
+                                  ? current.filter((c) => c !== ch.value)
+                                  : [...current, ch.value];
+                                updateSettings.mutate({ preferredChannels: next });
+                              }}
+                              disabled={updateSettings.isPending}
+                              className={cn(
+                                'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                                selected
+                                  ? 'bg-accent-green-110 text-sp-surface'
+                                  : 'bg-white-5 border border-white-10 text-white-60 hover:bg-white-10'
+                              )}
+                            >
+                              {ch.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Channel selector */}

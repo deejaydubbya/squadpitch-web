@@ -154,15 +154,20 @@ export function CalendarGrid({ drafts, selectedDay, onSelectDay }: Props) {
                 {cell.day}
               </p>
               <div className="mt-1 space-y-1">
-                {dayDrafts.slice(0, 3).map((d) => (
-                  <div
-                    key={d.id}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-white-10 text-white-80 truncate font-mono"
-                    title={d.body}
-                  >
-                    {d.channel}
-                  </div>
-                ))}
+                {dayDrafts.slice(0, 3).map((d) => {
+                  const time = d.scheduledFor
+                    ? new Date(d.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                    : null;
+                  return (
+                    <div
+                      key={d.id}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-white-10 text-white-80 truncate font-mono"
+                      title={d.body}
+                    >
+                      {d.channel}{time ? ` · ${time}` : ''}
+                    </div>
+                  );
+                })}
                 {dayDrafts.length > 3 && (
                   <p className="text-[10px] text-white-40">
                     +{dayDrafts.length - 3} more

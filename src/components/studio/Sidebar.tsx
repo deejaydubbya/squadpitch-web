@@ -46,10 +46,12 @@ export function Sidebar({ client }: Props) {
         ? 'bg-yellow-500/20 text-yellow-400'
         : 'bg-white-10 text-white-60';
 
+  const isRE = client.industryKey === 'real_estate';
+
   const navItems = [
     { href: base, icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { href: `${base}/create`, icon: Wand2, label: 'Create Content', primary: true },
-    { href: `${base}/business-data`, icon: Database, label: 'Business Data' },
+    { href: `${base}/business-data`, icon: Database, label: isRE ? 'Content Assets' : 'Business Data' },
     { href: `${base}/planner`, icon: Calendar, label: 'Planner' },
     { href: `${base}/library`, icon: Library, label: 'Content Library' },
     { href: `${base}/assets`, icon: ImageIcon, label: 'Media Library' },

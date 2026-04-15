@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Copy, Check, Zap, Home, Wand2, MessageSquare } from 'lucide-react';
+import { AlertTriangle, Copy, Check, Zap, Home, Wand2, MessageSquare, LinkIcon, Calendar } from 'lucide-react';
 import type { Draft } from '@/hooks/useSquadpitch';
+import { useChannelConnectionStatus } from '@/hooks/useSquadpitch';
 
 interface Props {
   draft: Draft;
   compact?: boolean;
   maxChars?: number | null;
+  clientId?: string;
 }
 
 function useCopy() {
@@ -20,15 +22,29 @@ function useCopy() {
   return { copied, copy };
 }
 
-export function DraftPreviewCard({ draft, compact = false, maxChars }: Props) {
+export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }: Props) {
   const isFailed = draft.status === 'FAILED';
   const { copied, copy } = useCopy();
+  const connectionStatus = useChannelConnectionStatus(clientId);
+  const isConnected = !clientId || connectionStatus.get(draft.channel) === true;
 
   const charCount = draft.body?.length ?? 0;
   const overLimit = maxChars ? charCount > maxChars : false;
 
   return (
     <div className="card p-5 space-y-3">
+      {/* Channel connection warning */}
+      {clientId && !isConnected && (draft.status === 'DRAFT' || draft.status === 'APPROVED') && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs">
+          <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>
+            Connect your {draft.channel.charAt(0) + draft.channel.slice(1).toLowerCase()} account to publish.{' '}
+            <a href={`/workspaces/${clientId}/settings/channels`} className="underline hover:text-yellow-300">
+              Settings &rarr; Channels
+            </a>
+          </span>
+        </div>
+      )}
       <div className="flex items-center gap-2 flex-wrap">
         <StatusPill status={draft.status} />
         <Pill>{draft.channel}</Pill>
@@ -49,6 +65,19 @@ export function DraftPreviewCard({ draft, compact = false, maxChars }: Props) {
           )}
         </span>
       </div>
+
+      {/* Scheduled time */}
+      {draft.scheduledFor && (
+        <div className="flex items-center gap-1.5 text-xs text-blue-400">
+          <Calendar className="w-3 h-3" />
+          <span>
+            Scheduled for{' '}
+            {new Date(draft.scheduledFor).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+            {' at '}
+            {new Date(draft.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        </div>
+      )}
 
       {/* Source explainability */}
       <SourceBadges draft={draft} />

@@ -9,7 +9,6 @@ import {
   Copy,
   Trash2,
   Film,
-  ExternalLink,
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -55,6 +54,27 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
   const deleteAsset = useDeleteAsset(clientId);
   const generatePost = useGeneratePostFromAsset(clientId);
 
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!asset.url) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(asset.url);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = asset.filename || 'download';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      // Fallback: open in new tab
+      window.open(asset.url, '_blank');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleCopy = () => {
     if (asset.url) {
       navigator.clipboard.writeText(asset.url);
@@ -80,7 +100,7 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl max-h-[90vh] mx-4 bg-bg-surface rounded-2xl overflow-hidden flex flex-col md:flex-row"
+        className="relative w-full max-w-5xl max-h-[90vh] mx-4 bg-sp-surface rounded-2xl overflow-hidden flex flex-col md:flex-row"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
@@ -212,13 +232,13 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
                 Generate post
               </button>
               {showChannelPicker && (
-                <div className="absolute left-0 right-0 mt-1 bg-bg-surface border border-white-10 rounded-lg p-2 space-y-1 z-10">
-                  <p className="text-[10px] text-white-40 px-1 mb-1">Select channel:</p>
+                <div className="absolute left-0 right-0 mt-1 bg-sp-surface border border-white-10 rounded-xl p-1.5 space-y-0.5 z-10 shadow-lg">
+                  <p className="text-[10px] text-white-40 px-2 py-1">Select channel:</p>
                   {CHANNELS.map((ch) => (
                     <button
                       key={ch}
                       onClick={() => handleGeneratePost(ch)}
-                      className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-white-10 text-white-60 hover:text-white-100 transition-colors"
+                      className="w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-white-10 text-white-60 hover:text-white-100 transition-colors"
                     >
                       {ch}
                     </button>
@@ -228,16 +248,18 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
             </div>
 
             {asset.url && (
-              <a
-                href={asset.url}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors disabled:opacity-50"
               >
-                <Download className="w-3.5 h-3.5" /> Download
-                <ExternalLink className="w-3 h-3 ml-auto opacity-40" />
-              </a>
+                {downloading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                {downloading ? 'Downloading...' : 'Download'}
+              </button>
             )}
 
             <button

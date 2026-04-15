@@ -118,6 +118,7 @@ function ManualSetupCard({
     Object.fromEntries(fields.map((f) => [f.key, ''])),
   );
   const [error, setError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const save = useSaveManualConnection(clientId, item.providerKey);
 
   const isConnected = item.connectionStatus === 'connected';
@@ -139,6 +140,8 @@ function ManualSetupCard({
     save.mutate(values, {
       onSuccess: () => {
         setEditing(false);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 4000);
         setValues(Object.fromEntries(fields.map((f) => [f.key, ''])));
       },
       onError: (err) => {
@@ -201,6 +204,11 @@ function ManualSetupCard({
             />
           ))}
           {error && <p className="text-xs text-red-400">{error}</p>}
+          {saveSuccess && (
+            <p className="text-xs text-accent-green-110">
+              Saved. This enriches your AI-generated content with real business context.
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={handleSave}

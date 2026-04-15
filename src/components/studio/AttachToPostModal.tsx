@@ -57,7 +57,7 @@ export function AttachToPostModal({ assetId, clientId, onClose, onCreated }: Pro
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg mx-4 bg-bg-surface rounded-2xl overflow-hidden"
+        className="relative w-full max-w-lg mx-4 bg-sp-surface rounded-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

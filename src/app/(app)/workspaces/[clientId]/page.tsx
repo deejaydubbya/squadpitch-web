@@ -29,6 +29,7 @@ import {
   Film,
   Home,
   Clock,
+  RefreshCw,
 } from 'lucide-react';
 import {
   useClient,
@@ -45,6 +46,9 @@ import {
   useScheduleDraft,
   useDuplicateDraft,
   useBusinessDataLabels,
+  useAutopilotSettings,
+  useUpdateAutopilotSettings,
+  useRefreshListingFeed,
   type Channel,
   type Draft,
   type MediaAsset,
@@ -966,9 +970,20 @@ function AutopilotStatus({
   clientId: string;
 }) {
   const bdLabels = useBusinessDataLabels(clientId);
+  const { data: apSettings } = useAutopilotSettings(clientId);
+  const updateSettings = useUpdateAutopilotSettings(clientId);
   const summary = recommendations?.summary;
   const ap = summary?.autopilot;
   const hasData = (summary?.totalDataItems ?? 0) > 0;
+
+  const isEnabled = apSettings?.enabled ?? ap?.enabled ?? false;
+
+  const handleToggle = () => {
+    updateSettings.mutate({
+      enabled: !isEnabled,
+      mode: !isEnabled ? 'draft_assist' : 'off',
+    });
+  };
 
   const lastRunAt = ap?.lastActionAt ?? summary?.lastAutopilotAt;
   const lastRunLabel = lastRunAt
@@ -985,15 +1000,35 @@ function AutopilotStatus({
         <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
           Autopilot
         </h3>
+        <button
+          onClick={handleToggle}
+          disabled={updateSettings.isPending}
+          className={`ml-auto relative w-9 h-5 rounded-full transition-colors ${
+            isEnabled ? 'bg-accent-green-110' : 'bg-white-20'
+          } ${updateSettings.isPending ? 'opacity-50' : ''}`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+              isEnabled ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Status line */}
       <div className="flex items-center gap-2">
-        <div className={`w-2 h-2 rounded-full ${ap?.enabled ? 'bg-accent-green-110 animate-pulse' : 'bg-white-20'}`} />
-        <span className={`text-sm font-medium ${ap?.enabled ? 'text-accent-green-110' : 'text-white-40'}`}>
-          {ap?.enabled ? 'Autopilot is active' : 'Autopilot is off'}
+        <div className={`w-2 h-2 rounded-full ${isEnabled ? 'bg-accent-green-110 animate-pulse' : 'bg-white-20'}`} />
+        <span className={`text-sm font-medium ${isEnabled ? 'text-accent-green-110' : 'text-white-40'}`}>
+          {isEnabled ? 'Autopilot is active' : 'Autopilot is off'}
         </span>
       </div>
+
+      {/* Explainer */}
+      {!isEnabled && (
+        <p className="text-[11px] text-white-30 leading-relaxed">
+          When on, Autopilot creates draft posts when new listings arrive, content gaps appear, or channels go quiet. All drafts stay as drafts for your review.
+        </p>
+      )}
 
       <div className="space-y-2">
         {/* Last run result */}
@@ -1015,7 +1050,7 @@ function AutopilotStatus({
         <div className="flex items-center justify-between">
           <span className="text-xs text-white-40">Next</span>
           <span className="text-xs font-medium text-white-60">
-            {!ap?.enabled
+            {!isEnabled
               ? 'Enable to start'
               : !hasData
                 ? 'Waiting for data'
@@ -1040,20 +1075,39 @@ function AutopilotStatus({
         )}
       </div>
 
-      {hasData ? (
-        <Link
-          href={`${base}/business-data`}
-          className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
-        >
-          <Zap className="w-3 h-3" />
-          Run Autopilot
-        </Link>
-      ) : (
-        <p className="text-[11px] text-white-30">
-          Add {bdLabels.itemPlural.toLowerCase()} to enable Autopilot.
-        </p>
-      )}
+      <div className="flex items-center gap-3">
+        {hasData ? (
+          <Link
+            href={`${base}/business-data`}
+            className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
+          >
+            <Zap className="w-3 h-3" />
+            Run Autopilot
+          </Link>
+        ) : (
+          <p className="text-[11px] text-white-30">
+            Add {bdLabels.itemPlural.toLowerCase()} to enable Autopilot.
+          </p>
+        )}
+        {summary?.realEstate?.listingFeedConnected && (
+          <RefreshListingsButton clientId={clientId} />
+        )}
+      </div>
     </div>
+  );
+}
+
+function RefreshListingsButton({ clientId }: { clientId: string }) {
+  const refresh = useRefreshListingFeed(clientId);
+  return (
+    <button
+      onClick={() => refresh.mutate()}
+      disabled={refresh.isPending}
+      className="flex items-center gap-1.5 text-xs font-semibold text-white-40 hover:text-white-100 transition-colors"
+    >
+      <RefreshCw className={`w-3 h-3 ${refresh.isPending ? 'animate-spin' : ''}`} />
+      {refresh.isPending ? 'Refreshing...' : 'Refresh Listings'}
+    </button>
   );
 }
 
