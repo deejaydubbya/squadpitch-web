@@ -25,7 +25,7 @@ import {
   type DataItemType,
   type DataItemStatus,
 } from '@/hooks/useSquadpitch';
-import { DataItemCard, TYPE_LABELS } from './DataItemCard';
+import { DataItemCard, TYPE_LABELS, TYPE_COLORS } from './DataItemCard';
 import { AddDataItemModal } from './AddDataItemModal';
 import { GenerateFromDataModal } from './GenerateFromDataModal';
 import { BulkGenerateModal } from './BulkGenerateModal';
@@ -60,6 +60,20 @@ const RE_TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: 'MILESTONE', label: 'Milestones' },
   { value: 'INDUSTRY_NEWS', label: 'News' },
   { value: 'EVENT', label: 'Events' },
+];
+
+const RE_SECTION_LABELS: Record<string, string> = {
+  CUSTOM: 'Listings',
+  TESTIMONIAL: 'Testimonials',
+  STATISTIC: 'Market Stats',
+  TEAM_SPOTLIGHT: 'Team',
+  CASE_STUDY: 'Success Stories',
+  EVENT: 'Events',
+};
+
+const RE_SECTION_ORDER: DataItemType[] = [
+  'CUSTOM', 'TESTIMONIAL', 'STATISTIC', 'TEAM_SPOTLIGHT', 'CASE_STUDY',
+  'EVENT', 'MILESTONE', 'PRODUCT_LAUNCH', 'PROMOTION', 'FAQ', 'INDUSTRY_NEWS',
 ];
 
 interface Props {
@@ -110,6 +124,26 @@ export function BusinessDataManager({ clientId }: Props) {
     if (highPerf === 0 && untested === 0) return null;
     return { highPerf, untested };
   }, [items]);
+
+  // Group items by type for RE sectioned view
+  const groupedItems = useMemo(() => {
+    if (!isRE || typeFilter || search.trim() || showTopPerforming) return null;
+    const groups: Record<string, WorkspaceDataItem[]> = {};
+    for (const item of displayItems) {
+      const key = item.type;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+    // Sort sections by RE priority order
+    return RE_SECTION_ORDER
+      .filter((type) => groups[type]?.length > 0)
+      .map((type) => ({
+        type,
+        label: RE_SECTION_LABELS[type] ?? TYPE_LABELS[type] ?? type,
+        items: groups[type],
+        readyCount: groups[type].filter((i) => i.usageCount === 0).length,
+      }));
+  }, [isRE, typeFilter, search, showTopPerforming, displayItems]);
 
   const selectedItems = useMemo(
     () => (items ?? []).filter((item) => selectedIds.has(item.id)),
@@ -356,6 +390,42 @@ export function BusinessDataManager({ clientId }: Props) {
               Add your first {bdLabels.itemSingular.toLowerCase()}
             </button>
           )}
+        </div>
+      ) : groupedItems && groupedItems.length > 0 ? (
+        <div className="space-y-6">
+          {groupedItems.map((group) => (
+            <div key={group.type}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className={cn(
+                  'inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider',
+                  TYPE_COLORS[group.type as DataItemType] ?? 'bg-white-10 text-white-60'
+                )}>
+                  {group.label}
+                </span>
+                <span className="text-xs text-white-30">
+                  {group.items.length}
+                </span>
+                {group.readyCount > 0 && (
+                  <span className="text-[10px] text-accent-green-110 ml-1">
+                    {group.readyCount} ready for content
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {group.items.map((item) => (
+                  <DataItemCard
+                    key={item.id}
+                    item={item}
+                    selected={selectedIds.has(item.id)}
+                    onSelect={() => toggleSelect(item.id)}
+                    onEdit={() => setEditItem(item)}
+                    onArchive={() => archive.mutate(item.id)}
+                    onGenerate={() => setGenerateItem(item)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

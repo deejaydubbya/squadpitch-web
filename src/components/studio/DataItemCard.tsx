@@ -88,6 +88,11 @@ export function DataItemCard({
           >
             {TYPE_LABELS[item.type]}
           </span>
+          {item.usageCount === 0 && !badge && (
+            <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent-green-110/15 text-accent-green-110 flex-shrink-0">
+              Ready for content
+            </span>
+          )}
           {badge && (
             <span
               className={cn(
