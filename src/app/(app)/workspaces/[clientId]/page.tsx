@@ -87,12 +87,12 @@ export default function OverviewPage() {
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
 
   const quickLinks = [
-    { href: `${base}/create`, icon: Wand2, label: 'Create Content', desc: 'Generate on-brand posts' },
-    { href: `${base}/planner`, icon: Calendar, label: 'Planner', desc: 'Calendar & queue' },
-    { href: `${base}/library`, icon: Library, label: 'Content Library', desc: 'All your drafts' },
-    { href: `${base}/assets`, icon: ImageIcon, label: 'Media Library', desc: 'Images & videos' },
-    { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics', desc: 'Performance metrics' },
-    { href: `${base}/settings/brand`, icon: Settings, label: 'Settings', desc: 'Brand, voice & channels' },
+    { href: `${base}/create`, icon: Wand2, label: 'Create', desc: 'Generate posts' },
+    { href: `${base}/planner`, icon: Calendar, label: 'Planner', desc: 'Schedule & queue' },
+    { href: `${base}/library`, icon: Library, label: 'Library', desc: 'All content' },
+    { href: `${base}/assets`, icon: ImageIcon, label: 'Media', desc: 'Images & video' },
+    { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics', desc: 'Performance' },
+    { href: `${base}/settings/brand`, icon: Settings, label: 'Settings', desc: 'Brand & channels' },
   ];
 
   const handleGenerateSuggested = async () => {
@@ -162,7 +162,7 @@ export default function OverviewPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-8 max-w-5xl">
       {/* Onboarding welcome */}
       {showWelcome && (
         <OnboardingWelcome
@@ -206,19 +206,35 @@ export default function OverviewPage() {
         />
       </div>
 
-      {/* Opportunities */}
-      <div className="card p-6 bg-gradient-to-r from-accent-green-110/10 to-transparent border-accent-green-110/20">
-        <div className="flex items-center gap-2 mb-1">
-          <Sparkles className="w-5 h-5 text-accent-green-110" />
-          <h2 className="text-lg font-bold text-white-100">Opportunities</h2>
+      {/* Opportunities — secondary, lighter feel */}
+      <div className="card p-5 border-white-10">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-white-30" />
+            <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">Opportunities</h2>
+          </div>
+          <button
+            onClick={handleGenerateSuggested}
+            disabled={isGenerating || enabledChannels.length === 0}
+            className="px-4 py-2 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold flex items-center gap-1.5 hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5" />
+                Generate Content
+              </>
+            )}
+          </button>
         </div>
-        <p className="text-xs text-white-30 mb-4">
-          Based on your data, channels, and recent activity
-        </p>
 
         {recommendations && recommendations.recommendations.length > 0 ? (
-          <div className="space-y-2 mb-4">
-            {recommendations.recommendations.map((rec) => (
+          <div className="space-y-2">
+            {recommendations.recommendations.slice(0, 3).map((rec) => (
               <RecommendationCard
                 key={rec.id}
                 rec={rec}
@@ -227,53 +243,34 @@ export default function OverviewPage() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-white-40 mb-4">
-            Looking good! Keep publishing to unlock more insights.
+          <p className="text-sm text-white-40">
+            On track. Keep publishing for more insights.
           </p>
         )}
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            onClick={handleGenerateSuggested}
-            disabled={isGenerating || enabledChannels.length === 0}
-            className="px-5 py-3 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Generate Suggested Content
-              </>
-            )}
-          </button>
-          {enabledChannels.length === 0 && (
-            <p className="text-xs text-white-30">
-              Enable at least one channel in{' '}
-              <Link href={`${base}/settings/media`} className="text-accent-green-110 hover:underline">
-                Settings
-              </Link>{' '}
-              first.
-            </p>
-          )}
-        </div>
+        {enabledChannels.length === 0 && (
+          <p className="text-xs text-white-30 mt-2">
+            Enable a channel in{' '}
+            <Link href={`${base}/settings/media`} className="text-accent-green-110 hover:underline">
+              Settings
+            </Link>{' '}
+            first.
+          </p>
+        )}
         {genSuccess && (
           <p className="text-xs text-accent-green-110 mt-2">
-            Content generated! View in your{' '}
-            <Link href={`${base}/library`} className="underline">Content Library</Link>.
+            Content ready.{' '}
+            <Link href={`${base}/library`} className="underline">View in library</Link>
           </p>
         )}
         {genError && <StatusBanner error={genError} />}
       </div>
 
-      {/* Next Best Actions */}
+      {/* Quick Actions */}
       {actionsData && actionsData.actions.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider mb-3">
-            What to do next
+          <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider mb-3">
+            Quick Actions
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {actionsData.actions.map((action) => (
@@ -311,7 +308,7 @@ export default function OverviewPage() {
 
       {/* Workspace links */}
       <div>
-        <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider mb-3">
+        <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider mb-3">
           Workspace
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -357,14 +354,10 @@ export default function OverviewPage() {
 
         {drafts && drafts.length === 0 && (
           <div className="card p-6 text-center text-sm text-white-40">
-            No drafts yet. Head to{' '}
-            <Link
-              href={`${base}/create`}
-              className="text-accent-green-110 hover:underline"
-            >
-              Create Content
-            </Link>{' '}
-            to make one.
+            No drafts yet.{' '}
+            <Link href={`${base}/create`} className="text-accent-green-110 hover:underline">
+              Create your first post
+            </Link>
           </div>
         )}
 
@@ -415,22 +408,20 @@ function RecommendationCard({
   };
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg bg-white-5 border border-white-10">
-      <div className="flex-shrink-0">
+    <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-white-5 transition-colors group">
+      <div className="flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
         {iconMap[rec.category] ?? <Sparkles className="w-4 h-4 text-white-40" />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white-100">{rec.title}</p>
-        <p className="text-xs text-white-40">
-          {rec.reason ? `${rec.reason}` : rec.description}
-        </p>
+        <p className="text-sm font-medium text-white-80 group-hover:text-white-100 transition-colors">{rec.title}</p>
       </div>
       <button
         onClick={onAction}
-        className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors"
+        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent-green-110/10"
       >
         {rec.actionLabel}
       </button>
+      <ChevronRight className="w-3.5 h-3.5 text-white-20 flex-shrink-0 group-hover:hidden" />
     </div>
   );
 }
@@ -1118,23 +1109,21 @@ function NextBestAction({
   };
 
   return (
-    <div className="card p-5 bg-gradient-to-r from-accent-green-110/10 via-accent-green-110/5 to-transparent border-accent-green-110/30">
-      <div className="flex items-start gap-4">
-        <div className="w-10 h-10 rounded-xl bg-accent-green-110/20 flex items-center justify-center flex-shrink-0 text-accent-green-110">
+    <div className="card p-6 bg-gradient-to-br from-accent-green-110/8 via-transparent to-transparent border-accent-green-110/20">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-accent-green-110/15 flex items-center justify-center flex-shrink-0 text-accent-green-110">
           {iconMap[rec.category] ?? <Sparkles className="w-5 h-5" />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-semibold text-accent-green-110 uppercase tracking-wider mb-1">
-            Next Best Action
+          <p className="text-[10px] font-semibold text-accent-green-110 uppercase tracking-widest mb-1">
+            Recommended
           </p>
-          <h2 className="text-base font-bold text-white-100 mb-1">{rec.title}</h2>
-          {whyLines.map((line, i) => (
-            <p key={i} className="text-sm text-white-40">{line}</p>
-          ))}
+          <h2 className="text-lg font-bold text-white-100">{rec.title}</h2>
+          <p className="text-sm text-white-40 mt-0.5">{whyLines[0]}</p>
         </div>
         <button
           onClick={onAction}
-          className="flex-shrink-0 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
+          className="flex-shrink-0 px-6 py-3 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-all hover:scale-[1.02]"
         >
           {rec.actionLabel}
         </button>

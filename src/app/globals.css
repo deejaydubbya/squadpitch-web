@@ -16,10 +16,10 @@
 
 @layer components {
   .card {
-    @apply bg-sp-card border border-white-15 rounded-2xl;
+    @apply bg-sp-card border border-white-15 rounded-2xl transition-all duration-200;
   }
   .card-hover {
-    @apply card hover:border-white-20 transition-colors cursor-pointer;
+    @apply card hover:border-white-20 hover:shadow-lg hover:shadow-black/5 cursor-pointer;
   }
   .btn {
     @apply px-4 py-2.5 rounded-xl font-medium text-sm transition-colors disabled:opacity-50 min-h-[44px];

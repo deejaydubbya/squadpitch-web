@@ -308,22 +308,34 @@ function SourceBadges({ draft }: { draft: Draft }) {
   );
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Draft',
+  PENDING_REVIEW: 'Pending',
+  APPROVED: 'Approved',
+  SCHEDULED: 'Scheduled',
+  PUBLISHED: 'Published',
+  REJECTED: 'Rejected',
+  FAILED: 'Failed',
+};
+
 function StatusPill({ status }: { status: Draft['status'] }) {
   const cls =
-    status === 'APPROVED' || status === 'PUBLISHED'
-      ? 'bg-zone-green/20 text-zone-green'
-      : status === 'SCHEDULED'
-        ? 'bg-zone-blue/20 text-zone-blue'
-        : status === 'PENDING_REVIEW'
-          ? 'bg-zone-yellow/20 text-zone-yellow'
-          : status === 'REJECTED' || status === 'FAILED'
-            ? 'bg-accent-red/20 text-accent-red'
-            : 'bg-white-10 text-white-60';
+    status === 'PUBLISHED'
+      ? 'bg-accent-green-110/15 text-accent-green-110'
+      : status === 'APPROVED'
+        ? 'bg-green-500/15 text-green-400'
+        : status === 'SCHEDULED'
+          ? 'bg-blue-500/15 text-blue-400'
+          : status === 'PENDING_REVIEW'
+            ? 'bg-yellow-500/15 text-yellow-400'
+            : status === 'REJECTED' || status === 'FAILED'
+              ? 'bg-red-500/15 text-red-400'
+              : 'bg-white-10 text-white-60';
   return (
     <span
-      className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}
+      className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}
     >
-      {status}
+      {STATUS_LABELS[status] ?? status}
     </span>
   );
 }

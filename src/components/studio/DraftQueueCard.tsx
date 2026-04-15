@@ -21,6 +21,7 @@ import {
   Film,
   Video,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   useUpdateDraft,
   useApproveDraft,
@@ -126,8 +127,21 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const showPublishError =
     draft.publishError && draft.status !== 'PUBLISHED';
 
+  const statusBorderColors: Record<string, string> = {
+    DRAFT: 'border-l-white-20',
+    PENDING_REVIEW: 'border-l-yellow-400',
+    APPROVED: 'border-l-green-400',
+    SCHEDULED: 'border-l-blue-400',
+    PUBLISHED: 'border-l-accent-green-110',
+    REJECTED: 'border-l-red-400',
+    FAILED: 'border-l-red-400',
+  };
+
   return (
-    <div className="card p-0 overflow-hidden">
+    <div className={cn(
+      'card p-0 overflow-hidden border-l-[3px] transition-shadow hover:shadow-lg hover:shadow-black/10',
+      statusBorderColors[draft.status] ?? 'border-l-white-10'
+    )}>
       <div className="p-4">
         {onSelect && (
           <div className="float-left mr-3 mt-1">
@@ -143,24 +157,27 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       </div>
 
       {/* Media indicator */}
-      <div className="border-t border-white-10 px-4 py-2 bg-white-5 flex items-center gap-2">
+      <div className={cn(
+        'border-t border-white-10 px-4 py-2.5 flex items-center gap-3',
+        draft.mediaUrl ? 'bg-accent-green-110/3' : 'bg-white-5'
+      )}>
         {draft.mediaUrl ? (
           <>
             <button
               onClick={() => setLightboxOpen(true)}
-              className="flex-shrink-0 hover:opacity-80 transition-opacity"
+              className="flex-shrink-0 hover:opacity-90 transition-opacity rounded-lg overflow-hidden"
               title="Click to preview"
             >
               {draft.mediaType === 'video' ? (
-                <div className="w-8 h-8 rounded bg-white-10 flex items-center justify-center">
-                  <Film className="w-4 h-4 text-white-60" />
+                <div className="w-14 h-14 rounded-lg bg-white-10 flex items-center justify-center">
+                  <Film className="w-5 h-5 text-white-60" />
                 </div>
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={draft.mediaUrl}
                   alt="Attached media"
-                  className="w-8 h-8 rounded object-cover"
+                  className="w-14 h-14 rounded-lg object-cover"
                 />
               )}
             </button>
@@ -168,7 +185,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
               onClick={() => setLightboxOpen(true)}
               className="text-xs text-white-60 truncate flex-1 text-left hover:text-white-100 transition-colors"
             >
-              {draft.mediaType === 'video' ? 'Video attached — click to play' : 'Image attached — click to view'}
+              {draft.mediaType === 'video' ? 'Video attached' : 'Image attached'}
             </button>
             <Link
               href={`/workspaces/${draft.clientId}/assets`}
@@ -471,6 +488,26 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Confidence moment — success feedback */}
+      {approve.isSuccess && (
+        <div className="border-t border-white-10 px-4 py-2.5 bg-green-500/5 flex items-center gap-2">
+          <Check className="w-3.5 h-3.5 text-green-400" />
+          <span className="text-xs text-green-400 font-medium">Approved — ready to schedule or publish</span>
+        </div>
+      )}
+      {publish.isSuccess && (
+        <div className="border-t border-white-10 px-4 py-2.5 bg-accent-green-110/5 flex items-center gap-2">
+          <Check className="w-3.5 h-3.5 text-accent-green-110" />
+          <span className="text-xs text-accent-green-110 font-medium">Published successfully</span>
+        </div>
+      )}
+      {schedule.isSuccess && (
+        <div className="border-t border-white-10 px-4 py-2.5 bg-blue-500/5 flex items-center gap-2">
+          <Calendar className="w-3.5 h-3.5 text-blue-400" />
+          <span className="text-xs text-blue-400 font-medium">Scheduled — it will publish automatically</span>
         </div>
       )}
 
