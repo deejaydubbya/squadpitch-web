@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Database,
   Send,
@@ -15,13 +16,20 @@ import {
   Loader2,
   X,
   ExternalLink,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import {
   useTechStack,
   useSaveManualConnection,
+  useSyncIntegration,
+  isSyncable,
+  squadpitchKeys,
   type TechStackViewItem,
   type ManualSetupField,
+  type Channel,
 } from '@/hooks/useSquadpitch';
+import { useOAuthPopup } from '@/hooks/useOAuthPopup';
 
 // ── Group config ──────────────────────────────────────────────────────
 
@@ -88,6 +96,27 @@ function cardClass(item: TechStackViewItem): string {
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
+/** Human-friendly relative time string. */
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+/** Mask a string, showing only the last 3 characters. */
+function maskValue(value: string): string {
+  const suffix = value.slice(-3);
+  return `****${suffix}`;
+}
+
 /** Extract a display-friendly summary from saved metadata (e.g. domain from URL). */
 function getMetadataSummary(
   fields: ManualSetupField[],
@@ -100,10 +129,17 @@ function getMetadataSummary(
     if (field.type === 'url') {
       try { return new URL(value).hostname; } catch { return value; }
     }
+    if (field.type === 'password') {
+      return `Key ending in ${maskValue(value)}`;
+    }
     return value;
   }
   return null;
 }
+
+const MANAGED_ROUTES: Record<string, string> = {
+  content_assets: 'business-data',
+};
 
 // ── Manual setup card (config-driven) ────────────────────────────────
 
@@ -122,9 +158,33 @@ function ManualSetupCard({
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const save = useSaveManualConnection(clientId, item.providerKey);
+  const sync = useSyncIntegration(clientId);
+  const [syncFlash, setSyncFlash] = useState<'success' | 'error' | null>(null);
 
   const isConnected = item.connectionStatus === 'connected';
+  const hasError = item.connectionStatus === 'error';
+  const canSync = isConnected && isSyncable(item.providerKey);
   const summary = isConnected ? getMetadataSummary(fields, item.metadataJson) : null;
+
+  const isWebsite = item.providerKey === 'idx_website';
+  const syncLabel = isWebsite ? 'Refresh' : 'Sync now';
+  const syncingLabel = isWebsite ? 'Scanning...' : 'Syncing...';
+  const lastSyncLabel = isWebsite ? 'Last scanned' : 'Last sync';
+  const lastSyncedAt = (item.metadataJson as Record<string, unknown> | null)?.lastSyncedAt;
+
+  const handleSync = () => {
+    setSyncFlash(null);
+    sync.mutate(item.providerKey, {
+      onSuccess: () => {
+        setSyncFlash('success');
+        setTimeout(() => setSyncFlash(null), 3000);
+      },
+      onError: () => {
+        setSyncFlash('error');
+        setTimeout(() => setSyncFlash(null), 5000);
+      },
+    });
+  };
 
   const updateField = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -176,10 +236,59 @@ function ManualSetupCard({
               {summary}
             </p>
           )}
+
+          {/* Sync status row */}
+          {hasError && (
+            <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Connection error — reconnect required
+            </p>
+          )}
+          {canSync && !hasError && (
+            <div className="text-xs text-white-40 mt-1 flex items-center gap-1">
+              {sync.isPending ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin text-white-60" />
+                  <span className="text-white-60">{syncingLabel}</span>
+                </>
+              ) : syncFlash === 'success' ? (
+                <>
+                  <CheckCircle className="w-3 h-3 text-accent-green-110" />
+                  <span className="text-accent-green-110">Synced</span>
+                </>
+              ) : syncFlash === 'error' ? (
+                <span className="text-red-400">Sync failed</span>
+              ) : (
+                <>
+                  {typeof lastSyncedAt === 'string' && (
+                    <span>{lastSyncLabel}: {formatRelativeTime(lastSyncedAt)}</span>
+                  )}
+                  <span className="mx-0.5">&middot;</span>
+                  <button
+                    onClick={handleSync}
+                    className="text-accent-green-110 hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    {syncLabel}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {isConnected ? (
-          <StatusBadge badge="Connected" />
+          item.managedIn ? (
+            <Link
+              href={`/workspaces/${clientId}/${MANAGED_ROUTES[item.managedIn] ?? 'business-data'}`}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Manage
+            </Link>
+          ) : (
+            <StatusBadge badge="Connected" />
+          )
         ) : !editing ? (
           <button
             onClick={() => setEditing(true)}
@@ -196,7 +305,7 @@ function ManualSetupCard({
           {fields.map((field, i) => (
             <input
               key={field.key}
-              type={field.type === 'url' ? 'url' : 'text'}
+              type={field.type === 'url' ? 'url' : field.type === 'password' ? 'password' : 'text'}
               value={values[field.key] ?? ''}
               onChange={(e) => updateField(field.key, e.target.value)}
               placeholder={field.placeholder ?? field.label}
@@ -239,10 +348,6 @@ function ManualSetupCard({
 }
 
 // ── Managed card (redirects to another page) ────────────────────────
-
-const MANAGED_ROUTES: Record<string, string> = {
-  content_assets: 'business-data',
-};
 
 function ManagedCard({
   item,
@@ -329,6 +434,11 @@ function ChannelCard({
     item.metadataJson && typeof item.metadataJson.displayName === 'string'
       ? item.metadataJson.displayName
       : null;
+  const oauthPopup = useOAuthPopup(clientId);
+
+  const errorMessage = oauthPopup.popupBlocked
+    ? 'Popup blocked. Please allow popups for this site.'
+    : oauthPopup.error?.message ?? null;
 
   return (
     <div className={`${cardClass(item)} flex items-start gap-3`}>
@@ -350,18 +460,29 @@ function ChannelCard({
             {displayName}
           </p>
         )}
+        {errorMessage && (
+          <div className="mt-1 flex items-start gap-1.5 text-xs text-accent-red">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
       </div>
 
       {isConnected ? (
         <StatusBadge badge="Connected" />
       ) : (
-        <Link
-          href={`/workspaces/${clientId}/settings/channels`}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+        <button
+          onClick={() => oauthPopup.connect(item.channelRef as Channel)}
+          disabled={oauthPopup.isPending}
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
         >
-          <ExternalLink className="w-3 h-3" />
+          {oauthPopup.isPending ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <LinkIcon className="w-3 h-3" />
+          )}
           Connect
-        </Link>
+        </button>
       )}
     </div>
   );
@@ -405,12 +526,12 @@ function TechStackGroup({
       </div>
       <div className="space-y-2">
         {items.map((item) =>
-          item.managedIn ? (
-            <ManagedCard key={item.providerKey} item={item} clientId={clientId} />
-          ) : item.channelRef ? (
+          item.channelRef ? (
             <ChannelCard key={item.providerKey} item={item} clientId={clientId} />
           ) : item.manualSetup?.fields?.length ? (
             <ManualSetupCard key={item.providerKey} item={item} clientId={clientId} />
+          ) : item.managedIn ? (
+            <ManagedCard key={item.providerKey} item={item} clientId={clientId} />
           ) : (
             <TechStackCard key={item.providerKey} item={item} />
           ),
@@ -424,6 +545,25 @@ function TechStackGroup({
 
 export function TechStackSection({ clientId }: { clientId: string }) {
   const techStack = useTechStack(clientId);
+  const qc = useQueryClient();
+
+  // Listen for OAuth popup completion → refresh tech stack + connections
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const expectedOrigin =
+        process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+      if (event.origin !== expectedOrigin && event.origin !== window.location.origin) {
+        return;
+      }
+      const data = event.data as { type?: string } | null;
+      if (data?.type === 'sp-oauth-complete') {
+        qc.invalidateQueries({ queryKey: ['workspace-tech-stack', clientId] });
+        qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [clientId, qc]);
 
   if (!techStack) return null;
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { useRef, useState } from 'react';
 import {
   Instagram,
   Music2,
@@ -15,12 +14,12 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import {
-  useStartOAuth,
   useDisconnectChannel,
   type ChannelConnection,
   type Channel,
   type ChannelConnectionStatus,
 } from '@/hooks/useSquadpitch';
+import { useOAuthPopup } from '@/hooks/useOAuthPopup';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -64,10 +63,8 @@ function formatRelative(iso: string | null): string {
 export function ChannelConnectionCard({ clientId, channel, connection }: Props) {
   const meta = CHANNEL_META[channel];
   const Icon = meta.icon;
-  const startOAuth = useStartOAuth(clientId);
+  const oauthPopup = useOAuthPopup(clientId);
   const disconnect = useDisconnectChannel(clientId);
-  const [popupBlocked, setPopupBlocked] = useState(false);
-  const popupRef = useRef<Window | null>(null);
 
   const isConnected = connection && connection.status === 'CONNECTED';
   const isBroken =
@@ -76,39 +73,7 @@ export function ChannelConnectionCard({ clientId, channel, connection }: Props) 
       connection.status === 'ERROR' ||
       connection.status === 'REVOKED');
 
-  const handleConnect = () => {
-    setPopupBlocked(false);
-
-    if (popupRef.current && !popupRef.current.closed) {
-      popupRef.current.focus();
-      return;
-    }
-
-    const popup = window.open(
-      'about:blank',
-      'sp-oauth-popup',
-      'width=600,height=720'
-    );
-    if (!popup) {
-      setPopupBlocked(true);
-      return;
-    }
-    popupRef.current = popup;
-
-    startOAuth.mutate(channel, {
-      onSuccess: (data) => {
-        if (popup.closed) {
-          popupRef.current = null;
-          return;
-        }
-        popup.location.href = data.authUrl;
-      },
-      onError: () => {
-        popup.close();
-        popupRef.current = null;
-      },
-    });
-  };
+  const handleConnect = () => oauthPopup.connect(channel);
 
   const handleDisconnect = () => {
     if (
@@ -121,9 +86,9 @@ export function ChannelConnectionCard({ clientId, channel, connection }: Props) 
     disconnect.mutate(channel);
   };
 
-  const errorMessage = popupBlocked
+  const errorMessage = oauthPopup.popupBlocked
     ? 'Popup blocked. Please allow popups for this site.'
-    : (startOAuth.error as Error | null)?.message ??
+    : oauthPopup.error?.message ??
       (disconnect.error as Error | null)?.message ??
       null;
 
@@ -213,10 +178,10 @@ export function ChannelConnectionCard({ clientId, channel, connection }: Props) 
           ) : (
             <button
               onClick={handleConnect}
-              disabled={startOAuth.isPending || !meta.real}
+              disabled={oauthPopup.isPending || !meta.real}
               className="text-xs px-3 py-1.5 rounded-md bg-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/30 flex items-center gap-1 disabled:opacity-50"
             >
-              {startOAuth.isPending ? (
+              {oauthPopup.isPending ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
               ) : (
                 <Link2 className="w-3 h-3" />

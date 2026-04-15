@@ -48,7 +48,7 @@ export default function SettingsPage() {
 
   const handleArchive = () => {
     archive.mutate(undefined, {
-      onSuccess: () => router.push('/dashboard'),
+      onSuccess: () => router.push('/workspaces'),
     });
   };
 

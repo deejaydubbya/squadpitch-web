@@ -15,7 +15,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-10 flex items-center justify-center gap-4">
             <a
-              href="/auth/login?screen_hint=signup&returnTo=/dashboard"
+              href="/auth/login?screen_hint=signup&returnTo=/workspaces"
               className="px-8 py-3 bg-teal text-white rounded-lg text-lg font-medium hover:bg-teal-dark shadow-glow-teal"
             >
               Start free
@@ -64,7 +64,7 @@ export default function LandingPage() {
             Join teams who create better social content, faster.
           </p>
           <a
-            href="/auth/login?screen_hint=signup&returnTo=/dashboard"
+            href="/auth/login?screen_hint=signup&returnTo=/workspaces"
             className="inline-block mt-8 px-8 py-3 bg-teal text-white rounded-lg text-lg font-medium hover:bg-teal-dark shadow-glow-teal"
           >
             Get started for free

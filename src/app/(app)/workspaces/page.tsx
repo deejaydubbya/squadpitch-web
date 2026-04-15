@@ -10,7 +10,7 @@ import { StatusBanner } from '@/components/common/StatusBanner';
 import { useClients } from '@/hooks/useSquadpitch';
 import { ClientCard } from '@/components/studio/ClientCard';
 
-export default function DashboardPage() {
+export default function WorkspacesPage() {
   const { data: clients, isLoading, error } = useClients();
   const router = useRouter();
 

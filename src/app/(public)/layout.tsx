@@ -19,8 +19,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               <Link href="/contact" className="text-sm text-gray-600 hover:text-gray-900">Contact</Link>
             </div>
             <div className="flex items-center gap-3">
-              <a href="/auth/login?returnTo=/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Log in</a>
-              <a href="/auth/login?screen_hint=signup&returnTo=/dashboard" className="text-sm px-4 py-2 bg-teal text-white rounded-lg hover:bg-teal-dark">
+              <a href="/auth/login?returnTo=/workspaces" className="text-sm text-gray-600 hover:text-gray-900">Log in</a>
+              <a href="/auth/login?screen_hint=signup&returnTo=/workspaces" className="text-sm px-4 py-2 bg-teal text-white rounded-lg hover:bg-teal-dark">
                 Get started
               </a>
             </div>

@@ -53,7 +53,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               <h3 className="text-white-100 font-semibold">Workspace not found</h3>
               <p className="text-sm text-white-60 mt-1">
                 No workspace with id <code>{clientId}</code>.{' '}
-                <Link href="/dashboard" className="text-accent-green-110 hover:underline">
+                <Link href="/workspaces" className="text-accent-green-110 hover:underline">
                   Back to list
                 </Link>.
               </p>

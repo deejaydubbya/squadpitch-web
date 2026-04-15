@@ -81,7 +81,7 @@ export default function PricingPage() {
                 ))}
               </ul>
               <a
-                href="/auth/login?screen_hint=signup&returnTo=/dashboard"
+                href="/auth/login?screen_hint=signup&returnTo=/workspaces"
                 className={`block mt-8 text-center py-2.5 rounded-lg text-sm font-medium ${
                   tier.primary
                     ? 'bg-teal text-white hover:bg-teal-dark'

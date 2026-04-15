@@ -75,7 +75,7 @@ export function Sidebar({ client }: Props) {
     <aside className="w-64 flex-shrink-0 border-r border-white-10 bg-sp-bg flex flex-col min-h-screen sticky top-0">
       {/* Client header */}
       <Link
-        href="/dashboard"
+        href="/workspaces"
         className="flex items-center gap-3 p-5 border-b border-white-10 hover:bg-white-5 transition-colors group"
       >
         <div className="w-10 h-10 rounded-xl bg-accent-green-110/20 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -199,7 +199,7 @@ export function Sidebar({ client }: Props) {
           </div>
         )}
         <Link
-          href="/dashboard"
+          href="/workspaces"
           className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />

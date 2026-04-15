@@ -16,7 +16,7 @@ export function getAuth0(): Auth0Client {
             new URL(`/?auth_error=${encodeURIComponent(error.code || 'unknown')}`, ctx.appBaseUrl || process.env.APP_BASE_URL || 'http://localhost:3000')
           );
         }
-        const returnTo = ctx.returnTo || '/dashboard';
+        const returnTo = ctx.returnTo || '/workspaces';
         return NextResponse.redirect(
           new URL(returnTo, ctx.appBaseUrl || process.env.APP_BASE_URL || 'http://localhost:3000')
         );

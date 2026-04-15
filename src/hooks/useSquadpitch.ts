@@ -2102,7 +2102,7 @@ export type ConnectionMode = 'oauth' | 'manual' | 'managed' | 'planned';
 export interface ManualSetupField {
   key: string;
   label: string;
-  type: 'url' | 'text';
+  type: 'url' | 'text' | 'password';
   required: boolean;
   placeholder?: string;
 }
@@ -2344,6 +2344,34 @@ export function useSaveManualConnection(clientId: string, providerKey: string) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['workspace-tech-stack', clientId] });
+    },
+  });
+}
+
+// ── Sync / Refresh ──────────────────────────────────────────────────────
+
+const SYNC_ENDPOINTS: Record<string, string> = {
+  listing_feed: 'tech-stack/listing_feed/refresh',
+  real_estate_crm: 'integrations/crm/sync',
+  google_business_profile: 'integrations/gbp/sync',
+  idx_website: 'tech-stack/idx_website/refresh',
+};
+
+export function isSyncable(providerKey: string): boolean {
+  return providerKey in SYNC_ENDPOINTS;
+}
+
+export function useSyncIntegration(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (providerKey: string) => {
+      const endpoint = SYNC_ENDPOINTS[providerKey];
+      if (!endpoint) throw new Error(`No sync endpoint for ${providerKey}`);
+      return apiFetch(`workspaces/${clientId}/${endpoint}`, { method: 'POST' });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workspace-tech-stack', clientId] });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
   });
 }

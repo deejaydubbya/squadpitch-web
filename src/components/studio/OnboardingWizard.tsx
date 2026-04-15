@@ -759,7 +759,7 @@ export function OnboardingWizard() {
     if (createdClientId) {
       router.push(`/workspaces/${createdClientId}${onboarded ? '?onboarded=true' : ''}`);
     } else {
-      router.push('/dashboard');
+      router.push('/workspaces');
     }
   };
 

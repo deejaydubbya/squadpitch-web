@@ -8,6 +8,9 @@ import { useMediaImportCallback } from '@/hooks/useIntegrations';
 
 const MEDIA_IMPORT_CHANNELS = ['DRIVE', 'DROPBOX', 'SHEETS'];
 
+/** Channels where the opener handles the token exchange (not this page). */
+const PASSTHROUGH_CHANNELS = ['GBP'];
+
 type Phase = 'exchanging' | 'success' | 'error';
 
 export default function OAuthCallbackPage() {
@@ -20,7 +23,9 @@ export default function OAuthCallbackPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hasRunRef = useRef(false);
 
-  const isMediaImport = MEDIA_IMPORT_CHANNELS.includes(params.channel?.toUpperCase() ?? '');
+  const channelUpper = params.channel?.toUpperCase() ?? '';
+  const isMediaImport = MEDIA_IMPORT_CHANNELS.includes(channelUpper);
+  const isPassthrough = PASSTHROUGH_CHANNELS.includes(channelUpper);
 
   useEffect(() => {
     if (hasRunRef.current) return;
@@ -38,6 +43,23 @@ export default function OAuthCallbackPage() {
     if (!code || !state) {
       setPhase('error');
       setErrorMessage('Missing code or state in callback URL.');
+      return;
+    }
+
+    // GBP: forward raw code+state to opener — it handles the backend exchange
+    if (isPassthrough) {
+      setPhase('success');
+      const targetOrigin =
+        process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+      try {
+        window.opener?.postMessage(
+          { type: `sp-${params.channel?.toLowerCase()}-oauth-complete`, code, state },
+          targetOrigin,
+        );
+      } catch {
+        // opener gone
+      }
+      setTimeout(() => window.close(), 500);
       return;
     }
 
@@ -68,7 +90,7 @@ export default function OAuthCallbackPage() {
     } else {
       completeOAuth.mutate({ code, state }, { onSuccess, onError });
     }
-  }, [searchParams, completeOAuth, completeMediaImport, params.channel, isMediaImport]);
+  }, [searchParams, completeOAuth, completeMediaImport, params.channel, isMediaImport, isPassthrough]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-8">
