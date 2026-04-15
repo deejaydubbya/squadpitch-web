@@ -56,6 +56,7 @@ const BADGE_STYLES: Record<TechStackViewItem['statusBadge'], string> = {
   'Connected': 'bg-accent-green-110/10 text-accent-green-110',
   'Connect': 'bg-accent-green-110/10 text-accent-green-110',
   'Add Data': 'bg-blue-500/10 text-blue-400',
+  'Manage': 'bg-accent-green-110/10 text-accent-green-110',
 };
 
 function StatusBadge({ badge }: { badge: TechStackViewItem['statusBadge'] }) {
@@ -67,6 +68,7 @@ function StatusBadge({ badge }: { badge: TechStackViewItem['statusBadge'] }) {
       {badge === 'Connected' && <CheckCircle className="w-3 h-3" />}
       {badge === 'Connect' && <LinkIcon className="w-3 h-3" />}
       {badge === 'Add Data' && <Upload className="w-3 h-3" />}
+      {badge === 'Manage' && <ExternalLink className="w-3 h-3" />}
       {badge}
     </span>
   );
@@ -236,6 +238,60 @@ function ManualSetupCard({
   );
 }
 
+// ── Managed card (redirects to another page) ────────────────────────
+
+const MANAGED_ROUTES: Record<string, string> = {
+  content_assets: 'business-data',
+};
+
+function ManagedCard({
+  item,
+  clientId,
+}: {
+  item: TechStackViewItem;
+  clientId: string;
+}) {
+  const isConnected = item.connectionStatus === 'connected';
+  const route = MANAGED_ROUTES[item.managedIn ?? ''] ?? 'business-data';
+  const meta = item.metadataJson as Record<string, number> | null;
+  const sourceCount = meta?.sourceCount ?? 0;
+  const listingCount = meta?.listingCount ?? 0;
+
+  return (
+    <div className={`${cardClass(item)} space-y-1`}>
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <p className="text-sm font-medium text-white-100">{item.label}</p>
+            {item.priority === 'core' && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-green-110/10 text-accent-green-110">
+                Core
+              </span>
+            )}
+          </div>
+          {item.description && (
+            <p className="text-xs text-white-40">{item.description}</p>
+          )}
+          {isConnected && sourceCount > 0 && (
+            <p className="text-xs text-accent-green-110 mt-1 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              {listingCount} listing{listingCount !== 1 ? 's' : ''} from {sourceCount} source{sourceCount !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+
+        <Link
+          href={`/workspaces/${clientId}/${route}`}
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+          {isConnected ? 'Manage' : 'Add Sources'}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // ── Generic card ─────────────────────────────────────────────────────
 
 function TechStackCard({ item }: { item: TechStackViewItem }) {
@@ -349,7 +405,9 @@ function TechStackGroup({
       </div>
       <div className="space-y-2">
         {items.map((item) =>
-          item.channelRef ? (
+          item.managedIn ? (
+            <ManagedCard key={item.providerKey} item={item} clientId={clientId} />
+          ) : item.channelRef ? (
             <ChannelCard key={item.providerKey} item={item} clientId={clientId} />
           ) : item.manualSetup?.fields?.length ? (
             <ManualSetupCard key={item.providerKey} item={item} clientId={clientId} />

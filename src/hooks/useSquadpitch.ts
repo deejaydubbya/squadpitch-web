@@ -2097,7 +2097,7 @@ export type IntegrationCapability =
   | 'reporting_source'
   | 'compliance_context';
 
-export type ConnectionMode = 'oauth' | 'manual' | 'planned';
+export type ConnectionMode = 'oauth' | 'manual' | 'managed' | 'planned';
 
 export interface ManualSetupField {
   key: string;
@@ -2245,6 +2245,7 @@ export interface WorkspaceTechStackItem {
   capabilities: IntegrationCapability[];
   connectionMode: ConnectionMode;
   manualSetup?: ManualSetupConfig;
+  managedIn?: string;
   channelRef?: string;
   connectionStatus: ConnectionStatus;
   metadataJson: Record<string, unknown> | null;
@@ -2255,7 +2256,7 @@ export interface WorkspaceTechStackItem {
 
 export interface TechStackViewItem extends WorkspaceTechStackItem {
   group: TechStackGroup;
-  statusBadge: 'Coming Soon' | 'Connected' | 'Connect' | 'Add Data';
+  statusBadge: 'Coming Soon' | 'Connected' | 'Connect' | 'Add Data' | 'Manage';
 }
 
 export interface GroupedTechStack {
@@ -2279,6 +2280,8 @@ function resolveTechStackGroup(capabilities: IntegrationCapability[]): TechStack
 }
 
 function resolveStatusBadge(item: WorkspaceTechStackItem): TechStackViewItem['statusBadge'] {
+  // Rule 0: managed items always show "Manage" (they have their own UI)
+  if (item.connectionMode === 'managed') return item.connectionStatus === 'connected' ? 'Manage' : 'Manage';
   // Rule 1: planned items are always "Coming Soon" (unless already connected)
   if (item.status === 'planned' && item.connectionStatus !== 'connected') return 'Coming Soon';
   // Rule 2: already connected
