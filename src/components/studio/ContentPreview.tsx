@@ -10,10 +10,14 @@ import {
   Trash2,
   Loader2,
   ImagePlus,
-  Film,
   Video,
   X,
   AlertTriangle,
+  Zap,
+  Target,
+  MessageCircle,
+  Sparkles,
+  Palette,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -204,6 +208,44 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
     (deleteDraft.error as Error | null);
 
   const LABELS = ['Version A', 'Version B', 'Version C'];
+  const VERSION_STYLES = ['Balanced', 'Professional', 'Engaging'];
+
+  const CTA_PRESETS = [
+    { label: 'DM me', value: 'DM me for details' },
+    { label: 'Schedule showing', value: 'Schedule a showing — link in bio' },
+    { label: 'Visit website', value: 'Visit our website for more info' },
+  ];
+
+  const MEDIA_STYLES = ['Luxury', 'Modern', 'Warm'] as const;
+
+  // ── Post Strength score ────────────────────────────────────────────
+  const postStrength = useMemo(() => {
+    let score = 0;
+    const reasons: string[] = [];
+
+    // Hook quality (0-3)
+    const hooks = selectedVariation?.hooks ?? [];
+    if (hooks.length >= 3) { score += 3; reasons.push('Strong hook options'); }
+    else if (hooks.length >= 1) { score += 2; reasons.push('Has hooks'); }
+    else { reasons.push('No hooks — consider adding an attention-grabber'); }
+
+    // Body length and quality (0-3)
+    const bodyLen = editedBody.trim().length;
+    if (bodyLen >= 100 && bodyLen <= 2000) { score += 3; reasons.push('Good post length'); }
+    else if (bodyLen >= 50) { score += 2; reasons.push('Decent length'); }
+    else if (bodyLen > 0) { score += 1; reasons.push('Post is short — add more detail'); }
+
+    // CTA presence (0-2)
+    if (editedCta.trim()) { score += 2; reasons.push('CTA present'); }
+    else { reasons.push('Missing CTA — add a call to action'); }
+
+    // Hashtags (0-2)
+    if (parsedHashtags.length >= 3 && parsedHashtags.length <= 15) { score += 2; reasons.push('Good hashtag count'); }
+    else if (parsedHashtags.length >= 1) { score += 1; reasons.push('Few hashtags — add more'); }
+    else { reasons.push('No hashtags'); }
+
+    return { score, max: 10, reasons };
+  }, [editedBody, editedCta, parsedHashtags, selectedVariation?.hooks]);
 
   // Determine what to show in the media section
   const mediaUrl = draft.mediaUrl;
@@ -251,9 +293,14 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
               )}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-white-60 uppercase tracking-wider">
-                  {LABELS[idx]}
-                </span>
+                <div>
+                  <span className="text-xs font-semibold text-white-60 uppercase tracking-wider">
+                    {LABELS[idx]}
+                  </span>
+                  <span className="ml-2 text-[10px] font-medium text-accent-green-110">
+                    {VERSION_STYLES[idx]}
+                  </span>
+                </div>
                 {selectedIdx === idx && (
                   <span className="w-5 h-5 rounded-full bg-accent-green-110 flex items-center justify-center">
                     <Check className="w-3 h-3 text-sp-surface" />
@@ -283,10 +330,56 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Content editing */}
         <div className="lg:col-span-2 space-y-5">
+          {/* Post Strength indicator */}
+          <div className="card p-4 flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-accent-green-110" />
+              <span className="text-xs font-medium text-white-40 uppercase tracking-wider">Post Strength</span>
+            </div>
+            <div className="flex items-center gap-2 flex-1">
+              <div className="flex-1 h-2 rounded-full bg-white-10 overflow-hidden">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    postStrength.score >= 8 ? 'bg-accent-green-110' : postStrength.score >= 5 ? 'bg-accent-orange' : 'bg-accent-red'
+                  )}
+                  style={{ width: `${(postStrength.score / postStrength.max) * 100}%` }}
+                />
+              </div>
+              <span className={cn(
+                'text-sm font-bold tabular-nums',
+                postStrength.score >= 8 ? 'text-accent-green-110' : postStrength.score >= 5 ? 'text-accent-orange' : 'text-accent-red'
+              )}>
+                {postStrength.score}/{postStrength.max}
+              </span>
+            </div>
+          </div>
+
+          {/* Why This Works */}
+          <div className="card p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-accent-green-110" />
+              <span className="text-xs font-medium text-white-40 uppercase tracking-wider">Why this works</span>
+            </div>
+            <ul className="space-y-1">
+              {postStrength.reasons.map((reason, i) => (
+                <li key={i} className="text-xs text-white-60 flex items-center gap-1.5">
+                  <span className={cn(
+                    'w-1 h-1 rounded-full flex-shrink-0',
+                    reason.includes('No ') || reason.includes('Missing') || reason.includes('short') || reason.includes('Few')
+                      ? 'bg-accent-orange'
+                      : 'bg-accent-green-110'
+                  )} />
+                  {reason}
+                </li>
+              ))}
+            </ul>
+          </div>
+
           {/* Body */}
           <div className="card p-5 space-y-3">
             <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
-              Post body {allVariations.length > 1 && `(${LABELS[selectedIdx]})`}
+              Post body {allVariations.length > 1 && `(${LABELS[selectedIdx]} — ${VERSION_STYLES[selectedIdx]})`}
             </label>
             <textarea
               value={editedBody}
@@ -299,28 +392,61 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
             </p>
           </div>
 
-          {/* Hooks */}
+          {/* Hooks — interactive: click to replace opening line */}
           {selectedVariation?.hooks && selectedVariation.hooks.length > 0 && (
             <div className="card p-5 space-y-3">
-              <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
-                Hooks
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
+                  Hooks
+                </label>
+                <span className="text-[10px] text-white-30">Click to use as opening line</span>
+              </div>
               <ul className="space-y-1.5">
                 {selectedVariation.hooks.map((hook, i) => (
-                  <li key={i} className="text-sm text-white-80 flex items-start gap-2">
-                    <span className="text-white-30 mt-0.5">{i + 1}.</span>
-                    {hook}
+                  <li key={i}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Replace the first line of the body with the selected hook
+                        const lines = editedBody.split('\n');
+                        lines[0] = hook;
+                        setEditedBody(lines.join('\n'));
+                      }}
+                      className="w-full text-left text-sm text-white-80 flex items-start gap-2 p-2 rounded-lg hover:bg-accent-green-110/5 hover:text-accent-green-110 transition-colors group"
+                    >
+                      <span className="text-white-30 mt-0.5 group-hover:text-accent-green-110">{i + 1}.</span>
+                      <span className="flex-1">{hook}</span>
+                      <Zap className="w-3 h-3 text-white-20 group-hover:text-accent-green-110 flex-shrink-0 mt-0.5" />
+                    </button>
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          {/* CTA */}
+          {/* CTA with presets */}
           <div className="card p-5 space-y-3">
             <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
               Call to action
             </label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {CTA_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setEditedCta(preset.value)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1',
+                    editedCta === preset.value
+                      ? 'bg-accent-green-110 text-sp-surface'
+                      : 'bg-white-10 text-white-60 hover:bg-white-20'
+                  )}
+                >
+                  <MessageCircle className="w-3 h-3" />
+                  {preset.label}
+                </button>
+              ))}
+            </div>
             <input
               type="text"
               value={editedCta}
@@ -427,6 +553,32 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
               <div className="aspect-square rounded-lg bg-white-5 border border-dashed border-white-10 flex flex-col items-center justify-center gap-3">
                 <ImagePlus className="w-8 h-8 text-white-20" />
                 <p className="text-xs text-white-30">No media attached</p>
+              </div>
+            )}
+
+            {/* Media style selector */}
+            {mediaUrl && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-medium text-white-30 uppercase tracking-wider">Regenerate with style</span>
+                <div className="flex gap-1.5">
+                  {MEDIA_STYLES.map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => {
+                        const styleGuidance = `${style.toLowerCase()} style: ${draft.imageGuidance || draft.altText || editedBody.slice(0, 500)}`;
+                        generateMedia.mutate(
+                          { clientId, guidance: styleGuidance, draftId: draft.id, channel: draft.channel },
+                          { onSuccess: (asset) => setGeneratingAssetId(asset.id) }
+                        );
+                      }}
+                      disabled={isGenerating}
+                      className="flex-1 py-1.5 rounded-lg bg-white-5 text-white-60 text-[11px] font-medium hover:bg-white-10 hover:text-white-100 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      <Palette className="w-3 h-3" />
+                      {style}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

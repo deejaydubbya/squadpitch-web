@@ -1,7 +1,22 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Wand2, Loader2, Lightbulb, Database, ChevronDown, ChevronRight, X } from 'lucide-react';
+import {
+  Wand2,
+  Loader2,
+  Lightbulb,
+  Database,
+  ChevronDown,
+  ChevronRight,
+  X,
+  Sparkles,
+  Home,
+  MessageSquare,
+  BookOpen,
+  TrendingUp,
+  User,
+  Zap,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useGenerateContent,
@@ -13,6 +28,7 @@ import {
   useDataItems,
   useBlueprints,
   useBusinessDataLabels,
+  useDashboardRecommendations,
   type Channel,
   type Draft,
   type ContentIdea,
@@ -33,6 +49,24 @@ interface Props {
 
 const GOALS = ['Growth', 'Engagement', 'Sales'] as const;
 
+const CONTENT_TYPES = [
+  { value: 'listing', label: 'Listing', icon: Home },
+  { value: 'testimonial', label: 'Testimonial', icon: MessageSquare },
+  { value: 'educational', label: 'Educational', icon: BookOpen },
+  { value: 'market_update', label: 'Market Update', icon: TrendingUp },
+  { value: 'personal', label: 'Personal / Story', icon: User },
+] as const;
+
+type ContentType = typeof CONTENT_TYPES[number]['value'];
+
+const QUICK_CHIPS = [
+  { label: 'Just listed post', guidance: 'Create a "Just Listed" post highlighting a new property listing with key features and excitement', type: 'listing' as ContentType },
+  { label: 'Price drop alert', guidance: 'Create a price reduction alert post that creates urgency and highlights the new value', type: 'listing' as ContentType },
+  { label: 'Client testimonial', guidance: 'Create a social proof post featuring a client testimonial that builds trust and credibility', type: 'testimonial' as ContentType },
+  { label: 'Market update', guidance: 'Create a market update post sharing current trends, data, and insights that demonstrate expertise', type: 'market_update' as ContentType },
+  { label: 'Open house announcement', guidance: 'Create an open house announcement post with date, time, address, and compelling reasons to attend', type: 'listing' as ContentType },
+];
+
 function getGenerationError(error: Error | null) {
   if (!error) return null;
   const msg = error.message;
@@ -48,6 +82,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const bdLabels = useBusinessDataLabels(clientId);
   const { data: channels } = useChannelSettings(clientId);
   const { data: mediaProfile } = useMediaProfile(clientId);
+  const { data: recommendations } = useDashboardRecommendations(clientId);
   const generate = useGenerateContent();
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
@@ -58,6 +93,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const [guidance, setGuidance] = useState(initialGuidance ?? '');
   const [selectedChannels, setSelectedChannels] = useState<Channel[]>([]);
   const [goal, setGoal] = useState<typeof GOALS[number]>('Growth');
+  const [contentType, setContentType] = useState<ContentType | null>(null);
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
 
   // Business data state
@@ -96,10 +132,88 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
     );
   };
 
+  // ── Build recommended posts from real data ────────────────────────────
+  const recommendedPosts = useMemo(() => {
+    const items: { id: string; title: string; description: string; guidance: string; type: ContentType; badge?: string }[] = [];
+    const summary = recommendations?.summary;
+
+    // Listings available → suggest listing post
+    const listingCount = summary?.realEstate?.listingCount ?? 0;
+    if (listingCount > 0) {
+      items.push({
+        id: 'listing-post',
+        title: `Create a listing post`,
+        description: `You have ${listingCount} listing${listingCount > 1 ? 's' : ''} ready for content`,
+        guidance: 'Create a compelling property listing post highlighting key features, location, and lifestyle benefits',
+        type: 'listing',
+        badge: 'New data',
+      });
+    }
+
+    // Testimonials available
+    const testimonials = summary?.dataByType?.TESTIMONIAL ?? 0;
+    if (testimonials > 0) {
+      items.push({
+        id: 'testimonial-post',
+        title: 'Share a client success story',
+        description: `${testimonials} testimonial${testimonials > 1 ? 's' : ''} available — build trust with social proof`,
+        guidance: 'Create a social proof post featuring a client testimonial that builds trust, credibility, and shows real results',
+        type: 'testimonial',
+        badge: 'High impact',
+      });
+    }
+
+    // Milestones
+    const milestones = summary?.dataByType?.MILESTONE ?? 0;
+    if (milestones > 0) {
+      items.push({
+        id: 'milestone-post',
+        title: 'Celebrate a milestone',
+        description: `${milestones} milestone${milestones > 1 ? 's' : ''} — share your wins`,
+        guidance: 'Create a celebration post about a recent milestone or achievement that connects with your audience',
+        type: 'personal',
+        badge: 'Timely',
+      });
+    }
+
+    // Below posting target
+    const published = summary?.publishedThisWeek ?? 0;
+    if (published < 5 && items.length < 3) {
+      items.push({
+        id: 'cadence-post',
+        title: published === 0 ? 'Start your week strong' : 'Keep your momentum going',
+        description: published === 0
+          ? "You haven't posted this week — stay visible with fresh content"
+          : `${published}/5 posts this week — create more to hit your target`,
+        guidance: 'Create an engaging post that demonstrates expertise and drives conversation with your audience',
+        type: 'educational',
+        badge: 'Cadence',
+      });
+    }
+
+    // Fill from API recommendations
+    if (items.length < 3 && recommendations?.recommendations) {
+      for (const rec of recommendations.recommendations) {
+        if (items.length >= 3) break;
+        if (items.some((i) => i.id === rec.id)) continue;
+        items.push({
+          id: rec.id,
+          title: rec.title,
+          description: rec.description,
+          guidance: rec.metadata?.guidance ?? rec.description,
+          type: 'educational',
+        });
+      }
+    }
+
+    return items.slice(0, 3);
+  }, [recommendations]);
+
   const handleGenerate = () => {
     if (selectedChannels.length === 0 || !guidance.trim()) return;
     const channel = selectedChannels[0];
-    const fullGuidance = `[Goal: ${goal}] ${guidance.trim()}`;
+    const typePrefix = contentType ? `[Type: ${contentType}] ` : '';
+    const fullGuidance = `[Goal: ${goal}] ${typePrefix}${guidance.trim()}`;
 
     generate.mutate(
       {
@@ -135,6 +249,16 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
     }
   };
 
+  const handleChipClick = (chip: typeof QUICK_CHIPS[number]) => {
+    setGuidance(chip.guidance);
+    setContentType(chip.type);
+  };
+
+  const handleRecommendedClick = (rec: typeof recommendedPosts[number]) => {
+    setGuidance(rec.guidance);
+    setContentType(rec.type);
+  };
+
   const atPostLimit =
     usage && isFinite(usage.limits.posts) && usage.usage.posts >= usage.limits.posts;
   const atImageLimit =
@@ -164,7 +288,48 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
 
       <ServiceAlert />
 
+      {/* ── Recommended for you ─────────────────────────────────────── */}
+      {recommendedPosts.length > 0 && !guidance.trim() && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-accent-green-110" />
+            <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">
+              Recommended for you
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
+              AI Suggested
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            {recommendedPosts.map((rec) => (
+              <button
+                key={rec.id}
+                type="button"
+                onClick={() => handleRecommendedClick(rec)}
+                className="w-full text-left p-4 rounded-xl bg-gradient-to-r from-accent-green-110/5 to-transparent border border-accent-green-110/15 hover:border-accent-green-110/30 hover:bg-accent-green-110/8 transition-all group"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-medium text-white-100 group-hover:text-white transition-colors">
+                    {rec.title}
+                  </span>
+                  {rec.badge && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-accent-green-110/10 text-accent-green-110 text-[10px] font-medium">
+                      {rec.badge}
+                    </span>
+                  )}
+                  <span className="ml-auto text-xs text-accent-green-110 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                    Use this idea →
+                  </span>
+                </div>
+                <p className="text-xs text-white-40">{rec.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6">
+        {/* Main textarea */}
         <textarea
           value={guidance}
           onChange={(e) => setGuidance(e.target.value)}
@@ -174,6 +339,50 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           maxLength={4000}
           className="w-full px-4 py-3.5 rounded-xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 resize-none placeholder:text-white-30"
         />
+
+        {/* Quick start chips */}
+        {!guidance.trim() && (
+          <div className="flex flex-wrap gap-2">
+            {QUICK_CHIPS.map((chip) => (
+              <button
+                key={chip.label}
+                type="button"
+                onClick={() => handleChipClick(chip)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium bg-white-5 border border-white-10 text-white-60 hover:bg-white-10 hover:text-white-100 hover:border-white-20 transition-all"
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Content Type */}
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2.5">
+            Content Type
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {CONTENT_TYPES.map((ct) => {
+              const Icon = ct.icon;
+              return (
+                <button
+                  key={ct.value}
+                  type="button"
+                  onClick={() => setContentType(contentType === ct.value ? null : ct.value)}
+                  className={cn(
+                    'px-3.5 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+                    contentType === ct.value
+                      ? 'bg-accent-green-110 text-sp-surface'
+                      : 'bg-white-10 text-white-60 hover:bg-white-20'
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {ct.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Platform pills */}
         <div>
@@ -237,7 +446,8 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-white-60 hover:bg-white-5 transition-colors"
           >
             <Database className="w-4 h-4" />
-            Use Business {bdLabels.itemPlural}
+            Use my data
+            <span className="text-[10px] text-white-30">(listings, testimonials, etc.)</span>
             {selectedDataItem && (
               <span className="ml-1 px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-[10px] font-semibold">
                 {selectedDataItem.title}
@@ -350,6 +560,56 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           )}
         </div>
 
+        {/* Inspiration — moved above generate button */}
+        <div className="card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="w-4 h-4 text-yellow-400" />
+              <h3 className="text-sm font-semibold text-white-60">Need inspiration?</h3>
+            </div>
+            <button
+              onClick={() =>
+                ideasMutation.mutate(undefined, {
+                  onSuccess: (data) => setIdeas(data),
+                })
+              }
+              disabled={ideasMutation.isPending}
+              className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {ideasMutation.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Zap className="w-3.5 h-3.5" />
+              )}
+              Give me ideas
+            </button>
+          </div>
+
+          {ideas.length > 0 && (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {ideas.map((idea, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setGuidance(idea.description)}
+                  className="w-full text-left p-3 rounded-lg bg-white-5 border border-white-10 hover:bg-white-10 hover:border-white-20 transition-all"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium text-white-100">{idea.title}</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-white-10 text-white-40 text-[10px] uppercase">
+                      {idea.category}
+                    </span>
+                    <span className="text-[10px] text-white-30 ml-auto">
+                      {idea.suggestedChannel}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white-40">{idea.description}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {atPostLimit && (
           <UpgradePrompt currentTier={usage!.tier} limitType="Post" />
         )}
@@ -383,7 +643,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             ) : (
               <>
                 <Wand2 className="w-5 h-5" />
-                Generate
+                Generate 3 Variations
               </>
             )}
           </button>
@@ -397,53 +657,6 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
         <p className="text-center text-xs text-white-30">
           Ctrl+Enter to generate
         </p>
-
-        {/* Ideas Engine */}
-        <div className="border-t border-white-10 pt-6 mt-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white-60">Need inspiration?</h3>
-            <button
-              onClick={() =>
-                ideasMutation.mutate(undefined, {
-                  onSuccess: (data) => setIdeas(data),
-                })
-              }
-              disabled={ideasMutation.isPending}
-              className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-            >
-              {ideasMutation.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Lightbulb className="w-3.5 h-3.5" />
-              )}
-              Give me ideas
-            </button>
-          </div>
-
-          {ideas.length > 0 && (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {ideas.map((idea, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setGuidance(idea.description)}
-                  className="w-full text-left p-3 rounded-lg bg-white-5 border border-white-10 hover:bg-white-10 transition-colors"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-medium text-white-100">{idea.title}</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-white-10 text-white-40 text-[10px] uppercase">
-                      {idea.category}
-                    </span>
-                    <span className="text-[10px] text-white-30 ml-auto">
-                      {idea.suggestedChannel}
-                    </span>
-                  </div>
-                  <p className="text-xs text-white-40">{idea.description}</p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
