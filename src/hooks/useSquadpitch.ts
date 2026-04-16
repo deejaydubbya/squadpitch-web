@@ -1936,7 +1936,7 @@ export interface DashboardRecommendation {
   actionLabel: string;
   priority: number;
   category: string;
-  metadata?: { guidance?: string; templateType?: string };
+  metadata?: { guidance?: string; templateType?: string; dataItemId?: string; channel?: string; recommendationId?: string };
 }
 
 export interface DashboardRecommendationsResponse {
@@ -1952,9 +1952,20 @@ export interface DashboardRecommendationsResponse {
     lastAutopilotAt: string | null;
     lastGeneratedAt: string | null;
     daysSinceLastGeneration: number | null;
+    topUnusedItems?: Array<{
+      id: string;
+      type: string;
+      title: string;
+      summary?: string;
+      address?: string;
+      quote?: string;
+      author?: string;
+      achievement?: string;
+    }>;
     realEstate?: {
       listingCount: number;
       reviewCount: number;
+      milestoneCount: number;
       listingFeedConnected: boolean;
       websiteConnected: boolean;
       availableChannels: string[];

@@ -133,50 +133,112 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   };
 
   // ── Build recommended posts from real data ────────────────────────────
-  const recommendedPosts = useMemo(() => {
-    const items: { id: string; title: string; description: string; guidance: string; type: ContentType; badge?: string }[] = [];
+  interface RecommendedPost {
+    id: string;
+    title: string;
+    description: string;
+    guidance: string;
+    type: ContentType;
+    badge?: string;
+    dataItemId?: string;
+    channel?: string;
+    sourceContext?: string;
+  }
+
+  const recommendedPosts = useMemo<RecommendedPost[]>(() => {
+    const items: RecommendedPost[] = [];
     const summary = recommendations?.summary;
+    const recs = recommendations?.recommendations ?? [];
 
-    // Listings available → suggest listing post
-    const listingCount = summary?.realEstate?.listingCount ?? 0;
-    if (listingCount > 0) {
+    // ── Priority 1: Backend recommendations with specific data (milestones, listings, testimonials) ──
+    // These have real item names, addresses, quotes linked via metadata.dataItemId
+    const contentRecs = recs.filter(
+      (r) => r.action === 'generate_post' && r.metadata?.guidance
+    );
+
+    // Map backend category → frontend content type
+    const typeMap: Record<string, ContentType> = {
+      milestone_post: 'personal',
+      listing_post: 'listing',
+      featured_property: 'listing',
+      client_testimonial: 'testimonial',
+    };
+
+    // Priority badges by recommendation type
+    const badgeMap: Record<string, string> = {
+      re_milestone_post: 'Just Sold',
+      re_listing_facebook: 'New listing',
+      re_listing_instagram: 'New listing',
+      re_testimonial_post: 'Social proof',
+      re_no_recent_listing: 'Timely',
+    };
+
+    for (const rec of contentRecs) {
+      if (items.length >= 3) break;
+      const templateType = rec.metadata?.templateType ?? '';
       items.push({
-        id: 'listing-post',
-        title: `Create a listing post`,
-        description: `You have ${listingCount} listing${listingCount > 1 ? 's' : ''} ready for content`,
-        guidance: 'Create a compelling property listing post highlighting key features, location, and lifestyle benefits',
-        type: 'listing',
-        badge: 'New data',
+        id: rec.id,
+        title: rec.title,
+        description: rec.description,
+        guidance: rec.metadata?.guidance ?? rec.description,
+        type: typeMap[templateType] ?? 'educational',
+        badge: badgeMap[rec.id],
+        dataItemId: rec.metadata?.dataItemId,
+        channel: rec.metadata?.channel,
       });
     }
 
-    // Testimonials available
-    const testimonials = summary?.dataByType?.TESTIMONIAL ?? 0;
-    if (testimonials > 0) {
-      items.push({
-        id: 'testimonial-post',
-        title: 'Share a client success story',
-        description: `${testimonials} testimonial${testimonials > 1 ? 's' : ''} available — build trust with social proof`,
-        guidance: 'Create a social proof post featuring a client testimonial that builds trust, credibility, and shows real results',
-        type: 'testimonial',
-        badge: 'High impact',
-      });
+    // ── Priority 2: Specific unused items from summary.topUnusedItems ──
+    const topUnused = summary?.topUnusedItems;
+
+    if (topUnused && items.length < 3) {
+      for (const item of topUnused) {
+        if (items.length >= 3) break;
+        if (items.some((i) => i.dataItemId === item.id)) continue;
+
+        if (item.type === 'MILESTONE') {
+          const label = item.address || item.achievement || item.title;
+          items.push({
+            id: `unused-milestone-${item.id}`,
+            title: `Celebrate your sale at ${label}`,
+            description: 'Create a Just Sold post to build credibility and attract new clients',
+            guidance: `Create a "Just Sold" celebration post for the property at ${label}. Emphasize success and invite new clients.`,
+            type: 'personal',
+            badge: 'Just Sold',
+            dataItemId: item.id,
+          });
+        } else if (item.type === 'TESTIMONIAL') {
+          const authorLabel = item.author ? `${item.author}'s review` : 'a client review';
+          const quoteSnippet = item.quote
+            ? `"${item.quote.length > 60 ? item.quote.slice(0, 57) + '...' : item.quote}"`
+            : '';
+          items.push({
+            id: `unused-testimonial-${item.id}`,
+            title: `Share ${authorLabel}`,
+            description: quoteSnippet || 'Turn client feedback into a trust-building post',
+            guidance: item.quote
+              ? `Create a social proof post featuring this client review: "${item.quote}"${item.author ? ` from ${item.author}` : ''}. Build trust and encourage inquiries.`
+              : 'Create a testimonial post using a real client review. Quote accurately and build trust.',
+            type: 'testimonial',
+            badge: 'Social proof',
+            dataItemId: item.id,
+          });
+        } else if (item.type === 'CUSTOM') {
+          const label = item.address || item.title;
+          items.push({
+            id: `unused-listing-${item.id}`,
+            title: `Create a post for ${label}`,
+            description: 'This listing hasn\'t been used for content yet',
+            guidance: `Create a high-performing property post for ${label}. Highlight key features and encourage DMs for showings.`,
+            type: 'listing',
+            badge: 'New data',
+            dataItemId: item.id,
+          });
+        }
+      }
     }
 
-    // Milestones
-    const milestones = summary?.dataByType?.MILESTONE ?? 0;
-    if (milestones > 0) {
-      items.push({
-        id: 'milestone-post',
-        title: 'Celebrate a milestone',
-        description: `${milestones} milestone${milestones > 1 ? 's' : ''} — share your wins`,
-        guidance: 'Create a celebration post about a recent milestone or achievement that connects with your audience',
-        type: 'personal',
-        badge: 'Timely',
-      });
-    }
-
-    // Below posting target
+    // ── Priority 3: Cadence fallback ──
     const published = summary?.publishedThisWeek ?? 0;
     if (published < 5 && items.length < 3) {
       items.push({
@@ -191,11 +253,13 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
       });
     }
 
-    // Fill from API recommendations
-    if (items.length < 3 && recommendations?.recommendations) {
-      for (const rec of recommendations.recommendations) {
+    // ── Priority 4: General template recommendations ──
+    if (items.length < 3) {
+      const templateRecs = recs.filter(
+        (r) => r.category === 'content' && !items.some((i) => i.id === r.id)
+      );
+      for (const rec of templateRecs) {
         if (items.length >= 3) break;
-        if (items.some((i) => i.id === rec.id)) continue;
         items.push({
           id: rec.id,
           title: rec.title,
@@ -254,9 +318,26 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
     setContentType(chip.type);
   };
 
-  const handleRecommendedClick = (rec: typeof recommendedPosts[number]) => {
+  const handleRecommendedClick = (rec: RecommendedPost) => {
     setGuidance(rec.guidance);
     setContentType(rec.type);
+
+    // Auto-select channel if recommendation suggests one
+    if (rec.channel) {
+      const ch = rec.channel as Channel;
+      if (enabledChannels.some((c) => c.channel === ch)) {
+        setSelectedChannels([ch]);
+      }
+    }
+
+    // Auto-select linked data item if available
+    if (rec.dataItemId && dataItems) {
+      const item = dataItems.find((d) => d.id === rec.dataItemId);
+      if (item) {
+        setSelectedDataItem(item);
+        setShowBusinessData(true);
+      }
+    }
   };
 
   const atPostLimit =
@@ -315,6 +396,12 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
                   {rec.badge && (
                     <span className="px-1.5 py-0.5 rounded-full bg-accent-green-110/10 text-accent-green-110 text-[10px] font-medium">
                       {rec.badge}
+                    </span>
+                  )}
+                  {rec.dataItemId && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-white-10 text-white-40 text-[10px] font-medium flex items-center gap-0.5">
+                      <Database className="w-2.5 h-2.5" />
+                      Linked data
                     </span>
                   )}
                   <span className="ml-auto text-xs text-accent-green-110 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
