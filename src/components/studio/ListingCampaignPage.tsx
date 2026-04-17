@@ -59,7 +59,7 @@ import {
   useUploadCampaignImages,
   useUploadAsset,
   useCreateFolder,
-  autoTagAssetFetch,
+  autoTagAssetWithResult,
   useDataItems,
   useRecommendations,
   useAssets,
@@ -488,6 +488,7 @@ export function ListingCampaignPage({ clientId }: Props) {
   // Direct upload into campaign — auto-creates a folder in the media library
   const [campaignFolderId, setCampaignFolderId] = useState<string | null>(null);
   const [directUploadCount, setDirectUploadCount] = useState(0);
+  const [directUploadTotal, setDirectUploadTotal] = useState(0);
   const directUploadRef = useRef<HTMLInputElement>(null);
 
   // Mutations
@@ -1856,12 +1857,21 @@ export function ListingCampaignPage({ clientId }: Props) {
     const handleDirectUpload = async (files: FileList | null) => {
       if (!files || files.length === 0) return;
 
+      const LABEL_TAGS_SET = new Set<ImageRegionLabel>([
+        'exterior', 'kitchen', 'living_room', 'bedroom',
+        'bathroom', 'backyard', 'dining_room', 'other',
+      ]);
+
       // Build a smart folder name from the listing address or a fallback.
       const folderName = form.address
         ? `Campaign — ${form.address}${form.city ? `, ${form.city}` : ''}`
         : `Listing Campaign ${new Date().toLocaleDateString()}`;
 
-      setDirectUploadCount(files.length);
+      setDirectUploadTotal(files.length);
+      setDirectUploadCount(0);
+
+      // Track IDs of candidates we add so we can pick the hero at the end.
+      const addedCandidateIds: string[] = [];
 
       try {
         // Ensure we have a folder (create once, reuse across uploads in this session).
@@ -1872,12 +1882,11 @@ export function ListingCampaignPage({ clientId }: Props) {
           setCampaignFolderId(folderId);
         }
 
-        // Upload each file sequentially, collect uploaded assets, then add
-        // them all at once so hero selection considers the entire batch.
-        const uploadedAssets: MediaAsset[] = [];
+        // Upload each file sequentially. Show it in the gallery as soon as it
+        // finishes (progressive), but always as 'gallery' — hero is chosen at
+        // the end once all tags are known.
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
-          setDirectUploadCount(files.length - i);
           try {
             const fd = new FormData();
             fd.append('file', file);
@@ -1887,21 +1896,113 @@ export function ListingCampaignPage({ clientId }: Props) {
               assetType: isVideo ? 'video' : 'image',
               folderId,
             });
-            // Auto-tag in background (same as media library pipeline).
-            autoTagAssetFetch(clientId, asset.id);
-            if (!isVideo) uploadedAssets.push(asset);
+
+            if (isVideo || !asset.url) continue; // videos skip candidate pool
+
+            // Auto-tag and await the result so we get proper labels.
+            const savedTags = await autoTagAssetWithResult(clientId, asset.id);
+            const matchedLabel = savedTags.find((t) => LABEL_TAGS_SET.has(t as ImageRegionLabel)) as ImageRegionLabel | undefined;
+
+            // Fetch the image as dataUrl for the candidate card.
+            let dataUrl = '';
+            try {
+              const res = await fetch(asset.url, { mode: 'cors' });
+              if (!res.ok) throw new Error('fetch failed');
+              const blob = await res.blob();
+              dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result));
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(blob);
+              });
+            } catch {
+              continue; // can't display — skip
+            }
+
+            let qualityScore = 50;
+            let qualityLabel: QualityLabel = 'fair';
+            try {
+              const q = await computeImageQuality(dataUrl);
+              qualityScore = q.score;
+              qualityLabel = q.label;
+            } catch { /* best-effort */ }
+
+            const candidateId = `library_${asset.id}_${Date.now()}`;
+            addedCandidateIds.push(candidateId);
+
+            // Add to gallery immediately — NO hero assignment yet.
+            const newLabel = matchedLabel ?? 'other';
+            const candidate: CandidateImage = {
+              id: candidateId,
+              originalUrl: dataUrl,
+              cleanedUrl: null,
+              enhancedUrl: null,
+              cleanedEnhancedUrl: null,
+              cleanEnabled: false,
+              enhanceEnabled: false,
+              cleaning: false,
+              enhancing: false,
+              label: newLabel,
+              description: asset.caption ?? asset.altText ?? (matchedLabel ? matchedLabel.replace(/_/g, ' ') : ''),
+              layoutRole: 'gallery',
+              photoConfidence: 1,
+              hasText: false,
+              quality: 'bright',
+              bbox: { x: 0, y: 0, w: 1, h: 1 },
+              pixelWidth: asset.width ?? 0,
+              pixelHeight: asset.height ?? 0,
+              qualityScore,
+              qualityLabel,
+              sourcePass: 'manual',
+              parentRegionId: null,
+              source: 'manual_crop',
+              overlays: [],
+              overlayRemoved: false,
+              ...EMPTY_CLEANUP_META,
+            };
+            setCandidateImages((prev) => [...prev, candidate]);
+            setSelectedImageIds((prev) => {
+              const next = new Set(prev);
+              next.add(candidateId);
+              return next;
+            });
+            setDirectUploadCount(i + 1);
           } catch {
             // Skip individual failures but continue with the rest.
+            setDirectUploadCount(i + 1);
           }
         }
-        // Add all uploaded images at once — hero is chosen from the full batch.
-        if (uploadedAssets.length > 0) {
-          await addManyFromLibrary(uploadedAssets);
+
+        // All uploads done — now pick the best hero from the newly added
+        // candidates using LABEL_PRIORITY, but only if there's no hero yet.
+        if (addedCandidateIds.length > 0) {
+          setCandidateImages((prev) => {
+            const hasHero = prev.some((c) => c.layoutRole === 'hero');
+            if (hasHero) return prev;
+
+            // Find best candidate among the ones we just added.
+            let bestId = '';
+            let bestPriority = -1;
+            for (const c of prev) {
+              if (addedCandidateIds.includes(c.id)) {
+                const p = LABEL_PRIORITY[c.label] ?? 0;
+                if (p > bestPriority) {
+                  bestPriority = p;
+                  bestId = c.id;
+                }
+              }
+            }
+            if (!bestId) return prev;
+            return prev.map((c) =>
+              c.id === bestId ? { ...c, layoutRole: 'hero' as const, source: 'hero' as const } : c,
+            );
+          });
         }
       } catch {
         setSplitNotice('Couldn\u2019t create campaign folder.');
       } finally {
         setDirectUploadCount(0);
+        setDirectUploadTotal(0);
         // Reset the file input so re-selecting the same files triggers onChange.
         if (directUploadRef.current) directUploadRef.current.value = '';
       }
@@ -1948,16 +2049,16 @@ export function ListingCampaignPage({ clientId }: Props) {
             </button>
             <button
               onClick={() => directUploadRef.current?.click()}
-              disabled={directUploadCount > 0}
+              disabled={directUploadTotal > 0}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white-10 text-white-80 hover:bg-white-20 transition-colors font-medium disabled:opacity-50"
               title="Upload files directly — they'll be saved to your media library automatically"
             >
-              {directUploadCount > 0 ? (
+              {directUploadTotal > 0 ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <Upload className="w-3.5 h-3.5" />
               )}
-              {directUploadCount > 0 ? `Uploading ${directUploadCount}…` : 'Upload'}
+              {directUploadTotal > 0 ? `Uploading ${directUploadCount}/${directUploadTotal}…` : 'Upload'}
             </button>
             <input
               ref={directUploadRef}

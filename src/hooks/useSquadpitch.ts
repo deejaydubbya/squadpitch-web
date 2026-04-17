@@ -1527,6 +1527,16 @@ export function autoTagAssetFetch(clientId: string, assetId: string): Promise<vo
   });
 }
 
+/**
+ * Auto-tag and return the saved tags so the caller can use them immediately.
+ */
+export function autoTagAssetWithResult(clientId: string, assetId: string): Promise<string[]> {
+  return apiFetch<{ suggestedTags: string[]; savedTags: string[] }>(
+    `workspaces/${clientId}/assets/${assetId}/auto-tag`,
+    { method: 'POST', body: JSON.stringify({}) },
+  ).then((r) => r.savedTags ?? r.suggestedTags ?? []).catch(() => []);
+}
+
 export function useAssetTagDefaults(clientId: string) {
   return useQuery({
     queryKey: squadpitchKeys.assetTagDefaults(clientId),

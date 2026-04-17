@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle, ChevronDown, ChevronRight, Megaphone, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -32,6 +32,7 @@ import { PlannerWelcomeCard } from './PlannerWelcomeCard';
 import { PlannerTour } from './PlannerTour';
 import { FirstWeekProgress } from './FirstWeekProgress';
 import { PlannerSetupChecklist } from './PlannerSetupChecklist';
+import { CampaignFocusView } from './CampaignFocusView';
 
 interface Props {
   clientId: string;
@@ -78,7 +79,13 @@ function getCurrentWeekRange() {
 
 export function PlannerView({ clientId }: Props) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const highlightCampaignId = searchParams.get('campaignId') ?? null;
+
+  // Campaign focus mode — shown when arriving from campaign launch
+  const [focusDismissed, setFocusDismissed] = useState(false);
+  const focusMode = Boolean(highlightCampaignId) && !focusDismissed;
+
   // Auto-switch to list view when arriving from campaign launch so the user
   // immediately sees the grouped campaign instead of the calendar.
   const [view, setView] = useState<'calendar' | 'list'>(highlightCampaignId ? 'list' : 'calendar');
@@ -262,6 +269,19 @@ export function PlannerView({ clientId }: Props) {
     [allDrafts]
   );
 
+  // Campaign focus mode — filtered drafts for the highlighted campaign
+  const focusCampaignDrafts = useMemo(() => {
+    if (!highlightCampaignId || !allDrafts) return [];
+    return allDrafts
+      .filter((d) => d.campaignId === highlightCampaignId)
+      .sort((a, b) => (a.campaignOrder ?? 0) - (b.campaignOrder ?? 0));
+  }, [allDrafts, highlightCampaignId]);
+
+  const handleExitFocusMode = useCallback(() => {
+    setFocusDismissed(true);
+    router.replace(`/workspaces/${clientId}/planner`, { scroll: false });
+  }, [router, clientId]);
+
   const handleAutoSchedule = () => {
     if (approvedUnscheduled.length === 0) return;
     autoSchedule.mutate(approvedUnscheduled.map((d) => d.id));
@@ -375,6 +395,27 @@ export function PlannerView({ clientId }: Props) {
     setTourActive(false);
     onboarding.markTourSeen();
   };
+
+  // ── Campaign focus mode early return ──────────────────────────────────
+  if (focusMode && isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <LoadingSpinner size="md" />
+      </div>
+    );
+  }
+
+  if (focusMode && focusCampaignDrafts.length > 0) {
+    return (
+      <CampaignFocusView
+        clientId={clientId}
+        campaignDrafts={focusCampaignDrafts}
+        onExitFocusMode={handleExitFocusMode}
+        selectedIds={selected}
+        onSelect={hasApprovable ? handleSelect : undefined}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -747,7 +788,7 @@ export function PlannerView({ clientId }: Props) {
   );
 }
 
-const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
+export const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
   just_listed: 'Just Listed',
   open_house: 'Open House',
   price_drop: 'Price Drop',
