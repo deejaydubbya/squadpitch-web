@@ -51,6 +51,7 @@ import {
   useGenerateListingCampaign,
   useExtractListingImage,
   useSaveCampaignDrafts,
+  useRegeneratePost,
   useUploadCampaignImages,
   useDataItems,
   useRecommendations,
@@ -70,7 +71,7 @@ import {
 
 // ── Types ──
 
-type Step = 'source' | 'images' | 'form' | 'campaign-type' | 'generating' | 'output';
+type Step = 'source' | 'images' | 'form' | 'campaign-setup' | 'campaign-type' | 'generating' | 'campaign-builder' | 'output';
 
 // ── Image picker types ──
 
@@ -292,6 +293,31 @@ const CAMPAIGN_TYPES: CampaignTypeOption[] = [
   { key: 'listing_spotlight', label: 'Listing Spotlight', description: 'Lifestyle showcase', icon: Star },
 ];
 
+// ── Campaign slot configuration ──
+
+interface CampaignSlotConfig {
+  id: string;
+  label: string;
+  channel: string;
+  campaignDay: number;
+}
+
+const DEFAULT_CAMPAIGN_SLOTS: CampaignSlotConfig[] = [
+  { id: 'slot-1', label: 'Launch Announcement', channel: 'INSTAGRAM', campaignDay: 1 },
+  { id: 'slot-2', label: 'Feature Highlight', channel: 'FACEBOOK', campaignDay: 2 },
+  { id: 'slot-3', label: 'Lifestyle Story', channel: 'INSTAGRAM', campaignDay: 3 },
+  { id: 'slot-4', label: 'Authority / Social Proof', channel: 'LINKEDIN', campaignDay: 5 },
+  { id: 'slot-5', label: 'Final Push', channel: 'FACEBOOK', campaignDay: 7 },
+];
+
+const AVAILABLE_CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'X', 'EMAIL'];
+
+interface ImagePoolItem {
+  id: string;
+  displayUrl: string;
+  label: string;
+}
+
 // ── Main Component ──
 
 interface Props {
@@ -314,6 +340,13 @@ export function ListingCampaignPage({ clientId }: Props) {
   const [saveSuccess, setSaveSuccess] = useState('');
   const [schedulePreset, setSchedulePreset] = useState<SchedulePreset>(7);
 
+  // Centralized campaign posts — source of truth for all edits. Populated
+  // when generation completes, updated by CampaignPostCard via onUpdate.
+  // handleSaveDrafts reads from here, not from the original `campaign`.
+  const [campaignPosts, setCampaignPosts] = useState<CampaignPost[]>([]);
+  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
+  const [campaignSlots, setCampaignSlots] = useState<CampaignSlotConfig[]>(DEFAULT_CAMPAIGN_SLOTS);
+
   // Screenshot state
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [extractionConfidence, setExtractionConfidence] = useState<'full' | 'partial' | null>(null);
@@ -324,6 +357,9 @@ export function ListingCampaignPage({ clientId }: Props) {
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
   const [splitNotice, setSplitNotice] = useState<string>('');
   const [uploadedAssetIds, setUploadedAssetIds] = useState<string[]>([]);
+  // Stable mapping from client-side candidate ID → uploaded asset ID.
+  // Captured at upload time so it's deterministic regardless of later pool changes.
+  const [candidateAssetMap, setCandidateAssetMap] = useState<Map<string, string>>(new Map());
   // Hybrid-pipeline debug panel (spinstr99/100) — opt-in via ?debug=1 or localStorage.
   const [debugMode, setDebugMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -387,6 +423,7 @@ export function ListingCampaignPage({ clientId }: Props) {
   const extractImage = useExtractListingImage(clientId);
   const saveDrafts = useSaveCampaignDrafts(clientId);
   const uploadImages = useUploadCampaignImages(clientId);
+  const regeneratePost = useRegeneratePost(clientId);
 
   // Existing listings for selector
   const { data: existingListings } = useDataItems(clientId, { type: 'CUSTOM', limit: 20 });
@@ -738,22 +775,43 @@ export function ListingCampaignPage({ clientId }: Props) {
         },
         campaignType,
         imageContext,
+        // Pass configured slots so the backend generates posts matching the setup
+        slots: campaignSlots.map((s) => ({
+          label: s.label,
+          channel: s.channel,
+          campaignDay: s.campaignDay,
+        })),
       });
       setCampaign(result.campaign);
+      // Auto-assign images to posts based on imageHint from generation
+      const rawPosts = result.campaign.posts ?? [];
+      const selected = candidateImages.filter((c) => selectedImageIds.has(c.id));
+      const autoAssigned = selected.length > 0
+        ? rawPosts.map((post) => {
+            if (post.assignedImageIds && post.assignedImageIds.length > 0) return post;
+            if (!post.imageHint) return post;
+            const match = selected.find((c) => c.label === post.imageHint);
+            return match ? { ...post, assignedImageIds: [match.id] } : post;
+          })
+        : rawPosts;
+      setCampaignPosts(autoAssigned);
       if (result.dataItemId) setDataItemId(result.dataItemId);
       setStep('output');
     } catch {
       setGenError('Campaign generation failed. Please try again.');
-      setStep('campaign-type');
+      setStep('campaign-setup');
     }
-  }, [form, campaignType, generateCampaign, candidateImages, selectedImageIds]);
+  }, [form, campaignType, campaignSlots, generateCampaign, candidateImages, selectedImageIds]);
 
   const handleSaveDrafts = useCallback(async (addToPlanner: boolean) => {
     if (!campaign) return;
     setSaveSuccess('');
 
-    // Upload selected image crops to Cloudinary/MediaLibrary first (idempotent)
+    // Upload selected image crops to Cloudinary/MediaLibrary first (idempotent).
+    // Build a stable candidateId→assetId mapping at upload time so per-post
+    // assignment survives even if the pool order changes later.
     let mediaAssetIds: string[] = uploadedAssetIds;
+    let assetMap = candidateAssetMap;
     const selectedCandidates = candidateImages.filter((c) => selectedImageIds.has(c.id));
     if (mediaAssetIds.length === 0 && selectedCandidates.length > 0) {
       try {
@@ -769,14 +827,35 @@ export function ListingCampaignPage({ clientId }: Props) {
         });
         mediaAssetIds = result.assets.map((a) => a.id);
         setUploadedAssetIds(mediaAssetIds);
+        // Lock the candidate→asset mapping at upload time
+        const newMap = new Map<string, string>();
+        selectedCandidates.forEach((c, i) => {
+          if (result.assets[i]) newMap.set(c.id, result.assets[i].id);
+        });
+        setCandidateAssetMap(newMap);
+        assetMap = newMap;
       } catch {
         // Non-fatal — continue save without images
       }
     }
 
+    // Build campaign with current edited posts. Map candidate image IDs to
+    // uploaded asset IDs using the stable map captured at upload time.
+    const editedCampaign: ListingCampaignOutput = {
+      campaignName: campaign.campaignName,
+      posts: campaignPosts.map((p) => ({
+        ...p,
+        assignedImageIds: p.assignedImageIds?.length
+          ? p.assignedImageIds
+              .map((cid) => assetMap.get(cid))
+              .filter((id): id is string => !!id)
+          : undefined,
+      })),
+    };
+
     try {
       await saveDrafts.mutateAsync({
-        campaign,
+        campaign: editedCampaign,
         propertyData: { address: form.address, city: form.city, state: form.state },
         campaignType,
         dataItemId,
@@ -791,7 +870,63 @@ export function ListingCampaignPage({ clientId }: Props) {
     } catch {
       setSaveSuccess('Failed to save drafts. Please try again.');
     }
-  }, [campaign, form, campaignType, dataItemId, saveDrafts, schedulePreset, uploadedAssetIds, candidateImages, selectedImageIds, uploadImages]);
+  }, [campaign, campaignPosts, form, campaignType, dataItemId, saveDrafts, schedulePreset, uploadedAssetIds, candidateAssetMap, candidateImages, selectedImageIds, uploadImages]);
+
+  // Update a single post field in the centralized campaign state.
+  // Called by CampaignPostCard on every edit — body, hashtags, CTA, subject, etc.
+  const updatePost = useCallback((index: number, updates: Partial<CampaignPost>) => {
+    setCampaignPosts((prev) => prev.map((p, i) => (i === index ? { ...p, ...updates } : p)));
+  }, []);
+
+  // Regenerate a single post via the backend. Keeps all other posts untouched.
+  const handleRegeneratePost = useCallback(async (index: number) => {
+    const post = campaignPosts[index];
+    if (!post) return;
+
+    const fullAddress = [form.address, form.city, form.state, form.zip].filter(Boolean).join(', ');
+    const selectedCandidates = candidateImages.filter((c) => selectedImageIds.has(c.id));
+    const imageContext = selectedCandidates.length > 0
+      ? selectedCandidates.map((c) => ({ label: c.label, description: c.description }))
+      : undefined;
+    // Summarize sibling posts so the regenerated post stays coordinated
+    const campaignSummary = campaignPosts
+      .filter((_, i) => i !== index)
+      .map((p) => `Day ${p.campaignDay}: ${p.label} (${p.channel}, ${p.angle})`);
+
+    setRegeneratingIndex(index);
+    try {
+      const result = await regeneratePost.mutateAsync({
+        propertyData: {
+          address: fullAddress,
+          price: form.price,
+          beds: form.beds,
+          baths: form.baths,
+          sqft: form.sqft,
+          propertyType: form.propertyType,
+          description: form.description,
+          highlights: form.highlights,
+          neighborhood: form.neighborhood,
+          cta: form.cta,
+          agentName: form.agentName,
+          brokerage: form.brokerage,
+        },
+        campaignType,
+        slot: {
+          channel: post.channel,
+          day: post.campaignDay,
+          label: post.label,
+          angle: post.angle,
+        },
+        campaignSummary,
+        imageContext,
+      });
+      setCampaignPosts((prev) => prev.map((p, i) => (i === index ? result.post : p)));
+    } catch {
+      // Non-fatal — post stays unchanged
+    } finally {
+      setRegeneratingIndex(null);
+    }
+  }, [campaignPosts, form, campaignType, regeneratePost, candidateImages, selectedImageIds]);
 
   const resetWizard = () => {
     setStep('source');
@@ -802,6 +937,9 @@ export function ListingCampaignPage({ clientId }: Props) {
     setPrefilledFields(new Set());
     setCampaignType('just_listed');
     setCampaign(null);
+    setCampaignPosts([]);
+    setRegeneratingIndex(null);
+    setCampaignSlots(DEFAULT_CAMPAIGN_SLOTS);
     setDataItemId(null);
     setGenError('');
     setSaveSuccess('');
@@ -811,6 +949,7 @@ export function ListingCampaignPage({ clientId }: Props) {
     setCandidateImages([]);
     setSelectedImageIds(new Set());
     setUploadedAssetIds([]);
+    setCandidateAssetMap(new Map());
     setSplitNotice('');
     setGalleryContainer(null);
     setHeroBbox(null);
@@ -2133,19 +2272,43 @@ export function ListingCampaignPage({ clientId }: Props) {
 
           {/* Next button */}
           <button
-            onClick={() => setStep('campaign-type')}
+            onClick={() => setStep('campaign-setup')}
             className="w-full py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
           >
-            Choose Campaign Type
+            Campaign Setup
           </button>
         </div>
       </div>
     );
   }
 
-  // ── Step 3: Choose Campaign Type ──
+  // ── Step 3: Campaign Setup (type + slot editor) ──
 
-  if (step === 'campaign-type') {
+  if (step === 'campaign-setup') {
+    const addSlot = () => {
+      const maxDay = Math.max(...campaignSlots.map((s) => s.campaignDay), 0);
+      setCampaignSlots((prev) => [
+        ...prev,
+        {
+          id: `slot-${Date.now()}`,
+          label: `Post ${prev.length + 1}`,
+          channel: 'INSTAGRAM',
+          campaignDay: maxDay + 2,
+        },
+      ]);
+    };
+
+    const removeSlot = (id: string) => {
+      setCampaignSlots((prev) => prev.filter((s) => s.id !== id));
+    };
+
+    const updateSlot = (id: string, updates: Partial<CampaignSlotConfig>) => {
+      setCampaignSlots((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+    };
+
+    const uniqueChannels = Array.from(new Set(campaignSlots.map((s) => s.channel)));
+    const maxDay = Math.max(...campaignSlots.map((s) => s.campaignDay), 0);
+
     return (
       <div className="max-w-3xl mx-auto py-8 px-4">
         <button
@@ -2156,55 +2319,134 @@ export function ListingCampaignPage({ clientId }: Props) {
           Back to details
         </button>
 
-        <h1 className="text-2xl font-bold text-white-100 mb-1">Choose Campaign Type</h1>
+        <h1 className="text-2xl font-bold text-white-100 mb-1">Campaign Setup</h1>
         <p className="text-white-40 text-sm mb-8">
-          Each type changes the tone, urgency, and CTA across your entire campaign sequence.
+          Choose your campaign type and customize the post sequence.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-          {CAMPAIGN_TYPES.map((type) => {
-            const Icon = type.icon;
-            const selected = campaignType === type.key;
-            return (
-              <button
-                key={type.key}
-                onClick={() => setCampaignType(type.key)}
-                className={cn(
-                  'relative flex items-start gap-3 p-4 rounded-xl border text-left transition-all',
-                  selected
-                    ? 'bg-accent-green-110/10 border-accent-green-110'
-                    : 'bg-white-5 border-white-10 hover:border-white-20'
-                )}
-              >
-                <div className={cn(
-                  'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
-                  selected ? 'bg-accent-green-110/20' : 'bg-white-10'
-                )}>
-                  <Icon className={cn('w-5 h-5', selected ? 'text-accent-green-110' : 'text-white-40')} />
-                </div>
-                <div>
-                  <span className={cn('font-semibold text-sm', selected ? 'text-accent-green-110' : 'text-white-80')}>
-                    {type.label}
-                  </span>
-                  <p className="text-white-40 text-xs mt-0.5">{type.description}</p>
-                </div>
-                {selected && (
-                  <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-accent-green-110" />
-                )}
-              </button>
-            );
-          })}
+        {genError && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            {genError}
+          </div>
+        )}
+
+        {/* Campaign Type */}
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-white-60 mb-3 uppercase tracking-wider">Campaign Type</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {CAMPAIGN_TYPES.map((type) => {
+              const Icon = type.icon;
+              const selected = campaignType === type.key;
+              return (
+                <button
+                  key={type.key}
+                  onClick={() => setCampaignType(type.key)}
+                  className={cn(
+                    'relative flex items-start gap-3 p-4 rounded-xl border text-left transition-all',
+                    selected
+                      ? 'bg-accent-green-110/10 border-accent-green-110'
+                      : 'bg-white-5 border-white-10 hover:border-white-20',
+                  )}
+                >
+                  <div className={cn(
+                    'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
+                    selected ? 'bg-accent-green-110/20' : 'bg-white-10',
+                  )}>
+                    <Icon className={cn('w-5 h-5', selected ? 'text-accent-green-110' : 'text-white-40')} />
+                  </div>
+                  <div>
+                    <span className={cn('font-semibold text-sm', selected ? 'text-accent-green-110' : 'text-white-80')}>
+                      {type.label}
+                    </span>
+                    <p className="text-white-40 text-xs mt-0.5">{type.description}</p>
+                  </div>
+                  {selected && (
+                    <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-accent-green-110" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
+        {/* Campaign Slots */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">Campaign Sequence</h2>
+            <span className="text-xs text-white-30">{campaignSlots.length} post{campaignSlots.length === 1 ? '' : 's'}</span>
+          </div>
+
+          <div className="space-y-2">
+            {campaignSlots.map((slot) => (
+              <div key={slot.id} className="flex items-center gap-3 bg-white-5 border border-white-10 rounded-xl p-3">
+                <div className="shrink-0 w-14">
+                  <label className="text-[9px] text-white-20 uppercase tracking-wider block mb-0.5">Day</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={slot.campaignDay}
+                    onChange={(e) => updateSlot(slot.id, { campaignDay: parseInt(e.target.value) || 1 })}
+                    className="w-full px-2 py-1 rounded-md bg-white-5 border border-white-10 text-white-80 text-xs focus:outline-none focus:border-accent-green-110"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <label className="text-[9px] text-white-20 uppercase tracking-wider block mb-0.5">Label</label>
+                  <input
+                    value={slot.label}
+                    onChange={(e) => updateSlot(slot.id, { label: e.target.value })}
+                    className="w-full px-2 py-1 rounded-md bg-white-5 border border-white-10 text-white-80 text-xs focus:outline-none focus:border-accent-green-110"
+                    placeholder="Post title..."
+                  />
+                </div>
+                <div className="shrink-0 w-32">
+                  <label className="text-[9px] text-white-20 uppercase tracking-wider block mb-0.5">Channel</label>
+                  <select
+                    value={slot.channel}
+                    onChange={(e) => updateSlot(slot.id, { channel: e.target.value })}
+                    className="w-full px-2 py-1 rounded-md bg-white-5 border border-white-10 text-white-80 text-xs focus:outline-none focus:border-accent-green-110"
+                  >
+                    {AVAILABLE_CHANNELS.map((ch) => (
+                      <option key={ch} value={ch}>{ch}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={() => removeSlot(slot.id)}
+                  disabled={campaignSlots.length <= 1}
+                  className="shrink-0 p-1.5 rounded-md text-white-30 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-20 disabled:cursor-not-allowed mt-3"
+                  title="Remove this slot"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={addSlot}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Post
+            </button>
+          </div>
+        </div>
+
+        {/* Preview */}
         <div className="bg-white-5 border border-white-10 rounded-xl p-4 mb-6">
           <p className="text-white-60 text-xs">
-            This campaign will generate <strong className="text-white-80">5 coordinated posts</strong> across <strong className="text-white-80">Instagram</strong>, <strong className="text-white-80">Facebook</strong>, and <strong className="text-white-80">LinkedIn</strong> — each with a different angle and scheduled over multiple days.
+            This campaign will generate <strong className="text-white-80">{campaignSlots.length} coordinated post{campaignSlots.length === 1 ? '' : 's'}</strong> across{' '}
+            <strong className="text-white-80">{uniqueChannels.join(', ')}</strong>{' '}
+            — each with a different angle, scheduled over {maxDay} day{maxDay === 1 ? '' : 's'}.
           </p>
         </div>
 
         <button
           onClick={handleGenerate}
-          className="w-full py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
+          disabled={campaignSlots.length === 0}
+          className="w-full py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors disabled:opacity-50"
         >
           Generate {campaignTypeLabel} Campaign
         </button>
@@ -2225,11 +2467,16 @@ export function ListingCampaignPage({ clientId }: Props) {
     );
   }
 
-  // ── Step 5: Review + Save (Multi-Post Timeline) ──
+  // ── Step 5: Campaign Builder (Timeline + Image Pool + Save) ──
 
   if (step === 'output' && campaign) {
-    const posts = campaign.posts ?? [];
+    const posts = campaignPosts;
     const addressLine = form.address ? `${form.address}${form.city ? `, ${form.city}` : ''}` : 'Listing Campaign';
+
+    // Build image pool from selected candidates for per-post assignment
+    const imagePool: ImagePoolItem[] = candidateImages
+      .filter((c) => selectedImageIds.has(c.id))
+      .map((c) => ({ id: c.id, displayUrl: getDisplayUrl(c), label: LABEL_DISPLAY[c.label] }));
 
     return (
       <div className="max-w-4xl mx-auto py-8 px-4">
@@ -2238,7 +2485,7 @@ export function ListingCampaignPage({ clientId }: Props) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold text-white-100">
-                {campaign.campaignName || 'Your Campaign'}
+                {campaign.campaignName || 'Campaign Builder'}
               </h1>
               <span className="text-xs px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 font-medium">
                 {campaignTypeLabel}
@@ -2255,7 +2502,7 @@ export function ListingCampaignPage({ clientId }: Props) {
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors"
             >
               <RefreshCw className={cn('w-4 h-4', generateCampaign.isPending && 'animate-spin')} />
-              Regenerate
+              Regenerate All
             </button>
             <button
               onClick={resetWizard}
@@ -2267,23 +2514,23 @@ export function ListingCampaignPage({ clientId }: Props) {
           </div>
         </div>
 
-        {/* Campaign Images */}
-        {selectedImageIds.size > 0 && (
-          <div className="mt-6 mb-4">
+        {/* Image Pool — reusable assets the user can assign to individual posts */}
+        {imagePool.length > 0 && (
+          <div className="mt-6 mb-4 bg-white-5 border border-white-10 rounded-xl p-4">
             <p className="text-xs font-medium text-white-40 uppercase tracking-wider mb-2">
-              Campaign Images ({selectedImageIds.size}) — will be attached to each post
+              Image Pool ({imagePool.length}) — click a post&apos;s &quot;Images&quot; button to assign
             </p>
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {candidateImages.filter((c) => selectedImageIds.has(c.id)).map((c) => (
-                <div key={c.id} className="relative shrink-0">
+              {imagePool.map((img) => (
+                <div key={img.id} className="relative shrink-0 group">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={getDisplayUrl(c)}
-                    alt={LABEL_DISPLAY[c.label]}
+                    src={img.displayUrl}
+                    alt={img.label}
                     className="w-20 h-20 rounded-lg object-cover border border-white-10"
                   />
                   <span className="absolute bottom-0.5 left-0.5 text-[9px] px-1 py-0.5 rounded bg-black/70 text-white-80">
-                    {LABEL_DISPLAY[c.label]}
+                    {img.label}
                   </span>
                 </div>
               ))}
@@ -2294,7 +2541,16 @@ export function ListingCampaignPage({ clientId }: Props) {
         {/* Campaign Timeline */}
         <div className="space-y-3 mb-8 mt-6">
           {posts.map((post, idx) => (
-            <CampaignPostCard key={idx} post={post} index={idx} totalPosts={posts.length} />
+            <CampaignPostCard
+              key={`post-${idx}-${post.campaignDay}`}
+              post={post}
+              index={idx}
+              totalPosts={posts.length}
+              onUpdate={updatePost}
+              onRegenerate={handleRegeneratePost}
+              isRegenerating={regeneratingIndex === idx}
+              imagePool={imagePool}
+            />
           ))}
         </div>
 
@@ -2445,17 +2701,28 @@ function CampaignPostCard({
   post,
   index,
   totalPosts,
+  onUpdate,
+  onRegenerate,
+  isRegenerating,
+  imagePool = [],
 }: {
   post: CampaignPost;
   index: number;
   totalPosts: number;
+  onUpdate: (index: number, updates: Partial<CampaignPost>) => void;
+  onRegenerate: (index: number) => void;
+  isRegenerating: boolean;
+  imagePool?: ImagePoolItem[];
 }) {
   const [copied, setCopied] = useState(false);
-  const [editedBody, setEditedBody] = useState(post.body);
   const [isEditing, setIsEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [showAlt, setShowAlt] = useState(false);
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  // Local hashtag text while editing — parsed back to array on blur
+  const [hashtagText, setHashtagText] = useState('');
 
-  const displayBody = isEditing ? editedBody : post.body;
+  const displayBody = showAlt && post.bodyAlt ? post.bodyAlt : post.body;
   const ChannelIcon = CHANNEL_ICONS[post.channel] ?? FileText;
   const angleLabel = ANGLE_LABELS[post.angle] ?? post.angle;
 
@@ -2472,8 +2739,26 @@ function CampaignPostCard({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const enterEditing = () => {
+    setHashtagText((post.hashtags ?? []).join(', '));
+    setIsEditing(true);
+  };
+
+  const exitEditing = () => {
+    // Parse hashtag text back to array
+    const tags = hashtagText
+      .split(/[,]+/)
+      .map((t) => t.replace(/^#/, '').trim())
+      .filter(Boolean);
+    onUpdate(index, { hashtags: tags });
+    setIsEditing(false);
+  };
+
   return (
-    <div className="bg-white-5 border border-white-10 rounded-xl overflow-hidden">
+    <div className={cn(
+      'bg-white-5 border border-white-10 rounded-xl overflow-hidden transition-opacity',
+      isRegenerating && 'opacity-60',
+    )}>
       {/* Header row — always visible */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -2493,13 +2778,31 @@ function CampaignPostCard({
         {/* Label + meta */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white-80 truncate">{post.label}</p>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-white-30">{post.channel}</span>
             <span className="text-xs px-1.5 py-0.5 rounded-full bg-white-10 text-white-40">{angleLabel}</span>
+            {post.imageHint && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300" title="Suggested image for this post">
+                {post.imageHint}
+              </span>
+            )}
+            {post.hookScore != null && (
+              <span
+                className={cn(
+                  'text-xs px-1.5 py-0.5 rounded-full',
+                  post.hookScore >= 70 ? 'bg-green-500/10 text-green-400' :
+                  post.hookScore >= 40 ? 'bg-yellow-500/10 text-yellow-400' :
+                  'bg-red-500/10 text-red-400',
+                )}
+                title={`Hook quality: ${post.hookScore}/100`}
+              >
+                Hook {post.hookScore}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Quick actions (don't expand) */}
+        {/* Quick actions (don't expand on click) */}
         <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={handleCopy}
@@ -2507,6 +2810,15 @@ function CampaignPostCard({
           >
             {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
             {copied ? 'Copied' : 'Copy'}
+          </button>
+          <button
+            onClick={() => onRegenerate(index)}
+            disabled={isRegenerating}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-40 text-xs font-medium hover:bg-white-20 hover:text-white-60 transition-colors disabled:opacity-50"
+            title="Regenerate this post only"
+          >
+            <RefreshCw className={cn('w-3 h-3', isRegenerating && 'animate-spin')} />
+            Regen
           </button>
         </div>
 
@@ -2520,23 +2832,68 @@ function CampaignPostCard({
       {/* Expanded content */}
       {expanded && (
         <div className="px-4 pb-4 pt-0 border-t border-white-10">
-          <div className="flex items-center justify-end gap-1 mb-2 mt-2">
+          <div className="flex items-center justify-between gap-2 mb-2 mt-2">
+            {/* A/B body toggle */}
+            {post.bodyAlt && (
+              <div className="flex items-center gap-0.5 bg-white-5 rounded-lg p-0.5">
+                <button
+                  onClick={() => setShowAlt(false)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                    !showAlt ? 'bg-accent-green-110 text-sp-surface' : 'text-white-40 hover:text-white-60',
+                  )}
+                >
+                  Version A
+                </button>
+                <button
+                  onClick={() => setShowAlt(true)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                    showAlt ? 'bg-accent-green-110 text-sp-surface' : 'text-white-40 hover:text-white-60',
+                  )}
+                >
+                  Version B
+                </button>
+              </div>
+            )}
             <button
-              onClick={() => setIsEditing(!isEditing)}
-              className="px-2 py-1 rounded-lg text-white-30 text-xs hover:text-white-60 hover:bg-white-10 transition-colors"
+              onClick={() => isEditing ? exitEditing() : enterEditing()}
+              className="px-2 py-1 rounded-lg text-white-30 text-xs hover:text-white-60 hover:bg-white-10 transition-colors ml-auto"
             >
-              {isEditing ? 'Done' : 'Edit'}
+              {isEditing ? 'Done editing' : 'Edit'}
             </button>
           </div>
 
-          {post.subject && (
-            <p className="text-white-100 font-semibold text-sm mb-2">Subject: {post.subject}</p>
+          {/* Subject (email posts) */}
+          {(post.subject || isEditing) && (
+            <div className="mb-2">
+              {isEditing ? (
+                <div>
+                  <label className="text-[10px] text-white-30 uppercase tracking-wider mb-1 block">Subject</label>
+                  <input
+                    value={post.subject}
+                    onChange={(e) => onUpdate(index, { subject: e.target.value })}
+                    placeholder="Subject line..."
+                    className="w-full text-white-100 font-semibold text-sm bg-white-5 border border-white-10 rounded-lg px-3 py-2 focus:outline-none focus:border-accent-green-110"
+                  />
+                </div>
+              ) : (
+                <p className="text-white-100 font-semibold text-sm">Subject: {post.subject}</p>
+              )}
+            </div>
           )}
 
+          {/* Body */}
           {isEditing ? (
             <textarea
-              value={editedBody}
-              onChange={(e) => setEditedBody(e.target.value)}
+              value={showAlt && post.bodyAlt !== undefined ? post.bodyAlt : post.body}
+              onChange={(e) => {
+                if (showAlt && post.bodyAlt !== undefined) {
+                  onUpdate(index, { bodyAlt: e.target.value });
+                } else {
+                  onUpdate(index, { body: e.target.value });
+                }
+              }}
               className="w-full text-white-80 text-sm leading-relaxed bg-white-5 border border-white-10 rounded-lg p-3 resize-none focus:outline-none focus:border-accent-green-110 min-h-[120px]"
             />
           ) : (
@@ -2545,18 +2902,142 @@ function CampaignPostCard({
             </p>
           )}
 
-          {post.hashtags && post.hashtags.length > 0 && (
+          {/* Hashtags */}
+          {isEditing ? (
+            <div className="mt-3">
+              <label className="text-[10px] text-white-30 uppercase tracking-wider mb-1 block">Hashtags (comma-separated)</label>
+              <input
+                value={hashtagText}
+                onChange={(e) => setHashtagText(e.target.value)}
+                className="w-full text-white-80 text-sm bg-white-5 border border-white-10 rounded-lg px-3 py-2 focus:outline-none focus:border-accent-green-110"
+                placeholder="realestate, newlisting, dreamhome"
+              />
+            </div>
+          ) : post.hashtags && post.hashtags.length > 0 ? (
             <div className="flex flex-wrap gap-1 mt-3">
               {post.hashtags.map((h) => (
                 <span key={h} className="text-accent-green-110/70 text-xs">#{h}</span>
               ))}
             </div>
-          )}
+          ) : null}
 
-          {post.cta && (
+          {/* CTA */}
+          {isEditing ? (
+            <div className="mt-3">
+              <label className="text-[10px] text-white-30 uppercase tracking-wider mb-1 block">Call to Action</label>
+              <input
+                value={post.cta}
+                onChange={(e) => onUpdate(index, { cta: e.target.value })}
+                className="w-full text-white-80 text-sm bg-white-5 border border-white-10 rounded-lg px-3 py-2 focus:outline-none focus:border-accent-green-110"
+                placeholder="Schedule a showing today"
+              />
+            </div>
+          ) : post.cta ? (
             <p className="text-white-40 text-xs mt-3 pt-3 border-t border-white-10">
               CTA: {post.cta}
             </p>
+          ) : null}
+
+          {/* Campaign day editor */}
+          {isEditing && (
+            <div className="mt-3">
+              <label className="text-[10px] text-white-30 uppercase tracking-wider mb-1 block">Campaign Day</label>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={post.campaignDay}
+                onChange={(e) => onUpdate(index, { campaignDay: parseInt(e.target.value) || 1 })}
+                className="w-20 text-white-80 text-sm bg-white-5 border border-white-10 rounded-lg px-3 py-2 focus:outline-none focus:border-accent-green-110"
+              />
+            </div>
+          )}
+
+          {/* Per-post image assignment */}
+          {imagePool.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-white-10">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] text-white-30 uppercase tracking-wider">
+                  Assigned Images ({(post.assignedImageIds ?? []).length})
+                </span>
+                <button
+                  onClick={() => setShowImagePicker(!showImagePicker)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-white-10 text-white-60 text-[10px] font-medium hover:bg-white-20 transition-colors"
+                >
+                  <Images className="w-3 h-3" />
+                  {showImagePicker ? 'Done' : 'Assign'}
+                </button>
+              </div>
+
+              {/* Assigned image thumbnails */}
+              {(post.assignedImageIds ?? []).length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-2">
+                  {(post.assignedImageIds ?? []).map((imgId) => {
+                    const img = imagePool.find((p) => p.id === imgId);
+                    if (!img) return null;
+                    return (
+                      <div key={imgId} className="relative shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.displayUrl}
+                          alt={img.label}
+                          className="w-12 h-12 rounded-md object-cover border border-accent-green-110/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = (post.assignedImageIds ?? []).filter((id) => id !== imgId);
+                            onUpdate(index, { assignedImageIds: next });
+                          }}
+                          className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600"
+                          title="Remove"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Image picker — click to toggle assignment */}
+              {showImagePicker && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {imagePool.map((img) => {
+                    const isAssigned = (post.assignedImageIds ?? []).includes(img.id);
+                    return (
+                      <button
+                        key={img.id}
+                        type="button"
+                        onClick={() => {
+                          const current = post.assignedImageIds ?? [];
+                          const next = isAssigned
+                            ? current.filter((id) => id !== img.id)
+                            : [...current, img.id];
+                          onUpdate(index, { assignedImageIds: next });
+                        }}
+                        className={cn(
+                          'relative shrink-0 rounded-md overflow-hidden border-2 transition-colors',
+                          isAssigned ? 'border-accent-green-110' : 'border-white-10 hover:border-white-30',
+                        )}
+                        title={isAssigned ? `Remove ${img.label}` : `Assign ${img.label}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.displayUrl} alt={img.label} className="w-14 h-14 object-cover" />
+                        {isAssigned && (
+                          <div className="absolute inset-0 bg-accent-green-110/20 flex items-center justify-center">
+                            <Check className="w-4 h-4 text-accent-green-110" />
+                          </div>
+                        )}
+                        <span className="absolute bottom-0 left-0 right-0 text-[8px] px-1 py-0.5 bg-black/70 text-white-80 truncate">
+                          {img.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

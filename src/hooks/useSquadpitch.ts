@@ -2965,15 +2965,23 @@ export type CampaignType = 'just_listed' | 'open_house' | 'price_drop' | 'just_s
 
 export type CampaignAngle = 'promotional' | 'lifestyle' | 'urgency' | 'storytelling' | 'authority' | 'social_proof';
 
+export type CampaignSlotType = 'social_post' | 'email' | 'listing_description';
+
 export interface CampaignPost {
+  id?: string;
+  slotType?: CampaignSlotType;
   campaignDay: number;
   channel: Channel;
   angle: CampaignAngle;
   label: string;
   body: string;
+  bodyAlt?: string;
   hashtags: string[];
   cta: string;
   subject: string;
+  imageHint?: string;
+  hookScore?: number;
+  assignedImageIds?: string[];
 }
 
 export interface ListingCampaignOutput {
@@ -2999,9 +3007,26 @@ export function useGenerateListingCampaign(clientId: string) {
       propertyData: Record<string, unknown>;
       campaignType?: CampaignType;
       imageContext?: CampaignImageContext[];
+      slots?: Array<{ label: string; channel: string; campaignDay: number; slotType?: string; angle?: string }>;
     }) =>
       apiFetch<ListingCampaignResult>(
         `workspaces/${clientId}/listing-campaign/generate`,
+        { method: 'POST', body: JSON.stringify(payload) }
+      ),
+  });
+}
+
+export function useRegeneratePost(clientId: string) {
+  return useMutation({
+    mutationFn: (payload: {
+      propertyData: Record<string, unknown>;
+      campaignType?: CampaignType;
+      slot: { channel: string; day: number; label: string; angle?: string };
+      campaignSummary?: string[];
+      imageContext?: CampaignImageContext[];
+    }) =>
+      apiFetch<{ post: CampaignPost }>(
+        `workspaces/${clientId}/listing-campaign/regenerate-post`,
         { method: 'POST', body: JSON.stringify(payload) }
       ),
   });
