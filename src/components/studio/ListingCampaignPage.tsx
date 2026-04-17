@@ -300,14 +300,23 @@ interface CampaignSlotConfig {
   label: string;
   channel: string;
   campaignDay: number;
+  purpose?: string;
 }
 
+const SLOT_PURPOSE_HINTS: Record<string, string> = {
+  'Launch Announcement': 'First impression — announce the listing with impact',
+  'Feature Highlight': 'Showcase key property features and upgrades',
+  'Lifestyle Story': 'Paint the lifestyle — who lives here, neighborhood feel',
+  'Authority / Social Proof': 'Build trust — agent expertise, testimonials, market data',
+  'Final Push': 'Create urgency — last chance, price anchoring, scarcity',
+};
+
 const DEFAULT_CAMPAIGN_SLOTS: CampaignSlotConfig[] = [
-  { id: 'slot-1', label: 'Launch Announcement', channel: 'INSTAGRAM', campaignDay: 1 },
-  { id: 'slot-2', label: 'Feature Highlight', channel: 'FACEBOOK', campaignDay: 2 },
-  { id: 'slot-3', label: 'Lifestyle Story', channel: 'INSTAGRAM', campaignDay: 3 },
-  { id: 'slot-4', label: 'Authority / Social Proof', channel: 'LINKEDIN', campaignDay: 5 },
-  { id: 'slot-5', label: 'Final Push', channel: 'FACEBOOK', campaignDay: 7 },
+  { id: 'slot-1', label: 'Launch Announcement', channel: 'INSTAGRAM', campaignDay: 1, purpose: SLOT_PURPOSE_HINTS['Launch Announcement'] },
+  { id: 'slot-2', label: 'Feature Highlight', channel: 'FACEBOOK', campaignDay: 2, purpose: SLOT_PURPOSE_HINTS['Feature Highlight'] },
+  { id: 'slot-3', label: 'Lifestyle Story', channel: 'INSTAGRAM', campaignDay: 3, purpose: SLOT_PURPOSE_HINTS['Lifestyle Story'] },
+  { id: 'slot-4', label: 'Authority / Social Proof', channel: 'LINKEDIN', campaignDay: 5, purpose: SLOT_PURPOSE_HINTS['Authority / Social Proof'] },
+  { id: 'slot-5', label: 'Final Push', channel: 'FACEBOOK', campaignDay: 7, purpose: SLOT_PURPOSE_HINTS['Final Push'] },
 ];
 
 const AVAILABLE_CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'X'];
@@ -927,7 +936,27 @@ export function ListingCampaignPage({ clientId }: Props) {
         campaignSummary,
         imageContext,
       });
-      setCampaignPosts((prev) => prev.map((p, i) => (i === index ? result.post : p)));
+      // Merge regen result with existing post — preserve image assignments
+      // and any other user-set fields that the backend doesn't return.
+      setCampaignPosts((prev) => prev.map((p, i) => {
+        if (i !== index) return p;
+        const regen = result.post;
+        return {
+          ...p,
+          // Overwrite AI-generated content fields
+          body: regen.body ?? p.body,
+          bodyAlt: regen.bodyAlt ?? p.bodyAlt,
+          subject: regen.subject ?? p.subject,
+          hashtags: regen.hashtags ?? p.hashtags,
+          cta: regen.cta ?? p.cta,
+          imageHint: regen.imageHint ?? p.imageHint,
+          hookScore: regen.hookScore ?? p.hookScore,
+          angle: regen.angle ?? p.angle,
+          // Preserve user-set fields
+          assignedImageIds: p.assignedImageIds,
+          channel: p.channel,
+        };
+      }));
     } catch {
       // Non-fatal — post stays unchanged
     } finally {
@@ -2376,64 +2405,99 @@ export function ListingCampaignPage({ clientId }: Props) {
           </div>
         </div>
 
-        {/* Campaign Slots */}
+        {/* Campaign Sequence */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">Campaign Sequence</h2>
-            <span className="text-xs text-white-30">{campaignSlots.length} post{campaignSlots.length === 1 ? '' : 's'}</span>
+            <span className="text-xs text-white-30">{campaignSlots.length} post{campaignSlots.length === 1 ? '' : 's'} over {maxDay} day{maxDay === 1 ? '' : 's'}</span>
+          </div>
+          <p className="text-xs text-white-30 mb-4">
+            Define the structure of your campaign. Each slot becomes a post with a unique angle and channel.
+          </p>
+
+          <div className="relative">
+            {/* Mini timeline connector */}
+            {campaignSlots.length > 1 && (
+              <div className="absolute left-[27px] top-6 bottom-6 w-px bg-white-10" />
+            )}
+
+            <div className="space-y-2">
+              {campaignSlots.map((slot) => {
+                const ChIcon = CHANNEL_ICONS[slot.channel] ?? FileText;
+                const purposeHint = slot.purpose || SLOT_PURPOSE_HINTS[slot.label] || '';
+                return (
+                  <div key={slot.id} className="flex gap-3">
+                    {/* Day badge */}
+                    <div className="shrink-0 w-14 pt-3 flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-accent-green-110/15 flex items-center justify-center z-10 border-2 border-sp-surface">
+                        <span className="text-[10px] font-bold text-accent-green-110">D{slot.campaignDay}</span>
+                      </div>
+                    </div>
+
+                    {/* Slot card */}
+                    <div className="flex-1 min-w-0 bg-white-5 border border-white-10 rounded-xl p-3 hover:border-white-20 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0 space-y-2">
+                          {/* Label */}
+                          <input
+                            value={slot.label}
+                            onChange={(e) => updateSlot(slot.id, { label: e.target.value })}
+                            className="w-full text-sm font-semibold text-white-80 bg-transparent border-b border-transparent hover:border-white-10 focus:border-accent-green-110 px-0 py-0.5 focus:outline-none transition-colors"
+                            placeholder="Post title..."
+                          />
+                          {/* Purpose hint */}
+                          {purposeHint && (
+                            <p className="text-[11px] text-white-25 leading-tight">{purposeHint}</p>
+                          )}
+                          {/* Day + Channel row */}
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-white-20 uppercase tracking-wider">Day</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={30}
+                                value={slot.campaignDay}
+                                onChange={(e) => updateSlot(slot.id, { campaignDay: parseInt(e.target.value) || 1 })}
+                                className="w-10 px-1.5 py-0.5 rounded-md bg-white-5 border border-white-10 text-white-80 text-xs text-center focus:outline-none focus:border-accent-green-110"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <ChIcon className="w-3.5 h-3.5 text-white-20" />
+                              <select
+                                value={slot.channel}
+                                onChange={(e) => updateSlot(slot.id, { channel: e.target.value })}
+                                className="px-2 py-0.5 rounded-md bg-white-5 border border-white-10 text-white-60 text-xs focus:outline-none focus:border-accent-green-110"
+                              >
+                                {AVAILABLE_CHANNELS.map((ch) => (
+                                  <option key={ch} value={ch}>{ch}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Remove button */}
+                        <button
+                          onClick={() => removeSlot(slot.id)}
+                          disabled={campaignSlots.length <= 1}
+                          className="shrink-0 p-1.5 rounded-md text-white-20 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                          title="Remove this slot"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="space-y-2">
-            {campaignSlots.map((slot) => (
-              <div key={slot.id} className="flex items-center gap-3 bg-white-5 border border-white-10 rounded-xl p-3">
-                <div className="shrink-0 w-14">
-                  <label className="text-[9px] text-white-20 uppercase tracking-wider block mb-0.5">Day</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={30}
-                    value={slot.campaignDay}
-                    onChange={(e) => updateSlot(slot.id, { campaignDay: parseInt(e.target.value) || 1 })}
-                    className="w-full px-2 py-1 rounded-md bg-white-5 border border-white-10 text-white-80 text-xs focus:outline-none focus:border-accent-green-110"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <label className="text-[9px] text-white-20 uppercase tracking-wider block mb-0.5">Label</label>
-                  <input
-                    value={slot.label}
-                    onChange={(e) => updateSlot(slot.id, { label: e.target.value })}
-                    className="w-full px-2 py-1 rounded-md bg-white-5 border border-white-10 text-white-80 text-xs focus:outline-none focus:border-accent-green-110"
-                    placeholder="Post title..."
-                  />
-                </div>
-                <div className="shrink-0 w-32">
-                  <label className="text-[9px] text-white-20 uppercase tracking-wider block mb-0.5">Channel</label>
-                  <select
-                    value={slot.channel}
-                    onChange={(e) => updateSlot(slot.id, { channel: e.target.value })}
-                    className="w-full px-2 py-1 rounded-md bg-white-5 border border-white-10 text-white-80 text-xs focus:outline-none focus:border-accent-green-110"
-                  >
-                    {AVAILABLE_CHANNELS.map((ch) => (
-                      <option key={ch} value={ch}>{ch}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={() => removeSlot(slot.id)}
-                  disabled={campaignSlots.length <= 1}
-                  className="shrink-0 p-1.5 rounded-md text-white-30 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-20 disabled:cursor-not-allowed mt-3"
-                  title="Remove this slot"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex items-center gap-2 mt-3 pl-[68px]">
             <button
               onClick={addSlot}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-white-10 text-white-40 text-xs font-medium hover:border-white-20 hover:text-white-60 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add Post
@@ -2441,13 +2505,21 @@ export function ListingCampaignPage({ clientId }: Props) {
           </div>
         </div>
 
-        {/* Preview */}
-        <div className="bg-white-5 border border-white-10 rounded-xl p-4 mb-6">
-          <p className="text-white-60 text-xs">
-            This campaign will generate <strong className="text-white-80">{campaignSlots.length} coordinated post{campaignSlots.length === 1 ? '' : 's'}</strong> across{' '}
-            <strong className="text-white-80">{uniqueChannels.join(', ')}</strong>{' '}
-            — each with a different angle, scheduled over {maxDay} day{maxDay === 1 ? '' : 's'}.
-          </p>
+        {/* Generation preview */}
+        <div className="bg-accent-green-110/5 border border-accent-green-110/15 rounded-xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <Sparkles className="w-4 h-4 text-accent-green-110 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-white-60 text-xs">
+                AI will generate <strong className="text-white-80">{campaignSlots.length} coordinated post{campaignSlots.length === 1 ? '' : 's'}</strong> across{' '}
+                <strong className="text-white-80">{uniqueChannels.join(', ')}</strong>{' '}
+                — each with a unique angle, body copy, hashtags, and CTA.
+              </p>
+              <p className="text-white-30 text-[11px] mt-1">
+                You can edit everything after generation. Images are assigned in the next step.
+              </p>
+            </div>
+          </div>
         </div>
 
         <button
@@ -2485,10 +2557,20 @@ export function ListingCampaignPage({ clientId }: Props) {
       .filter((c) => selectedImageIds.has(c.id))
       .map((c) => ({ id: c.id, displayUrl: getDisplayUrl(c), label: LABEL_DISPLAY[c.label] }));
 
+    // Group posts by campaign day for timeline headers
+    const dayGroups: { day: number; startIdx: number }[] = [];
+    let lastDay = -1;
+    posts.forEach((p, i) => {
+      if (p.campaignDay !== lastDay) {
+        dayGroups.push({ day: p.campaignDay, startIdx: i });
+        lastDay = p.campaignDay;
+      }
+    });
+
     return (
       <div className="max-w-4xl mx-auto py-8 px-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold text-white-100">
@@ -2499,7 +2581,7 @@ export function ListingCampaignPage({ clientId }: Props) {
               </span>
             </div>
             <p className="text-white-40 text-sm">
-              {addressLine} &middot; {posts.length} posts
+              {addressLine} &middot; {posts.length} posts over {Math.max(...posts.map((p) => p.campaignDay))} days
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -2521,22 +2603,22 @@ export function ListingCampaignPage({ clientId }: Props) {
           </div>
         </div>
 
-        {/* Image Pool — reusable assets the user can assign to individual posts */}
+        {/* Image Pool */}
         {imagePool.length > 0 && (
-          <div className="mt-6 mb-4 bg-white-5 border border-white-10 rounded-xl p-4">
-            <p className="text-xs font-medium text-white-40 uppercase tracking-wider mb-2">
-              Image Pool ({imagePool.length}) — click a post&apos;s &quot;Images&quot; button to assign
+          <div className="mb-6 bg-white-5 border border-white-10 rounded-xl p-4">
+            <p className="text-xs font-medium text-white-40 uppercase tracking-wider mb-3">
+              Property Photos ({imagePool.length})
             </p>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <div className="flex items-center gap-3 overflow-x-auto pb-1">
               {imagePool.map((img) => (
-                <div key={img.id} className="relative shrink-0 group">
+                <div key={img.id} className="relative shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={img.displayUrl}
                     alt={img.label}
-                    className="w-20 h-20 rounded-lg object-cover border border-white-10"
+                    className="w-24 h-24 rounded-lg object-cover border border-white-10"
                   />
-                  <span className="absolute bottom-0.5 left-0.5 text-[9px] px-1 py-0.5 rounded bg-black/70 text-white-80">
+                  <span className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0.5 rounded bg-black/70 text-white-80 font-medium">
                     {img.label}
                   </span>
                 </div>
@@ -2546,19 +2628,43 @@ export function ListingCampaignPage({ clientId }: Props) {
         )}
 
         {/* Campaign Timeline */}
-        <div className="space-y-3 mb-8 mt-6">
-          {posts.map((post, idx) => (
-            <CampaignPostCard
-              key={`post-${idx}-${post.campaignDay}`}
-              post={post}
-              index={idx}
-              totalPosts={posts.length}
-              onUpdate={updatePost}
-              onRegenerate={handleRegeneratePost}
-              isRegenerating={regeneratingIndex === idx}
-              imagePool={imagePool}
+        <div className="relative mb-8">
+          {/* Timeline connector line */}
+          {posts.length > 1 && (
+            <div className="absolute left-[23px] top-8 bottom-8 w-px bg-white-10" />
+          )}
+
+          <div className="space-y-0">
+            {posts.map((post, idx) => {
+              // Show day header when day changes
+              const showDayHeader = idx === 0 || post.campaignDay !== posts[idx - 1].campaignDay;
+              return (
+                <div key={`post-${idx}-${post.campaignDay}`}>
+                  {showDayHeader && (
+                    <div className="flex items-center gap-3 py-3 pl-1">
+                      <div className="w-11 h-7 rounded-full bg-accent-green-110/15 flex items-center justify-center z-10">
+                        <span className="text-xs font-bold text-accent-green-110">D{post.campaignDay}</span>
+                      </div>
+                      <span className="text-xs font-medium text-white-40 uppercase tracking-wider">
+                        Day {post.campaignDay}
+                      </span>
+                    </div>
+                  )}
+                  <div className="pl-12">
+                    <CampaignPostCard
+                      post={post}
+                      index={idx}
+                      totalPosts={posts.length}
+                      onUpdate={updatePost}
+                      onRegenerate={handleRegeneratePost}
+                      isRegenerating={regeneratingIndex === idx}
+                      imagePool={imagePool}
             />
-          ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Schedule Preset + Action Bar */}
@@ -2722,16 +2828,36 @@ function CampaignPostCard({
   imagePool?: ImagePoolItem[];
 }) {
   const [copied, setCopied] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [showAlt, setShowAlt] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
-  // Local hashtag text while editing — parsed back to array on blur
-  const [hashtagText, setHashtagText] = useState('');
+  const [regenDone, setRegenDone] = useState(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const displayBody = showAlt && post.bodyAlt ? post.bodyAlt : post.body;
   const ChannelIcon = CHANNEL_ICONS[post.channel] ?? FileText;
-  const angleLabel = ANGLE_LABELS[post.angle] ?? post.angle;
+  const assignedImages = (post.assignedImageIds ?? [])
+    .map((id) => imagePool.find((p) => p.id === id))
+    .filter((img): img is ImagePoolItem => !!img);
+  const primaryImage = assignedImages[0] ?? null;
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (bodyRef.current) {
+      bodyRef.current.style.height = 'auto';
+      bodyRef.current.style.height = `${bodyRef.current.scrollHeight}px`;
+    }
+  }, [displayBody, showAlt]);
+
+  // Flash green on regen success
+  const prevRegenerating = useRef(isRegenerating);
+  useEffect(() => {
+    if (prevRegenerating.current && !isRegenerating) {
+      setRegenDone(true);
+      const t = setTimeout(() => setRegenDone(false), 1500);
+      return () => clearTimeout(t);
+    }
+    prevRegenerating.current = isRegenerating;
+  }, [isRegenerating]);
 
   const fullText = [
     post.subject ? `Subject: ${post.subject}\n\n` : '',
@@ -2746,306 +2872,273 @@ function CampaignPostCard({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const enterEditing = () => {
-    setHashtagText((post.hashtags ?? []).join(', '));
-    setIsEditing(true);
-  };
-
-  const exitEditing = () => {
-    // Parse hashtag text back to array
-    const tags = hashtagText
+  const handleHashtagChange = (text: string) => {
+    const tags = text
       .split(/[,]+/)
       .map((t) => t.replace(/^#/, '').trim())
       .filter(Boolean);
     onUpdate(index, { hashtags: tags });
-    setIsEditing(false);
   };
 
   return (
     <div className={cn(
-      'bg-white-5 border border-white-10 rounded-xl overflow-hidden transition-opacity',
-      isRegenerating && 'opacity-60',
+      'relative bg-white-5 border rounded-xl overflow-hidden transition-all mb-3',
+      regenDone ? 'border-accent-green-110/50' : 'border-white-10',
     )}>
-      {/* Header row — always visible */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-white-8 transition-colors"
-      >
-        {/* Timeline indicator */}
-        <div className="flex flex-col items-center gap-0.5 shrink-0 w-10">
-          <span className="text-xs font-bold text-accent-green-110">Day {post.campaignDay}</span>
-          <span className="text-[10px] text-white-20">{index + 1}/{totalPosts}</span>
-        </div>
+      {/* ─── Header ─── */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white-10">
+        <p className="text-sm font-semibold text-white-80 flex-1 min-w-0 truncate">{post.label}</p>
+        <select
+          value={post.channel}
+          onChange={(e) => onUpdate(index, { channel: e.target.value as CampaignPost['channel'] })}
+          className="text-xs bg-white-5 border border-white-10 text-white-60 rounded-lg px-2 py-1.5 focus:outline-none focus:border-accent-green-110 shrink-0"
+        >
+          {AVAILABLE_CHANNELS.map((ch) => (
+            <option key={ch} value={ch}>{ch}</option>
+          ))}
+        </select>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-white-30 text-xs hover:text-white-60 hover:bg-white-10 transition-colors shrink-0"
+          title="Copy full post text"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+        <button
+          onClick={() => onRegenerate(index)}
+          disabled={isRegenerating}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-white-30 text-xs hover:text-white-60 hover:bg-white-10 transition-colors disabled:opacity-50 shrink-0"
+          title="Regenerate this post only"
+        >
+          <RefreshCw className={cn('w-3.5 h-3.5', isRegenerating && 'animate-spin')} />
+        </button>
+      </div>
 
-        {/* Channel icon */}
-        <div className="w-8 h-8 rounded-lg bg-white-10 flex items-center justify-center shrink-0">
-          <ChannelIcon className="w-4 h-4 text-white-40" />
-        </div>
-
-        {/* Label + meta */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white-80 truncate">{post.label}</p>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-white-30">{post.channel}</span>
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-white-10 text-white-40">{angleLabel}</span>
-            {post.imageHint && (
-              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300" title="Suggested image for this post">
-                {post.imageHint}
-              </span>
+      <div className="p-4">
+        {/* ─── Image Section ─── */}
+        {imagePool.length > 0 && (
+          <div className="mb-4">
+            {primaryImage ? (
+              <div className="relative group">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={primaryImage.displayUrl}
+                  alt={primaryImage.label}
+                  className="w-full h-48 rounded-lg object-cover"
+                />
+                {/* Overlay actions */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <button
+                    onClick={() => setShowImagePicker(!showImagePicker)}
+                    className="px-3 py-1.5 rounded-lg bg-white/90 text-gray-900 text-xs font-medium hover:bg-white transition-colors"
+                  >
+                    Change Image
+                  </button>
+                </div>
+                <span className="absolute bottom-2 left-2 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white-80 font-medium">
+                  {primaryImage.label}
+                </span>
+                {assignedImages.length > 1 && (
+                  <span className="absolute bottom-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white-80">
+                    +{assignedImages.length - 1} more
+                  </span>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowImagePicker(!showImagePicker)}
+                className="w-full h-32 rounded-lg border-2 border-dashed border-white-10 hover:border-white-20 flex flex-col items-center justify-center gap-2 transition-colors"
+              >
+                <Images className="w-5 h-5 text-white-20" />
+                <span className="text-xs text-white-30">Assign an image</span>
+              </button>
             )}
+
+            {/* AI image suggestion */}
+            {post.imageHint && !primaryImage && (
+              <button
+                onClick={() => {
+                  const match = imagePool.find((p) => p.label.toLowerCase().includes(post.imageHint!.toLowerCase()));
+                  if (match) onUpdate(index, { assignedImageIds: [...(post.assignedImageIds ?? []), match.id] });
+                }}
+                className="flex items-center gap-1.5 mt-2 text-xs text-blue-300/80 hover:text-blue-300 transition-colors"
+              >
+                <Sparkles className="w-3 h-3" />
+                Suggested: &ldquo;{post.imageHint}&rdquo;
+              </button>
+            )}
+
+            {/* Image picker grid */}
+            {showImagePicker && (
+              <div className="mt-2 flex items-center gap-2 flex-wrap p-2 bg-white-5 rounded-lg border border-white-10">
+                {imagePool.map((img) => {
+                  const isAssigned = (post.assignedImageIds ?? []).includes(img.id);
+                  return (
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => {
+                        const current = post.assignedImageIds ?? [];
+                        const next = isAssigned
+                          ? current.filter((id) => id !== img.id)
+                          : [...current, img.id];
+                        onUpdate(index, { assignedImageIds: next });
+                      }}
+                      className={cn(
+                        'relative shrink-0 rounded-lg overflow-hidden border-2 transition-all',
+                        isAssigned ? 'border-accent-green-110 ring-1 ring-accent-green-110/30' : 'border-transparent hover:border-white-20',
+                      )}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.displayUrl} alt={img.label} className="w-16 h-16 object-cover" />
+                      {isAssigned && (
+                        <div className="absolute inset-0 bg-accent-green-110/20 flex items-center justify-center">
+                          <Check className="w-5 h-5 text-accent-green-110" />
+                        </div>
+                      )}
+                      <span className="absolute bottom-0 left-0 right-0 text-[8px] px-1 py-0.5 bg-black/70 text-white-80 truncate text-center">
+                        {img.label}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setShowImagePicker(false)}
+                  className="text-[10px] text-white-30 hover:text-white-60 px-2 py-1"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── A/B Toggle ─── */}
+        {post.bodyAlt && (
+          <div className="flex items-center gap-1 mb-3">
+            <div className="flex items-center bg-white-5 rounded-md p-0.5">
+              <button
+                onClick={() => setShowAlt(false)}
+                className={cn(
+                  'px-3 py-1 rounded text-xs font-medium transition-colors',
+                  !showAlt ? 'bg-accent-green-110 text-sp-surface' : 'text-white-30 hover:text-white-60',
+                )}
+              >
+                A
+              </button>
+              <button
+                onClick={() => setShowAlt(true)}
+                className={cn(
+                  'px-3 py-1 rounded text-xs font-medium transition-colors',
+                  showAlt ? 'bg-accent-green-110 text-sp-surface' : 'text-white-30 hover:text-white-60',
+                )}
+              >
+                B
+              </button>
+            </div>
             {post.hookScore != null && (
               <span
                 className={cn(
-                  'text-xs px-1.5 py-0.5 rounded-full',
+                  'text-[10px] px-1.5 py-0.5 rounded-full ml-auto',
                   post.hookScore >= 70 ? 'bg-green-500/10 text-green-400' :
                   post.hookScore >= 40 ? 'bg-yellow-500/10 text-yellow-400' :
                   'bg-red-500/10 text-red-400',
                 )}
-                title={`Hook quality: ${post.hookScore}/100`}
               >
                 Hook {post.hookScore}
               </span>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Quick actions (don't expand on click) */}
-        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-40 text-xs font-medium hover:bg-white-20 hover:text-white-60 transition-colors"
-          >
-            {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-          <button
-            onClick={() => onRegenerate(index)}
-            disabled={isRegenerating}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-40 text-xs font-medium hover:bg-white-20 hover:text-white-60 transition-colors disabled:opacity-50"
-            title="Regenerate this post only"
-          >
-            <RefreshCw className={cn('w-3 h-3', isRegenerating && 'animate-spin')} />
-            Regen
-          </button>
-        </div>
+        {/* ─── Subject (email posts) ─── */}
+        {post.subject && (
+          <input
+            value={post.subject}
+            onChange={(e) => onUpdate(index, { subject: e.target.value })}
+            placeholder="Subject line..."
+            className="w-full text-white-100 font-semibold text-sm bg-transparent border-b border-transparent hover:border-white-10 focus:border-accent-green-110 px-0 py-1 mb-2 focus:outline-none transition-colors"
+          />
+        )}
 
-        {/* Expand indicator */}
-        <ArrowLeft className={cn(
-          'w-4 h-4 text-white-20 shrink-0 transition-transform',
-          expanded ? 'rotate-90' : '-rotate-90'
-        )} />
-      </button>
+        {/* ─── Body (always editable) ─── */}
+        <textarea
+          ref={bodyRef}
+          value={showAlt && post.bodyAlt !== undefined ? post.bodyAlt : post.body}
+          onChange={(e) => {
+            if (showAlt && post.bodyAlt !== undefined) {
+              onUpdate(index, { bodyAlt: e.target.value });
+            } else {
+              onUpdate(index, { body: e.target.value });
+            }
+          }}
+          className="w-full text-white-80 text-sm leading-relaxed bg-transparent border border-transparent hover:border-white-10 focus:border-accent-green-110/50 rounded-lg px-0 py-1 resize-none focus:outline-none transition-colors min-h-[80px]"
+        />
 
-      {/* Expanded content */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-0 border-t border-white-10">
-          <div className="flex items-center justify-between gap-2 mb-2 mt-2">
-            {/* A/B body toggle */}
-            {post.bodyAlt && (
-              <div className="flex items-center gap-0.5 bg-white-5 rounded-lg p-0.5">
+        {/* ─── Metadata row: Hashtags + CTA ─── */}
+        <div className="mt-2 pt-2 border-t border-white-5 space-y-2">
+          {/* Hashtags as editable chips */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(post.hashtags ?? []).map((h, i) => (
+              <span key={`${h}-${i}`} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-accent-green-110/10 text-accent-green-110/80 text-xs">
+                #{h}
                 <button
-                  onClick={() => setShowAlt(false)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                    !showAlt ? 'bg-accent-green-110 text-sp-surface' : 'text-white-40 hover:text-white-60',
-                  )}
+                  onClick={() => {
+                    const next = [...(post.hashtags ?? [])];
+                    next.splice(i, 1);
+                    onUpdate(index, { hashtags: next });
+                  }}
+                  className="ml-0.5 text-accent-green-110/40 hover:text-accent-green-110 transition-colors"
                 >
-                  Version A
+                  <X className="w-2.5 h-2.5" />
                 </button>
-                <button
-                  onClick={() => setShowAlt(true)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                    showAlt ? 'bg-accent-green-110 text-sp-surface' : 'text-white-40 hover:text-white-60',
-                  )}
-                >
-                  Version B
-                </button>
-              </div>
-            )}
-            <button
-              onClick={() => isEditing ? exitEditing() : enterEditing()}
-              className="px-2 py-1 rounded-lg text-white-30 text-xs hover:text-white-60 hover:bg-white-10 transition-colors ml-auto"
-            >
-              {isEditing ? 'Done editing' : 'Edit'}
-            </button>
-          </div>
-
-          {/* Subject (email posts) */}
-          {(post.subject || isEditing) && (
-            <div className="mb-2">
-              {isEditing ? (
-                <div>
-                  <label className="text-[10px] text-white-30 uppercase tracking-wider mb-1 block">Subject</label>
-                  <input
-                    value={post.subject}
-                    onChange={(e) => onUpdate(index, { subject: e.target.value })}
-                    placeholder="Subject line..."
-                    className="w-full text-white-100 font-semibold text-sm bg-white-5 border border-white-10 rounded-lg px-3 py-2 focus:outline-none focus:border-accent-green-110"
-                  />
-                </div>
-              ) : (
-                <p className="text-white-100 font-semibold text-sm">Subject: {post.subject}</p>
-              )}
-            </div>
-          )}
-
-          {/* Body */}
-          {isEditing ? (
-            <textarea
-              value={showAlt && post.bodyAlt !== undefined ? post.bodyAlt : post.body}
-              onChange={(e) => {
-                if (showAlt && post.bodyAlt !== undefined) {
-                  onUpdate(index, { bodyAlt: e.target.value });
-                } else {
-                  onUpdate(index, { body: e.target.value });
+              </span>
+            ))}
+            <input
+              placeholder="+ tag"
+              className="text-xs text-white-40 bg-transparent border-none focus:outline-none w-16 placeholder:text-white-20"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  const val = e.currentTarget.value.replace(/^#/, '').trim();
+                  if (val) {
+                    onUpdate(index, { hashtags: [...(post.hashtags ?? []), val] });
+                    e.currentTarget.value = '';
+                  }
                 }
               }}
-              className="w-full text-white-80 text-sm leading-relaxed bg-white-5 border border-white-10 rounded-lg p-3 resize-none focus:outline-none focus:border-accent-green-110 min-h-[120px]"
+              onBlur={(e) => {
+                const val = e.currentTarget.value.replace(/^#/, '').trim();
+                if (val) {
+                  onUpdate(index, { hashtags: [...(post.hashtags ?? []), val] });
+                  e.currentTarget.value = '';
+                }
+              }}
             />
-          ) : (
-            <p className="text-white-80 text-sm leading-relaxed whitespace-pre-wrap">
-              {displayBody}
-            </p>
-          )}
+          </div>
 
-          {/* Hashtags */}
-          {isEditing ? (
-            <div className="mt-3">
-              <label className="text-[10px] text-white-30 uppercase tracking-wider mb-1 block">Hashtags (comma-separated)</label>
-              <input
-                value={hashtagText}
-                onChange={(e) => setHashtagText(e.target.value)}
-                className="w-full text-white-80 text-sm bg-white-5 border border-white-10 rounded-lg px-3 py-2 focus:outline-none focus:border-accent-green-110"
-                placeholder="realestate, newlisting, dreamhome"
-              />
-            </div>
-          ) : post.hashtags && post.hashtags.length > 0 ? (
-            <div className="flex flex-wrap gap-1 mt-3">
-              {post.hashtags.map((h) => (
-                <span key={h} className="text-accent-green-110/70 text-xs">#{h}</span>
-              ))}
-            </div>
-          ) : null}
-
-          {/* CTA */}
-          {isEditing ? (
-            <div className="mt-3">
-              <label className="text-[10px] text-white-30 uppercase tracking-wider mb-1 block">Call to Action</label>
+          {/* CTA inline */}
+          {(post.cta || true) && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-white-20 uppercase tracking-wider shrink-0">CTA</span>
               <input
                 value={post.cta}
                 onChange={(e) => onUpdate(index, { cta: e.target.value })}
-                className="w-full text-white-80 text-sm bg-white-5 border border-white-10 rounded-lg px-3 py-2 focus:outline-none focus:border-accent-green-110"
-                placeholder="Schedule a showing today"
-              />
-            </div>
-          ) : post.cta ? (
-            <p className="text-white-40 text-xs mt-3 pt-3 border-t border-white-10">
-              CTA: {post.cta}
-            </p>
-          ) : null}
-
-          {/* Campaign day editor */}
-          {isEditing && (
-            <div className="mt-3">
-              <label className="text-[10px] text-white-30 uppercase tracking-wider mb-1 block">Campaign Day</label>
-              <input
-                type="number"
-                min={1}
-                max={30}
-                value={post.campaignDay}
-                onChange={(e) => onUpdate(index, { campaignDay: parseInt(e.target.value) || 1 })}
-                className="w-20 text-white-80 text-sm bg-white-5 border border-white-10 rounded-lg px-3 py-2 focus:outline-none focus:border-accent-green-110"
+                placeholder="Call to action..."
+                className="flex-1 text-xs text-white-60 bg-transparent border-b border-transparent hover:border-white-10 focus:border-accent-green-110 px-0 py-0.5 focus:outline-none transition-colors"
               />
             </div>
           )}
+        </div>
+      </div>
 
-          {/* Per-post image assignment */}
-          {imagePool.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-white-10">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-white-30 uppercase tracking-wider">
-                  Assigned Images ({(post.assignedImageIds ?? []).length})
-                </span>
-                <button
-                  onClick={() => setShowImagePicker(!showImagePicker)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-white-10 text-white-60 text-[10px] font-medium hover:bg-white-20 transition-colors"
-                >
-                  <Images className="w-3 h-3" />
-                  {showImagePicker ? 'Done' : 'Assign'}
-                </button>
-              </div>
-
-              {/* Assigned image thumbnails */}
-              {(post.assignedImageIds ?? []).length > 0 && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-2">
-                  {(post.assignedImageIds ?? []).map((imgId) => {
-                    const img = imagePool.find((p) => p.id === imgId);
-                    if (!img) return null;
-                    return (
-                      <div key={imgId} className="relative shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={img.displayUrl}
-                          alt={img.label}
-                          className="w-12 h-12 rounded-md object-cover border border-accent-green-110/50"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = (post.assignedImageIds ?? []).filter((id) => id !== imgId);
-                            onUpdate(index, { assignedImageIds: next });
-                          }}
-                          className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600"
-                          title="Remove"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Image picker — click to toggle assignment */}
-              {showImagePicker && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {imagePool.map((img) => {
-                    const isAssigned = (post.assignedImageIds ?? []).includes(img.id);
-                    return (
-                      <button
-                        key={img.id}
-                        type="button"
-                        onClick={() => {
-                          const current = post.assignedImageIds ?? [];
-                          const next = isAssigned
-                            ? current.filter((id) => id !== img.id)
-                            : [...current, img.id];
-                          onUpdate(index, { assignedImageIds: next });
-                        }}
-                        className={cn(
-                          'relative shrink-0 rounded-md overflow-hidden border-2 transition-colors',
-                          isAssigned ? 'border-accent-green-110' : 'border-white-10 hover:border-white-30',
-                        )}
-                        title={isAssigned ? `Remove ${img.label}` : `Assign ${img.label}`}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img.displayUrl} alt={img.label} className="w-14 h-14 object-cover" />
-                        {isAssigned && (
-                          <div className="absolute inset-0 bg-accent-green-110/20 flex items-center justify-center">
-                            <Check className="w-4 h-4 text-accent-green-110" />
-                          </div>
-                        )}
-                        <span className="absolute bottom-0 left-0 right-0 text-[8px] px-1 py-0.5 bg-black/70 text-white-80 truncate">
-                          {img.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+      {/* Regenerating overlay */}
+      {isRegenerating && (
+        <div className="absolute inset-0 bg-sp-surface/50 flex items-center justify-center rounded-xl">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white-5 border border-white-10">
+            <Loader2 className="w-4 h-4 animate-spin text-accent-green-110" />
+            <span className="text-xs text-white-60">Regenerating...</span>
+          </div>
         </div>
       )}
     </div>
