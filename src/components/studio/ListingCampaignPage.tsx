@@ -292,11 +292,11 @@ interface CampaignTypeOption {
 }
 
 const CAMPAIGN_TYPES: CampaignTypeOption[] = [
-  { key: 'just_listed', label: 'Just Listed', description: 'Fresh-to-market excitement', icon: Sparkles },
-  { key: 'open_house', label: 'Open House', description: 'Drive attendance to your showing', icon: DoorOpen },
-  { key: 'price_drop', label: 'Price Drop', description: 'Urgency + new value story', icon: TrendingDown },
-  { key: 'just_sold', label: 'Just Sold', description: 'Celebrate + build trust', icon: Trophy },
-  { key: 'listing_spotlight', label: 'Listing Spotlight', description: 'Lifestyle showcase', icon: Star },
+  { key: 'just_listed', label: 'Just Listed', description: 'Exciting first-look posts with "see it before it\'s gone" energy', icon: Sparkles },
+  { key: 'open_house', label: 'Open House', description: 'Event-focused posts with date/time details and personal invitations', icon: DoorOpen },
+  { key: 'price_drop', label: 'Price Drop', description: 'Value-driven posts leading with savings and act-now opportunity', icon: TrendingDown },
+  { key: 'just_sold', label: 'Just Sold', description: 'Celebration posts that build trust and position you as effective', icon: Trophy },
+  { key: 'listing_spotlight', label: 'Listing Spotlight', description: 'Aspirational storytelling focused on lifestyle and neighborhood', icon: Star },
 ];
 
 // ── Campaign slot configuration ──
@@ -2504,7 +2504,8 @@ export function ListingCampaignPage({ clientId }: Props) {
 
         {/* Campaign Type */}
         <div className="mb-8">
-          <h2 className="text-sm font-semibold text-white-60 mb-3 uppercase tracking-wider">Campaign Type</h2>
+          <h2 className="text-sm font-semibold text-white-60 mb-1 uppercase tracking-wider">Campaign Type</h2>
+          <p className="text-xs text-white-30 mb-3">Sets the tone, messaging angle, and CTAs for every post in the campaign.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {CAMPAIGN_TYPES.map((type) => {
               const Icon = type.icon;
