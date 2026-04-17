@@ -34,7 +34,7 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
   const overLimit = maxChars ? charCount > maxChars : false;
 
   return (
-    <div className="card p-5 space-y-3">
+    <div className="space-y-3">
       {/* Channel connection warning */}
       {clientId && !isConnected && (draft.status === 'DRAFT' || draft.status === 'APPROVED') && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs">

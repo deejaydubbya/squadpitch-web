@@ -145,10 +145,10 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
 
   return (
     <div className={cn(
-      'card p-0 overflow-hidden border-l-[3px] transition-shadow hover:shadow-lg hover:shadow-black/10',
+      'rounded-xl border border-white-10 bg-sp-card overflow-hidden border-l-[3px] transition-shadow hover:shadow-lg hover:shadow-black/10',
       statusBorderColors[draft.status] ?? 'border-l-white-10'
     )}>
-      <div className="p-4">
+      <div className="px-5 py-4">
         {onSelect && (
           <div className="float-left mr-3 mt-1">
             <input
@@ -164,8 +164,8 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
 
       {/* Media indicator */}
       <div className={cn(
-        'border-t border-white-10 px-4 py-2.5 flex items-center gap-3',
-        draft.mediaUrl ? 'bg-accent-green-110/3' : 'bg-white-5'
+        'border-t border-white-10 px-5 py-3 flex items-center gap-3',
+        draft.mediaUrl ? 'bg-accent-green-110/3' : ''
       )}>
         {draft.mediaUrl ? (
           <>
@@ -289,7 +289,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         </div>
       )}
 
-      <div className="border-t border-white-10 px-4 py-3 flex items-center gap-2 flex-wrap bg-white-5">
+      <div className="border-t border-white-10 px-5 py-3 flex items-center gap-2.5 flex-wrap">
         <button
           onClick={() => setExpanded((v) => !v)}
           className="text-xs text-white-60 hover:text-white-100 flex items-center gap-1"
@@ -422,7 +422,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       </div>
 
       {editMode && (
-        <div className="border-t border-white-10 p-4 bg-white-5 space-y-2">
+        <div className="border-t border-white-10 p-5 space-y-2">
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -443,7 +443,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}
 
       {showReject && (
-        <div className="border-t border-white-10 p-4 bg-white-5 space-y-2">
+        <div className="border-t border-white-10 p-5 space-y-2">
           <input
             type="text"
             value={rejectReason}
@@ -470,7 +470,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}
 
       {showSchedule && (
-        <div className="border-t border-white-10 p-4 bg-white-5 space-y-2">
+        <div className="border-t border-white-10 p-5 space-y-2">
           <input
             type="datetime-local"
             value={scheduleDate}
@@ -519,7 +519,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
 
       {/* Performance feedback prompt for published drafts */}
       {draft.status === 'PUBLISHED' && !draft.performanceRating && !ratePerformance.isSuccess && (
-        <div className="border-t border-white-10 px-4 py-3 bg-white-5/50">
+        <div className="border-t border-white-10 px-5 py-3">
           <p className="text-xs text-white-60 mb-2">How did this post perform?</p>
           <div className="flex gap-2">
             {([
@@ -544,7 +544,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         </div>
       )}
       {(draft.performanceRating || ratePerformance.isSuccess) && draft.status === 'PUBLISHED' && (
-        <div className="border-t border-white-10 px-4 py-2.5 bg-white-5/30 flex items-center gap-2">
+        <div className="border-t border-white-10 px-5 py-2.5 flex items-center gap-2">
           <Check className="w-3.5 h-3.5 text-white-40" />
           <span className="text-xs text-white-40">
             Rated: <span className="font-medium text-white-60">{draft.performanceRating ?? 'Saved'}</span>
@@ -553,7 +553,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}
 
       {anyError && (
-        <div className="border-t border-white-10 p-4 bg-white-5">
+        <div className="border-t border-white-10 p-5">
           <StatusBanner error={anyError.message} />
         </div>
       )}

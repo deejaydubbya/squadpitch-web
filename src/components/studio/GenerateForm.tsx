@@ -418,10 +418,12 @@ export function GenerateForm({ clientId }: Props) {
           <h3 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
             Latest result
           </h3>
-          <DraftPreviewCard
-            draft={lastDraft}
-            maxChars={selectedChannelConfig?.maxChars}
-          />
+          <div className="card p-5">
+            <DraftPreviewCard
+              draft={lastDraft}
+              maxChars={selectedChannelConfig?.maxChars}
+            />
+          </div>
 
           {/* Quick approve/reject on result */}
           <QuickActions draft={lastDraft} />

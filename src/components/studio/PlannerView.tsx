@@ -817,8 +817,8 @@ function CampaignGroup({
 
   return (
     <div className={cn(
-      'border rounded-xl overflow-hidden bg-white-5/50 transition-colors',
-      highlighted ? 'border-accent-green-110/40 ring-1 ring-accent-green-110/20' : 'border-white-10',
+      'border rounded-xl overflow-hidden transition-colors',
+      highlighted ? 'border-accent-green-110/30 ring-1 ring-accent-green-110/10' : 'border-white-10',
     )}>
       <button
         onClick={() => setExpanded(!expanded)}
