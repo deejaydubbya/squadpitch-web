@@ -25,6 +25,7 @@ import {
   ArrowRight,
   Check,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import {
   useAssets,
@@ -40,7 +41,9 @@ import {
   useMoveAssetToFolder,
   useUpdateAssetTags,
   useAutoTagAsset,
+  autoTagAssetFetch,
   useAssetTagDefaults,
+  squadpitchKeys,
   type MediaAssetSource,
   type MediaAssetStatus,
   type MediaAssetType,
@@ -135,6 +138,8 @@ function tagColor(tag: string): string {
 }
 
 export function AssetLibrary({ clientId }: Props) {
+  const qc = useQueryClient();
+
   // ── Filters ───────────────────────────────────────────────────────
   const [sourceFilter, setSourceFilter] = useState<MediaAssetSource | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<MediaAssetStatus | 'ALL'>('ALL');
@@ -280,13 +285,9 @@ export function AssetLibrary({ clientId }: Props) {
             setUploadFolderId('');
             setUploadNewFolderName('');
             setShowUploadNewFolder(false);
-            // Fire auto-tag in background
-            autoTagAsset.mutate(asset.id, {
-              onSuccess: (result) => {
-                if (result.suggestedTags.length > 0) {
-                  updateAssetTags.mutate({ assetId: asset.id, tags: result.suggestedTags });
-                }
-              },
+            // Fire auto-tag in background — backend saves tags directly
+            autoTagAssetFetch(clientId, asset.id).then(() => {
+              qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
             });
           },
         });
@@ -294,23 +295,25 @@ export function AssetLibrary({ clientId }: Props) {
       }
       // Multiple files — upload sequentially with progress
       setUploadQueue({ total: fileList.length, done: 0 });
+      const autoTagPromises: Promise<void>[] = [];
       for (let i = 0; i < fileList.length; i++) {
         const formData = new FormData();
         formData.append('file', fileList[i]);
         try {
           const asset = await uploadAsset.mutateAsync({ formData, assetType: uploadMode, folderId: targetFolderId });
-          // Fire auto-tag in background for each
-          autoTagAsset.mutate(asset.id, {
-            onSuccess: (result) => {
-              if (result.suggestedTags.length > 0) {
-                updateAssetTags.mutate({ assetId: asset.id, tags: result.suggestedTags });
-              }
-            },
-          });
+          // Fire auto-tag in background — each is an independent fetch call
+          // so they don't clobber each other like useMutation does
+          autoTagPromises.push(autoTagAssetFetch(clientId, asset.id));
         } catch {
           // Continue uploading remaining files on individual failure
         }
         setUploadQueue((prev) => prev ? { ...prev, done: i + 1 } : null);
+      }
+      // Invalidate assets once after all auto-tags complete
+      if (autoTagPromises.length > 0) {
+        Promise.all(autoTagPromises).then(() => {
+          qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+        });
       }
       setUploadAltText('');
       setUploadCaption('');
@@ -321,7 +324,7 @@ export function AssetLibrary({ clientId }: Props) {
       setShowUploadNewFolder(false);
       setUploadQueue(null);
     },
-    [uploadAsset, uploadAltText, uploadCaption, uploadMode, uploadFolderId, autoTagAsset, updateAssetTags]
+    [uploadAsset, uploadAltText, uploadCaption, uploadMode, uploadFolderId, clientId, qc]
   );
 
   const handleDrop = useCallback(
@@ -710,14 +713,7 @@ export function AssetLibrary({ clientId }: Props) {
                     onMoveToFolder={(folderId) => moveAssetToFolder.mutate({ assetId: asset.id, folderId })}
                     onUpdateTags={(tags) => updateAssetTags.mutate({ assetId: asset.id, tags })}
                     onAutoTag={() => {
-                      autoTagAsset.mutate(asset.id, {
-                        onSuccess: (result) => {
-                          if (result.suggestedTags.length > 0) {
-                            const merged = Array.from(new Set([...asset.tags, ...result.suggestedTags]));
-                            updateAssetTags.mutate({ assetId: asset.id, tags: merged });
-                          }
-                        },
-                      });
+                      autoTagAsset.mutate(asset.id);
                     }}
                   />
                 ))}

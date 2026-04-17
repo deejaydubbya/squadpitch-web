@@ -1489,12 +1489,30 @@ export function useUpdateAssetTags(clientId: string) {
 }
 
 export function useAutoTagAsset(clientId: string) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (assetId: string) =>
-      apiFetch<{ suggestedTags: string[] }>(`workspaces/${clientId}/assets/${assetId}/auto-tag`, {
+      apiFetch<{ suggestedTags: string[]; savedTags: string[] }>(`workspaces/${clientId}/assets/${assetId}/auto-tag`, {
         method: 'POST',
         body: JSON.stringify({}),
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+    },
+  });
+}
+
+/**
+ * Fire-and-forget auto-tag via plain fetch — avoids useMutation's
+ * single-observer limitation where rapid calls clobber each other.
+ * The backend now saves tags directly, so no second call is needed.
+ */
+export function autoTagAssetFetch(clientId: string, assetId: string): Promise<void> {
+  return apiFetch(`workspaces/${clientId}/assets/${assetId}/auto-tag`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }).catch(() => {
+    // Fire-and-forget — swallow errors silently
   });
 }
 
