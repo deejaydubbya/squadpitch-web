@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle, ChevronDown, ChevronRight, Megaphone, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useDrafts,
@@ -11,10 +12,12 @@ import {
   usePlanMyWeek,
   useSwapSuggestion,
   useAutopilotExecute,
+  useTimingSuggestions,
   type DraftStatus,
   type Channel,
   type Draft,
   type PlannerSuggestion,
+  type PlannerCampaignSuggestion,
   type WeekSummary,
 } from '@/hooks/useSquadpitch';
 import { usePlannerOnboarding } from '@/hooks/usePlannerOnboarding';
@@ -85,6 +88,7 @@ export function PlannerView({ clientId }: Props) {
   const [weekSummary, setWeekSummary] = useState<WeekSummary | null>(null);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [planResult, setPlanResult] = useState<{ generated: number; scheduled: number } | null>(null);
+  const [campaignSuggestions, setCampaignSuggestions] = useState<PlannerCampaignSuggestion[]>([]);
 
   // Onboarding state
   const onboarding = usePlannerOnboarding(clientId);
@@ -105,6 +109,7 @@ export function PlannerView({ clientId }: Props) {
   const planMyWeek = usePlanMyWeek(clientId);
   const swapSuggestion = useSwapSuggestion(clientId);
   const autopilotExecute = useAutopilotExecute(clientId);
+  const { data: timingSuggestions } = useTimingSuggestions();
 
   // Fetch suggestions on mount and when drafts change
   const weekRange = useMemo(() => getCurrentWeekRange(), []);
@@ -112,6 +117,7 @@ export function PlannerView({ clientId }: Props) {
     plannerSuggestions.mutate(weekRange, {
       onSuccess: (data) => {
         setSuggestions(data.suggestions);
+        setCampaignSuggestions(data.campaignSuggestions ?? []);
         setWeekSummary(data.weekSummary);
         setDismissedIds(new Set());
         setPlanResult(null);
@@ -179,6 +185,49 @@ export function PlannerView({ clientId }: Props) {
   }, [allDrafts]);
 
   const totalCount = allDrafts?.length ?? 0;
+
+  // Campaign grouping for list view
+  const activeCampaignCount = useMemo(() => {
+    if (!allDrafts) return 0;
+    const ids = new Set<string>();
+    for (const d of allDrafts) {
+      if (d.campaignId && d.status !== 'PUBLISHED') ids.add(d.campaignId);
+    }
+    return ids.size;
+  }, [allDrafts]);
+
+  // Group drafts by campaign for list view
+  const { campaignGroups, standalonesDrafts } = useMemo(() => {
+    if (!drafts) return { campaignGroups: [] as Array<{ campaignId: string; campaignName: string; campaignType: string; drafts: Draft[] }>, standalonesDrafts: [] as Draft[] };
+
+    const groups = new Map<string, { campaignId: string; campaignName: string; campaignType: string; drafts: Draft[] }>();
+    const standalones: Draft[] = [];
+
+    for (const d of drafts) {
+      if (d.campaignId) {
+        let group = groups.get(d.campaignId);
+        if (!group) {
+          group = {
+            campaignId: d.campaignId,
+            campaignName: d.campaignName || 'Unnamed Campaign',
+            campaignType: d.campaignType || 'just_listed',
+            drafts: [],
+          };
+          groups.set(d.campaignId, group);
+        }
+        group.drafts.push(d);
+      } else {
+        standalones.push(d);
+      }
+    }
+
+    // Sort drafts within each group by campaignOrder
+    for (const group of Array.from(groups.values())) {
+      group.drafts.sort((a, b) => (a.campaignOrder ?? 0) - (b.campaignOrder ?? 0));
+    }
+
+    return { campaignGroups: Array.from(groups.values()), standalonesDrafts: standalones };
+  }, [drafts]);
 
   const handleSelect = useCallback((id: string, checked: boolean) => {
     setSelected((prev) => {
@@ -326,7 +375,14 @@ export function PlannerView({ clientId }: Props) {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white-100">Planner</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold text-white-100">Planner</h1>
+          {activeCampaignCount > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 font-medium">
+              {activeCampaignCount} campaign{activeCampaignCount !== 1 ? 's' : ''} active
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {/* Tour replay button */}
           <button
@@ -403,8 +459,84 @@ export function PlannerView({ clientId }: Props) {
           isPlanningWeek={planMyWeek.isPending}
           planResult={planResult}
           hasSuggestions={visibleSuggestions.length > 0}
+          clientId={clientId}
         />
       </div>
+
+      {/* Campaign suggestions from recommendation engine */}
+      {campaignSuggestions.length > 0 && (
+        <div className="card p-4 border-purple-400/20 bg-purple-400/5">
+          <div className="flex items-center gap-2 mb-3">
+            <Megaphone className="w-4 h-4 text-purple-400" />
+            <h3 className="text-xs font-semibold text-white-60 uppercase tracking-wider">
+              Campaign Opportunities
+            </h3>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-400/15 text-purple-400">
+              {campaignSuggestions.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {campaignSuggestions.map((cs) => {
+              const payload = cs.actionPayload ?? {};
+              const params = new URLSearchParams();
+              if (payload.listingDataItemId) params.set('listingId', payload.listingDataItemId);
+              else if (payload.sourceId) params.set('listingId', payload.sourceId);
+              if (payload.campaignType) params.set('type', payload.campaignType);
+              else if (cs.suggestedCampaignType) params.set('type', cs.suggestedCampaignType);
+              const qs = params.toString();
+
+              return (
+                <Link
+                  key={cs.id}
+                  href={`/workspaces/${clientId}/listing-campaign${qs ? `?${qs}` : ''}`}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-white-5 hover:bg-white-8 border border-white-10 hover:border-purple-400/20 transition-all group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-white-80 group-hover:text-white-100 truncate">
+                        {cs.title}
+                      </span>
+                      <span className={cn(
+                        'flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
+                        cs.confidence === 'high'
+                          ? 'bg-accent-green-110/15 text-accent-green-110'
+                          : 'bg-yellow-400/15 text-yellow-400'
+                      )}>
+                        {cs.confidence === 'high' ? 'Recommended' : 'Suggested'}
+                      </span>
+                    </div>
+                    {cs.reasons[0] && (
+                      <p className="text-[11px] text-white-30 mt-0.5">{cs.reasons[0]}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-purple-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    {cs.actionLabel}
+                    <ArrowRight className="w-3 h-3" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Timing suggestions */}
+      {timingSuggestions && Object.keys(timingSuggestions).length > 0 && (
+        <div className="flex items-center gap-3 text-xs text-white-40 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-3 h-3" />
+            <span className="font-medium text-white-30 uppercase tracking-wider">Best times</span>
+          </div>
+          {Object.entries(timingSuggestions).map(([channel, t]) => (
+            <span key={channel} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white-5 border border-white-10">
+              <span className="text-white-60">{channel}</span>
+              <span className="text-white-30">{t.bestTimeLabel}</span>
+              <span className="text-white-20">·</span>
+              <span className="text-white-30">{t.bestDays}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="space-y-3">
@@ -549,7 +681,41 @@ export function PlannerView({ clientId }: Props) {
           </div>
         )}
 
-        {drafts && drafts.length > 0 && (
+        {drafts && drafts.length > 0 && view === 'list' && (campaignGroups.length > 0 || standalonesDrafts.length > 0) && (
+          <div className="space-y-4">
+            {/* Campaign groups */}
+            {campaignGroups.map((group) => (
+              <CampaignGroup
+                key={group.campaignId}
+                campaignName={group.campaignName}
+                campaignType={group.campaignType}
+                drafts={group.drafts}
+                selectedIds={selected}
+                onSelect={hasApprovable ? handleSelect : undefined}
+              />
+            ))}
+
+            {/* Standalone (non-campaign) drafts */}
+            {standalonesDrafts.length > 0 && (
+              <div className="space-y-3">
+                {campaignGroups.length > 0 && (
+                  <p className="text-xs font-medium text-white-30 uppercase tracking-wider">Individual Posts</p>
+                )}
+                {standalonesDrafts.map((draft) => (
+                  <DraftQueueCard
+                    key={draft.id}
+                    draft={draft}
+                    selected={selected.has(draft.id)}
+                    onSelect={hasApprovable ? handleSelect : undefined}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Calendar view or non-grouped fallback */}
+        {drafts && drafts.length > 0 && view === 'calendar' && (
           <div className="space-y-3">
             {drafts.map((draft) => (
               <DraftQueueCard
@@ -565,6 +731,71 @@ export function PlannerView({ clientId }: Props) {
 
       {/* Tour overlay */}
       <PlannerTour active={tourActive} onComplete={handleTourComplete} />
+    </div>
+  );
+}
+
+const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
+  just_listed: 'Just Listed',
+  open_house: 'Open House',
+  price_drop: 'Price Drop',
+  just_sold: 'Just Sold',
+  listing_spotlight: 'Spotlight',
+};
+
+function CampaignGroup({
+  campaignName,
+  campaignType,
+  drafts: groupDrafts,
+  selectedIds,
+  onSelect,
+}: {
+  campaignName: string;
+  campaignType: string;
+  drafts: Draft[];
+  selectedIds: Set<string>;
+  onSelect?: (id: string, checked: boolean) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const typeLabel = CAMPAIGN_TYPE_LABELS[campaignType] ?? campaignType;
+  const scheduledCount = groupDrafts.filter((d) => d.status === 'SCHEDULED' || d.status === 'PUBLISHED').length;
+
+  return (
+    <div className="border border-white-10 rounded-xl overflow-hidden bg-white-5/50">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white-8 transition-colors"
+      >
+        {expanded ? (
+          <ChevronDown className="w-4 h-4 text-white-30 shrink-0" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-white-30 shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-white-80 truncate">{campaignName}</span>
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 shrink-0">
+              {typeLabel}
+            </span>
+          </div>
+          <p className="text-xs text-white-30 mt-0.5">
+            {groupDrafts.length} posts &middot; {scheduledCount} scheduled
+          </p>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-3 pb-3 space-y-2">
+          {groupDrafts.map((draft) => (
+            <DraftQueueCard
+              key={draft.id}
+              draft={draft}
+              selected={selectedIds.has(draft.id)}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   Wand2,
   Loader2,
@@ -16,6 +17,8 @@ import {
   TrendingUp,
   User,
   Zap,
+  Rocket,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -28,12 +31,17 @@ import {
   useDataItems,
   useBlueprints,
   useBusinessDataLabels,
-  useDashboardRecommendations,
+  useRecommendations,
+  useSeriesTemplates,
+  useGenerateSeries,
+  useAcceptRecommendation,
   type Channel,
+  type UnifiedRecommendation,
   type Draft,
   type ContentIdea,
   type WorkspaceDataItem,
   type ContentBlueprint,
+  type SeriesTemplate,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useUsage } from '@/hooks/useBilling';
@@ -55,6 +63,7 @@ const CONTENT_TYPES = [
   { value: 'educational', label: 'Educational', icon: BookOpen },
   { value: 'market_update', label: 'Market Update', icon: TrendingUp },
   { value: 'personal', label: 'Personal / Story', icon: User },
+  { value: 'growth', label: 'Growth', icon: Rocket },
 ] as const;
 
 type ContentType = typeof CONTENT_TYPES[number]['value'];
@@ -65,6 +74,9 @@ const QUICK_CHIPS = [
   { label: 'Client testimonial', guidance: 'Create a social proof post featuring a client testimonial that builds trust and credibility', type: 'testimonial' as ContentType },
   { label: 'Market update', guidance: 'Create a market update post sharing current trends, data, and insights that demonstrate expertise', type: 'market_update' as ContentType },
   { label: 'Open house announcement', guidance: 'Create an open house announcement post with date, time, address, and compelling reasons to attend', type: 'listing' as ContentType },
+  { label: 'Buyer tips', guidance: '[Type: growth] Create a post sharing 3 practical tips for home buyers that demonstrates expertise and attracts new followers', type: 'growth' as ContentType },
+  { label: 'What does $X get you?', guidance: '[Type: growth] Create a curiosity-driven post about what a specific price point gets you in the local market — designed to attract new followers', type: 'growth' as ContentType },
+  { label: 'Myth buster', guidance: '[Type: growth] Bust a common real estate myth to position yourself as a trusted authority and attract new followers', type: 'growth' as ContentType },
 ];
 
 function getGenerationError(error: Error | null) {
@@ -82,11 +94,14 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const bdLabels = useBusinessDataLabels(clientId);
   const { data: channels } = useChannelSettings(clientId);
   const { data: mediaProfile } = useMediaProfile(clientId);
-  const { data: recommendations } = useDashboardRecommendations(clientId);
+  const { data: recommendations } = useRecommendations(clientId, 'create_content');
+  const acceptRec = useAcceptRecommendation(clientId);
   const generate = useGenerateContent();
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
   const ideasMutation = useGenerateIdeas(clientId);
+  const { data: seriesTemplatesData } = useSeriesTemplates();
+  const generateSeries = useGenerateSeries(clientId);
 
   const { data: usage } = useUsage();
 
@@ -95,6 +110,9 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const [goal, setGoal] = useState<typeof GOALS[number]>('Growth');
   const [contentType, setContentType] = useState<ContentType | null>(null);
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
+  const [showSeries, setShowSeries] = useState(false);
+  const [seriesTemplate, setSeriesTemplate] = useState<string>('tips_series');
+  const [seriesParts, setSeriesParts] = useState(3);
 
   // Business data state
   const [showBusinessData, setShowBusinessData] = useState(false);
@@ -132,7 +150,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
     );
   };
 
-  // ── Build recommended posts from real data ────────────────────────────
+  // ── Build recommended posts from shared recommendation engine ──────────
   interface RecommendedPost {
     id: string;
     title: string;
@@ -143,134 +161,52 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
     dataItemId?: string;
     channel?: string;
     sourceContext?: string;
+    reason?: string;
+    confidence?: 'high' | 'medium' | 'low';
   }
 
-  const recommendedPosts = useMemo<RecommendedPost[]>(() => {
-    const items: RecommendedPost[] = [];
-    const summary = recommendations?.summary;
+  // Campaign hint — a single top-priority campaign suggestion shown subtly
+  const campaignHint = useMemo(() => {
     const recs = recommendations?.recommendations ?? [];
+    return recs.find((r: UnifiedRecommendation) => r.type === 'campaign_hint') ?? null;
+  }, [recommendations]);
 
-    // ── Priority 1: Backend recommendations with specific data (milestones, listings, testimonials) ──
-    // These have real item names, addresses, quotes linked via metadata.dataItemId
-    const contentRecs = recs.filter(
-      (r) => r.action === 'generate_post' && r.metadata?.guidance
-    );
+  const recommendedPosts = useMemo<RecommendedPost[]>(() => {
+    const recs = recommendations?.recommendations ?? [];
+    if (recs.length === 0) return [];
 
-    // Map backend category → frontend content type
+    // Map engine type → frontend content type
     const typeMap: Record<string, ContentType> = {
-      milestone_post: 'personal',
       listing_post: 'listing',
-      featured_property: 'listing',
-      client_testimonial: 'testimonial',
+      milestone_post: 'personal',
+      testimonial_post: 'testimonial',
+      engagement_post: 'educational',
+      scheduling_action: 'educational',
+      growth_post: 'growth',
     };
 
-    // Priority badges by recommendation type
+    // Map engine type → badge
     const badgeMap: Record<string, string> = {
-      re_milestone_post: 'Just Sold',
-      re_listing_facebook: 'New listing',
-      re_listing_instagram: 'New listing',
-      re_testimonial_post: 'Social proof',
-      re_no_recent_listing: 'Timely',
+      listing_post: 'New listing',
+      milestone_post: 'Just Sold',
+      testimonial_post: 'Social proof',
+      scheduling_action: 'Cadence',
+      growth_post: 'Growth',
     };
 
-    for (const rec of contentRecs) {
-      if (items.length >= 3) break;
-      const templateType = rec.metadata?.templateType ?? '';
-      items.push({
-        id: rec.id,
-        title: rec.title,
-        description: rec.description,
-        guidance: rec.metadata?.guidance ?? rec.description,
-        type: typeMap[templateType] ?? 'educational',
-        badge: badgeMap[rec.id],
-        dataItemId: rec.metadata?.dataItemId,
-        channel: rec.metadata?.channel,
-      });
-    }
-
-    // ── Priority 2: Specific unused items from summary.topUnusedItems ──
-    const topUnused = summary?.topUnusedItems;
-
-    if (topUnused && items.length < 3) {
-      for (const item of topUnused) {
-        if (items.length >= 3) break;
-        if (items.some((i) => i.dataItemId === item.id)) continue;
-
-        if (item.type === 'MILESTONE') {
-          const label = item.address || item.achievement || item.title;
-          items.push({
-            id: `unused-milestone-${item.id}`,
-            title: `Celebrate your sale at ${label}`,
-            description: 'Create a Just Sold post to build credibility and attract new clients',
-            guidance: `Create a "Just Sold" celebration post for the property at ${label}. Emphasize success and invite new clients.`,
-            type: 'personal',
-            badge: 'Just Sold',
-            dataItemId: item.id,
-          });
-        } else if (item.type === 'TESTIMONIAL') {
-          const authorLabel = item.author ? `${item.author}'s review` : 'a client review';
-          const quoteSnippet = item.quote
-            ? `"${item.quote.length > 60 ? item.quote.slice(0, 57) + '...' : item.quote}"`
-            : '';
-          items.push({
-            id: `unused-testimonial-${item.id}`,
-            title: `Share ${authorLabel}`,
-            description: quoteSnippet || 'Turn client feedback into a trust-building post',
-            guidance: item.quote
-              ? `Create a social proof post featuring this client review: "${item.quote}"${item.author ? ` from ${item.author}` : ''}. Build trust and encourage inquiries.`
-              : 'Create a testimonial post using a real client review. Quote accurately and build trust.',
-            type: 'testimonial',
-            badge: 'Social proof',
-            dataItemId: item.id,
-          });
-        } else if (item.type === 'CUSTOM') {
-          const label = item.address || item.title;
-          items.push({
-            id: `unused-listing-${item.id}`,
-            title: `Create a post for ${label}`,
-            description: 'This listing hasn\'t been used for content yet',
-            guidance: `Create a high-performing property post for ${label}. Highlight key features and encourage DMs for showings.`,
-            type: 'listing',
-            badge: 'New data',
-            dataItemId: item.id,
-          });
-        }
-      }
-    }
-
-    // ── Priority 3: Cadence fallback ──
-    const published = summary?.publishedThisWeek ?? 0;
-    if (published < 5 && items.length < 3) {
-      items.push({
-        id: 'cadence-post',
-        title: published === 0 ? 'Start your week strong' : 'Keep your momentum going',
-        description: published === 0
-          ? "You haven't posted this week — stay visible with fresh content"
-          : `${published}/5 posts this week — create more to hit your target`,
-        guidance: 'Create an engaging post that demonstrates expertise and drives conversation with your audience',
-        type: 'educational',
-        badge: 'Cadence',
-      });
-    }
-
-    // ── Priority 4: General template recommendations ──
-    if (items.length < 3) {
-      const templateRecs = recs.filter(
-        (r) => r.category === 'content' && !items.some((i) => i.id === r.id)
-      );
-      for (const rec of templateRecs) {
-        if (items.length >= 3) break;
-        items.push({
-          id: rec.id,
-          title: rec.title,
-          description: rec.description,
-          guidance: rec.metadata?.guidance ?? rec.description,
-          type: 'educational',
-        });
-      }
-    }
-
-    return items.slice(0, 3);
+    // Filter out campaign_hint — handled separately
+    return recs.filter((r: UnifiedRecommendation) => r.type !== 'campaign_hint').slice(0, 3).map((rec: UnifiedRecommendation) => ({
+      id: rec.id,
+      title: rec.title,
+      description: rec.description,
+      guidance: rec.actionPayload?.guidance ?? rec.description,
+      type: typeMap[rec.type] ?? 'educational',
+      badge: badgeMap[rec.type] ?? (rec.confidence === 'high' ? 'Recommended' : undefined),
+      dataItemId: rec.actionPayload?.dataItemId ?? rec.sourceId ?? undefined,
+      channel: rec.actionPayload?.channel ?? rec.suggestedChannel ?? undefined,
+      reason: rec.reasons?.[0] ?? undefined,
+      confidence: rec.confidence ?? undefined,
+    }));
   }, [recommendations]);
 
   const handleGenerate = () => {
@@ -306,6 +242,25 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
     );
   };
 
+  const handleGenerateSeries = () => {
+    if (selectedChannels.length === 0 || !guidance.trim()) return;
+    generateSeries.mutate(
+      {
+        topic: guidance.trim(),
+        templateId: seriesTemplate,
+        parts: seriesParts,
+        channel: selectedChannels[0],
+      },
+      {
+        onSuccess: (result) => {
+          if (result.drafts.length > 0) {
+            onGenerated(result.drafts[0]);
+          }
+        },
+      }
+    );
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canGenerate) {
       e.preventDefault();
@@ -319,6 +274,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   };
 
   const handleRecommendedClick = (rec: RecommendedPost) => {
+    acceptRec.mutate(rec.id); // Track acceptance
     setGuidance(rec.guidance);
     setContentType(rec.type);
 
@@ -369,6 +325,31 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
 
       <ServiceAlert />
 
+      {/* ── Campaign hint — subtle nudge toward Listing Campaign ──── */}
+      {campaignHint && !guidance.trim() && (
+        <Link
+          href={(() => {
+            const p = campaignHint.actionPayload;
+            const params = new URLSearchParams();
+            const sid = p?.listingDataItemId ?? p?.sourceId;
+            if (sid) params.set('listingId', sid);
+            if (p?.campaignType) params.set('type', p.campaignType);
+            const qs = params.toString();
+            return `/workspaces/${clientId}/listing-campaign${qs ? `?${qs}` : ''}`;
+          })()}
+          className="block p-3 rounded-xl bg-accent-green-110/5 border border-accent-green-110/15 hover:border-accent-green-110/30 transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-accent-green-110 shrink-0" />
+            <span className="text-xs font-medium text-accent-green-110">{campaignHint.title}</span>
+            <span className="ml-auto text-[10px] text-accent-green-110/60">Launch campaign →</span>
+          </div>
+          {campaignHint.reasons.length > 0 && (
+            <p className="text-[11px] text-white-40 mt-1 ml-5.5">{campaignHint.reasons[0]}</p>
+          )}
+        </Link>
+      )}
+
       {/* ── Recommended for you ─────────────────────────────────────── */}
       {recommendedPosts.length > 0 && !guidance.trim() && (
         <div className="space-y-3">
@@ -409,6 +390,9 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
                   </span>
                 </div>
                 <p className="text-xs text-white-40">{rec.description}</p>
+                {rec.reason && (
+                  <p className="text-[10px] text-white-25 mt-1 italic">{rec.reason}</p>
+                )}
               </button>
             ))}
           </div>
@@ -744,6 +728,80 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
         <p className="text-center text-xs text-white-30">
           Ctrl+Enter to generate
         </p>
+
+        {/* Series Builder */}
+        <div className="border-t border-white-10 pt-4 mt-2">
+          <button
+            onClick={() => setShowSeries((v) => !v)}
+            className="flex items-center gap-2 text-xs text-white-40 hover:text-white-60 transition-colors"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            {showSeries ? 'Hide series builder' : 'Create a multi-part series instead'}
+            <ChevronDown className={cn('w-3 h-3 transition-transform', showSeries && 'rotate-180')} />
+          </button>
+
+          {showSeries && (
+            <div className="mt-3 space-y-3 p-3 rounded-lg bg-white-5 border border-white-10">
+              <div>
+                <label className="text-xs text-white-40 mb-1 block">Series type</label>
+                <select
+                  value={seriesTemplate}
+                  onChange={(e) => setSeriesTemplate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+                  style={{ colorScheme: 'dark' }}
+                >
+                  {(seriesTemplatesData?.templates ?? []).map((t: SeriesTemplate) => (
+                    <option key={t.id} value={t.id}>{t.name} — {t.description}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-white-40 mb-1 block">Number of parts</label>
+                <div className="flex gap-2">
+                  {[2, 3, 4, 5, 7].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setSeriesParts(n)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                        seriesParts === n
+                          ? 'bg-accent-green-110/20 text-accent-green-110 border border-accent-green-110/30'
+                          : 'bg-white-5 text-white-60 border border-white-10 hover:bg-white-10'
+                      )}
+                    >
+                      {n} parts
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={handleGenerateSeries}
+                disabled={!guidance.trim() || selectedChannels.length === 0 || generateSeries.isPending}
+                className="w-full py-2.5 rounded-lg bg-purple-500/20 text-purple-400 font-medium text-sm flex items-center justify-center gap-2 hover:bg-purple-500/30 transition-colors disabled:opacity-50 border border-purple-500/20"
+              >
+                {generateSeries.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating series...
+                  </>
+                ) : (
+                  <>
+                    <Layers className="w-4 h-4" />
+                    Generate {seriesParts}-Part Series
+                  </>
+                )}
+              </button>
+
+              {generateSeries.isSuccess && (
+                <p className="text-xs text-accent-green-110 font-medium">
+                  Series created — {generateSeries.data.totalParts} drafts generated
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

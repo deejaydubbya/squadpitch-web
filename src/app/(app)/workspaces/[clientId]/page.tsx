@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Eye,
   Activity,
+  Lightbulb,
 } from 'lucide-react';
 import {
   useClient,
@@ -42,6 +43,7 @@ import {
   useAssets,
   useDashboardRecommendations,
   useDashboardActions,
+  usePerformanceInsights,
   useApproveDraft,
   usePublishDraft,
   useScheduleDraft,
@@ -50,6 +52,7 @@ import {
   useAutopilotSettings,
   useUpdateAutopilotSettings,
   useRefreshListingFeed,
+  useAcceptRecommendation,
   type Channel,
   type Draft,
   type MediaAsset,
@@ -80,8 +83,10 @@ export default function OverviewPage() {
   const { data: recommendations } = useDashboardRecommendations(clientId);
   const { data: actionsData } = useDashboardActions(clientId);
   const { data: apSettings } = useAutopilotSettings(clientId);
+  const { data: perfInsights } = usePerformanceInsights(clientId);
   const generate = useGenerateContent();
   const duplicate = useDuplicateDraft();
+  const acceptRec = useAcceptRecommendation(clientId);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
@@ -260,6 +265,9 @@ export default function OverviewPage() {
   };
 
   const handleRecommendationAction = (rec: DashboardRecommendation) => {
+    // Track acceptance (fire-and-forget)
+    acceptRec.mutate(rec.id);
+
     switch (rec.action) {
       case 'generate_post': {
         const guidance = rec.metadata?.guidance ?? rec.description;
@@ -286,6 +294,14 @@ export default function OverviewPage() {
       case 'schedule_drafts':
         router.push(`${base}/planner`);
         break;
+      case 'listing_campaign': {
+        const params = new URLSearchParams();
+        if (rec.metadata?.listingDataItemId) params.set('listingId', rec.metadata.listingDataItemId);
+        if (rec.metadata?.campaignType) params.set('type', rec.metadata.campaignType);
+        const qs = params.toString();
+        router.push(`${base}/listing-campaign${qs ? `?${qs}` : ''}`);
+        break;
+      }
       default:
         router.push(`${base}/create`);
     }
@@ -467,6 +483,37 @@ export default function OverviewPage() {
       {/* System Status — real estate workspaces */}
       {client.industryKey === 'real_estate' && recommendations?.summary && (
         <SystemStatus summary={recommendations.summary} base={base} />
+      )}
+
+      {/* Performance Insights — lightweight */}
+      {perfInsights?.hasEnoughData && perfInsights.insights.length > 0 && (
+        <div className="card p-5 border-white-10">
+          <div className="flex items-center gap-2 mb-3">
+            <Lightbulb className="w-4 h-4 text-amber-400" />
+            <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">
+              Performance Insights
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-400/10 text-amber-400">
+              {perfInsights.totalRated} rated
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {perfInsights.insights.map((insight) => (
+              <div
+                key={insight.id}
+                className="flex items-start gap-2 p-3 rounded-lg bg-white-5"
+              >
+                <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
+                  insight.type === 'positive' ? 'bg-accent-green-110' : 'bg-amber-400'
+                }`} />
+                <div>
+                  <p className="text-xs font-medium text-white-80">{insight.text}</p>
+                  <p className="text-[11px] text-white-40 mt-0.5">{insight.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Recent drafts — system output */}
@@ -653,6 +700,12 @@ function WeeklySnapshot({
 
 // ── Recommendation Card ──────────────────────────────────────────────────
 
+const CONFIDENCE_STYLES: Record<string, string> = {
+  high: 'bg-accent-green-110/15 text-accent-green-110',
+  medium: 'bg-yellow-400/15 text-yellow-400',
+  low: 'bg-white-10 text-white-40',
+};
+
 function RecommendationCard({
   rec,
   onAction,
@@ -671,22 +724,40 @@ function RecommendationCard({
     real_estate: <Home className="w-4 h-4 text-accent-green-110" />,
   };
 
+  const reasonText = rec.reasons?.[0] ?? rec.reason;
+  const isCampaign = rec.type?.includes('campaign') && rec.type !== 'campaign_hint';
+
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-white-5 transition-colors group">
+    <button
+      onClick={onAction}
+      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white-5 transition-colors group text-left"
+    >
       <div className="flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
         {iconMap[rec.category] ?? <Sparkles className="w-4 h-4 text-white-40" />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white-80 group-hover:text-white-100 transition-colors">{rec.title}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-white-80 group-hover:text-white-100 transition-colors truncate">{rec.title}</p>
+          {isCampaign && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-400/15 text-purple-400">
+              Campaign
+            </span>
+          )}
+          {rec.confidence && rec.confidence !== 'low' && (
+            <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${CONFIDENCE_STYLES[rec.confidence]}`}>
+              {rec.confidence === 'high' ? 'Recommended' : 'Suggested'}
+            </span>
+          )}
+        </div>
+        {reasonText && (
+          <p className="text-[11px] text-white-30 mt-0.5 truncate">{reasonText}</p>
+        )}
       </div>
-      <button
-        onClick={onAction}
-        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent-green-110/10"
-      >
+      <span className="flex-shrink-0 px-3 py-1.5 rounded-lg text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent-green-110/10">
         {rec.actionLabel}
-      </button>
+      </span>
       <ChevronRight className="w-3.5 h-3.5 text-white-20 flex-shrink-0 group-hover:hidden" />
-    </div>
+    </button>
   );
 }
 

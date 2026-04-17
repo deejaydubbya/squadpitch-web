@@ -20,6 +20,9 @@ import {
   RefreshCw,
   Film,
   Video,
+  TrendingUp,
+  Minus,
+  TrendingDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -33,7 +36,9 @@ import {
   useGenerateContent,
   useGenerateMedia,
   useGenerateVideo,
+  useRatePerformance,
   type Draft,
+  type PerformanceRating,
 } from '@/hooks/useSquadpitch';
 import { DraftPreviewCard } from './DraftPreviewCard';
 import { StatusBanner } from '@/components/common/StatusBanner';
@@ -66,6 +71,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const regenerate = useGenerateContent();
   const generateMedia = useGenerateMedia(draft.clientId);
   const generateVideo = useGenerateVideo(draft.clientId);
+  const ratePerformance = useRatePerformance(draft.clientId);
 
   const isEditable = draft.status === 'DRAFT' || draft.status === 'PENDING_REVIEW';
   const canApprove = isEditable;
@@ -508,6 +514,41 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         <div className="border-t border-white-10 px-4 py-2.5 bg-blue-500/5 flex items-center gap-2">
           <Calendar className="w-3.5 h-3.5 text-blue-400" />
           <span className="text-xs text-blue-400 font-medium">Scheduled — it will publish automatically</span>
+        </div>
+      )}
+
+      {/* Performance feedback prompt for published drafts */}
+      {draft.status === 'PUBLISHED' && !draft.performanceRating && !ratePerformance.isSuccess && (
+        <div className="border-t border-white-10 px-4 py-3 bg-white-5/50">
+          <p className="text-xs text-white-60 mb-2">How did this post perform?</p>
+          <div className="flex gap-2">
+            {([
+              { rating: 'HIGH' as PerformanceRating, label: 'High', icon: TrendingUp, color: 'text-accent-green-110 bg-accent-green-110/10 hover:bg-accent-green-110/20 border-accent-green-110/20' },
+              { rating: 'AVERAGE' as PerformanceRating, label: 'Average', icon: Minus, color: 'text-white-60 bg-white-10 hover:bg-white-20 border-white-20' },
+              { rating: 'LOW' as PerformanceRating, label: 'Low', icon: TrendingDown, color: 'text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 border-amber-400/20' },
+            ]).map(({ rating, label, icon: Icon, color }) => (
+              <button
+                key={rating}
+                onClick={() => ratePerformance.mutate({ draftId: draft.id, rating })}
+                disabled={ratePerformance.isPending}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors disabled:opacity-50',
+                  color,
+                )}
+              >
+                <Icon className="w-3 h-3" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {(draft.performanceRating || ratePerformance.isSuccess) && draft.status === 'PUBLISHED' && (
+        <div className="border-t border-white-10 px-4 py-2.5 bg-white-5/30 flex items-center gap-2">
+          <Check className="w-3.5 h-3.5 text-white-40" />
+          <span className="text-xs text-white-40">
+            Rated: <span className="font-medium text-white-60">{draft.performanceRating ?? 'Saved'}</span>
+          </span>
         </div>
       )}
 

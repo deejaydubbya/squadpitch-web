@@ -126,6 +126,12 @@ export interface ContentVariation {
   cta: string | null;
 }
 
+export interface ScoredHook {
+  text: string;
+  hookScore: number;
+  reason: string;
+}
+
 export interface Draft {
   id: string;
   clientId: string;
@@ -141,6 +147,7 @@ export interface Draft {
   hashtags: string[];
   cta: string | null;
   variations: ContentVariation[] | null;
+  scoredHooks: ScoredHook[] | null;
   altText: string | null;
   imageGuidance: string | null;
   warnings: string[];
@@ -160,6 +167,14 @@ export interface Draft {
     autoBlueprint?: string;
     rotated?: boolean;
   };
+  // Campaign fields (nullable for non-campaign drafts)
+  campaignId: string | null;
+  campaignName: string | null;
+  campaignType: string | null;
+  campaignDay: number | null;
+  campaignOrder: number | null;
+  campaignTotal: number | null;
+
   mediaUrl: string | null;
   mediaType: 'image' | 'video' | null;
   externalPostId: string | null;
@@ -167,6 +182,8 @@ export interface Draft {
   publishError: string | null;
   publishAttempts: number;
   lastPublishAttemptAt: string | null;
+  performanceRating: 'HIGH' | 'AVERAGE' | 'LOW' | null;
+  ratedAt: string | null;
   createdBy: string;
   approvedBy: string | null;
   approvedAt: string | null;
@@ -552,6 +569,14 @@ export interface PlannerSuggestion {
   channel: Channel | null;
 }
 
+export interface CoverageGap {
+  label: string;
+  category: string;
+  suggestion?: string;
+  guidance?: string;
+  contentType?: string;
+}
+
 export interface WeekSummary {
   published: number;
   scheduled: number;
@@ -559,13 +584,41 @@ export interface WeekSummary {
   target: number;
   gap: number;
   gapDays: string[];
-  coverageGaps: string[];
+  coverageGaps: (string | CoverageGap)[];
   missingAngleCategories: string[];
   status: 'on_track' | 'below' | 'ahead';
 }
 
+export interface PlannerCampaignSuggestion {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  sourceId: string | null;
+  sourceLabel: string;
+  priorityScore: number;
+  confidence: 'high' | 'medium' | 'low';
+  actionLabel: string;
+  actionPayload: {
+    action?: string;
+    campaignType?: string;
+    listingDataItemId?: string;
+    sourceId?: string;
+  };
+  suggestedCampaignType: string | null;
+  reasons: string[];
+}
+
+export interface PlannerEngineInsights {
+  growthScore: number | null;
+  daysSinceLastGeneration: number | null;
+  contentMixHealth: 'healthy' | 'fair' | 'low';
+}
+
 export interface PlannerSuggestionsResult {
   suggestions: PlannerSuggestion[];
+  campaignSuggestions?: PlannerCampaignSuggestion[];
+  engineInsights?: PlannerEngineInsights | null;
   weekSummary: WeekSummary;
 }
 
@@ -987,6 +1040,26 @@ export function useGenerateContent() {
       qc.invalidateQueries({
         queryKey: squadpitchKeys.analytics(input.clientId),
       });
+    },
+  });
+}
+
+// ── Content Remix ────────────────────────────────────────────────────────
+
+export interface RemixDraft extends Draft {
+  remixFormat: 'post' | 'carousel' | 'videoScript' | 'storyCaption';
+}
+
+export function useRemixContent(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (draftId: string) =>
+      apiFetch<{ drafts: RemixDraft[] }>(`workspaces/${clientId}/remix`, {
+        method: 'POST',
+        body: JSON.stringify({ draftId }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
     },
   });
 }
@@ -1931,12 +2004,35 @@ export interface DashboardRecommendation {
   id: string;
   title: string;
   description: string;
+  // Legacy fields (backward compat)
   reason?: string;
   action: string;
   actionLabel: string;
   priority: number;
   category: string;
-  metadata?: { guidance?: string; templateType?: string; dataItemId?: string; channel?: string; recommendationId?: string };
+  metadata?: { guidance?: string; templateType?: string; dataItemId?: string; channel?: string; recommendationId?: string; campaignType?: string; listingDataItemId?: string };
+  // Unified engine fields
+  type?: string;
+  sourceType?: string;
+  sourceId?: string | null;
+  sourceLabel?: string;
+  priorityScore?: number;
+  confidence?: 'high' | 'medium' | 'low';
+  freshness?: 'fresh' | 'recent' | 'stale';
+  reasons?: string[];
+  actionPayload?: {
+    action?: string;
+    guidance?: string;
+    templateType?: string;
+    dataItemId?: string;
+    channel?: string;
+    campaignType?: string;
+    listingDataItemId?: string;
+    route?: string;
+  };
+  suggestedCampaignType?: string | null;
+  hasCampaign?: boolean;
+  campaignCount?: number;
 }
 
 export interface DashboardRecommendationsResponse {
@@ -2028,6 +2124,80 @@ export function useDashboardActions(clientId: string | undefined) {
       ),
     enabled: Boolean(clientId),
     staleTime: 60_000,
+  });
+}
+
+// ── Unified Recommendations (Shared Intelligence Layer) ─────────────────
+
+export type RecommendationSurface = 'dashboard' | 'create_content' | 'listing_campaign' | 'planner';
+
+export interface RecommendationActionPayload {
+  action: string;
+  guidance?: string;
+  templateType?: string;
+  dataItemId?: string;
+  channel?: string;
+  campaignType?: string;
+  listingDataItemId?: string;
+  sourceType?: string;
+  sourceId?: string;
+  status?: string;
+  route?: string;
+}
+
+export interface UnifiedRecommendation {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  sourceType: string;
+  sourceId: string | null;
+  sourceLabel: string;
+  priorityScore: number;
+  confidence: 'high' | 'medium' | 'low';
+  freshness: 'fresh' | 'recent' | 'stale';
+  surfaces: RecommendationSurface[];
+  suggestedContentType: string | null;
+  suggestedCampaignType: string | null;
+  suggestedChannel: string | null;
+  actionLabel: string;
+  actionPayload: RecommendationActionPayload;
+  reasons: string[];
+  hasCampaign?: boolean;
+  campaignCount?: number;
+  lastCampaignAt?: string | null;
+  evaluatedAt: string;
+}
+
+export interface RecommendationsResponse {
+  recommendations: UnifiedRecommendation[];
+  summary: DashboardRecommendationsResponse['summary'];
+}
+
+export function useRecommendations(clientId: string | undefined, surface?: RecommendationSurface) {
+  const qs = surface ? `?surface=${surface}` : '';
+  return useQuery({
+    queryKey: [...squadpitchKeys.all, 'recommendations', clientId, surface ?? 'all'],
+    queryFn: () =>
+      apiFetch<RecommendationsResponse>(
+        `workspaces/${clientId}/recommendations${qs}`,
+      ),
+    enabled: Boolean(clientId),
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Fire-and-forget mutation to track that a recommendation was acted on.
+ * Helps the engine avoid showing the same recommendations repeatedly.
+ */
+export function useAcceptRecommendation(clientId: string | undefined) {
+  return useMutation({
+    mutationFn: (recId: string) =>
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/recommendations/${recId}/accept`,
+        { method: 'POST' },
+      ),
   });
 }
 
@@ -2791,25 +2961,222 @@ export function useRequestIntegration(clientId: string) {
 
 // ── Listing Campaign ─────────────────────────────────────────────────────
 
-export interface ListingCampaignOutput {
-  instagramCaption: { body: string; hashtags: string[]; cta: string };
-  facebookPost: { body: string; hashtags: string[]; cta: string };
-  listingDescription: { body: string };
-  emailPromo: { subject: string; body: string; cta: string };
+export type CampaignType = 'just_listed' | 'open_house' | 'price_drop' | 'just_sold' | 'listing_spotlight';
+
+export type CampaignAngle = 'promotional' | 'lifestyle' | 'urgency' | 'storytelling' | 'authority' | 'social_proof';
+
+export interface CampaignPost {
+  campaignDay: number;
+  channel: Channel;
+  angle: CampaignAngle;
+  label: string;
+  body: string;
+  hashtags: string[];
+  cta: string;
+  subject: string;
 }
+
+export interface ListingCampaignOutput {
+  campaignName: string;
+  posts: CampaignPost[];
+}
+
+export type SchedulePreset = 7 | 10 | 14;
 
 export interface ListingCampaignResult {
   dataItemId: string | null;
   campaign: ListingCampaignOutput;
 }
 
+export interface CampaignImageContext {
+  label: string;
+  description?: string;
+}
+
 export function useGenerateListingCampaign(clientId: string) {
   return useMutation({
-    mutationFn: (propertyData: Record<string, unknown>) =>
+    mutationFn: (payload: {
+      propertyData: Record<string, unknown>;
+      campaignType?: CampaignType;
+      imageContext?: CampaignImageContext[];
+    }) =>
       apiFetch<ListingCampaignResult>(
         `workspaces/${clientId}/listing-campaign/generate`,
-        { method: 'POST', body: JSON.stringify({ propertyData }) }
+        { method: 'POST', body: JSON.stringify(payload) }
       ),
+  });
+}
+
+export type ImageRegionLabel =
+  | 'exterior' | 'kitchen' | 'living_room' | 'bedroom'
+  | 'bathroom' | 'backyard' | 'dining_room' | 'other';
+
+export type ImageLayoutRole = 'hero' | 'gallery' | 'thumbnail' | 'other';
+
+export type ImageSourcePass = 'first_pass' | 'second_pass' | 'split_child' | 'manual' | 'replicate_sam2';
+
+/** Where a particular candidate came from. spinstr100/101 */
+export type ImageSource = 'hero' | 'gallery_tile' | 'manual_crop' | 'split_child';
+
+/** Which backend extractor produced this result. spinstr101 */
+export type ExtractionSource = 'replicate_sam2' | 'unknown';
+
+export interface ExtractedImageRegion {
+  id: string;
+  label: ImageRegionLabel;
+  description: string;
+  layoutRole: ImageLayoutRole;
+  photoConfidence: number;
+  hasText: boolean;
+  quality: 'bright' | 'dim' | 'unclear';
+  bbox: { x: number; y: number; w: number; h: number };
+  /** Which AI pass (or split step) this region came from. spinstr99/100 */
+  sourcePass?: ImageSourcePass;
+  /** spinstr100 — gallery-first source tag. */
+  source?: ImageSource;
+  /** When a region came from client-side cluster splitting, this links back to the parent. */
+  parentRegionId?: string | null;
+}
+
+export interface ExtractedGalleryContainer {
+  bbox: { x: number; y: number; w: number; h: number };
+  confidence: number;
+  reason: string;
+  sourcePass?: ImageSourcePass;
+}
+
+export interface ImageExtractionResult {
+  extracted: Record<string, unknown>;
+  confidence: 'full' | 'partial';
+  galleryContainer: ExtractedGalleryContainer | null;
+  heroImage: ExtractedImageRegion | null;
+  galleryImages: ExtractedImageRegion[];
+  /** Flat convenience list = hero (if any) followed by gallery tiles. */
+  imageRegions: ExtractedImageRegion[];
+  /** spinstr101 — backend extractor identifier. 'replicate_sam2' is current. */
+  extractionSource?: ExtractionSource;
+  detectedCount?: number;
+  didSecondPass?: boolean;
+  suspicionReason?: string | null;
+  debug?: {
+    containerFound?: boolean;
+    hero?: boolean;
+    galleryTileCount?: number;
+    extractionSource?: ExtractionSource;
+    segmentation?: {
+      modelRef?: string;
+      totalMasks?: number;
+      afterDecode?: number;
+      afterFilter?: number;
+      afterDedupe?: number;
+      rejectedCount?: number;
+      scoredCount?: number;
+      selectedCount?: number;
+      heroFound?: boolean;
+      galleryCount?: number;
+      tookMs?: number;
+      reason?: string;
+      srcW?: number;
+      srcH?: number;
+      // spinstr102 — per-candidate scoring for the debug overlay.
+      candidates?: Array<{
+        id: string;
+        bbox: { x: number; y: number; w: number; h: number };
+        score: number;
+        reasons?: Record<string, number>;
+        stats?: { stdev: number; entropy: number; colorRange: number; domLum: number } | null;
+        selected?: boolean;
+      }>;
+      rejected?: Array<{
+        id: string;
+        bbox: { x: number; y: number; w: number; h: number };
+        rejectReason: string;
+        stats?: { stdev: number; entropy: number; colorRange: number; domLum: number } | null;
+      }>;
+    } | null;
+    textExtract?: {
+      skipped?: boolean;
+      error?: string | null;
+      model?: string | null;
+      usage?: { prompt_tokens: number; completion_tokens: number } | null;
+    };
+    rejected?: Array<{ reason: string; role?: string; pass?: string }>;
+    suspicionReason?: string | null;
+    usage?: { prompt_tokens: number; completion_tokens: number };
+  };
+}
+
+export function useExtractListingImage(clientId: string) {
+  return useMutation({
+    mutationFn: ({ image, debug }: { image: string; debug?: boolean }) => {
+      const params = new URLSearchParams();
+      if (debug) params.set('debug', '1');
+      const query = params.toString() ? `?${params.toString()}` : '';
+      return apiFetch<ImageExtractionResult>(
+        `workspaces/${clientId}/listing-campaign/extract-image${query}`,
+        { method: 'POST', body: JSON.stringify({ image }) }
+      );
+    },
+  });
+}
+
+export interface UploadedCampaignAsset {
+  id: string;
+  url: string;
+  label: string | null;
+  description: string | null;
+  width: number | null;
+  height: number | null;
+  isEnhanced?: boolean;
+  qualityScore?: number | null;
+  qualityLabel?: 'good' | 'fair' | 'low' | null;
+}
+
+export function useUploadCampaignImages(clientId: string) {
+  return useMutation({
+    mutationFn: (body: {
+      images: Array<{
+        dataUrl: string;
+        label?: string;
+        caption?: string;
+        // Screenshot enhancement metadata (spinstr97)
+        isEnhanced?: boolean;
+        qualityScore?: number;
+        qualityLabel?: 'good' | 'fair' | 'low';
+      }>;
+    }) =>
+      apiFetch<{ assets: UploadedCampaignAsset[] }>(
+        `workspaces/${clientId}/listing-campaign/upload-images`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+  });
+}
+
+export interface SaveCampaignDraftsResult {
+  drafts: Draft[];
+  campaignId: string;
+  campaignName: string;
+}
+
+export function useSaveCampaignDrafts(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      campaign: ListingCampaignOutput;
+      propertyData: Record<string, unknown>;
+      campaignType?: CampaignType;
+      dataItemId?: string | null;
+      schedulePreset?: SchedulePreset;
+      addToPlanner?: boolean;
+      mediaAssetIds?: string[];
+    }) =>
+      apiFetch<SaveCampaignDraftsResult>(
+        `workspaces/${clientId}/listing-campaign/save-drafts`,
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.drafts() });
+    },
   });
 }
 
@@ -2902,5 +3269,109 @@ export function useRemoveListingSource(clientId: string) {
       qc.invalidateQueries({ queryKey: ['listingSources', clientId] });
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
+  });
+}
+
+// ── Performance Feedback ─────────────────────────────────────────────────
+
+export type PerformanceRating = 'HIGH' | 'AVERAGE' | 'LOW';
+
+export interface PerformanceInsight {
+  id: string;
+  text: string;
+  detail: string;
+  type: 'positive' | 'suggestion';
+}
+
+export interface PerformanceInsightsResponse {
+  insights: PerformanceInsight[];
+  hasEnoughData: boolean;
+  totalRated: number;
+  ratingDistribution: { HIGH: number; AVERAGE: number; LOW: number };
+}
+
+export function useRatePerformance(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ draftId, rating }: { draftId: string; rating: PerformanceRating }) =>
+      apiFetch<Draft>(`workspaces/${clientId}/drafts/${draftId}/rate`, {
+        method: 'POST',
+        body: JSON.stringify({ rating }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.drafts() });
+      qc.invalidateQueries({ queryKey: ['performanceInsights', clientId] });
+    },
+  });
+}
+
+export function usePerformanceInsights(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ['performanceInsights', clientId],
+    queryFn: () => apiFetch<PerformanceInsightsResponse>(`workspaces/${clientId}/performance/insights`),
+    enabled: !!clientId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ── Series Builder ──────────────────────────────────────────────────────
+
+export interface SeriesTemplate {
+  id: string;
+  name: string;
+  description: string;
+  defaultParts: number;
+  maxParts: number;
+}
+
+export interface SeriesResult {
+  seriesId: string;
+  seriesName: string;
+  totalParts: number;
+  drafts: Draft[];
+}
+
+export function useSeriesTemplates() {
+  return useQuery({
+    queryKey: ['seriesTemplates'],
+    queryFn: () => apiFetch<{ templates: SeriesTemplate[] }>('series-templates'),
+    staleTime: 60 * 60 * 1000,
+  });
+}
+
+export function useGenerateSeries(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      topic: string;
+      templateId: string;
+      parts?: number;
+      channel: Channel;
+      kind?: string;
+    }) =>
+      apiFetch<SeriesResult>(`workspaces/${clientId}/series`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.drafts() });
+    },
+  });
+}
+
+// ── Post Timing ─────────────────────────────────────────────────────────
+
+export interface TimingSuggestion {
+  bestTime: string;
+  bestTimeLabel: string;
+  bestDays: string;
+  tip: string;
+}
+
+export function useTimingSuggestions() {
+  return useQuery({
+    queryKey: ['timingSuggestions'],
+    queryFn: () => apiFetch<Record<string, TimingSuggestion>>('timing-suggestions'),
+    staleTime: 60 * 60 * 1000,
   });
 }

@@ -1,8 +1,9 @@
 'use client';
 
-import { CalendarDays, Sparkles, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { CalendarDays, Sparkles, Loader2, Lightbulb } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { WeekSummary } from '@/hooks/useSquadpitch';
+import type { WeekSummary, CoverageGap } from '@/hooks/useSquadpitch';
 
 interface Props {
   weekSummary: WeekSummary | null;
@@ -10,6 +11,7 @@ interface Props {
   isPlanningWeek: boolean;
   planResult?: { generated: number; scheduled: number } | null;
   hasSuggestions: boolean;
+  clientId: string;
 }
 
 const ANGLE_LABELS: Record<string, string> = {
@@ -17,6 +19,7 @@ const ANGLE_LABELS: Record<string, string> = {
   buyer: 'Buyer',
   lifestyle: 'Lifestyle',
   authority: 'Authority',
+  growth: 'Growth',
 };
 
 export function WeekPlanSummary({
@@ -25,6 +28,7 @@ export function WeekPlanSummary({
   isPlanningWeek,
   planResult,
   hasSuggestions,
+  clientId,
 }: Props) {
   if (!weekSummary && !planResult) return null;
 
@@ -115,6 +119,35 @@ export function WeekPlanSummary({
           No suggestions available — add business data or connect channels
         </p>
       )}
+
+      {/* Auto-fill suggestions for content gaps */}
+      {(() => {
+        const richGaps = weekSummary.coverageGaps
+          .map((g) => (typeof g === 'string' ? null : g as CoverageGap))
+          .filter((g): g is CoverageGap => g !== null && !!g.suggestion);
+        if (richGaps.length === 0) return null;
+
+        return (
+          <div className="w-full mt-2 pt-2 border-t border-white-10">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Lightbulb className="w-3 h-3 text-amber-400" />
+              <span className="text-[10px] font-medium text-white-30 uppercase tracking-wider">Fill content gaps</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {richGaps.map((gap) => (
+                <Link
+                  key={gap.category}
+                  href={`/workspaces/${clientId}/create?guidance=${encodeURIComponent(gap.guidance ?? '')}&templateType=${gap.contentType ?? ''}`}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white-5 border border-white-10 text-white-60 text-[11px] font-medium hover:bg-accent-green-110/10 hover:border-accent-green-110/20 hover:text-accent-green-110 transition-all"
+                >
+                  <span>{gap.suggestion}</span>
+                  <span className="text-white-30">→</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

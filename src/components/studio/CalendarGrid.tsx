@@ -193,13 +193,20 @@ export function CalendarGrid({
                     d.sourceMeta?.contentAngleKey,
                     d.sourceMeta?.contentAngle
                   );
+                  const isCampaign = !!d.campaignId;
                   return (
                     <div
                       key={d.id}
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-white-10 text-white-80 truncate font-mono"
-                      title={d.body}
+                      className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded truncate font-mono",
+                        isCampaign
+                          ? "bg-accent-green-110/10 text-accent-green-110/80 border border-accent-green-110/20"
+                          : "bg-white-10 text-white-80"
+                      )}
+                      title={isCampaign ? `${d.campaignName} — Day ${d.campaignDay}` : d.body}
                     >
-                      {d.channel}{angle ? ` · ${angle}` : ''}
+                      {isCampaign && <span className="font-semibold">C </span>}
+                      {d.channel}{angle ? ` · ${angle}` : ''}{isCampaign && d.campaignDay ? ` · D${d.campaignDay}` : ''}
                     </div>
                   );
                 })}

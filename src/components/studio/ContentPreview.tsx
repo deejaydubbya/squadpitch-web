@@ -18,6 +18,12 @@ import {
   MessageCircle,
   Sparkles,
   Palette,
+  Shuffle,
+  FileText,
+  LayoutList,
+  Play,
+  MessageSquare,
+  Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -27,9 +33,12 @@ import {
   useDeleteDraft,
   useGenerateMedia,
   useGenerateVideo,
+  useRemixContent,
   useDraft,
   type Draft,
   type ContentVariation,
+  type ScoredHook,
+  type RemixDraft,
   type MediaAsset,
   squadpitchKeys,
 } from '@/hooks/useSquadpitch';
@@ -62,6 +71,8 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
   const deleteDraft = useDeleteDraft();
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
+  const remix = useRemixContent(clientId);
+  const [remixResults, setRemixResults] = useState<RemixDraft[] | null>(null);
 
   // Track the generating asset ID for polling
   const [generatingAssetId, setGeneratingAssetId] = useState<string | null>(null);
@@ -223,10 +234,14 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
     let score = 0;
     const reasons: string[] = [];
 
-    // Hook quality (0-3)
+    // Hook quality (0-3) — use scored hooks if available
+    const scored = draft.scoredHooks ?? [];
     const hooks = selectedVariation?.hooks ?? [];
-    if (hooks.length >= 3) { score += 3; reasons.push('Strong hook options'); }
-    else if (hooks.length >= 1) { score += 2; reasons.push('Has hooks'); }
+    const bestHookScore = scored.length > 0 ? scored[0].hookScore : 0;
+    if (scored.length > 0 && bestHookScore >= 8) { score += 3; reasons.push(`Strong hooks (best: ${bestHookScore}/10)`); }
+    else if (scored.length > 0 && bestHookScore >= 6) { score += 2; reasons.push(`Decent hooks (best: ${bestHookScore}/10)`); }
+    else if (hooks.length >= 3) { score += 3; reasons.push('Strong hook options'); }
+    else if (hooks.length >= 1 || scored.length > 0) { score += 1; reasons.push('Hooks could be stronger'); }
     else { reasons.push('No hooks — consider adding an attention-grabber'); }
 
     // Body length and quality (0-3)
@@ -392,37 +407,81 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
             </p>
           </div>
 
-          {/* Hooks — interactive: click to replace opening line */}
-          {selectedVariation?.hooks && selectedVariation.hooks.length > 0 && (
-            <div className="card p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
-                  Hooks
-                </label>
-                <span className="text-[10px] text-white-30">Click to use as opening line</span>
+          {/* Scored Hooks — ranked by quality, click to apply */}
+          {(() => {
+            const scored = draft.scoredHooks ?? [];
+            const fallback = selectedVariation?.hooks ?? [];
+            const hasScored = scored.length > 0;
+            const displayHooks = hasScored
+              ? scored.slice(0, 5)
+              : fallback.map((text, i) => ({ text, hookScore: 0, reason: '' } as ScoredHook));
+
+            if (displayHooks.length === 0) return null;
+
+            return (
+              <div className="card p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
+                    {hasScored ? 'Hooks — ranked by quality' : 'Hooks'}
+                  </label>
+                  <span className="text-[10px] text-white-30">Click to use as opening line</span>
+                </div>
+                <ul className="space-y-2">
+                  {displayHooks.map((hook, i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const lines = editedBody.split('\n');
+                          lines[0] = hook.text;
+                          setEditedBody(lines.join('\n'));
+                        }}
+                        className="w-full text-left p-3 rounded-lg hover:bg-accent-green-110/5 transition-colors group"
+                      >
+                        <div className="flex items-start gap-3">
+                          {hasScored && (
+                            <div className="flex flex-col items-center gap-1 min-w-[36px] pt-0.5">
+                              <span className={cn(
+                                'text-sm font-bold tabular-nums',
+                                hook.hookScore >= 8 ? 'text-accent-green-110'
+                                  : hook.hookScore >= 6 ? 'text-accent-orange'
+                                  : 'text-white-40'
+                              )}>
+                                {hook.hookScore}
+                              </span>
+                              <div className="w-5 h-1 rounded-full bg-white-10 overflow-hidden">
+                                <div
+                                  className={cn(
+                                    'h-full rounded-full',
+                                    hook.hookScore >= 8 ? 'bg-accent-green-110'
+                                      : hook.hookScore >= 6 ? 'bg-accent-orange'
+                                      : 'bg-white-30'
+                                  )}
+                                  style={{ width: `${hook.hookScore * 10}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {!hasScored && (
+                            <span className="text-white-30 mt-0.5 group-hover:text-accent-green-110 min-w-[16px]">{i + 1}.</span>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-white-80 group-hover:text-accent-green-110 transition-colors">
+                              {hook.text}
+                            </span>
+                            {hasScored && hook.reason && (
+                              <p className="text-[11px] text-white-30 mt-0.5">{hook.reason}</p>
+                            )}
+                          </div>
+                          <Zap className="w-3 h-3 text-white-20 group-hover:text-accent-green-110 flex-shrink-0 mt-1" />
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="space-y-1.5">
-                {selectedVariation.hooks.map((hook, i) => (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Replace the first line of the body with the selected hook
-                        const lines = editedBody.split('\n');
-                        lines[0] = hook;
-                        setEditedBody(lines.join('\n'));
-                      }}
-                      className="w-full text-left text-sm text-white-80 flex items-start gap-2 p-2 rounded-lg hover:bg-accent-green-110/5 hover:text-accent-green-110 transition-colors group"
-                    >
-                      <span className="text-white-30 mt-0.5 group-hover:text-accent-green-110">{i + 1}.</span>
-                      <span className="flex-1">{hook}</span>
-                      <Zap className="w-3 h-3 text-white-20 group-hover:text-accent-green-110 flex-shrink-0 mt-0.5" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+            );
+          })()}
 
           {/* CTA with presets */}
           <div className="card p-5 space-y-3">
@@ -500,7 +559,7 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
           </div>
         </div>
 
-        {/* Right column - Media */}
+        {/* Right column - Media + Remix */}
         <div className="space-y-5">
           <div className="card p-5 space-y-4">
             <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
@@ -631,6 +690,92 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
             </div>
           )}
         </div>
+      </div>
+
+      {/* Content Remix — one idea into 4 formats */}
+      <div className="card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shuffle className="w-4 h-4 text-accent-green-110" />
+            <span className="text-xs font-medium text-white-40 uppercase tracking-wider">Remix into formats</span>
+          </div>
+          {!remixResults && (
+            <button
+              onClick={() => {
+                remix.mutate(draft.id, {
+                  onSuccess: (data) => setRemixResults(data.drafts),
+                });
+              }}
+              disabled={remix.isPending}
+              className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {remix.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Shuffle className="w-3.5 h-3.5" />
+              )}
+              {remix.isPending ? 'Remixing...' : 'Remix this post'}
+            </button>
+          )}
+          {remixResults && (
+            <button
+              onClick={() => setRemixResults(null)}
+              className="text-xs text-white-40 hover:text-white-60 transition-colors"
+            >
+              Collapse
+            </button>
+          )}
+        </div>
+
+        {!remixResults && !remix.isPending && (
+          <p className="text-xs text-white-30">
+            Turn this post into a carousel, video script, and story caption — all from one idea.
+          </p>
+        )}
+
+        {remix.error && (
+          <p className="text-xs text-accent-red">{(remix.error as Error).message}</p>
+        )}
+
+        {remixResults && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {remixResults.map((rd) => {
+              const FORMAT_META: Record<string, { label: string; icon: typeof FileText; desc: string }> = {
+                post: { label: 'Post', icon: FileText, desc: 'Ready-to-publish' },
+                carousel: { label: 'Carousel', icon: LayoutList, desc: 'Multi-slide' },
+                videoScript: { label: 'Video Script', icon: Play, desc: '30-60s script' },
+                storyCaption: { label: 'Story Caption', icon: MessageSquare, desc: 'Ultra-short' },
+              };
+              const meta = FORMAT_META[rd.remixFormat] ?? FORMAT_META.post;
+              const Icon = meta.icon;
+
+              return (
+                <div key={rd.id} className="card p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Icon className="w-3.5 h-3.5 text-accent-green-110" />
+                    <span className="text-xs font-semibold text-white-80">{meta.label}</span>
+                    <span className="text-[10px] text-white-30">{meta.desc}</span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(rd.body)}
+                      className="ml-auto p-1 rounded text-white-30 hover:text-white-80 transition-colors"
+                      title="Copy"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-white-60 line-clamp-6 whitespace-pre-wrap">{rd.body}</p>
+                  {rd.hooks.length > 0 && (
+                    <p className="text-[10px] text-white-30 italic">Hook: {rd.hooks[0]}</p>
+                  )}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="px-1.5 py-0.5 rounded-full bg-white-10 text-white-40 text-[10px]">{rd.kind}</span>
+                    <span className="text-[10px] text-accent-green-110">Saved as draft</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Error banner */}

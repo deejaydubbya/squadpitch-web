@@ -52,6 +52,13 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
         <Pill>{draft.channel}</Pill>
         <Pill>{draft.kind}</Pill>
         {draft.bucketKey && <Pill mono>{draft.bucketKey}</Pill>}
+        {draft.campaignId && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent-green-110/15 text-accent-green-110" title={draft.campaignName ?? undefined}>
+            {draft.campaignDay && draft.campaignTotal
+              ? `Day ${draft.campaignDay} of ${draft.campaignTotal}`
+              : 'Campaign'}
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-2">
           {maxChars && (
             <span
