@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Link2,
@@ -310,7 +310,7 @@ const DEFAULT_CAMPAIGN_SLOTS: CampaignSlotConfig[] = [
   { id: 'slot-5', label: 'Final Push', channel: 'FACEBOOK', campaignDay: 7 },
 ];
 
-const AVAILABLE_CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'X', 'EMAIL'];
+const AVAILABLE_CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'X'];
 
 interface ImagePoolItem {
   id: string;
@@ -325,6 +325,7 @@ interface Props {
 }
 
 export function ListingCampaignPage({ clientId }: Props) {
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [step, setStep] = useState<Step>('source');
@@ -854,7 +855,7 @@ export function ListingCampaignPage({ clientId }: Props) {
     };
 
     try {
-      await saveDrafts.mutateAsync({
+      const result = await saveDrafts.mutateAsync({
         campaign: editedCampaign,
         propertyData: { address: form.address, city: form.city, state: form.state },
         campaignType,
@@ -863,12 +864,18 @@ export function ListingCampaignPage({ clientId }: Props) {
         addToPlanner,
         mediaAssetIds: mediaAssetIds.length > 0 ? mediaAssetIds : undefined,
       });
+      const count = result?.drafts?.length ?? editedCampaign.posts.length;
       const imgNote = mediaAssetIds.length > 0 ? ` with ${mediaAssetIds.length} image${mediaAssetIds.length === 1 ? '' : 's'}` : '';
       setSaveSuccess(addToPlanner
-        ? `Campaign scheduled over ${schedulePreset} days${imgNote}!`
-        : `Campaign saved as drafts${imgNote}!`);
-    } catch {
-      setSaveSuccess('Failed to save drafts. Please try again.');
+        ? `${count} posts scheduled over ${schedulePreset} days${imgNote}! Redirecting...`
+        : `${count} drafts saved${imgNote}! Redirecting...`);
+      // Navigate to Content Library after a brief delay so the user sees success
+      setTimeout(() => {
+        router.push(`/workspaces/${clientId}/library`);
+      }, 1200);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setSaveSuccess(`Failed to save: ${msg}`);
     }
   }, [campaign, campaignPosts, form, campaignType, dataItemId, saveDrafts, schedulePreset, uploadedAssetIds, candidateAssetMap, candidateImages, selectedImageIds, uploadImages]);
 
