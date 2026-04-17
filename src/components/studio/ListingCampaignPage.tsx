@@ -744,9 +744,9 @@ export function ListingCampaignPage({ clientId }: Props) {
         detectedCount: 0,
         segmentation: null,
       });
-      // Stay on the source step while we analyze. The loading indicator
-      // tells the user what's happening. We only proceed to images if the
-      // screenshot looks like a real estate listing.
+      // Move to the images step immediately so the user sees a rich
+      // loading state instead of sitting on the source screen.
+      setStep('images');
       extractImage.mutate(
         { image: base64 },
         {
@@ -755,12 +755,9 @@ export function ListingCampaignPage({ clientId }: Props) {
             const listingFields = ['address', 'price', 'beds', 'baths', 'sqft', 'propertyType'];
             const filled = listingFields.filter((k) => ext[k] != null && ext[k] !== '');
             if (filled.length >= 2) {
-              // Looks like a listing — proceed.
               prefillFromData(ext, 'From screenshot');
               setExtractionConfidence(result.confidence);
-              setStep('images');
             } else {
-              // Doesn't look like a listing.
               setExtractionConfidence(result.confidence);
               setScreenshotRejection(
                 filled.length === 0
@@ -1204,49 +1201,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             {pasteError && (
               <p className="mt-2 text-[10px] text-orange-400">{pasteError}</p>
             )}
-            {extractImage.isPending && (
-              <div className="mt-3 flex items-center gap-2 text-accent-green-110 text-xs">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Analyzing screenshot for listing details…
-              </div>
-            )}
-            {screenshotRejection && !extractImage.isPending && (
-              <div className="mt-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                <div className="flex items-start gap-2 text-orange-300 text-xs">
-                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  <p>{screenshotRejection}</p>
-                </div>
-                <div className="flex gap-2 mt-2.5">
-                  <button
-                    onClick={() => {
-                      setScreenshotPreview(null);
-                      setScreenshotRejection(null);
-                      setExtractionConfidence(null);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
-                  >
-                    Try another
-                  </button>
-                  <button
-                    onClick={() => {
-                      setScreenshotRejection(null);
-                      setStep('images');
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-200 text-xs font-medium hover:bg-orange-500/30 transition-colors"
-                  >
-                    Continue anyway
-                  </button>
-                </div>
-              </div>
-            )}
-            {screenshotPreview && !extractImage.isPending && !screenshotRejection && extractionConfidence && (
-              <div className="mt-3 flex items-center gap-2">
-                <img src={screenshotPreview} alt="Preview" className="w-12 h-12 rounded-lg object-cover border border-white-10" />
-                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
-                  {extractionConfidence === 'full' ? 'Full extraction' : 'Partial extraction'} — redirecting…
-                </span>
-              </div>
-            )}
+            {/* Loading/rejection states now appear on the images step */}
           </SourceCard>
 
           {/* Enter Manually */}
@@ -1959,8 +1914,14 @@ export function ListingCampaignPage({ clientId }: Props) {
 
         <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-white-100">
-            {candidateImages.length === 0 ? 'Select media for your campaign' : `${candidateImages.length} media file${candidateImages.length === 1 ? '' : 's'} ready`}
+            {extractImage.isPending
+              ? 'Preparing campaign media…'
+              : candidateImages.length === 0
+                ? 'Select media for your campaign'
+                : `${candidateImages.length} media file${candidateImages.length === 1 ? '' : 's'} ready`}
           </h1>
+          {/* Hide action toolbar while extraction is running */}
+          {!extractImage.isPending && (
           <div className="flex items-center gap-2 text-xs flex-wrap">
             {screenshotPreview && (
               <button
@@ -2047,12 +2008,83 @@ export function ListingCampaignPage({ clientId }: Props) {
               </>
             )}
           </div>
+          )}
         </div>
+
+        {/* Extraction loading state — multi-step progress + skeleton cards */}
+        {extractImage.isPending && (
+          <div className="mb-6">
+            <div className="px-4 py-4 rounded-xl bg-accent-green-110/5 border border-accent-green-110/15 mb-5">
+              <div className="flex items-center gap-3 mb-3">
+                <Loader2 className="w-5 h-5 text-accent-green-110 animate-spin shrink-0" />
+                <p className="text-white-80 text-sm font-medium">Analyzing your screenshot…</p>
+              </div>
+              <div className="space-y-2 pl-8">
+                <div className="flex items-center gap-2 text-xs text-accent-green-110">
+                  <div className="w-1.5 h-1.5 rounded-full bg-accent-green-110 animate-pulse" />
+                  Extracting property details
+                </div>
+                <div className="flex items-center gap-2 text-xs text-white-30">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white-20" />
+                  Finding candidate images
+                </div>
+                <div className="flex items-center gap-2 text-xs text-white-30">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white-20" />
+                  Scoring and organizing media
+                </div>
+              </div>
+            </div>
+            {/* Skeleton cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl overflow-hidden border-2 border-white-10">
+                  <div className="aspect-square bg-white-5 animate-pulse" />
+                  <div className="px-2.5 py-2 bg-white-5 space-y-1.5">
+                    <div className="h-3 w-20 bg-white-10 rounded animate-pulse" />
+                    <div className="h-2.5 w-14 bg-white-5 rounded animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Screenshot rejection warning (shown on images step) */}
+        {screenshotRejection && !extractImage.isPending && (
+          <div className="mb-4 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
+            <div className="flex items-start gap-2.5 text-orange-300 text-sm">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <p>{screenshotRejection}</p>
+            </div>
+            <div className="flex gap-2 mt-3 pl-6">
+              <button
+                onClick={() => {
+                  setScreenshotPreview(null);
+                  setScreenshotRejection(null);
+                  setExtractionConfidence(null);
+                  setStep('source');
+                }}
+                className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+              >
+                Try another screenshot
+              </button>
+              <button
+                onClick={() => setScreenshotRejection(null)}
+                className="px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-200 text-xs font-medium hover:bg-orange-500/30 transition-colors"
+              >
+                Dismiss and continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!extractImage.isPending && (
         <p className="text-white-40 text-sm mb-4">
           {candidateImages.length === 0
             ? 'Add photos from your library or use manual crop to get started. Recommended: 5\u20138 images for a strong campaign.'
             : 'Choose which media to use in your campaign. Recommended: 5\u20138 images. Low-quality photos can be enhanced safely.'}
         </p>
+        )}
         {candidateImages.length === 0 && screenshotPreview && !extractImage.isPending && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-white-5 border border-white-10 text-white-60 text-sm flex items-start gap-2">
             <Crop className="w-4 h-4 mt-0.5 shrink-0" />
@@ -2422,6 +2454,8 @@ export function ListingCampaignPage({ clientId }: Props) {
           );
         })()}
 
+        {/* Hide bottom action bar while extraction is running */}
+        {!extractImage.isPending && (
         <div className="flex items-center justify-between bg-white-5 border border-white-10 rounded-xl p-4">
           {candidateImages.length > 0 ? (
             <>
@@ -2479,6 +2513,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             </div>
           )}
         </div>
+        )}
 
         {manualCropOpen && screenshotPreview && (
           <ManualCropModal
