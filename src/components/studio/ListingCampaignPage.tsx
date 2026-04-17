@@ -33,6 +33,7 @@ import {
   FolderOpen,
   Tag,
   CheckSquare,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -366,6 +367,7 @@ export function ListingCampaignPage({ clientId }: Props) {
   // Screenshot state
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [extractionConfidence, setExtractionConfidence] = useState<'full' | 'partial' | null>(null);
+  const [screenshotRejection, setScreenshotRejection] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Image picker state
@@ -676,6 +678,7 @@ export function ListingCampaignPage({ clientId }: Props) {
       setSelectedImageIds(new Set());
       setSplitNotice('');
       setExtractionConfidence(null);
+      setScreenshotRejection(null);
       setExtractionMeta({
         didSecondPass: false,
         suspicionReason: null,
@@ -684,20 +687,33 @@ export function ListingCampaignPage({ clientId }: Props) {
         detectedCount: 0,
         segmentation: null,
       });
-      // Jump straight to the images step — the user can open manual crop
-      // from the "Manual crop" button if they want.
-      setStep('images');
-      // Fire the Vision extraction in parallel to populate the property form.
-      // This runs independently of the manual-crop UX — the user can keep
-      // cropping while the form fields come back from the server.
+      // Stay on the source step while we analyze. The loading indicator
+      // tells the user what's happening. We only proceed to images if the
+      // screenshot looks like a real estate listing.
       extractImage.mutate(
         { image: base64 },
         {
           onSuccess: (result) => {
-            if (result.extracted && Object.keys(result.extracted).length > 0) {
-              prefillFromData(result.extracted, 'From screenshot');
+            const ext = result.extracted ?? {};
+            const listingFields = ['address', 'price', 'beds', 'baths', 'sqft', 'propertyType'];
+            const filled = listingFields.filter((k) => ext[k] != null && ext[k] !== '');
+            if (filled.length >= 2) {
+              // Looks like a listing — proceed.
+              prefillFromData(ext, 'From screenshot');
+              setExtractionConfidence(result.confidence);
+              setStep('images');
+            } else {
+              // Doesn't look like a listing.
+              setExtractionConfidence(result.confidence);
+              setScreenshotRejection(
+                filled.length === 0
+                  ? 'This doesn\u2019t appear to be a real estate listing. We couldn\u2019t find any property details like address, price, or bedroom count.'
+                  : 'This image has very little listing information. We could only detect ' + filled.join(' and ') + '.',
+              );
             }
-            setExtractionConfidence(result.confidence);
+          },
+          onError: () => {
+            setScreenshotRejection('We couldn\u2019t analyze this image. Try a clearer screenshot of a listing page.');
           },
         },
       );
@@ -1000,6 +1016,7 @@ export function ListingCampaignPage({ clientId }: Props) {
     setSaveSuccess('');
     setScreenshotPreview(null);
     setExtractionConfidence(null);
+    setScreenshotRejection(null);
     setSchedulePreset(7);
     setCandidateImages([]);
     setSelectedImageIds(new Set());
@@ -1131,22 +1148,46 @@ export function ListingCampaignPage({ clientId }: Props) {
               <p className="mt-2 text-[10px] text-orange-400">{pasteError}</p>
             )}
             {extractImage.isPending && (
-              <div className="mt-3 flex items-center gap-2 text-white-40 text-xs">
+              <div className="mt-3 flex items-center gap-2 text-accent-green-110 text-xs">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                Extracting property details...
+                Analyzing screenshot for listing details…
               </div>
             )}
-            {screenshotPreview && !extractImage.isPending && (
+            {screenshotRejection && !extractImage.isPending && (
+              <div className="mt-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                <div className="flex items-start gap-2 text-orange-300 text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <p>{screenshotRejection}</p>
+                </div>
+                <div className="flex gap-2 mt-2.5">
+                  <button
+                    onClick={() => {
+                      setScreenshotPreview(null);
+                      setScreenshotRejection(null);
+                      setExtractionConfidence(null);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+                  >
+                    Try another
+                  </button>
+                  <button
+                    onClick={() => {
+                      setScreenshotRejection(null);
+                      setStep('images');
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-200 text-xs font-medium hover:bg-orange-500/30 transition-colors"
+                  >
+                    Continue anyway
+                  </button>
+                </div>
+              </div>
+            )}
+            {screenshotPreview && !extractImage.isPending && !screenshotRejection && extractionConfidence && (
               <div className="mt-3 flex items-center gap-2">
                 <img src={screenshotPreview} alt="Preview" className="w-12 h-12 rounded-lg object-cover border border-white-10" />
-                {extractionConfidence && (
-                  <span className={cn(
-                    'text-xs px-2 py-0.5 rounded-full',
-                    extractionConfidence === 'full' ? 'bg-green-500/20 text-green-400' : 'bg-orange-400/20 text-orange-400'
-                  )}>
-                    {extractionConfidence === 'full' ? 'Full extraction' : 'Partial extraction'}
-                  </span>
-                )}
+                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                  {extractionConfidence === 'full' ? 'Full extraction' : 'Partial extraction'} — redirecting…
+                </span>
               </div>
             )}
           </SourceCard>
