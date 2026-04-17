@@ -34,7 +34,7 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
   const overLimit = maxChars ? charCount > maxChars : false;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Channel connection warning */}
       {clientId && !isConnected && (draft.status === 'DRAFT' || draft.status === 'APPROVED') && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs">
@@ -47,6 +47,19 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
           </span>
         </div>
       )}
+
+      {/* Scheduled time — prominent, above badges */}
+      {draft.scheduledFor && (
+        <div className="flex items-center gap-1.5 text-sm font-medium text-blue-400">
+          <Calendar className="w-3.5 h-3.5" />
+          <span>
+            {new Date(draft.scheduledFor).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+            {' at '}
+            {new Date(draft.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 flex-wrap">
         <StatusPill status={draft.status} />
         <Pill>{draft.channel}</Pill>
@@ -74,19 +87,6 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
           )}
         </span>
       </div>
-
-      {/* Scheduled time */}
-      {draft.scheduledFor && (
-        <div className="flex items-center gap-1.5 text-xs text-blue-400">
-          <Calendar className="w-3 h-3" />
-          <span>
-            Scheduled for{' '}
-            {new Date(draft.scheduledFor).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-            {' at '}
-            {new Date(draft.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-          </span>
-        </div>
-      )}
 
       {/* Source explainability */}
       <SourceBadges draft={draft} />
@@ -126,7 +126,7 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
               />
             </div>
           )}
-          <p className={`text-sm text-white-100 whitespace-pre-wrap ${compact ? 'line-clamp-3' : ''}`}>
+          <p className={`text-[15px] leading-relaxed text-white-100 whitespace-pre-wrap ${compact ? 'line-clamp-3' : ''}`}>
             {draft.body}
           </p>
         </div>

@@ -76,7 +76,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const isEditable = draft.status === 'DRAFT' || draft.status === 'PENDING_REVIEW';
   const canApprove = isEditable;
   const canReject = isEditable || draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
-  const canSchedule = draft.status === 'APPROVED';
+  const canSchedule = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
   const canPublish = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
 
   const anyError =
@@ -164,113 +164,118 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
 
       {/* Media indicator */}
       <div className={cn(
-        'border-t border-white-10 px-5 py-3 flex items-center gap-3',
+        'border-t border-white-10 px-5 py-3',
         draft.mediaUrl ? 'bg-accent-green-110/3' : ''
       )}>
         {draft.mediaUrl ? (
-          <>
-            <button
-              onClick={() => setLightboxOpen(true)}
-              className="flex-shrink-0 hover:opacity-90 transition-opacity rounded-lg overflow-hidden"
-              title="Click to preview"
-            >
-              {draft.mediaType === 'video' ? (
-                <div className="w-14 h-14 rounded-lg bg-white-10 flex items-center justify-center">
-                  <Film className="w-5 h-5 text-white-60" />
-                </div>
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={draft.mediaUrl}
-                  alt="Attached media"
-                  className="w-14 h-14 rounded-lg object-cover"
-                />
-              )}
-            </button>
-            <button
-              onClick={() => setLightboxOpen(true)}
-              className="text-xs text-white-60 truncate flex-1 text-left hover:text-white-100 transition-colors"
-            >
-              {draft.mediaType === 'video' ? 'Video attached' : 'Image attached'}
-            </button>
-            <Link
-              href={`/workspaces/${draft.clientId}/assets`}
-              className="text-[10px] text-accent-green-110 hover:underline"
-            >
-              Change
-            </Link>
-          </>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setLightboxOpen(true)}
+                className="flex-shrink-0 hover:opacity-90 transition-opacity rounded-lg overflow-hidden"
+                title="Click to preview"
+              >
+                {draft.mediaType === 'video' ? (
+                  <div className="w-14 h-14 rounded-lg bg-white-10 flex items-center justify-center">
+                    <Film className="w-5 h-5 text-white-60" />
+                  </div>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={draft.mediaUrl}
+                    alt="Attached media"
+                    className="w-14 h-14 rounded-lg object-cover"
+                  />
+                )}
+              </button>
+              <div className="flex-1 min-w-0">
+                <button
+                  onClick={() => setLightboxOpen(true)}
+                  className="text-xs text-white-60 truncate block text-left hover:text-white-100 transition-colors"
+                >
+                  {draft.mediaType === 'video' ? 'Video attached' : 'Image attached'}
+                </button>
+                <MediaSourceLabel draft={draft} />
+              </div>
+              <Link
+                href={`/workspaces/${draft.clientId}/assets`}
+                className="text-[10px] text-accent-green-110 hover:underline shrink-0"
+              >
+                Change
+              </Link>
+            </div>
+          </div>
         ) : (
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/workspaces/${draft.clientId}/assets?draftId=${draft.id}`}
-              className="flex items-center gap-1.5 text-xs text-white-40 hover:text-accent-green-110 transition-colors"
-            >
-              <ImagePlus className="w-3.5 h-3.5" />
-              Add image
-            </Link>
-            <button
-              onClick={() => {
-                generateMedia.mutate(
-                  {
-                    clientId: draft.clientId,
-                    guidance:
-                      draft.imageGuidance ||
-                      draft.altText ||
-                      draft.body.slice(0, 500),
-                    draftId: draft.id,
-                    channel: draft.channel,
-                  },
-                  {
-                    onSuccess: () => {
-                      qc.invalidateQueries({
-                        queryKey: ['squadpitch', 'drafts'],
-                      });
-                    },
-                  }
-                );
-              }}
-              disabled={generateMedia.isPending}
-              className="flex items-center gap-1.5 text-xs text-white-40 hover:text-accent-green-110 transition-colors disabled:opacity-50"
-            >
-              {generateMedia.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <ImagePlus className="w-3.5 h-3.5" />
-              )}
-              Generate Image
-            </button>
-            <button
-              onClick={() => {
-                generateVideo.mutate(
-                  {
-                    clientId: draft.clientId,
-                    guidance:
-                      draft.imageGuidance ||
-                      draft.altText ||
-                      draft.body.slice(0, 500),
-                    draftId: draft.id,
-                    channel: draft.channel,
-                  },
-                  {
-                    onSuccess: () => {
-                      qc.invalidateQueries({
-                        queryKey: ['squadpitch', 'drafts'],
-                      });
-                    },
-                  }
-                );
-              }}
-              disabled={generateVideo.isPending}
-              className="flex items-center gap-1.5 text-xs text-white-40 hover:text-accent-green-110 transition-colors disabled:opacity-50"
-            >
-              {generateVideo.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Video className="w-3.5 h-3.5" />
-              )}
-              Generate Video
-            </button>
+          <div className="flex items-center gap-4">
+            {/* Placeholder thumbnail */}
+            <div className="w-14 h-14 rounded-lg border-2 border-dashed border-white-10 flex items-center justify-center shrink-0">
+              <ImagePlus className="w-5 h-5 text-white-20" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-white-30 mb-1.5">No image assigned</p>
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/workspaces/${draft.clientId}/assets?draftId=${draft.id}`}
+                  className="text-xs text-white-40 hover:text-accent-green-110 transition-colors"
+                >
+                  Choose from library
+                </Link>
+                <button
+                  onClick={() => {
+                    generateMedia.mutate(
+                      {
+                        clientId: draft.clientId,
+                        guidance:
+                          draft.imageGuidance ||
+                          draft.altText ||
+                          draft.body.slice(0, 500),
+                        draftId: draft.id,
+                        channel: draft.channel,
+                      },
+                      {
+                        onSuccess: () => {
+                          qc.invalidateQueries({
+                            queryKey: ['squadpitch', 'drafts'],
+                          });
+                        },
+                      }
+                    );
+                  }}
+                  disabled={generateMedia.isPending}
+                  className="text-xs text-white-40 hover:text-accent-green-110 transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  {generateMedia.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Generate
+                </button>
+                <button
+                  onClick={() => {
+                    generateVideo.mutate(
+                      {
+                        clientId: draft.clientId,
+                        guidance:
+                          draft.imageGuidance ||
+                          draft.altText ||
+                          draft.body.slice(0, 500),
+                        draftId: draft.id,
+                        channel: draft.channel,
+                      },
+                      {
+                        onSuccess: () => {
+                          qc.invalidateQueries({
+                            queryKey: ['squadpitch', 'drafts'],
+                          });
+                        },
+                      }
+                    );
+                  }}
+                  disabled={generateVideo.isPending}
+                  className="text-xs text-white-40 hover:text-accent-green-110 transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  {generateVideo.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Generate video
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -399,10 +404,15 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         )}
         {canSchedule && (
           <button
-            onClick={() => setShowSchedule((v) => !v)}
+            onClick={() => {
+              if (!showSchedule && draft.status === 'SCHEDULED' && draft.scheduledFor) {
+                setScheduleDate(new Date(draft.scheduledFor).toISOString().slice(0, 16));
+              }
+              setShowSchedule((v) => !v);
+            }}
             className="text-xs px-2.5 py-1 rounded-md bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30 flex items-center gap-1"
           >
-            <Calendar className="w-3 h-3" /> Schedule
+            <Calendar className="w-3 h-3" /> {draft.status === 'SCHEDULED' ? 'Reschedule' : 'Schedule'}
           </button>
         )}
         {canPublish && (
@@ -567,4 +577,22 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}
     </div>
   );
+}
+
+function MediaSourceLabel({ draft }: { draft: Draft }) {
+  if (draft.imageGuidance) {
+    return (
+      <p className="text-[11px] text-white-30 truncate">
+        Suggested: {draft.imageGuidance}
+      </p>
+    );
+  }
+  if (draft.sourceMeta?.listingTitle) {
+    return (
+      <p className="text-[11px] text-white-30 truncate">
+        Using: {draft.sourceMeta.listingTitle} (auto-selected)
+      </p>
+    );
+  }
+  return null;
 }

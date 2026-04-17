@@ -1,9 +1,8 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle, ChevronDown, ChevronRight, Megaphone, ArrowRight } from 'lucide-react';
+import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useDrafts,
@@ -26,13 +25,14 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { CalendarGrid } from './CalendarGrid';
 import { DraftQueueCard } from './DraftQueueCard';
-import { WeekPlanSummary } from './WeekPlanSummary';
 import { SuggestionCard } from './SuggestionCard';
 import { PlannerWelcomeCard } from './PlannerWelcomeCard';
 import { PlannerTour } from './PlannerTour';
 import { FirstWeekProgress } from './FirstWeekProgress';
 import { PlannerSetupChecklist } from './PlannerSetupChecklist';
 import { CampaignFocusView } from './CampaignFocusView';
+import { CampaignSection } from './CampaignSection';
+import { PlannerInsightsPanel } from './PlannerInsightsPanel';
 
 interface Props {
   clientId: string;
@@ -88,11 +88,14 @@ export function PlannerView({ clientId }: Props) {
 
   // Auto-switch to list view when arriving from campaign launch so the user
   // immediately sees the grouped campaign instead of the calendar.
-  const [view, setView] = useState<'calendar' | 'list'>(highlightCampaignId ? 'list' : 'calendar');
+  const [view, setView] = useState<'calendar' | 'list'>('list');
   const [statusFilter, setStatusFilter] = useState<DraftStatus | 'ALL'>('ALL');
   const [channelFilter, setChannelFilter] = useState<Channel | 'ALL'>('ALL');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Campaign expand/collapse state
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
 
   // Planner suggestion state
   const [activeSuggestion, setActiveSuggestion] = useState<PlannerSuggestion | null>(null);
@@ -238,8 +241,48 @@ export function PlannerView({ clientId }: Props) {
       group.drafts.sort((a, b) => (a.campaignOrder ?? 0) - (b.campaignOrder ?? 0));
     }
 
-    return { campaignGroups: Array.from(groups.values()), standalonesDrafts: standalones };
+    // Sort campaign groups by most recent first (earliest scheduledFor date)
+    const sorted = Array.from(groups.values()).sort((a, b) => {
+      const aDate = a.drafts.reduce((min, d) => {
+        const dt = d.scheduledFor ?? d.publishedAt;
+        return dt && (!min || dt < min) ? dt : min;
+      }, null as string | null);
+      const bDate = b.drafts.reduce((min, d) => {
+        const dt = d.scheduledFor ?? d.publishedAt;
+        return dt && (!min || dt < min) ? dt : min;
+      }, null as string | null);
+      if (!aDate && !bDate) return 0;
+      if (!aDate) return 1;
+      if (!bDate) return -1;
+      // Most recent (latest date) first
+      return bDate.localeCompare(aDate);
+    });
+
+    return { campaignGroups: sorted, standalonesDrafts: standalones };
   }, [drafts]);
+
+  // Auto-expand most recent campaign (and highlighted campaign if present)
+  useEffect(() => {
+    const initial = new Set<string>();
+    if (highlightCampaignId) initial.add(highlightCampaignId);
+    if (campaignGroups.length > 0 && !initial.has(campaignGroups[0].campaignId)) {
+      initial.add(campaignGroups[0].campaignId);
+    }
+    if (initial.size > 0) setExpandedCampaigns(initial);
+  }, [campaignGroups.length > 0 ? campaignGroups[0]?.campaignId : '', highlightCampaignId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleCampaignExpand = useCallback((campaignId: string) => {
+    setExpandedCampaigns((prev) => {
+      const next = new Set(prev);
+      if (next.has(campaignId)) next.delete(campaignId);
+      else next.add(campaignId);
+      return next;
+    });
+  }, []);
+
+  // Computed counts for insights panel
+  const postedCount = useMemo(() => allDrafts?.filter((d) => d.status === 'PUBLISHED').length ?? 0, [allDrafts]);
+  const scheduledCountForInsights = useMemo(() => allDrafts?.filter((d) => d.status === 'SCHEDULED').length ?? 0, [allDrafts]);
 
   const handleSelect = useCallback((id: string, checked: boolean) => {
     setSelected((prev) => {
@@ -497,93 +540,6 @@ export function PlannerView({ clientId }: Props) {
         />
       )}
 
-      {/* Week plan summary */}
-      <div data-tour-step="week-summary">
-        <WeekPlanSummary
-          weekSummary={weekSummary}
-          onPlanMyWeek={handlePlanMyWeek}
-          isPlanningWeek={planMyWeek.isPending}
-          planResult={planResult}
-          hasSuggestions={visibleSuggestions.length > 0}
-          clientId={clientId}
-        />
-      </div>
-
-      {/* Campaign suggestions from recommendation engine */}
-      {campaignSuggestions.length > 0 && (
-        <div className="card p-4 border-purple-400/20 bg-purple-400/5">
-          <div className="flex items-center gap-2 mb-3">
-            <Megaphone className="w-4 h-4 text-purple-400" />
-            <h3 className="text-xs font-semibold text-white-60 uppercase tracking-wider">
-              Campaign Opportunities
-            </h3>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-400/15 text-purple-400">
-              {campaignSuggestions.length}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {campaignSuggestions.map((cs) => {
-              const payload = cs.actionPayload ?? {};
-              const params = new URLSearchParams();
-              if (payload.listingDataItemId) params.set('listingId', payload.listingDataItemId);
-              else if (payload.sourceId) params.set('listingId', payload.sourceId);
-              if (payload.campaignType) params.set('type', payload.campaignType);
-              else if (cs.suggestedCampaignType) params.set('type', cs.suggestedCampaignType);
-              const qs = params.toString();
-
-              return (
-                <Link
-                  key={cs.id}
-                  href={`/workspaces/${clientId}/listing-campaign${qs ? `?${qs}` : ''}`}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-white-5 hover:bg-white-8 border border-white-10 hover:border-purple-400/20 transition-all group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-white-80 group-hover:text-white-100 truncate">
-                        {cs.title}
-                      </span>
-                      <span className={cn(
-                        'flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
-                        cs.confidence === 'high'
-                          ? 'bg-accent-green-110/15 text-accent-green-110'
-                          : 'bg-yellow-400/15 text-yellow-400'
-                      )}>
-                        {cs.confidence === 'high' ? 'Recommended' : 'Suggested'}
-                      </span>
-                    </div>
-                    {cs.reasons[0] && (
-                      <p className="text-[11px] text-white-30 mt-0.5">{cs.reasons[0]}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-purple-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    {cs.actionLabel}
-                    <ArrowRight className="w-3 h-3" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Timing suggestions */}
-      {timingSuggestions && Object.keys(timingSuggestions).length > 0 && (
-        <div className="flex items-center gap-3 text-xs text-white-40 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3 h-3" />
-            <span className="font-medium text-white-30 uppercase tracking-wider">Best times</span>
-          </div>
-          {Object.entries(timingSuggestions).map(([channel, t]) => (
-            <span key={channel} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white-5 border border-white-10">
-              <span className="text-white-60">{channel}</span>
-              <span className="text-white-30">{t.bestTimeLabel}</span>
-              <span className="text-white-20">·</span>
-              <span className="text-white-30">{t.bestDays}</span>
-            </span>
-          ))}
-        </div>
-      )}
-
       {/* Filters */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -729,19 +685,15 @@ export function PlannerView({ clientId }: Props) {
 
         {drafts && drafts.length > 0 && view === 'list' && (campaignGroups.length > 0 || standalonesDrafts.length > 0) && (
           <div className="space-y-4">
-            {/* Campaign groups */}
-            {[...campaignGroups]
-              .sort((a, b) => {
-                if (a.campaignId === highlightCampaignId) return -1;
-                if (b.campaignId === highlightCampaignId) return 1;
-                return 0;
-              })
-              .map((group) => (
-              <CampaignGroup
+            {/* Campaign sections */}
+            {campaignGroups.map((group) => (
+              <CampaignSection
                 key={group.campaignId}
-                campaignName={group.campaignName}
-                campaignType={group.campaignType}
-                drafts={group.drafts}
+                clientId={clientId}
+                campaignId={group.campaignId}
+                campaignDrafts={group.drafts}
+                expanded={expandedCampaigns.has(group.campaignId)}
+                onToggleExpand={() => toggleCampaignExpand(group.campaignId)}
                 selectedIds={selected}
                 onSelect={hasApprovable ? handleSelect : undefined}
                 highlighted={group.campaignId === highlightCampaignId}
@@ -782,78 +734,22 @@ export function PlannerView({ clientId }: Props) {
         )}
       </div>
 
+      {/* Insights panel (collapsed by default) */}
+      <PlannerInsightsPanel
+        clientId={clientId}
+        weekSummary={weekSummary}
+        onPlanMyWeek={handlePlanMyWeek}
+        isPlanningWeek={planMyWeek.isPending}
+        planResult={planResult}
+        hasSuggestions={visibleSuggestions.length > 0}
+        campaignSuggestions={campaignSuggestions}
+        timingSuggestions={timingSuggestions}
+        postedCount={postedCount}
+        scheduledCount={scheduledCountForInsights}
+      />
+
       {/* Tour overlay */}
       <PlannerTour active={tourActive} onComplete={handleTourComplete} />
-    </div>
-  );
-}
-
-export const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
-  just_listed: 'Just Listed',
-  open_house: 'Open House',
-  price_drop: 'Price Drop',
-  just_sold: 'Just Sold',
-  listing_spotlight: 'Spotlight',
-};
-
-function CampaignGroup({
-  campaignName,
-  campaignType,
-  drafts: groupDrafts,
-  selectedIds,
-  onSelect,
-  highlighted,
-}: {
-  campaignName: string;
-  campaignType: string;
-  drafts: Draft[];
-  selectedIds: Set<string>;
-  onSelect?: (id: string, checked: boolean) => void;
-  highlighted?: boolean;
-}) {
-  const [expanded, setExpanded] = useState(highlighted ?? true);
-  const typeLabel = CAMPAIGN_TYPE_LABELS[campaignType] ?? campaignType;
-  const scheduledCount = groupDrafts.filter((d) => d.status === 'SCHEDULED' || d.status === 'PUBLISHED').length;
-
-  return (
-    <div className={cn(
-      'border rounded-xl overflow-hidden transition-colors',
-      highlighted ? 'border-accent-green-110/30 ring-1 ring-accent-green-110/10' : 'border-white-10',
-    )}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white-8 transition-colors"
-      >
-        {expanded ? (
-          <ChevronDown className="w-4 h-4 text-white-30 shrink-0" />
-        ) : (
-          <ChevronRight className="w-4 h-4 text-white-30 shrink-0" />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-white-80 truncate">{campaignName}</span>
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 shrink-0">
-              {typeLabel}
-            </span>
-          </div>
-          <p className="text-xs text-white-30 mt-0.5">
-            {groupDrafts.length} posts &middot; {scheduledCount} scheduled
-          </p>
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="px-3 pb-3 space-y-2">
-          {groupDrafts.map((draft) => (
-            <DraftQueueCard
-              key={draft.id}
-              draft={draft}
-              selected={selectedIds.has(draft.id)}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
