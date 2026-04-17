@@ -1508,10 +1508,10 @@ export function useAutoTagAsset(clientId: string) {
  * The backend now saves tags directly, so no second call is needed.
  */
 export function autoTagAssetFetch(clientId: string, assetId: string): Promise<void> {
-  return apiFetch(`workspaces/${clientId}/assets/${assetId}/auto-tag`, {
+  return apiFetch<void>(`workspaces/${clientId}/assets/${assetId}/auto-tag`, {
     method: 'POST',
     body: JSON.stringify({}),
-  }).catch(() => {
+  }).then(() => {}).catch(() => {
     // Fire-and-forget — swallow errors silently
   });
 }
