@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle, ChevronDown, ChevronRight, Megaphone, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -76,7 +77,11 @@ function getCurrentWeekRange() {
 }
 
 export function PlannerView({ clientId }: Props) {
-  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const searchParams = useSearchParams();
+  const highlightCampaignId = searchParams.get('campaignId') ?? null;
+  // Auto-switch to list view when arriving from campaign launch so the user
+  // immediately sees the grouped campaign instead of the calendar.
+  const [view, setView] = useState<'calendar' | 'list'>(highlightCampaignId ? 'list' : 'calendar');
   const [statusFilter, setStatusFilter] = useState<DraftStatus | 'ALL'>('ALL');
   const [channelFilter, setChannelFilter] = useState<Channel | 'ALL'>('ALL');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -684,7 +689,13 @@ export function PlannerView({ clientId }: Props) {
         {drafts && drafts.length > 0 && view === 'list' && (campaignGroups.length > 0 || standalonesDrafts.length > 0) && (
           <div className="space-y-4">
             {/* Campaign groups */}
-            {campaignGroups.map((group) => (
+            {[...campaignGroups]
+              .sort((a, b) => {
+                if (a.campaignId === highlightCampaignId) return -1;
+                if (b.campaignId === highlightCampaignId) return 1;
+                return 0;
+              })
+              .map((group) => (
               <CampaignGroup
                 key={group.campaignId}
                 campaignName={group.campaignName}
@@ -692,6 +703,7 @@ export function PlannerView({ clientId }: Props) {
                 drafts={group.drafts}
                 selectedIds={selected}
                 onSelect={hasApprovable ? handleSelect : undefined}
+                highlighted={group.campaignId === highlightCampaignId}
               />
             ))}
 
@@ -749,19 +761,24 @@ function CampaignGroup({
   drafts: groupDrafts,
   selectedIds,
   onSelect,
+  highlighted,
 }: {
   campaignName: string;
   campaignType: string;
   drafts: Draft[];
   selectedIds: Set<string>;
   onSelect?: (id: string, checked: boolean) => void;
+  highlighted?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(highlighted ?? true);
   const typeLabel = CAMPAIGN_TYPE_LABELS[campaignType] ?? campaignType;
   const scheduledCount = groupDrafts.filter((d) => d.status === 'SCHEDULED' || d.status === 'PUBLISHED').length;
 
   return (
-    <div className="border border-white-10 rounded-xl overflow-hidden bg-white-5/50">
+    <div className={cn(
+      'border rounded-xl overflow-hidden bg-white-5/50 transition-colors',
+      highlighted ? 'border-accent-green-110/40 ring-1 ring-accent-green-110/20' : 'border-white-10',
+    )}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white-8 transition-colors"

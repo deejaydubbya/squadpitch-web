@@ -1243,6 +1243,17 @@ export function useDeleteDraft() {
   });
 }
 
+export function useDeleteAllDrafts(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: boolean; deleted: number }>(`workspaces/${clientId}/drafts`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+    },
+  });
+}
+
 export function useDuplicateDraft() {
   const qc = useQueryClient();
   return useMutation({

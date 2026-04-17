@@ -964,13 +964,18 @@ export function ListingCampaignPage({ clientId }: Props) {
       });
       const count = result?.drafts?.length ?? editedCampaign.posts.length;
       const imgNote = mediaAssetIds.length > 0 ? ` with ${mediaAssetIds.length} image${mediaAssetIds.length === 1 ? '' : 's'}` : '';
-      setSaveSuccess(addToPlanner
-        ? `${count} posts scheduled over ${schedulePreset} days${imgNote}! Redirecting...`
-        : `${count} drafts saved${imgNote}! Redirecting...`);
-      // Navigate to Content Library after a brief delay so the user sees success
-      setTimeout(() => {
-        router.push(`/workspaces/${clientId}/library`);
-      }, 1200);
+      const cid = result?.campaignId ?? '';
+      if (addToPlanner) {
+        setSaveSuccess(`Campaign launched — ${count} posts scheduled over ${schedulePreset} days${imgNote}! Opening Planner…`);
+        setTimeout(() => {
+          router.push(`/workspaces/${clientId}/planner${cid ? `?campaignId=${cid}` : ''}`);
+        }, 1200);
+      } else {
+        setSaveSuccess(`${count} drafts saved to Content Library${imgNote}! Opening Library…`);
+        setTimeout(() => {
+          router.push(`/workspaces/${clientId}/library${cid ? `?campaignId=${cid}` : ''}`);
+        }, 1200);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setSaveSuccess(`Failed to save: ${msg}`);

@@ -1,10 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Search, Inbox, List, LayoutGrid, Zap, Home, Wand2 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Search, Inbox, List, LayoutGrid, Zap, Home, Wand2, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useDrafts,
+  useDeleteAllDrafts,
   type Draft,
   type DraftStatus,
   type Channel,
@@ -64,7 +66,86 @@ function matchesSource(draft: Draft, filter: SourceFilter): boolean {
   return true;
 }
 
+const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
+  just_listed: 'Just Listed',
+  open_house: 'Open House',
+  price_drop: 'Price Drop',
+  just_sold: 'Just Sold',
+  listing_spotlight: 'Listing Spotlight',
+};
+
+// ── Campaign Group Component ──
+
+function CampaignGroupCard({
+  campaignName,
+  campaignType,
+  drafts: groupDrafts,
+  highlighted,
+}: {
+  campaignName: string;
+  campaignType: string;
+  drafts: Draft[];
+  highlighted?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(highlighted ?? false);
+  const typeLabel = CAMPAIGN_TYPE_LABELS[campaignType] ?? campaignType;
+  const channels = Array.from(new Set(groupDrafts.map((d) => d.channel)));
+  const minDay = Math.min(...groupDrafts.map((d) => d.campaignDay ?? 0));
+  const maxDay = Math.max(...groupDrafts.map((d) => d.campaignDay ?? 0));
+  const statusCounts = { draft: 0, scheduled: 0, published: 0 };
+  for (const d of groupDrafts) {
+    if (d.status === 'DRAFT' || d.status === 'PENDING_REVIEW' || d.status === 'APPROVED') statusCounts.draft++;
+    else if (d.status === 'SCHEDULED') statusCounts.scheduled++;
+    else if (d.status === 'PUBLISHED') statusCounts.published++;
+  }
+
+  return (
+    <div className={cn(
+      'border rounded-xl overflow-hidden bg-white-5/50 transition-colors',
+      highlighted ? 'border-accent-green-110/40 ring-1 ring-accent-green-110/20' : 'border-white-10',
+    )}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white-8 transition-colors"
+      >
+        {expanded ? (
+          <ChevronDown className="w-4 h-4 text-white-30 shrink-0" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-white-30 shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-white-80 truncate">{campaignName}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 shrink-0 font-semibold">
+              {typeLabel}
+            </span>
+          </div>
+          <p className="text-xs text-white-30 mt-0.5">
+            {groupDrafts.length} posts
+            {maxDay > 0 && ` · ${maxDay - minDay + 1} day campaign`}
+            {' · '}{channels.join(', ')}
+            {statusCounts.scheduled > 0 && <> · <span className="text-accent-green-110">{statusCounts.scheduled} scheduled</span></>}
+            {statusCounts.published > 0 && <> · <span className="text-green-400">{statusCounts.published} published</span></>}
+            {statusCounts.draft > 0 && <> · {statusCounts.draft} drafts</>}
+          </p>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-3 pb-3 space-y-2">
+          {groupDrafts.map((draft) => (
+            <DraftQueueCard key={draft.id} draft={draft} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ContentLibrary({ clientId }: Props) {
+  const searchParams = useSearchParams();
+  const highlightCampaignId = searchParams.get('campaignId') ?? null;
+
   const [tab, setTab] = useState<Tab>('ALL');
   const [channelFilter, setChannelFilter] = useState<Channel | 'ALL'>('ALL');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
@@ -75,6 +156,7 @@ export function ContentLibrary({ clientId }: Props) {
     clientId,
     limit: 200,
   });
+  const deleteAll = useDeleteAllDrafts(clientId);
 
   // Filter by tab (status)
   const tabFiltered = useMemo(() => {
@@ -107,7 +189,9 @@ export function ContentLibrary({ clientId }: Props) {
         d.hooks?.some((h) => h.toLowerCase().includes(q)) ||
         d.cta?.toLowerCase().includes(q) ||
         d.hashtags?.some((h) => h.toLowerCase().includes(q)) ||
-        d.sourceMeta?.listingTitle?.toLowerCase().includes(q)
+        d.sourceMeta?.listingTitle?.toLowerCase().includes(q) ||
+        d.campaignName?.toLowerCase().includes(q) ||
+        d.campaignType?.toLowerCase().includes(q)
     );
   }, [sourceFiltered, searchQuery]);
 
@@ -171,7 +255,18 @@ export function ContentLibrary({ clientId }: Props) {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold text-white-100">Content Library</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white-100">Content Library</h1>
+        {allDrafts && allDrafts.length > 0 && (
+          <button
+            onClick={() => { if (confirm(`Delete all ${allDrafts.length} items? This cannot be undone.`)) deleteAll.mutate(); }}
+            disabled={deleteAll.isPending}
+            className="text-xs text-red-400/60 hover:text-red-400 transition-colors disabled:opacity-50"
+          >
+            {deleteAll.isPending ? 'Deleting…' : 'Clear all'}
+          </button>
+        )}
+      </div>
 
       {tabBar}
 
@@ -287,16 +382,62 @@ export function ContentLibrary({ clientId }: Props) {
         </div>
       )}
 
-      {drafts && drafts.length > 0 && (
-        <div className={viewMode === 'grid'
-          ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
-          : 'space-y-4'
-        }>
-          {drafts.map((draft) => (
-            <DraftQueueCard key={draft.id} draft={draft} />
-          ))}
-        </div>
-      )}
+      {drafts && drafts.length > 0 && (() => {
+        // Group drafts by campaign
+        const campaignMap = new Map<string, { campaignName: string; campaignType: string; drafts: Draft[] }>();
+        const standalone: Draft[] = [];
+        for (const d of drafts) {
+          if (d.campaignId) {
+            let group = campaignMap.get(d.campaignId);
+            if (!group) {
+              group = {
+                campaignName: d.campaignName || 'Unnamed Campaign',
+                campaignType: d.campaignType || 'just_listed',
+                drafts: [],
+              };
+              campaignMap.set(d.campaignId, group);
+            }
+            group.drafts.push(d);
+          } else {
+            standalone.push(d);
+          }
+        }
+        // Sort drafts within each group by campaignOrder
+        for (const group of Array.from(campaignMap.values())) {
+          group.drafts.sort((a, b) => (a.campaignOrder ?? 0) - (b.campaignOrder ?? 0));
+        }
+        const campaignGroups = Array.from(campaignMap.entries());
+        // Put highlighted campaign first
+        if (highlightCampaignId) {
+          campaignGroups.sort((a, b) => {
+            if (a[0] === highlightCampaignId) return -1;
+            if (b[0] === highlightCampaignId) return 1;
+            return 0;
+          });
+        }
+
+        return (
+          <div className={viewMode === 'grid'
+            ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
+            : 'space-y-4'
+          }>
+            {/* Campaign groups first */}
+            {campaignGroups.map(([cid, group]) => (
+              <CampaignGroupCard
+                key={cid}
+                campaignName={group.campaignName}
+                campaignType={group.campaignType}
+                drafts={group.drafts}
+                highlighted={cid === highlightCampaignId}
+              />
+            ))}
+            {/* Standalone drafts */}
+            {standalone.map((draft) => (
+              <DraftQueueCard key={draft.id} draft={draft} />
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
