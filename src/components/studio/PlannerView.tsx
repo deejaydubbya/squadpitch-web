@@ -12,7 +12,6 @@ import {
   usePlanMyWeek,
   useSwapSuggestion,
   useAutopilotExecute,
-  useTimingSuggestions,
   type DraftStatus,
   type Channel,
   type Draft,
@@ -32,7 +31,6 @@ import { FirstWeekProgress } from './FirstWeekProgress';
 import { PlannerSetupChecklist } from './PlannerSetupChecklist';
 import { CampaignFocusView } from './CampaignFocusView';
 import { CampaignSection } from './CampaignSection';
-import { PlannerInsightsPanel } from './PlannerInsightsPanel';
 
 interface Props {
   clientId: string;
@@ -124,7 +122,6 @@ export function PlannerView({ clientId }: Props) {
   const planMyWeek = usePlanMyWeek(clientId);
   const swapSuggestion = useSwapSuggestion(clientId);
   const autopilotExecute = useAutopilotExecute(clientId);
-  const { data: timingSuggestions } = useTimingSuggestions();
 
   // Fetch suggestions on mount and when drafts change
   const weekRange = useMemo(() => getCurrentWeekRange(), []);
@@ -280,10 +277,6 @@ export function PlannerView({ clientId }: Props) {
     });
   }, []);
 
-  // Computed counts for insights panel
-  const postedCount = useMemo(() => allDrafts?.filter((d) => d.status === 'PUBLISHED').length ?? 0, [allDrafts]);
-  const scheduledCountForInsights = useMemo(() => allDrafts?.filter((d) => d.status === 'SCHEDULED').length ?? 0, [allDrafts]);
-
   const handleSelect = useCallback((id: string, checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -392,16 +385,6 @@ export function PlannerView({ clientId }: Props) {
         },
       }
     );
-  };
-
-  const handlePlanMyWeek = () => {
-    planMyWeek.mutate(weekRange, {
-      onSuccess: (data) => {
-        setPlanResult({ generated: data.generated, scheduled: data.scheduled });
-        setSuggestions([]);
-        setActiveSuggestion(null);
-      },
-    });
   };
 
   // ── First-run handlers ────────────────────────────────────────────────
@@ -733,20 +716,6 @@ export function PlannerView({ clientId }: Props) {
           </div>
         )}
       </div>
-
-      {/* Insights panel (collapsed by default) */}
-      <PlannerInsightsPanel
-        clientId={clientId}
-        weekSummary={weekSummary}
-        onPlanMyWeek={handlePlanMyWeek}
-        isPlanningWeek={planMyWeek.isPending}
-        planResult={planResult}
-        hasSuggestions={visibleSuggestions.length > 0}
-        campaignSuggestions={campaignSuggestions}
-        timingSuggestions={timingSuggestions}
-        postedCount={postedCount}
-        scheduledCount={scheduledCountForInsights}
-      />
 
       {/* Tour overlay */}
       <PlannerTour active={tourActive} onComplete={handleTourComplete} />
