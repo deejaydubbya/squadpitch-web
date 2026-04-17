@@ -395,6 +395,8 @@ export interface MediaAsset {
   filename: string | null;
   altText: string | null;
   caption: string | null;
+  folderId: string | null;
+  tags: string[];
   draftId: string | null;
   displayOrder: number;
   falModelId: string | null;
@@ -404,6 +406,15 @@ export interface MediaAsset {
   durationMs: number | null;
   usageCount: number;
   createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetFolder {
+  id: string;
+  clientId: string;
+  name: string;
+  assetCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -720,6 +731,8 @@ export interface AssetFilters {
   status?: MediaAssetStatus;
   assetType?: MediaAssetType;
   draftId?: string;
+  folderId?: string;
+  tag?: string;
   search?: string;
   limit?: number;
   cursor?: string;
@@ -751,6 +764,10 @@ export const squadpitchKeys = {
   assets: (clientId: string, filters?: Record<string, unknown>) =>
     [...squadpitchKeys.all, 'client', clientId, 'assets', filters ?? {}] as const,
   asset: (id: string) => [...squadpitchKeys.all, 'asset', id] as const,
+  folders: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'folders'] as const,
+  assetTagDefaults: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'asset-tag-defaults'] as const,
   postDetail: (clientId: string, postId: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'post-detail', postId] as const,
   dataSources: (clientId: string) =>
@@ -1337,7 +1354,7 @@ export function useAsset(assetId: string | undefined) {
 export function useUploadAsset(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ formData, assetType }: { formData: FormData; assetType?: MediaAssetType }) => {
+    mutationFn: async ({ formData, assetType, folderId }: { formData: FormData; assetType?: MediaAssetType; folderId?: string }) => {
       const file = formData.get('file') as File | null;
       if (!file) throw new Error('No file provided');
 
@@ -1348,6 +1365,7 @@ export function useUploadAsset(clientId: string) {
       if (altText) params.set('altText', altText as string);
       const caption = formData.get('caption');
       if (caption) params.set('caption', caption as string);
+      if (folderId) params.set('folderId', folderId);
       const qs = params.toString();
 
       const res = await fetch(
@@ -1372,6 +1390,7 @@ export function useUploadAsset(clientId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.folders(clientId) });
     },
   });
 }
@@ -1383,7 +1402,107 @@ export function useDeleteAsset(clientId: string) {
       apiFetch<{ ok: true }>(`assets/${assetId}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.folders(clientId) });
     },
+  });
+}
+
+// ── Folder hooks ────────────────────────────────────────────────────────
+
+export function useFolders(clientId: string) {
+  return useQuery({
+    queryKey: squadpitchKeys.folders(clientId),
+    queryFn: () => apiFetch<{ folders: AssetFolder[] }>(`workspaces/${clientId}/folders`),
+    select: (data) => data.folders,
+  });
+}
+
+export function useCreateFolder(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      apiFetch<AssetFolder>(`workspaces/${clientId}/folders`, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.folders(clientId) });
+    },
+  });
+}
+
+export function useRenameFolder(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ folderId, name }: { folderId: string; name: string }) =>
+      apiFetch<AssetFolder>(`workspaces/${clientId}/folders/${folderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.folders(clientId) });
+    },
+  });
+}
+
+export function useDeleteFolder(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (folderId: string) =>
+      apiFetch<{ ok: true }>(`workspaces/${clientId}/folders/${folderId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.folders(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+    },
+  });
+}
+
+export function useMoveAssetToFolder(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ assetId, folderId }: { assetId: string; folderId: string | null }) =>
+      apiFetch<MediaAsset>(`assets/${assetId}/folder`, {
+        method: 'PATCH',
+        body: JSON.stringify({ folderId }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.folders(clientId) });
+    },
+  });
+}
+
+export function useUpdateAssetTags(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ assetId, tags }: { assetId: string; tags: string[] }) =>
+      apiFetch<MediaAsset>(`assets/${assetId}/tags`, {
+        method: 'PATCH',
+        body: JSON.stringify({ tags }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+    },
+  });
+}
+
+export function useAutoTagAsset(clientId: string) {
+  return useMutation({
+    mutationFn: (assetId: string) =>
+      apiFetch<{ suggestedTags: string[] }>(`workspaces/${clientId}/assets/${assetId}/auto-tag`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+  });
+}
+
+export function useAssetTagDefaults(clientId: string) {
+  return useQuery({
+    queryKey: squadpitchKeys.assetTagDefaults(clientId),
+    queryFn: () => apiFetch<{ tags: string[] }>(`workspaces/${clientId}/asset-tag-defaults`),
+    select: (data) => data.tags,
   });
 }
 
