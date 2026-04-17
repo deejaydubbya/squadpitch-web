@@ -30,6 +30,9 @@ import {
   Eraser,
   X,
   Images,
+  FolderOpen,
+  Tag,
+  CheckSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -56,6 +59,9 @@ import {
   useDataItems,
   useRecommendations,
   useAssets,
+  useFolders,
+  useAssetTagDefaults,
+  type AssetFolder,
   type ListingCampaignOutput,
   type CampaignType,
   type CampaignPost,
@@ -478,6 +484,20 @@ export function ListingCampaignPage({ clientId }: Props) {
       if (addr.state != null && addr.state !== '' && flat.state == null) flat.state = addr.state;
       if (addr.zip != null && addr.zip !== '' && flat.zip == null) flat.zip = addr.zip;
     }
+    // Vision API returns address as a flat string like "7712 Stonehill Dr, Anderson Township, OH 45255".
+    // Parse it into street / city / state / zip so the form fields populate correctly.
+    if (typeof flat.address === 'string' && flat.city == null && flat.state == null && flat.zip == null) {
+      const raw = flat.address.trim();
+      // Match: "Street, City, ST ZIP" or "Street, City, ST"
+      const m = raw.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i)
+             ?? raw.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})$/i);
+      if (m) {
+        flat.address = m[1].trim();
+        flat.city = m[2].trim();
+        flat.state = m[3].trim().toUpperCase();
+        if (m[4]) flat.zip = m[4].trim();
+      }
+    }
     setForm((prev) => {
       const next = { ...prev };
       const map: Record<string, keyof PropertyForm> = {
@@ -664,10 +684,9 @@ export function ListingCampaignPage({ clientId }: Props) {
         detectedCount: 0,
         segmentation: null,
       });
-      // Jump straight to the images step and open the manual-crop modal so
-      // the user can start cropping immediately.
+      // Jump straight to the images step — the user can open manual crop
+      // from the "Manual crop" button if they want.
       setStep('images');
-      setManualCropOpen(true);
       // Fire the Vision extraction in parallel to populate the property form.
       // This runs independently of the manual-crop UX — the user can keep
       // cropping while the form fields come back from the server.
@@ -1023,7 +1042,7 @@ export function ListingCampaignPage({ clientId }: Props) {
                 const latest = existingListings[0];
                 if (latest) {
                   prefillFromDataItem(latest);
-                  setStep('form');
+                  setStep('images');
                 }
               }}
             >
@@ -1034,7 +1053,7 @@ export function ListingCampaignPage({ clientId }: Props) {
                     onClick={(e) => {
                       e.stopPropagation();
                       prefillFromDataItem(item);
-                      setStep('form');
+                      setStep('images');
                     }}
                     className="w-full text-left px-3 py-2 rounded-lg bg-white-5 hover:bg-white-10 text-white-60 text-xs transition-colors truncate"
                   >
@@ -1139,7 +1158,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             description="Type in property details from scratch"
             onClick={() => {
               setSourceLabel('Manual entry');
-              setStep('form');
+              setStep('images');
             }}
           />
         </div>
@@ -1579,8 +1598,117 @@ export function ListingCampaignPage({ clientId }: Props) {
           // best-effort
         }
         const id = `library_${asset.id}_${Date.now()}`;
-        const isFirst = candidateImages.length === 0;
-        const manual: CandidateImage = {
+        const LABEL_TAGS = new Set<ImageRegionLabel>([
+          'exterior', 'kitchen', 'living_room', 'bedroom',
+          'bathroom', 'backyard', 'dining_room', 'other',
+        ]);
+        const matchedLabel = asset.tags?.find((t) => LABEL_TAGS.has(t as ImageRegionLabel)) as ImageRegionLabel | undefined;
+        setCandidateImages((prev) => {
+          const currentHero = prev.find((c) => c.layoutRole === 'hero');
+          const newLabel = matchedLabel ?? 'other';
+          const newPriority = LABEL_PRIORITY[newLabel] ?? 0;
+          const currentHeroPriority = currentHero ? (LABEL_PRIORITY[currentHero.label] ?? 0) : -1;
+          // Promote to hero if there's no hero, or if this image has a higher-priority label.
+          const shouldBeHero = !currentHero || newPriority > currentHeroPriority;
+          const manual: CandidateImage = {
+            id,
+            originalUrl: dataUrl,
+            cleanedUrl: null,
+            enhancedUrl: null,
+            cleanedEnhancedUrl: null,
+            cleanEnabled: false,
+            enhanceEnabled: false,
+            cleaning: false,
+            enhancing: false,
+            label: newLabel,
+            description: asset.caption ?? asset.altText ?? (matchedLabel ? matchedLabel.replace(/_/g, ' ') : ''),
+            layoutRole: shouldBeHero ? 'hero' : 'gallery',
+            photoConfidence: 1,
+            hasText: false,
+            quality: 'bright',
+            bbox: { x: 0, y: 0, w: 1, h: 1 },
+            pixelWidth: asset.width ?? 0,
+            pixelHeight: asset.height ?? 0,
+            qualityScore,
+            qualityLabel,
+            sourcePass: 'manual',
+            parentRegionId: null,
+            source: shouldBeHero ? 'hero' : 'manual_crop',
+            overlays: [],
+            overlayRemoved: false,
+            ...EMPTY_CLEANUP_META,
+          };
+          // If promoting this one to hero, demote the old hero to gallery.
+          if (shouldBeHero && currentHero) {
+            return prev.map((c) =>
+              c.id === currentHero.id ? { ...c, layoutRole: 'gallery' as const } : c,
+            ).concat(manual);
+          }
+          return [...prev, manual];
+        });
+        setSelectedImageIds((prev) => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+      } catch {
+        setSplitNotice('Couldn\u2019t load that image from the library.');
+      }
+    };
+
+    const addManyFromLibrary = async (assets: MediaAsset[]) => {
+      const LABEL_TAGS = new Set<ImageRegionLabel>([
+        'exterior', 'kitchen', 'living_room', 'bedroom',
+        'bathroom', 'backyard', 'dining_room', 'other',
+      ]);
+
+      // Generate stable IDs upfront so we can reference them for selection.
+      const ts = Date.now();
+      const idMap = new Map<string, string>();
+      for (let i = 0; i < assets.length; i++) {
+        idMap.set(assets[i].id, `library_${assets[i].id}_${ts}_${i}`);
+      }
+
+      // Prepare all candidates in parallel (fetch + quality check).
+      const prepared = await Promise.all(
+        assets.map(async (asset) => {
+          if (!asset.url) return null;
+          try {
+            const res = await fetch(asset.url, { mode: 'cors' });
+            if (!res.ok) throw new Error('fetch failed');
+            const blob = await res.blob();
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result));
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(blob);
+            });
+            let qualityScore = 50;
+            let qualityLabel: QualityLabel = 'fair';
+            try {
+              const q = await computeImageQuality(dataUrl);
+              qualityScore = q.score;
+              qualityLabel = q.label;
+            } catch { /* best-effort */ }
+            const matchedLabel = asset.tags?.find((t) => LABEL_TAGS.has(t as ImageRegionLabel)) as ImageRegionLabel | undefined;
+            return { asset, id: idMap.get(asset.id)!, dataUrl, qualityScore, qualityLabel, matchedLabel };
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      const valid = prepared.filter(Boolean) as NonNullable<(typeof prepared)[number]>[];
+      if (valid.length === 0) return;
+
+      // Collect the IDs we'll add so we can select them.
+      const newIds = valid.map((v) => v.id);
+
+      setCandidateImages((prev) => {
+        const hasHero = prev.some((c) => c.layoutRole === 'hero');
+
+        // Build new candidates, all as gallery initially.
+        const newCandidates: CandidateImage[] = valid.map(({ id, asset, dataUrl, qualityScore, qualityLabel, matchedLabel }) => ({
           id,
           originalUrl: dataUrl,
           cleanedUrl: null,
@@ -1590,33 +1718,47 @@ export function ListingCampaignPage({ clientId }: Props) {
           enhanceEnabled: false,
           cleaning: false,
           enhancing: false,
-          label: 'other',
-          description: asset.caption ?? asset.altText ?? '',
-          layoutRole: isFirst ? 'hero' : 'gallery',
+          label: matchedLabel ?? 'other',
+          description: asset.caption ?? asset.altText ?? (matchedLabel ? matchedLabel.replace(/_/g, ' ') : ''),
+          layoutRole: 'gallery' as const,
           photoConfidence: 1,
           hasText: false,
-          quality: 'bright',
+          quality: 'bright' as const,
           bbox: { x: 0, y: 0, w: 1, h: 1 },
           pixelWidth: asset.width ?? 0,
           pixelHeight: asset.height ?? 0,
           qualityScore,
           qualityLabel,
-          sourcePass: 'manual',
+          sourcePass: 'manual' as const,
           parentRegionId: null,
-          source: isFirst ? 'hero' : 'manual_crop',
+          source: 'manual_crop' as const,
           overlays: [],
           overlayRemoved: false,
           ...EMPTY_CLEANUP_META,
-        };
-        setCandidateImages((prev) => [...prev, manual]);
-        setSelectedImageIds((prev) => {
-          const next = new Set(prev);
-          next.add(id);
-          return next;
-        });
-      } catch {
-        setSplitNotice('Couldn\u2019t load that image from the library.');
-      }
+        }));
+
+        // If there's no hero yet, pick the best one by label priority.
+        if (!hasHero && newCandidates.length > 0) {
+          let bestIdx = 0;
+          let bestPriority = LABEL_PRIORITY[newCandidates[0].label] ?? 0;
+          for (let i = 1; i < newCandidates.length; i++) {
+            const p = LABEL_PRIORITY[newCandidates[i].label] ?? 0;
+            if (p > bestPriority) {
+              bestPriority = p;
+              bestIdx = i;
+            }
+          }
+          newCandidates[bestIdx] = { ...newCandidates[bestIdx], layoutRole: 'hero', source: 'hero' };
+        }
+
+        return [...prev, ...newCandidates];
+      });
+
+      setSelectedImageIds((prev) => {
+        const next = new Set(prev);
+        for (const id of newIds) next.add(id);
+        return next;
+      });
     };
 
     return (
@@ -1631,7 +1773,7 @@ export function ListingCampaignPage({ clientId }: Props) {
 
         <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-white-100">
-            Detected {candidateImages.length} image{candidateImages.length === 1 ? '' : 's'}
+            {candidateImages.length === 0 ? 'Select media for your campaign' : `${candidateImages.length} media file${candidateImages.length === 1 ? '' : 's'} ready`}
           </h1>
           <div className="flex items-center gap-2 text-xs flex-wrap">
             {screenshotPreview && (
@@ -1647,7 +1789,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             <button
               onClick={() => setLibraryPickerOpen(true)}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white-10 text-white-80 hover:bg-white-20 transition-colors font-medium"
-              title="Add photos from your workspace media library"
+              title="Add media from your workspace library"
             >
               <Images className="w-3.5 h-3.5" />
               From library
@@ -1683,35 +1825,21 @@ export function ListingCampaignPage({ clientId }: Props) {
             >
               Clear
             </button>
-            <button
-              onClick={() => {
-                const next = !debugMode;
-                setDebugMode(next);
-                try {
-                  if (next) window.localStorage.setItem('sp:listing-campaign:debug', '1');
-                  else window.localStorage.removeItem('sp:listing-campaign:debug');
-                } catch {}
-              }}
-              className={cn(
-                'px-3 py-1.5 rounded-lg transition-colors',
-                debugMode ? 'bg-amber-500/30 text-amber-100' : 'bg-white-10 text-white-40 hover:bg-white-20',
-              )}
-              title="Show hybrid extraction pipeline traceability"
-            >
-              {debugMode ? 'Debug on' : 'Debug'}
-            </button>
           </div>
         </div>
         <p className="text-white-40 text-sm mb-4">
-          Choose which photos to use in your campaign. Low-quality photos can be enhanced safely — sharpened and brightness-corrected, never altered in any misleading way.
+          Choose which media to use in your campaign. Low-quality photos can be enhanced safely — sharpened and brightness-corrected, never altered in any misleading way.
         </p>
-        {candidateImages.length === 0 && screenshotPreview && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-200 text-sm flex items-start gap-2">
+        {extractImage.isPending && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20 text-accent-green-110 text-sm flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+            Extracting property details from screenshot — this may take a moment…
+          </div>
+        )}
+        {candidateImages.length === 0 && screenshotPreview && !extractImage.isPending && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-white-5 border border-white-10 text-white-60 text-sm flex items-start gap-2">
             <Crop className="w-4 h-4 mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium">We couldn&rsquo;t confidently find a media gallery.</p>
-              <p className="text-yellow-200/80 text-xs mt-0.5">Use <span className="font-semibold">Manual crop</span> above to draw rectangles around the photos you want — or continue and upload images later.</p>
-            </div>
+            <p>Use <span className="font-semibold text-white-80">Manual crop</span> above to select photos from your screenshot, or add media from your library.</p>
           </div>
         )}
         {splitNotice && (
@@ -2067,13 +2195,13 @@ export function ListingCampaignPage({ clientId }: Props) {
               onClick={() => setStep('form')}
               className="px-4 py-2 rounded-lg bg-white-10 text-white-60 font-medium text-sm hover:bg-white-20 transition-colors"
             >
-              Skip images
+              Skip media
             </button>
             <button
               onClick={() => setStep('form')}
               className="px-5 py-2 rounded-lg bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
             >
-              Use {selectedCount} image{selectedCount === 1 ? '' : 's'}
+              Use {selectedCount} file{selectedCount === 1 ? '' : 's'}
             </button>
           </div>
         </div>
@@ -2093,6 +2221,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             clientId={clientId}
             onClose={() => setLibraryPickerOpen(false)}
             onPick={addFromLibrary}
+            onPickMany={addManyFromLibrary}
           />
         )}
 
@@ -2141,6 +2270,13 @@ export function ListingCampaignPage({ clientId }: Props) {
         <p className="text-white-40 text-sm mb-8">
           Confirm the property info, then choose a campaign type.
         </p>
+
+        {extractImage.isPending && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20 text-accent-green-110 text-sm flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+            Extracting property details from screenshot — fields will populate automatically…
+          </div>
+        )}
 
         {genError && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
@@ -2276,7 +2412,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
-                  Campaign Images ({selectedImageIds.size} of {candidateImages.length} selected)
+                  Campaign Media ({selectedImageIds.size} of {candidateImages.length} selected)
                 </label>
                 <button
                   onClick={() => setStep('images')}
@@ -2300,7 +2436,7 @@ export function ListingCampaignPage({ clientId }: Props) {
                   </div>
                 ))}
                 {selectedImageIds.size === 0 && (
-                  <p className="text-xs text-white-30 italic">No images selected</p>
+                  <p className="text-xs text-white-30 italic">No media selected</p>
                 )}
               </div>
             </div>
@@ -3608,21 +3744,49 @@ function ImagePreviewModal({
 // ── Media Library Picker Modal ─────────────────────────────────────────
 //
 // Lets users pull ready images from their workspace media library into the
-// listing campaign as candidate tiles. Reuses `useAssets` with status/
-// assetType filters so the server returns only usable images.
+// listing campaign as candidate tiles. Supports folder browsing, tag
+// filtering, and multi-select / batch add.
 
 interface MediaLibraryPickerModalProps {
   clientId: string;
   onClose: () => void;
   onPick: (asset: MediaAsset) => void | Promise<void>;
+  onPickMany: (assets: MediaAsset[]) => void | Promise<void>;
 }
 
-function MediaLibraryPickerModal({ clientId, onClose, onPick }: MediaLibraryPickerModalProps) {
-  const { data: assets, isLoading } = useAssets(clientId, {
-    assetType: 'image',
-    status: 'READY',
-  });
+const TAG_COLORS: Record<string, string> = {
+  exterior: 'bg-blue-500/20 text-blue-300',
+  kitchen: 'bg-amber-500/20 text-amber-300',
+  living_room: 'bg-emerald-500/20 text-emerald-300',
+  bedroom: 'bg-purple-500/20 text-purple-300',
+  bathroom: 'bg-cyan-500/20 text-cyan-300',
+  backyard: 'bg-lime-500/20 text-lime-300',
+  dining_room: 'bg-orange-500/20 text-orange-300',
+};
+
+function MediaLibraryPickerModal({ clientId, onClose, onPick, onPickMany }: MediaLibraryPickerModalProps) {
+  // Folder / tag filter state
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null); // null = All
+  const [activeTag, setActiveTag] = useState<string>(''); // '' = no tag filter
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pickingId, setPickingId] = useState<string | null>(null);
+  const [batchAdding, setBatchAdding] = useState(false);
+
+  // Data queries
+  const { data: assets, isLoading: assetsLoading } = useAssets(clientId, {
+    status: 'READY',
+    ...(activeFolderId === '__unfiled__' ? { folderId: 'UNFILED' } : activeFolderId ? { folderId: activeFolderId } : {}),
+    ...(activeTag ? { tag: activeTag } : {}),
+  });
+  const { data: folders } = useFolders(clientId);
+  const { data: tagDefaults } = useAssetTagDefaults(clientId);
+
+  // Collect unique tags across visible assets + defaults
+  const availableTags = (() => {
+    const set = new Set<string>(tagDefaults ?? []);
+    assets?.forEach((a) => a.tags?.forEach((t) => set.add(t)));
+    return Array.from(set).sort();
+  })();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -3631,6 +3795,11 @@ function MediaLibraryPickerModal({ clientId, onClose, onPick }: MediaLibraryPick
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
+
+  // Reset selection when filters change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeFolderId, activeTag]);
 
   const handlePick = async (asset: MediaAsset) => {
     setPickingId(asset.id);
@@ -3641,6 +3810,45 @@ function MediaLibraryPickerModal({ clientId, onClose, onPick }: MediaLibraryPick
     }
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleAddSelected = async () => {
+    if (!assets) return;
+    const selected = assets.filter((a) => selectedIds.has(a.id));
+    if (selected.length === 0) return;
+    setBatchAdding(true);
+    try {
+      await onPickMany(selected);
+    } finally {
+      setBatchAdding(false);
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleAddAllFolder = async () => {
+    if (!assets || assets.length === 0) return;
+    setBatchAdding(true);
+    try {
+      await onPickMany(assets);
+    } finally {
+      setBatchAdding(false);
+    }
+  };
+
+  const selectAll = () => {
+    if (!assets) return;
+    setSelectedIds(new Set(assets.map((a) => a.id)));
+  };
+
+  const isSpecificFolder = activeFolderId !== null && activeFolderId !== '__unfiled__';
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
@@ -3650,6 +3858,7 @@ function MediaLibraryPickerModal({ clientId, onClose, onPick }: MediaLibraryPick
         className="relative w-full max-w-3xl mx-4 bg-sp-surface rounded-2xl overflow-hidden max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white-10 shrink-0">
           <h3 className="text-sm font-semibold text-white-100 flex items-center gap-2">
             <Images className="w-4 h-4" /> Add from media library
@@ -3662,8 +3871,100 @@ function MediaLibraryPickerModal({ clientId, onClose, onPick }: MediaLibraryPick
           </button>
         </div>
 
+        {/* Folder tabs */}
+        <div className="px-4 pt-3 pb-1 shrink-0 space-y-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {/* All pill */}
+            <button
+              type="button"
+              onClick={() => setActiveFolderId(null)}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1',
+                activeFolderId === null
+                  ? 'bg-accent-green-110/20 text-accent-green-110 border border-accent-green-110/40'
+                  : 'bg-white-5 text-white-60 hover:bg-white-10',
+              )}
+            >
+              <FolderOpen className="w-3 h-3" />
+              All
+            </button>
+            {/* Unfiled pill */}
+            <button
+              type="button"
+              onClick={() => setActiveFolderId('__unfiled__')}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
+                activeFolderId === '__unfiled__'
+                  ? 'bg-accent-green-110/20 text-accent-green-110 border border-accent-green-110/40'
+                  : 'bg-white-5 text-white-60 hover:bg-white-10',
+              )}
+            >
+              Unfiled
+            </button>
+            {/* Folder pills */}
+            {folders?.map((folder) => (
+              <button
+                key={folder.id}
+                type="button"
+                onClick={() => setActiveFolderId(folder.id)}
+                className={cn(
+                  'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1',
+                  activeFolderId === folder.id
+                    ? 'bg-accent-green-110/20 text-accent-green-110 border border-accent-green-110/40'
+                    : 'bg-white-5 text-white-60 hover:bg-white-10',
+                )}
+              >
+                <FolderOpen className="w-3 h-3" />
+                {folder.name} ({folder.assetCount})
+              </button>
+            ))}
+          </div>
+
+          {/* Tag filter pills */}
+          {availableTags.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              <Tag className="w-3 h-3 text-white-30 shrink-0" />
+              {availableTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setActiveTag((prev) => (prev === tag ? '' : tag))}
+                  className={cn(
+                    'px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap transition-colors',
+                    activeTag === tag
+                      ? 'ring-1 ring-accent-green-110 ' + (TAG_COLORS[tag] ?? 'bg-white-10 text-white-80')
+                      : TAG_COLORS[tag] ?? 'bg-white-10 text-white-60 hover:bg-white-15',
+                  )}
+                >
+                  {tag.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Add entire folder button */}
+          {isSpecificFolder && assets && assets.length > 0 && (
+            <div className="flex items-center">
+              <button
+                type="button"
+                disabled={batchAdding}
+                onClick={handleAddAllFolder}
+                className="flex items-center gap-1 px-3 py-1 rounded-lg bg-accent-green-110 text-sp-surface text-xs font-semibold hover:bg-accent-green-110/90 transition-colors disabled:opacity-60"
+              >
+                {batchAdding ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Plus className="w-3 h-3" />
+                )}
+                Add all {assets.length} file{assets.length === 1 ? '' : 's'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Grid area */}
         <div className="flex-1 overflow-auto p-4">
-          {isLoading ? (
+          {assetsLoading ? (
             <div className="flex items-center justify-center py-12 text-white-40 text-sm gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
               Loading library…
@@ -3671,62 +3972,160 @@ function MediaLibraryPickerModal({ clientId, onClose, onPick }: MediaLibraryPick
           ) : !assets || assets.length === 0 ? (
             <div className="text-center py-12 text-white-40 text-sm">
               <Images className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p>No images in the library yet.</p>
-              <p className="text-xs mt-1 text-white-30">Upload or generate images first from the Assets page.</p>
+              {activeFolderId || activeTag ? (
+                <>
+                  <p>No media matches the current filters.</p>
+                  <p className="text-xs mt-1 text-white-30">Try a different folder or tag.</p>
+                </>
+              ) : (
+                <>
+                  <p>No media in the library yet.</p>
+                  <p className="text-xs mt-1 text-white-30">Upload or generate media first from the Assets page.</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {assets.map((asset) => {
                 const busy = pickingId === asset.id;
+                const selected = selectedIds.has(asset.id);
                 return (
-                  <button
+                  <div
                     key={asset.id}
-                    type="button"
-                    disabled={busy || !asset.url}
-                    onClick={() => handlePick(asset)}
                     className={cn(
-                      'group relative aspect-square rounded-lg overflow-hidden bg-black/40 border border-white-10 hover:border-accent-green-110 transition-colors',
+                      'group relative aspect-square rounded-lg overflow-hidden bg-black/40 border-2 transition-colors',
+                      selected ? 'border-accent-green-110' : 'border-white-10 hover:border-white-20',
                       busy && 'opacity-60 cursor-wait',
                     )}
-                    title={asset.filename ?? asset.caption ?? 'Add to campaign'}
                   >
-                    {asset.thumbnailUrl || asset.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={asset.thumbnailUrl ?? asset.url ?? ''}
-                        alt={asset.altText ?? asset.filename ?? ''}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white-30">
-                        <Images className="w-6 h-6" />
+                    {/* Checkbox */}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleSelect(asset.id); }}
+                      className={cn(
+                        'absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded flex items-center justify-center transition-colors',
+                        selected
+                          ? 'bg-accent-green-110 text-sp-surface'
+                          : 'bg-black/50 text-white-40 opacity-0 group-hover:opacity-100',
+                      )}
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Image */}
+                    <button
+                      type="button"
+                      disabled={busy || !asset.url}
+                      onClick={() => handlePick(asset)}
+                      className="w-full h-full"
+                      title={asset.filename ?? asset.caption ?? 'Add to campaign'}
+                    >
+                      {asset.thumbnailUrl || asset.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={asset.thumbnailUrl ?? asset.url ?? ''}
+                          alt={asset.altText ?? asset.filename ?? ''}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white-30">
+                          <Images className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        {busy ? (
+                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        ) : (
+                          <span className="px-2 py-1 rounded bg-accent-green-110 text-sp-surface text-xs font-semibold flex items-center gap-1">
+                            <Plus className="w-3 h-3" />
+                            Add
+                          </span>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Tag chips at bottom */}
+                    {asset.tags && asset.tags.length > 0 && (
+                      <div className="absolute bottom-1 left-1 right-6 flex items-center gap-0.5 pointer-events-none">
+                        {asset.tags.slice(0, 2).map((tag) => (
+                          <span
+                            key={tag}
+                            className={cn(
+                              'px-1.5 py-px rounded-full text-[9px] font-medium truncate',
+                              TAG_COLORS[tag] ?? 'bg-white-10 text-white-60',
+                            )}
+                          >
+                            {tag.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                        {asset.tags.length > 2 && (
+                          <span className="px-1 py-px rounded-full text-[9px] text-white-40 bg-white-10">
+                            +{asset.tags.length - 2}
+                          </span>
+                        )}
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      {busy ? (
-                        <Loader2 className="w-5 h-5 text-white animate-spin" />
-                      ) : (
-                        <span className="px-2 py-1 rounded bg-accent-green-110 text-sp-surface text-xs font-semibold flex items-center gap-1">
-                          <Plus className="w-3 h-3" />
-                          Add
-                        </span>
-                      )}
-                    </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 p-3 border-t border-white-10 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-white-10 text-white-80 text-xs font-medium hover:bg-white-20 transition-colors"
-          >
-            Done
-          </button>
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 p-3 border-t border-white-10 shrink-0">
+          <div className="flex items-center gap-2 text-xs">
+            {assets && assets.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={selectedIds.size === (assets?.length ?? 0) ? () => setSelectedIds(new Set()) : selectAll}
+                  className="text-white-40 hover:text-white-80 transition-colors"
+                >
+                  {selectedIds.size === (assets?.length ?? 0) ? 'Clear' : 'Select all'}
+                </button>
+                {selectedIds.size > 0 && (
+                  <span className="text-white-30">
+                    {selectedIds.size} selected
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="px-3 py-1.5 text-xs text-white-40 hover:text-white-80 transition-colors"
+                >
+                  Clear selection
+                </button>
+                <button
+                  type="button"
+                  disabled={batchAdding}
+                  onClick={handleAddSelected}
+                  className="px-4 py-1.5 rounded-lg bg-accent-green-110 text-sp-surface text-xs font-semibold hover:bg-accent-green-110/90 transition-colors disabled:opacity-60 flex items-center gap-1"
+                >
+                  {batchAdding ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Plus className="w-3 h-3" />
+                  )}
+                  Add {selectedIds.size} selected
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-1.5 rounded-lg bg-white-10 text-white-80 text-xs font-medium hover:bg-white-20 transition-colors"
+              >
+                Done
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
