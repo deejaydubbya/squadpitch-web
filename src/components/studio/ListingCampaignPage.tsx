@@ -499,6 +499,7 @@ export function ListingCampaignPage({ clientId }: Props) {
   const uploadImages = useUploadCampaignImages(clientId);
   const uploadAsset = useUploadAsset(clientId);
   const createFolder = useCreateFolder(clientId);
+  const { data: existingFolders } = useFolders(clientId);
   const regeneratePost = useRegeneratePost(clientId);
 
   // Existing listings for selector
@@ -1875,10 +1876,17 @@ export function ListingCampaignPage({ clientId }: Props) {
 
       try {
         // Ensure we have a folder (create once, reuse across uploads in this session).
+        // If a folder with the same name already exists, reuse it instead of
+        // trying to create a duplicate (which would 409).
         let folderId = campaignFolderId;
         if (!folderId) {
-          const folder = await createFolder.mutateAsync(folderName);
-          folderId = folder.id;
+          const existing = existingFolders?.find((f) => f.name === folderName);
+          if (existing) {
+            folderId = existing.id;
+          } else {
+            const folder = await createFolder.mutateAsync(folderName);
+            folderId = folder.id;
+          }
           setCampaignFolderId(folderId);
         }
 
