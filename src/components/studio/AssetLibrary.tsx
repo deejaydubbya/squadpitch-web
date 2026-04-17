@@ -245,22 +245,25 @@ export function AssetLibrary({ clientId }: Props) {
     }
   }, [showUploadModal, activeFolderId]);
 
+  // Create folder inline in upload modal, then select it
+  const handleCreateUploadFolder = () => {
+    if (!uploadNewFolderName.trim()) return;
+    createFolder.mutate(uploadNewFolderName.trim(), {
+      onSuccess: (folder) => {
+        setUploadFolderId(folder.id);
+        setUploadNewFolderName('');
+        setShowUploadNewFolder(false);
+      },
+    });
+  };
+
   const [uploadQueue, setUploadQueue] = useState<{ total: number; done: number } | null>(null);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
       if (!files?.length) return;
 
-      // If creating a new folder inline during upload, create it first
-      let targetFolderId = uploadFolderId || undefined;
-      if (showUploadNewFolder && uploadNewFolderName.trim()) {
-        try {
-          const folder = await createFolder.mutateAsync(uploadNewFolderName.trim());
-          targetFolderId = folder.id;
-        } catch {
-          // If folder creation fails (e.g., duplicate), continue without folder
-        }
-      }
+      const targetFolderId = uploadFolderId || undefined;
 
       const fileList = Array.from(files);
       if (fileList.length === 1) {
@@ -318,7 +321,7 @@ export function AssetLibrary({ clientId }: Props) {
       setShowUploadNewFolder(false);
       setUploadQueue(null);
     },
-    [uploadAsset, uploadAltText, uploadCaption, uploadMode, uploadFolderId, showUploadNewFolder, uploadNewFolderName, createFolder, autoTagAsset, updateAssetTags]
+    [uploadAsset, uploadAltText, uploadCaption, uploadMode, uploadFolderId, autoTagAsset, updateAssetTags]
   );
 
   const handleDrop = useCallback(
@@ -831,10 +834,19 @@ export function AssetLibrary({ clientId }: Props) {
                       type="text"
                       value={uploadNewFolderName}
                       onChange={(e) => setUploadNewFolderName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleCreateUploadFolder(); if (e.key === 'Escape') { setShowUploadNewFolder(false); setUploadNewFolderName(''); } }}
                       placeholder="New folder name"
                       autoFocus
                       className="flex-1 px-2 py-1 rounded bg-white-5 border border-white-10 text-xs text-white-100 placeholder:text-white-40 focus:outline-none focus:border-accent-green-110"
                     />
+                    <button
+                      onClick={handleCreateUploadFolder}
+                      disabled={!uploadNewFolderName.trim() || createFolder.isPending}
+                      className="p-0.5 rounded hover:bg-white-10 text-accent-green-110 disabled:opacity-50"
+                      title="Create folder"
+                    >
+                      {createFolder.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                    </button>
                     <button
                       onClick={() => { setShowUploadNewFolder(false); setUploadNewFolderName(''); }}
                       className="text-white-40 hover:text-white-100"
