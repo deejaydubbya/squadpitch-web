@@ -1912,7 +1912,9 @@ export function ListingCampaignPage({ clientId }: Props) {
           setCampaignFolderId(folderId);
         }
 
-        // Upload each file sequentially, then auto-tag + add to candidates.
+        // Upload each file sequentially, collect uploaded assets, then add
+        // them all at once so hero selection considers the entire batch.
+        const uploadedAssets: MediaAsset[] = [];
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           setDirectUploadCount(files.length - i);
@@ -1927,13 +1929,14 @@ export function ListingCampaignPage({ clientId }: Props) {
             });
             // Auto-tag in background (same as media library pipeline).
             autoTagAssetFetch(clientId, asset.id);
-            // Add to candidate pool using the same logic as library picker.
-            if (!isVideo) {
-              await addFromLibrary(asset);
-            }
+            if (!isVideo) uploadedAssets.push(asset);
           } catch {
             // Skip individual failures but continue with the rest.
           }
+        }
+        // Add all uploaded images at once — hero is chosen from the full batch.
+        if (uploadedAssets.length > 0) {
+          await addManyFromLibrary(uploadedAssets);
         }
       } catch {
         setSplitNotice('Couldn\u2019t create campaign folder.');
