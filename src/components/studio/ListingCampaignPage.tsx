@@ -2222,6 +2222,15 @@ export function ListingCampaignPage({ clientId }: Props) {
           </div>
         )}
 
+        {/* Pre-compute selected label counts for duplicate warnings */}
+        {(() => {
+          const selLabelCounts: Record<string, number> = {};
+          for (const c of candidateImages) {
+            if (selectedImageIds.has(c.id)) {
+              selLabelCounts[c.label] = (selLabelCounts[c.label] ?? 0) + 1;
+            }
+          }
+          return (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
           {candidateImages.map((c) => {
             const selected = selectedImageIds.has(c.id);
@@ -2230,6 +2239,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             const enhanceReady = hasEnhanced(c);
             const canEnhance =
               (c.qualityLabel === 'low' || c.qualityLabel === 'fair') && !enhanceReady && !c.enhancing;
+            const labelOverload = selected && (selLabelCounts[c.label] ?? 0) >= 3;
             return (
               <div
                 key={c.id}
@@ -2342,7 +2352,14 @@ export function ListingCampaignPage({ clientId }: Props) {
                 </div>
                 {/* Label + actions */}
                 <div className="px-2.5 py-1.5 bg-white-5">
-                  <p className="text-xs font-medium text-white-80 truncate">{LABEL_DISPLAY[c.label]}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-medium text-white-80 truncate flex-1">{LABEL_DISPLAY[c.label]}</p>
+                    {labelOverload && (
+                      <span className="shrink-0 text-[9px] text-orange-400/80 font-semibold flex items-center gap-0.5" title={`${selLabelCounts[c.label]} ${LABEL_DISPLAY[c.label]} images selected — consider keeping only the best`}>
+                        <AlertTriangle className="w-2.5 h-2.5" />{selLabelCounts[c.label]}×
+                      </span>
+                    )}
+                  </div>
                   {(() => {
                     const caption = c.description || (isHero ? 'Hero image' : c.layoutRole === 'gallery' ? 'Gallery image' : '');
                     return caption ? (
@@ -2402,6 +2419,8 @@ export function ListingCampaignPage({ clientId }: Props) {
             );
           })}
         </div>
+          );
+        })()}
 
         <div className="flex items-center justify-between bg-white-5 border border-white-10 rounded-xl p-4">
           {candidateImages.length > 0 ? (
@@ -2413,6 +2432,25 @@ export function ListingCampaignPage({ clientId }: Props) {
                 {selectedCount > 10 && (
                   <p className="text-orange-400/80 text-xs mt-0.5">Consider narrowing to 5–8 for a focused campaign</p>
                 )}
+                {(() => {
+                  // Warn when multiple selected images share the same category.
+                  const counts: Record<string, number> = {};
+                  for (const c of candidateImages) {
+                    if (!selectedImageIds.has(c.id)) continue;
+                    counts[c.label] = (counts[c.label] ?? 0) + 1;
+                  }
+                  const heavy = Object.entries(counts)
+                    .filter(([, n]) => n >= 3)
+                    .sort((a, b) => b[1] - a[1]);
+                  if (heavy.length === 0) return null;
+                  const parts = heavy.map(([label, n]) => `${n} ${LABEL_DISPLAY[label as ImageRegionLabel] ?? label}`);
+                  return (
+                    <p className="text-orange-400/80 text-xs mt-0.5 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      Similar images selected: {parts.join(', ')} — consider picking only the best from each category
+                    </p>
+                  );
+                })()}
               </div>
               <div className="flex gap-2">
                 <button
