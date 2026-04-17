@@ -57,6 +57,9 @@ import {
   useSaveCampaignDrafts,
   useRegeneratePost,
   useUploadCampaignImages,
+  useUploadAsset,
+  useCreateFolder,
+  autoTagAssetFetch,
   useDataItems,
   useRecommendations,
   useAssets,
@@ -318,12 +321,60 @@ const SLOT_PURPOSE_HINTS: Record<string, string> = {
   'Final Push': 'Create urgency — last chance, price anchoring, scarcity',
 };
 
+const SLOT_MEDIA_HINTS: Record<string, string> = {
+  'Launch Announcement': 'Best exterior / hero shot',
+  'Feature Highlight': 'Kitchen, living room, or upgrades',
+  'Lifestyle Story': 'Backyard, living room, or neighborhood',
+  'Authority / Social Proof': 'Polished exterior or strong detail',
+  'Final Push': 'Emotionally resonant or hero image',
+};
+
 const DEFAULT_CAMPAIGN_SLOTS: CampaignSlotConfig[] = [
   { id: 'slot-1', label: 'Launch Announcement', channel: 'INSTAGRAM', campaignDay: 1, purpose: SLOT_PURPOSE_HINTS['Launch Announcement'] },
   { id: 'slot-2', label: 'Feature Highlight', channel: 'FACEBOOK', campaignDay: 2, purpose: SLOT_PURPOSE_HINTS['Feature Highlight'] },
   { id: 'slot-3', label: 'Lifestyle Story', channel: 'INSTAGRAM', campaignDay: 3, purpose: SLOT_PURPOSE_HINTS['Lifestyle Story'] },
   { id: 'slot-4', label: 'Authority / Social Proof', channel: 'LINKEDIN', campaignDay: 5, purpose: SLOT_PURPOSE_HINTS['Authority / Social Proof'] },
   { id: 'slot-5', label: 'Final Push', channel: 'FACEBOOK', campaignDay: 7, purpose: SLOT_PURPOSE_HINTS['Final Push'] },
+];
+
+interface SequencePreset {
+  key: string;
+  label: string;
+  description: string;
+  slots: CampaignSlotConfig[];
+}
+
+const SEQUENCE_PRESETS: SequencePreset[] = [
+  {
+    key: 'balanced',
+    label: 'Balanced',
+    description: '5 posts across 7 days — standard campaign',
+    slots: DEFAULT_CAMPAIGN_SLOTS,
+  },
+  {
+    key: 'aggressive',
+    label: 'Aggressive Launch',
+    description: '5 posts front-loaded in 4 days',
+    slots: [
+      { id: 'slot-1', label: 'Launch Announcement', channel: 'INSTAGRAM', campaignDay: 1, purpose: SLOT_PURPOSE_HINTS['Launch Announcement'] },
+      { id: 'slot-2', label: 'Feature Highlight', channel: 'FACEBOOK', campaignDay: 1, purpose: SLOT_PURPOSE_HINTS['Feature Highlight'] },
+      { id: 'slot-3', label: 'Lifestyle Story', channel: 'INSTAGRAM', campaignDay: 2, purpose: SLOT_PURPOSE_HINTS['Lifestyle Story'] },
+      { id: 'slot-4', label: 'Authority / Social Proof', channel: 'LINKEDIN', campaignDay: 3, purpose: SLOT_PURPOSE_HINTS['Authority / Social Proof'] },
+      { id: 'slot-5', label: 'Final Push', channel: 'FACEBOOK', campaignDay: 4, purpose: SLOT_PURPOSE_HINTS['Final Push'] },
+    ],
+  },
+  {
+    key: 'luxury',
+    label: 'Luxury Storytelling',
+    description: '5 posts spread over 10 days — slow build',
+    slots: [
+      { id: 'slot-1', label: 'Launch Announcement', channel: 'INSTAGRAM', campaignDay: 1, purpose: SLOT_PURPOSE_HINTS['Launch Announcement'] },
+      { id: 'slot-2', label: 'Lifestyle Story', channel: 'INSTAGRAM', campaignDay: 3, purpose: SLOT_PURPOSE_HINTS['Lifestyle Story'] },
+      { id: 'slot-3', label: 'Feature Highlight', channel: 'FACEBOOK', campaignDay: 5, purpose: SLOT_PURPOSE_HINTS['Feature Highlight'] },
+      { id: 'slot-4', label: 'Authority / Social Proof', channel: 'LINKEDIN', campaignDay: 7, purpose: SLOT_PURPOSE_HINTS['Authority / Social Proof'] },
+      { id: 'slot-5', label: 'Final Push', channel: 'FACEBOOK', campaignDay: 10, purpose: SLOT_PURPOSE_HINTS['Final Push'] },
+    ],
+  },
 ];
 
 const AVAILABLE_CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'X'];
@@ -434,6 +485,10 @@ export function ListingCampaignPage({ clientId }: Props) {
   // Media library picker — let users pull ready images from their asset library
   // into the campaign as candidate images.
   const [libraryPickerOpen, setLibraryPickerOpen] = useState<boolean>(false);
+  // Direct upload into campaign — auto-creates a folder in the media library
+  const [campaignFolderId, setCampaignFolderId] = useState<string | null>(null);
+  const [directUploadCount, setDirectUploadCount] = useState(0);
+  const directUploadRef = useRef<HTMLInputElement>(null);
 
   // Mutations
   const urlImport = useListingUrlImport(clientId);
@@ -441,6 +496,8 @@ export function ListingCampaignPage({ clientId }: Props) {
   const extractImage = useExtractListingImage(clientId);
   const saveDrafts = useSaveCampaignDrafts(clientId);
   const uploadImages = useUploadCampaignImages(clientId);
+  const uploadAsset = useUploadAsset(clientId);
+  const createFolder = useCreateFolder(clientId);
   const regeneratePost = useRegeneratePost(clientId);
 
   // Existing listings for selector
@@ -1273,6 +1330,37 @@ export function ListingCampaignPage({ clientId }: Props) {
     const selectAll = () => setSelectedImageIds(new Set(candidateImages.map((c) => c.id)));
     const selectNone = () => setSelectedImageIds(new Set());
 
+    // Auto-pick a balanced, high-quality set (target 5–8 images).
+    // Strategy: one per label category (prioritized), fill rest by quality score.
+    const autoPick = () => {
+      const TARGET = 7;
+      const sorted = [...candidateImages].sort((a, b) => {
+        // Hero first, then by label priority, then by quality
+        if (a.layoutRole === 'hero' && b.layoutRole !== 'hero') return -1;
+        if (b.layoutRole === 'hero' && a.layoutRole !== 'hero') return 1;
+        const pa = LABEL_PRIORITY[a.label] ?? 0;
+        const pb = LABEL_PRIORITY[b.label] ?? 0;
+        if (pa !== pb) return pb - pa;
+        return (b.qualityScore ?? 0) - (a.qualityScore ?? 0);
+      });
+      const picked = new Set<string>();
+      const usedLabels = new Set<string>();
+      // Pass 1: best image per category
+      for (const c of sorted) {
+        if (picked.size >= TARGET) break;
+        if (!usedLabels.has(c.label)) {
+          usedLabels.add(c.label);
+          picked.add(c.id);
+        }
+      }
+      // Pass 2: fill remaining slots by quality
+      for (const c of sorted) {
+        if (picked.size >= TARGET) break;
+        if (!picked.has(c.id)) picked.add(c.id);
+      }
+      setSelectedImageIds(picked);
+    };
+
     // Enhance a candidate — runs Canvas upscale/sharpen/levels client-side.
     // Always materializes enhancedUrl (from original), plus cleanedEnhancedUrl
     // if a cleaned base is available, so toggling clean while enhance is on
@@ -1802,6 +1890,60 @@ export function ListingCampaignPage({ clientId }: Props) {
       });
     };
 
+    // ── Direct upload handler ──
+    // Uploads files to the media library (with auto-folder + auto-tag), then
+    // adds them to the campaign candidate pool — same pipeline as the library.
+    const handleDirectUpload = async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+
+      // Build a smart folder name from the listing address or a fallback.
+      const folderName = form.address
+        ? `Campaign — ${form.address}${form.city ? `, ${form.city}` : ''}`
+        : `Listing Campaign ${new Date().toLocaleDateString()}`;
+
+      setDirectUploadCount(files.length);
+
+      try {
+        // Ensure we have a folder (create once, reuse across uploads in this session).
+        let folderId = campaignFolderId;
+        if (!folderId) {
+          const folder = await createFolder.mutateAsync(folderName);
+          folderId = folder.id;
+          setCampaignFolderId(folderId);
+        }
+
+        // Upload each file sequentially, then auto-tag + add to candidates.
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          setDirectUploadCount(files.length - i);
+          try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const isVideo = file.type.startsWith('video/');
+            const asset = await uploadAsset.mutateAsync({
+              formData: fd,
+              assetType: isVideo ? 'video' : 'image',
+              folderId,
+            });
+            // Auto-tag in background (same as media library pipeline).
+            autoTagAssetFetch(clientId, asset.id);
+            // Add to candidate pool using the same logic as library picker.
+            if (!isVideo) {
+              await addFromLibrary(asset);
+            }
+          } catch {
+            // Skip individual failures but continue with the rest.
+          }
+        }
+      } catch {
+        setSplitNotice('Couldn\u2019t create campaign folder.');
+      } finally {
+        setDirectUploadCount(0);
+        // Reset the file input so re-selecting the same files triggers onChange.
+        if (directUploadRef.current) directUploadRef.current.value = '';
+      }
+    };
+
     return (
       <div className="max-w-4xl mx-auto py-8 px-4">
         <button
@@ -1835,48 +1977,79 @@ export function ListingCampaignPage({ clientId }: Props) {
               <Images className="w-3.5 h-3.5" />
               From library
             </button>
-            {weakCount > 0 && (
-              <button
-                onClick={enhanceAllWeak}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent-green-110/15 text-accent-green-110 hover:bg-accent-green-110/25 transition-colors font-medium"
-              >
-                <Wand2 className="w-3.5 h-3.5" />
-                Enhance {weakCount} weak
-              </button>
-            )}
-            {uncleanedCount > 0 && (
-              <button
-                onClick={cleanAllOverlays}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 transition-colors font-medium"
-                title="Detect and remove overlay labels / badges on every image"
-              >
-                <Eraser className="w-3.5 h-3.5" />
-                Clean overlays
-              </button>
-            )}
             <button
-              onClick={selectAll}
-              className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 hover:bg-white-20 transition-colors"
+              onClick={() => directUploadRef.current?.click()}
+              disabled={directUploadCount > 0}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white-10 text-white-80 hover:bg-white-20 transition-colors font-medium disabled:opacity-50"
+              title="Upload files directly — they'll be saved to your media library automatically"
             >
-              Select all
+              {directUploadCount > 0 ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Upload className="w-3.5 h-3.5" />
+              )}
+              {directUploadCount > 0 ? `Uploading ${directUploadCount}…` : 'Upload'}
             </button>
-            <button
-              onClick={selectNone}
-              className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 hover:bg-white-20 transition-colors"
-            >
-              Clear
-            </button>
+            <input
+              ref={directUploadRef}
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={(e) => handleDirectUpload(e.target.files)}
+            />
+            {candidateImages.length > 0 && (
+              <>
+                {candidateImages.length > 5 && (
+                  <button
+                    onClick={autoPick}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent-green-110/15 text-accent-green-110 hover:bg-accent-green-110/25 transition-colors font-medium"
+                    title="Auto-select a balanced set of 5–8 high-quality images across categories"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Auto-pick best
+                  </button>
+                )}
+                {weakCount > 0 && (
+                  <button
+                    onClick={enhanceAllWeak}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent-green-110/15 text-accent-green-110 hover:bg-accent-green-110/25 transition-colors font-medium"
+                  >
+                    <Wand2 className="w-3.5 h-3.5" />
+                    Enhance {weakCount} weak
+                  </button>
+                )}
+                {uncleanedCount > 0 && (
+                  <button
+                    onClick={cleanAllOverlays}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 transition-colors font-medium"
+                    title="Detect and remove overlay labels / badges on every image"
+                  >
+                    <Eraser className="w-3.5 h-3.5" />
+                    Clean overlays
+                  </button>
+                )}
+                <button
+                  onClick={selectAll}
+                  className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 hover:bg-white-20 transition-colors"
+                >
+                  Select all
+                </button>
+                <button
+                  onClick={selectNone}
+                  className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 hover:bg-white-20 transition-colors"
+                >
+                  Clear
+                </button>
+              </>
+            )}
           </div>
         </div>
         <p className="text-white-40 text-sm mb-4">
-          Choose which media to use in your campaign. Low-quality photos can be enhanced safely — sharpened and brightness-corrected, never altered in any misleading way.
+          {candidateImages.length === 0
+            ? 'Add photos from your library or use manual crop to get started. Recommended: 5\u20138 images for a strong campaign.'
+            : 'Choose which media to use in your campaign. Recommended: 5\u20138 images. Low-quality photos can be enhanced safely.'}
         </p>
-        {extractImage.isPending && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20 text-accent-green-110 text-sm flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-            Extracting property details from screenshot — this may take a moment…
-          </div>
-        )}
         {candidateImages.length === 0 && screenshotPreview && !extractImage.isPending && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-white-5 border border-white-10 text-white-60 text-sm flex items-start gap-2">
             <Crop className="w-4 h-4 mt-0.5 shrink-0" />
@@ -2228,23 +2401,42 @@ export function ListingCampaignPage({ clientId }: Props) {
         </div>
 
         <div className="flex items-center justify-between bg-white-5 border border-white-10 rounded-xl p-4">
-          <p className="text-white-60 text-sm">
-            <span className="font-semibold text-white-80">{selectedCount}</span> of {candidateImages.length} selected
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setStep('form')}
-              className="px-4 py-2 rounded-lg bg-white-10 text-white-60 font-medium text-sm hover:bg-white-20 transition-colors"
-            >
-              Skip media
-            </button>
-            <button
-              onClick={() => setStep('form')}
-              className="px-5 py-2 rounded-lg bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
-            >
-              Use {selectedCount} file{selectedCount === 1 ? '' : 's'}
-            </button>
-          </div>
+          {candidateImages.length > 0 ? (
+            <>
+              <div>
+                <p className="text-white-60 text-sm">
+                  <span className="font-semibold text-white-80">{selectedCount}</span> of {candidateImages.length} selected
+                </p>
+                {selectedCount > 10 && (
+                  <p className="text-orange-400/80 text-xs mt-0.5">Consider narrowing to 5–8 for a focused campaign</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setStep('form')}
+                  className="px-4 py-2 rounded-lg bg-white-10 text-white-60 font-medium text-sm hover:bg-white-20 transition-colors"
+                >
+                  Skip media
+                </button>
+                <button
+                  onClick={() => setStep('form')}
+                  className="px-5 py-2 rounded-lg bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
+                >
+                  Use {selectedCount} file{selectedCount === 1 ? '' : 's'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between w-full">
+              <p className="text-white-40 text-sm">No media added yet — add from your library or skip for now</p>
+              <button
+                onClick={() => setStep('form')}
+                className="px-4 py-2 rounded-lg bg-white-10 text-white-60 font-medium text-sm hover:bg-white-20 transition-colors"
+              >
+                Continue without media
+              </button>
+            </div>
+          )}
         </div>
 
         {manualCropOpen && screenshotPreview && (
@@ -2301,16 +2493,40 @@ export function ListingCampaignPage({ clientId }: Props) {
         </button>
 
         <div className="flex items-center justify-between mb-1">
-          <h1 className="text-2xl font-bold text-white-100">Property Details</h1>
+          <h1 className="text-2xl font-bold text-white-100">Confirm Property Details</h1>
           {sourceLabel && (
             <span className="text-xs px-2.5 py-1 rounded-full bg-accent-green-110/15 text-accent-green-110">
               {sourceLabel}
             </span>
           )}
         </div>
-        <p className="text-white-40 text-sm mb-8">
-          Confirm the property info, then choose a campaign type.
+        <p className="text-white-40 text-sm mb-6">
+          Review and confirm the listing information before generating your campaign.
         </p>
+
+        {/* Listing summary card */}
+        {(form.address || form.price) && (
+          <div className="mb-6 flex items-center gap-4 p-4 rounded-xl bg-white-5 border border-white-10">
+            {(() => {
+              const heroImg = candidateImages.find((c) => c.layoutRole === 'hero' && selectedImageIds.has(c.id))
+                ?? candidateImages.find((c) => selectedImageIds.has(c.id));
+              return heroImg ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={getDisplayUrl(heroImg)} alt="Listing" className="w-20 h-20 rounded-lg object-cover border border-white-10 shrink-0" />
+              ) : null;
+            })()}
+            <div className="flex-1 min-w-0">
+              {form.address && <p className="text-sm font-semibold text-white-80 truncate">{form.address}{form.city ? `, ${form.city}` : ''}{form.state ? `, ${form.state}` : ''} {form.zip}</p>}
+              <div className="flex items-center gap-3 mt-1 text-xs text-white-40">
+                {form.price && <span className="font-semibold text-white-60">${Number(form.price).toLocaleString()}</span>}
+                {form.beds && <span>{form.beds} bed</span>}
+                {form.baths && <span>{form.baths} bath</span>}
+                {form.sqft && <span>{Number(form.sqft).toLocaleString()} sqft</span>}
+                {form.propertyType && form.propertyType !== 'Single Family' && <span>{form.propertyType}</span>}
+              </div>
+            </div>
+          </div>
+        )}
 
         {extractImage.isPending && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20 text-accent-green-110 text-sm flex items-center gap-2">
@@ -2443,9 +2659,10 @@ export function ListingCampaignPage({ clientId }: Props) {
               value={form.campaignNotes}
               onChange={(e) => updateField('campaignNotes', e.target.value)}
               rows={2}
-              placeholder="Any special instructions for this campaign..."
+              placeholder="e.g. Emphasize recent upgrades, target first-time buyers, highlight neighborhood walkability..."
               className="w-full px-4 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30 resize-none"
             />
+            <p className="text-[10px] text-white-20 mt-1">These notes shape the AI&apos;s messaging strategy — mention what to emphasize, who to target, or what to avoid.</p>
           </div>
 
           {/* Selected images strip */}
@@ -2589,9 +2806,33 @@ export function ListingCampaignPage({ clientId }: Props) {
             <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">Campaign Sequence</h2>
             <span className="text-xs text-white-30">{campaignSlots.length} post{campaignSlots.length === 1 ? '' : 's'} over {maxDay} day{maxDay === 1 ? '' : 's'}</span>
           </div>
-          <p className="text-xs text-white-30 mb-4">
+          <p className="text-xs text-white-30 mb-3">
             Define the structure of your campaign. Each slot becomes a post with a unique angle and channel.
           </p>
+
+          {/* Preset selector */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <span className="text-[10px] text-white-25 uppercase tracking-wider mr-1">Preset</span>
+            {SEQUENCE_PRESETS.map((preset) => {
+              const isActive = preset.slots.length === campaignSlots.length &&
+                preset.slots.every((ps, i) => campaignSlots[i]?.label === ps.label && campaignSlots[i]?.campaignDay === ps.campaignDay);
+              return (
+                <button
+                  key={preset.key}
+                  onClick={() => setCampaignSlots(preset.slots.map((s) => ({ ...s })))}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                    isActive
+                      ? 'bg-accent-green-110/15 border-accent-green-110/40 text-accent-green-110'
+                      : 'bg-white-5 border-white-10 text-white-40 hover:border-white-20 hover:text-white-60',
+                  )}
+                  title={preset.description}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
 
           <div className="relative">
             {/* Mini timeline connector */}
@@ -2626,6 +2867,13 @@ export function ListingCampaignPage({ clientId }: Props) {
                           {/* Purpose hint */}
                           {purposeHint && (
                             <p className="text-[11px] text-white-25 leading-tight">{purposeHint}</p>
+                          )}
+                          {/* Media hint */}
+                          {SLOT_MEDIA_HINTS[slot.label] && (
+                            <p className="text-[11px] text-accent-green-110/50 leading-tight flex items-center gap-1">
+                              <Images className="w-3 h-3 shrink-0" />
+                              {SLOT_MEDIA_HINTS[slot.label]}
+                            </p>
                           )}
                           {/* Day + Channel row */}
                           <div className="flex items-center gap-3">
@@ -2845,11 +3093,22 @@ export function ListingCampaignPage({ clientId }: Props) {
           </div>
         </div>
 
-        {/* Schedule Preset + Action Bar */}
+        {/* Campaign Summary + Schedule + Actions */}
         <div className="bg-white-5 border border-white-10 rounded-xl p-5 space-y-4">
+          {/* Campaign summary */}
+          <div className="flex items-center gap-4 flex-wrap text-xs text-white-40">
+            <span className="flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /><span className="font-semibold text-white-60">{posts.length}</span> posts</span>
+            <span className="flex items-center gap-1.5"><CalendarPlus className="w-3.5 h-3.5" /><span className="font-semibold text-white-60">{Math.max(...posts.map((p) => p.campaignDay), 0)}</span> day campaign</span>
+            {(() => {
+              const channels = Array.from(new Set(posts.map((p) => p.channel)));
+              return <span>{channels.join(', ')}</span>;
+            })()}
+            {imagePool.length > 0 && <span><span className="font-semibold text-white-60">{imagePool.length}</span> media files</span>}
+          </div>
+
           {/* Schedule preset selector */}
-          <div>
-            <p className="text-xs font-medium text-white-40 uppercase tracking-wider mb-2">Schedule Preset</p>
+          <div className="pt-3 border-t border-white-10">
+            <p className="text-xs font-medium text-white-40 uppercase tracking-wider mb-2">Scheduling Window</p>
             <div className="flex items-center gap-2">
               {([7, 10, 14] as SchedulePreset[]).map((days) => (
                 <button
@@ -2862,34 +3121,40 @@ export function ListingCampaignPage({ clientId }: Props) {
                       : 'bg-white-10 text-white-40 hover:bg-white-20 hover:text-white-60'
                   )}
                 >
-                  {days}-day
+                  {days} days
                 </button>
               ))}
               <span className="text-xs text-white-30 ml-2">
-                Posts spaced across {schedulePreset} days
+                Posts spread evenly across {schedulePreset} days from start date
               </span>
             </div>
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center justify-between pt-2 border-t border-white-10">
+          <div className="flex items-center justify-between pt-3 border-t border-white-10">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => handleSaveDrafts(false)}
-                disabled={saveDrafts.isPending}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors disabled:opacity-50"
-              >
-                {saveDrafts.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save as Drafts
-              </button>
-              <button
-                onClick={() => handleSaveDrafts(true)}
-                disabled={saveDrafts.isPending}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors disabled:opacity-50"
-              >
-                <CalendarPlus className="w-4 h-4" />
-                Launch Campaign
-              </button>
+              <div className="text-center">
+                <button
+                  onClick={() => handleSaveDrafts(false)}
+                  disabled={saveDrafts.isPending}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors disabled:opacity-50"
+                >
+                  {saveDrafts.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save as Drafts
+                </button>
+                <p className="text-[10px] text-white-20 mt-1">Save to library for review</p>
+              </div>
+              <div className="text-center">
+                <button
+                  onClick={() => handleSaveDrafts(true)}
+                  disabled={saveDrafts.isPending}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors disabled:opacity-50"
+                >
+                  <CalendarPlus className="w-4 h-4" />
+                  Launch Campaign
+                </button>
+                <p className="text-[10px] text-white-20 mt-1">Add to planner and schedule</p>
+              </div>
             </div>
             {saveSuccess && (
               <span className={cn(
@@ -3065,7 +3330,10 @@ function CampaignPostCard({
     )}>
       {/* ─── Header ─── */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white-10">
-        <p className="text-sm font-semibold text-white-80 flex-1 min-w-0 truncate">{post.label}</p>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <ChannelIcon className="w-4 h-4 text-white-30 shrink-0" />
+          <p className="text-sm font-semibold text-white-80 truncate">{post.label}</p>
+        </div>
         <select
           value={post.channel}
           onChange={(e) => onUpdate(index, { channel: e.target.value as CampaignPost['channel'] })}
@@ -3125,10 +3393,13 @@ function CampaignPostCard({
             ) : (
               <button
                 onClick={() => setShowImagePicker(!showImagePicker)}
-                className="w-full h-32 rounded-lg border-2 border-dashed border-white-10 hover:border-white-20 flex flex-col items-center justify-center gap-2 transition-colors"
+                className="w-full h-36 rounded-lg border-2 border-dashed border-white-10 hover:border-accent-green-110/30 hover:bg-accent-green-110/5 flex flex-col items-center justify-center gap-2 transition-all group"
               >
-                <Images className="w-5 h-5 text-white-20" />
-                <span className="text-xs text-white-30">Assign an image</span>
+                <Images className="w-6 h-6 text-white-20 group-hover:text-accent-green-110/60 transition-colors" />
+                <span className="text-xs text-white-30 group-hover:text-white-60 transition-colors font-medium">Choose image for this post</span>
+                {post.imageHint && (
+                  <span className="text-[10px] text-white-20">Suggested: {post.imageHint}</span>
+                )}
               </button>
             )}
 
@@ -3193,37 +3464,38 @@ function CampaignPostCard({
 
         {/* ─── A/B Toggle ─── */}
         {post.bodyAlt && (
-          <div className="flex items-center gap-1 mb-3">
-            <div className="flex items-center bg-white-5 rounded-md p-0.5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center bg-white-5 rounded-lg p-0.5 border border-white-10">
               <button
                 onClick={() => setShowAlt(false)}
                 className={cn(
-                  'px-3 py-1 rounded text-xs font-medium transition-colors',
+                  'px-3 py-1 rounded-md text-xs font-semibold transition-colors',
                   !showAlt ? 'bg-accent-green-110 text-sp-surface' : 'text-white-30 hover:text-white-60',
                 )}
               >
-                A
+                Version A
               </button>
               <button
                 onClick={() => setShowAlt(true)}
                 className={cn(
-                  'px-3 py-1 rounded text-xs font-medium transition-colors',
+                  'px-3 py-1 rounded-md text-xs font-semibold transition-colors',
                   showAlt ? 'bg-accent-green-110 text-sp-surface' : 'text-white-30 hover:text-white-60',
                 )}
               >
-                B
+                Version B
               </button>
             </div>
+            <span className="text-[10px] text-white-20">Compare creative variations</span>
             {post.hookScore != null && (
               <span
                 className={cn(
-                  'text-[10px] px-1.5 py-0.5 rounded-full ml-auto',
+                  'text-[10px] px-1.5 py-0.5 rounded-full ml-auto font-medium',
                   post.hookScore >= 70 ? 'bg-green-500/10 text-green-400' :
                   post.hookScore >= 40 ? 'bg-yellow-500/10 text-yellow-400' :
                   'bg-red-500/10 text-red-400',
                 )}
               >
-                Hook {post.hookScore}
+                Hook score: {post.hookScore}
               </span>
             )}
           </div>
@@ -3422,8 +3694,8 @@ function ManualCropModal({ screenshotUrl, galleryContainer, existingCrops, onCan
       <div className="bg-sp-surface border border-white-10 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b border-white-10">
           <div>
-            <h2 className="text-white-100 font-semibold text-base">Draw a crop</h2>
-            <p className="text-white-40 text-xs">Click and drag over the photo you want. Release to confirm the rectangle.</p>
+            <h2 className="text-white-100 font-semibold text-base">Select a photo from the screenshot</h2>
+            <p className="text-white-40 text-xs">Click and drag a rectangle around any photo you want to use. Each crop becomes a new campaign media asset.</p>
           </div>
           <button
             type="button"
@@ -3509,8 +3781,8 @@ function ManualCropModal({ screenshotUrl, galleryContainer, existingCrops, onCan
         <div className="px-5 py-3 border-t border-white-10 flex items-center justify-between gap-3">
           <p className="text-white-40 text-xs">
             {rect
-              ? `Selection: ${(rect.w * 100).toFixed(1)}% × ${(rect.h * 100).toFixed(1)}%`
-              : 'No selection yet.'}
+              ? `Selection ready — click "Add crop" to add this as a campaign image`
+              : 'Draw a rectangle over a photo to select it'}
           </p>
           <div className="flex items-center gap-2">
             {rect && (
