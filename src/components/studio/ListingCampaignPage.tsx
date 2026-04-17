@@ -2029,13 +2029,11 @@ export function ListingCampaignPage({ clientId }: Props) {
         <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-white-100">
             {extractImage.isPending
-              ? 'Preparing campaign media…'
+              ? 'Extracting property details…'
               : candidateImages.length === 0
                 ? 'Select media for your campaign'
                 : `${candidateImages.length} media file${candidateImages.length === 1 ? '' : 's'} ready`}
           </h1>
-          {/* Hide action toolbar while extraction is running */}
-          {!extractImage.isPending && (
           <div className="flex items-center gap-2 text-xs flex-wrap">
             {screenshotPreview && (
               <button
@@ -2122,30 +2120,36 @@ export function ListingCampaignPage({ clientId }: Props) {
               </>
             )}
           </div>
-          )}
         </div>
+
+        {/* Upload progress banner — persistent during upload */}
+        {directUploadTotal > 0 && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-accent-green-110/5 border border-accent-green-110/15 flex items-center gap-3">
+            <Loader2 className="w-4 h-4 text-accent-green-110 animate-spin shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white-80">
+                Uploading {directUploadCount} of {directUploadTotal} file{directUploadTotal !== 1 ? 's' : ''}…
+              </p>
+              <div className="mt-1.5 h-1.5 rounded-full bg-white-10 overflow-hidden">
+                <div
+                  className="h-full bg-accent-green-110 rounded-full transition-all duration-300"
+                  style={{ width: `${(directUploadCount / directUploadTotal) * 100}%` }}
+                />
+              </div>
+            </div>
+            <span className="text-xs text-white-40 tabular-nums shrink-0">
+              {Math.round((directUploadCount / directUploadTotal) * 100)}%
+            </span>
+          </div>
+        )}
 
         {/* Extraction loading state — multi-step progress + skeleton cards */}
         {extractImage.isPending && (
           <div className="mb-6">
             <div className="px-4 py-4 rounded-xl bg-accent-green-110/5 border border-accent-green-110/15 mb-5">
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3">
                 <Loader2 className="w-5 h-5 text-accent-green-110 animate-spin shrink-0" />
-                <p className="text-white-80 text-sm font-medium">Analyzing your screenshot…</p>
-              </div>
-              <div className="space-y-2 pl-8">
-                <div className="flex items-center gap-2 text-xs text-accent-green-110">
-                  <div className="w-1.5 h-1.5 rounded-full bg-accent-green-110 animate-pulse" />
-                  Extracting property details
-                </div>
-                <div className="flex items-center gap-2 text-xs text-white-30">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white-20" />
-                  Finding candidate images
-                </div>
-                <div className="flex items-center gap-2 text-xs text-white-30">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white-20" />
-                  Scoring and organizing media
-                </div>
+                <p className="text-white-80 text-sm font-medium">Extracting property details from screenshot…</p>
               </div>
             </div>
             {/* Skeleton cards */}
