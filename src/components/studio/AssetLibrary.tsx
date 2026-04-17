@@ -165,22 +165,45 @@ export function AssetLibrary({ clientId }: Props) {
   const [showUploadMeta, setShowUploadMeta] = useState(false);
   const [uploadMode, setUploadMode] = useState<'image' | 'video'>('image');
 
+  const [uploadQueue, setUploadQueue] = useState<{ total: number; done: number } | null>(null);
+
   const handleFiles = useCallback(
-    (files: FileList | null) => {
+    async (files: FileList | null) => {
       if (!files?.length) return;
-      const file = files[0];
-      const formData = new FormData();
-      formData.append('file', file);
-      if (uploadAltText.trim()) formData.append('altText', uploadAltText.trim());
-      if (uploadCaption.trim()) formData.append('caption', uploadCaption.trim());
-      uploadAsset.mutate({ formData, assetType: uploadMode }, {
-        onSuccess: () => {
-          setUploadAltText('');
-          setUploadCaption('');
-          setShowUploadMeta(false);
-          setShowUploadModal(false);
-        },
-      });
+      const fileList = Array.from(files);
+      if (fileList.length === 1) {
+        // Single file — use original simple path
+        const formData = new FormData();
+        formData.append('file', fileList[0]);
+        if (uploadAltText.trim()) formData.append('altText', uploadAltText.trim());
+        if (uploadCaption.trim()) formData.append('caption', uploadCaption.trim());
+        uploadAsset.mutate({ formData, assetType: uploadMode }, {
+          onSuccess: () => {
+            setUploadAltText('');
+            setUploadCaption('');
+            setShowUploadMeta(false);
+            setShowUploadModal(false);
+          },
+        });
+        return;
+      }
+      // Multiple files — upload sequentially with progress
+      setUploadQueue({ total: fileList.length, done: 0 });
+      for (let i = 0; i < fileList.length; i++) {
+        const formData = new FormData();
+        formData.append('file', fileList[i]);
+        try {
+          await uploadAsset.mutateAsync({ formData, assetType: uploadMode });
+        } catch {
+          // Continue uploading remaining files on individual failure
+        }
+        setUploadQueue((prev) => prev ? { ...prev, done: i + 1 } : null);
+      }
+      setUploadAltText('');
+      setUploadCaption('');
+      setShowUploadMeta(false);
+      setShowUploadModal(false);
+      setUploadQueue(null);
     },
     [uploadAsset, uploadAltText, uploadCaption, uploadMode]
   );
@@ -493,7 +516,18 @@ export function AssetLibrary({ clientId }: Props) {
               onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors border-white-10 bg-white-5 hover:border-white-20"
             >
-              {uploadAsset.isPending ? (
+              {uploadQueue ? (
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-accent-green-110" />
+                  <span className="text-sm text-white-60">Uploading {uploadQueue.done}/{uploadQueue.total}...</span>
+                  <div className="w-48 h-1.5 rounded-full bg-white-10 overflow-hidden">
+                    <div
+                      className="h-full bg-accent-green-110 rounded-full transition-all"
+                      style={{ width: `${(uploadQueue.done / uploadQueue.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ) : uploadAsset.isPending ? (
                 <div className="flex items-center justify-center gap-2">
                   <Loader2 className="w-5 h-5 animate-spin text-accent-green-110" />
                   <span className="text-sm text-white-60">Uploading...</span>
@@ -510,18 +544,19 @@ export function AssetLibrary({ clientId }: Props) {
                 <div className="space-y-1">
                   <Upload className="w-6 h-6 mx-auto text-white-40" />
                   <p className="text-sm text-white-60">
-                    Drop an image here or <span className="text-accent-green-110">click to browse</span>
+                    Drop images here or <span className="text-accent-green-110">click to browse</span>
                   </p>
-                  <p className="text-xs text-white-40">JPG, PNG, WebP, GIF</p>
+                  <p className="text-xs text-white-40">JPG, PNG, WebP, GIF &middot; multiple files supported</p>
                 </div>
               )}
             </div>
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept={uploadMode === 'video' ? 'video/mp4' : 'image/jpeg,image/png,image/webp,image/gif'}
               className="hidden"
-              onChange={(e) => handleFiles(e.target.files)}
+              onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
             />
 
             <button
