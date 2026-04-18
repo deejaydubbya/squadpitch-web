@@ -388,15 +388,21 @@ export default function OverviewPage() {
       )}
 
       {/* Integrations Status */}
-      {techStack && techStack.totalCount > 0 && (
+      {techStack && (techStack.importData.length + techStack.enhanceWorkflow.length) > 0 && (
         <div className="card p-5 border-white-10">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Plug className="w-4 h-4 text-accent-green-110" />
               <h2 className="text-sm font-semibold text-white-100">Integrations</h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
-                {techStack.activeCount}/{techStack.totalCount} active
-              </span>
+              {(() => {
+                const items = [...techStack.importData, ...techStack.enhanceWorkflow];
+                const active = items.filter((i) => i.connectionStatus === 'connected').length;
+                return (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
+                    {active}/{items.length} active
+                  </span>
+                );
+              })()}
             </div>
             <Link
               href={`${base}/settings/integrations`}
@@ -405,11 +411,11 @@ export default function OverviewPage() {
               Manage
             </Link>
           </div>
-          {/* Show items by group */}
-          {(['importData', 'publishContent', 'enhanceWorkflow'] as const).map((group) => {
+          {/* Show items by group (skip publishContent — covered by Your Channels card) */}
+          {(['importData', 'enhanceWorkflow'] as const).map((group) => {
             const items = techStack[group];
             if (items.length === 0) return null;
-            const groupLabel = group === 'importData' ? 'Data Sources' : group === 'publishContent' ? 'Publishing' : 'Workflow';
+            const groupLabel = group === 'importData' ? 'Data Sources' : 'Workflow';
             return (
               <div key={group} className="mb-2 last:mb-0">
                 <p className="text-[10px] text-white-25 uppercase tracking-wider mb-1.5">{groupLabel}</p>
