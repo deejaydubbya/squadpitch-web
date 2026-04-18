@@ -121,7 +121,8 @@ export function OnboardingPostCard({
   });
 
   const asset = draftAssets?.[0] ?? null;
-  const imageUrl = draft.mediaUrl ?? (asset?.status === 'READY' ? asset.url : null);
+  // Prefer AI-generated image over scraped draft.mediaUrl (scraped images are often low-quality)
+  const imageUrl = (asset?.status === 'READY' ? asset.url : null) ?? draft.mediaUrl;
 
   const isApproved = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
   const isScheduled = draft.status === 'SCHEDULED';

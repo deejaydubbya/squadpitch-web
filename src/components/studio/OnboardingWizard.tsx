@@ -671,8 +671,9 @@ export function OnboardingWizard() {
           setTemplateLabels((prev) => [...prev, template?.title || '']);
           setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
 
-          // Fire-and-forget image generation — skip if draft already has an image from business data
-          if (draft.imageGuidance && !draft.mediaUrl) {
+          // Fire-and-forget image generation — always generate AI images during onboarding
+          // (scraped website images are often low-quality thumbnails/logos)
+          if (draft.imageGuidance) {
             apiFetch('assets/generate', {
               method: 'POST',
               body: JSON.stringify({
