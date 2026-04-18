@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// Allow large request bodies for campaign image uploads (base64 payloads)
+export const maxDuration = 60;
+
 const API_URL = process.env.SQUADPITCH_API_URL || 'http://localhost:4000';
 
 async function proxy(request: NextRequest, { params }: { params: { path: string[] } }) {

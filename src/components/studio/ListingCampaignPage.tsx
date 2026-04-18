@@ -935,8 +935,9 @@ export function ListingCampaignPage({ clientId }: Props) {
         });
         setCandidateAssetMap(newMap);
         assetMap = newMap;
-      } catch {
-        // Non-fatal — continue save without images
+      } catch (uploadErr) {
+        console.error('[campaign] Image upload failed:', uploadErr);
+        // Continue save — images can be attached later from the asset library
       }
     }
 
