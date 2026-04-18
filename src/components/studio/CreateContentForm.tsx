@@ -44,7 +44,7 @@ import {
   type ContentBlueprint,
   type SeriesTemplate,
 } from '@/hooks/useSquadpitch';
-import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
+import { CHANNEL_REGISTRY, getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useUsage } from '@/hooks/useBilling';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
@@ -216,6 +216,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const handleGenerate = () => {
     if (selectedChannels.length === 0 || !guidance.trim()) return;
     const channel = selectedChannels[0];
+    const cap = CHANNEL_REGISTRY[channel];
     const typePrefix = contentType ? `[Type: ${contentType}] ` : '';
     const fullGuidance = `[Goal: ${goal}] ${typePrefix}${guidance.trim()}`;
 
@@ -231,11 +232,21 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
       },
       {
         onSuccess: (draft) => {
-          // Auto-generate image if AI available
-          if (aiImageAvailable && !atImageLimit) {
+          const mediaGuidance = draft.imageGuidance || draft.altText || draft.body.slice(0, 500);
+
+          if (cap?.requiresVideo && !atVideoLimit) {
+            // YouTube: auto-generate video
+            generateVideo.mutate({
+              clientId,
+              guidance: mediaGuidance,
+              draftId: draft.id,
+              channel,
+            });
+          } else if (aiImageAvailable && !atImageLimit) {
+            // Auto-generate image — always for media-required channels, best-effort for others
             generateMedia.mutate({
               clientId,
-              guidance: draft.imageGuidance || draft.altText || draft.body.slice(0, 500),
+              guidance: mediaGuidance,
               draftId: draft.id,
               channel,
             });
@@ -763,6 +774,24 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             <StatusBanner error={genError.message} />
           )
         )}
+
+        {/* Channel-aware generation notices */}
+        {selectedChannels.length > 0 && (() => {
+          const ch = selectedChannels[0];
+          const cap = CHANNEL_REGISTRY[ch];
+          if (!cap) return null;
+          if (cap.requiresVideo && atVideoLimit) {
+            return (
+              <StatusBanner warning={`${getChannelLabel(ch)} requires video, but you've reached your video limit. You can still create the post and attach video later.`} />
+            );
+          }
+          if (cap.requiresMedia && !aiImageAvailable && !cap.requiresVideo) {
+            return (
+              <StatusBanner info={`${getChannelLabel(ch)} requires an image or video. AI image generation isn't enabled — you'll need to upload media after creating.`} />
+            );
+          }
+          return null;
+        })()}
 
         <div className="flex items-center justify-between">
           <button

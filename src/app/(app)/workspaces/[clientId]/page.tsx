@@ -41,6 +41,7 @@ import {
 import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
 import { SetupProgress } from '@/components/studio/SetupProgress';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { getChannelLabel } from '@/lib/channelRegistry';
 
 export default function OverviewPage() {
   const params = useParams<{ clientId: string }>();
@@ -330,6 +331,58 @@ export default function OverviewPage() {
         sourceCount={summary?.totalDataItems ?? 0}
         base={base}
       />
+
+      {/* Channel Status — show when channels are enabled */}
+      {enabledChannels.length > 0 && (
+        <div className="card p-5 border-white-10">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <LinkIcon className="w-4 h-4 text-accent-green-110" />
+              <h2 className="text-sm font-semibold text-white-100">Your Channels</h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
+                {connectedCount}/{enabledChannels.length} connected
+              </span>
+            </div>
+            <Link
+              href={`${base}/settings/channels`}
+              className="text-[11px] text-accent-green-110 hover:underline"
+            >
+              Manage
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {enabledChannels.map((ch) => {
+              const connected = connectionStatus.get(ch.channel) === true;
+              return (
+                <div
+                  key={ch.channel}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white-5 border border-white-10"
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      connected ? 'bg-green-400' : 'bg-yellow-400'
+                    }`}
+                  />
+                  <span className="text-xs text-white-80 font-medium">{getChannelLabel(ch.channel)}</span>
+                  <span className={`text-[10px] ml-auto ${connected ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {connected ? 'Connected' : 'Not connected'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {disconnectedCount > 0 && (
+            <Link
+              href={`${base}/settings/channels`}
+              className="mt-3 flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              Connect your accounts to schedule and publish content
+              <ChevronRight className="w-3 h-3" />
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Next Actions — AI Recommended */}
       {nextActions.length > 0 && (

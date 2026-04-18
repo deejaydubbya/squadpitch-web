@@ -65,6 +65,7 @@ import {
   useAssets,
   useFolders,
   useAssetTagDefaults,
+  useChannelConnectionStatus,
   type AssetFolder,
   type ListingCampaignOutput,
   type CampaignType,
@@ -78,6 +79,7 @@ import {
   type ImageSourcePass,
   type MediaAsset,
 } from '@/hooks/useSquadpitch';
+import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 
 // ── Types ──
 
@@ -501,6 +503,7 @@ export function ListingCampaignPage({ clientId }: Props) {
   const createFolder = useCreateFolder(clientId);
   const { data: existingFolders } = useFolders(clientId);
   const regeneratePost = useRegeneratePost(clientId);
+  const connectionStatus = useChannelConnectionStatus(clientId);
 
   // Existing listings for selector
   const { data: existingListings } = useDataItems(clientId, { type: 'CUSTOM', limit: 20 });
@@ -3090,6 +3093,13 @@ export function ListingCampaignPage({ clientId }: Props) {
                               />
                             </div>
                             <div className="flex items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  'w-2 h-2 rounded-full flex-shrink-0',
+                                  connectionStatus.get(slot.channel as any) ? 'bg-green-400' : 'bg-yellow-400'
+                                )}
+                                title={connectionStatus.get(slot.channel as any) ? 'Connected' : 'Not connected'}
+                              />
                               <ChIcon className="w-3.5 h-3.5 text-white-20" />
                               <select
                                 value={slot.channel}
@@ -3097,10 +3107,13 @@ export function ListingCampaignPage({ clientId }: Props) {
                                 className="px-2 py-0.5 rounded-md bg-white-5 border border-white-10 text-white-60 text-xs focus:outline-none focus:border-accent-green-110"
                               >
                                 {AVAILABLE_CHANNELS.map((ch) => (
-                                  <option key={ch} value={ch}>{ch}</option>
+                                  <option key={ch} value={ch}>{getChannelLabel(ch as any)} {connectionStatus.get(ch as any) ? '' : '(not connected)'}</option>
                                 ))}
                               </select>
                             </div>
+                            {getChannelRequirementHint(slot.channel as any) && (
+                              <p className="text-[10px] text-white-25 mt-0.5">{getChannelRequirementHint(slot.channel as any)}</p>
+                            )}
                           </div>
                         </div>
 
@@ -3148,6 +3161,22 @@ export function ListingCampaignPage({ clientId }: Props) {
             </div>
           </div>
         </div>
+
+        {/* Channel connection warnings */}
+        {(() => {
+          const disconnected = uniqueChannels.filter((ch) => !connectionStatus.get(ch as any));
+          if (disconnected.length === 0) return null;
+          return (
+            <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs mb-4">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                {disconnected.map((ch) => getChannelLabel(ch as any)).join(', ')}{' '}
+                {disconnected.length === 1 ? 'is' : 'are'} not connected.
+                You can still generate, but posts won&apos;t be publishable until you connect.
+              </span>
+            </div>
+          );
+        })()}
 
         <button
           onClick={handleGenerate}
