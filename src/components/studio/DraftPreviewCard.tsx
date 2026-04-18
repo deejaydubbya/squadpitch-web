@@ -36,7 +36,7 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
   return (
     <div className="space-y-4">
       {/* Channel connection warning */}
-      {clientId && !isConnected && (draft.status === 'DRAFT' || draft.status === 'APPROVED') && (
+      {clientId && !isConnected && (draft.status === 'DRAFT' || draft.status === 'APPROVED' || draft.status === 'PENDING_REVIEW' || draft.status === 'SCHEDULED') && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs">
           <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" />
           <span>

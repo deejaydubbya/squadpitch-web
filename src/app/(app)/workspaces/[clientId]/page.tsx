@@ -27,6 +27,7 @@ import {
   useDrafts,
   useClientAnalytics,
   useChannelSettings,
+  useChannelConnectionStatus,
   useDashboardRecommendations,
   useApproveDraft,
   usePublishDraft,
@@ -56,6 +57,7 @@ export default function OverviewPage() {
   const { data: allDrafts } = useDrafts({ clientId, limit: 100 });
   const { data: analytics } = useClientAnalytics(clientId);
   const { data: channels } = useChannelSettings(clientId);
+  const connectionStatus = useChannelConnectionStatus(clientId);
   const { data: recommendations } = useDashboardRecommendations(clientId);
   const duplicate = useDuplicateDraft();
   const acceptRec = useAcceptRecommendation(clientId);
@@ -64,6 +66,8 @@ export default function OverviewPage() {
   const base = `/workspaces/${clientId}`;
 
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
+  const connectedCount = connectionStatus.size;
+  const disconnectedCount = enabledChannels.filter((c) => !connectionStatus.get(c.channel)).length;
   const summary = recommendations?.summary;
   const isRE = client.industryKey === 'real_estate';
 
@@ -100,8 +104,11 @@ export default function OverviewPage() {
     if (failed > 0) {
       items.push({ label: 'Failed to publish', count: failed, href: `${base}/planner`, accent: 'text-red-400' });
     }
+    if (disconnectedCount > 0) {
+      items.push({ label: 'Channel(s) not connected', count: disconnectedCount, href: `${base}/settings/channels`, accent: 'text-orange-400' });
+    }
     return items;
-  }, [analytics, allDrafts, base]);
+  }, [analytics, allDrafts, base, disconnectedCount]);
 
   // Top recommendation (1 high-confidence rec, not duplicating Next Actions)
   const topRecommendation = useMemo(() => {
@@ -200,13 +207,13 @@ export default function OverviewPage() {
       });
     }
 
-    if (enabledChannels.length === 0 && items.length < 4) {
+    if (connectedCount === 0 && items.length < 4) {
       items.push({
         id: 'setup-channels',
         icon: <LinkIcon className="w-5 h-5" />,
         title: 'Connect a publishing channel',
         description: 'Link Instagram, TikTok, or LinkedIn to start publishing',
-        href: `${base}/settings/media`,
+        href: `${base}/settings/channels`,
         cta: 'Connect',
         priority: 6,
         accent: 'text-blue-400 bg-blue-400/15',
@@ -258,7 +265,7 @@ export default function OverviewPage() {
         router.push(`${base}/create`);
         break;
       case 'setup_channels':
-        router.push(`${base}/settings/media`);
+        router.push(`${base}/settings/channels`);
         break;
       case 'add_data':
         router.push(`${base}/sources`);
@@ -319,6 +326,7 @@ export default function OverviewPage() {
         hasChannels={enabledChannels.length > 0}
         hasSources={(summary?.totalDataItems ?? 0) > 0}
         channelCount={enabledChannels.length}
+        connectedCount={connectedCount}
         sourceCount={summary?.totalDataItems ?? 0}
         base={base}
       />

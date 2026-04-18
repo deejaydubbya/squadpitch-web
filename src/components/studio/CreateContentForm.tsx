@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import {
   useGenerateContent,
   useChannelSettings,
+  useChannelConnectionStatus,
   useMediaProfile,
   useGenerateMedia,
   useGenerateVideo,
@@ -43,6 +44,7 @@ import {
   type ContentBlueprint,
   type SeriesTemplate,
 } from '@/hooks/useSquadpitch';
+import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useUsage } from '@/hooks/useBilling';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
@@ -93,6 +95,7 @@ function getGenerationError(error: Error | null) {
 export function CreateContentForm({ clientId, initialGuidance, initialTemplateType, onGenerated }: Props) {
   const bdLabels = useBusinessDataLabels(clientId);
   const { data: channels } = useChannelSettings(clientId);
+  const connectionStatus = useChannelConnectionStatus(clientId);
   const { data: mediaProfile } = useMediaProfile(clientId);
   const { data: recommendations } = useRecommendations(clientId, 'create_content');
   const acceptRec = useAcceptRecommendation(clientId);
@@ -435,26 +438,60 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           </label>
           {enabledChannels.length === 0 ? (
             <p className="text-sm text-white-40 italic">
-              No channels enabled. Enable channels in Settings → Media.
+              No channels enabled. Enable channels in Settings → Channels.
             </p>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {enabledChannels.map((c) => (
-                <button
-                  key={c.channel}
-                  type="button"
-                  onClick={() => toggleChannel(c.channel)}
-                  className={cn(
-                    'px-4 py-2 rounded-full text-sm font-medium transition-colors',
-                    selectedChannels.includes(c.channel)
-                      ? 'bg-accent-green-110 text-sp-surface'
-                      : 'bg-white-10 text-white-60 hover:bg-white-20'
-                  )}
-                >
-                  {c.channel}
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="flex flex-wrap gap-2">
+                {enabledChannels.map((c) => {
+                  const connected = connectionStatus.get(c.channel) === true;
+                  return (
+                    <button
+                      key={c.channel}
+                      type="button"
+                      onClick={() => toggleChannel(c.channel)}
+                      className={cn(
+                        'px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+                        selectedChannels.includes(c.channel)
+                          ? 'bg-accent-green-110 text-sp-surface'
+                          : 'bg-white-10 text-white-60 hover:bg-white-20'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'w-2 h-2 rounded-full flex-shrink-0',
+                          connected ? 'bg-green-400' : 'bg-yellow-400'
+                        )}
+                        title={connected ? 'Connected' : 'Not connected'}
+                      />
+                      {getChannelLabel(c.channel)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Connection warning for selected channels */}
+              {selectedChannels.some((ch) => !connectionStatus.get(ch)) && (
+                <StatusBanner
+                  warning={`${selectedChannels.filter((ch) => !connectionStatus.get(ch)).map(getChannelLabel).join(', ')} ${selectedChannels.filter((ch) => !connectionStatus.get(ch)).length === 1 ? 'is' : 'are'} not connected. You can still create content, but you'll need to connect before publishing.`}
+                />
+              )}
+
+              {/* Media requirement hints */}
+              {selectedChannels.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {selectedChannels.map((ch) => {
+                    const hint = getChannelRequirementHint(ch);
+                    if (!hint) return null;
+                    return (
+                      <p key={ch} className="text-[11px] text-white-30">
+                        {getChannelLabel(ch)}: {hint}
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 

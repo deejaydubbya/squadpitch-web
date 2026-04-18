@@ -13,6 +13,8 @@ import {
   usePlanMyWeek,
   useSwapSuggestion,
   useAutopilotExecute,
+  useChannelSettings,
+  useChannelConnectionStatus,
   type DraftStatus,
   type Channel,
   type Draft,
@@ -111,6 +113,11 @@ export function PlannerView({ clientId }: Props) {
   const [tourActive, setTourActive] = useState(false);
   const [firstWeekInProgress, setFirstWeekInProgress] = useState(false);
   const [firstWeekResult, setFirstWeekResult] = useState<{ generated: number; scheduled: number } | null>(null);
+
+  const { data: channelSettings } = useChannelSettings(clientId);
+  const connectionStatus = useChannelConnectionStatus(clientId);
+  const enabledChannels = channelSettings?.filter((c) => c.isEnabled) ?? [];
+  const hasEnabledButNoneConnected = enabledChannels.length > 0 && connectionStatus.size === 0;
 
   const { data: allDrafts, isLoading, error } = useDrafts({
     clientId,
@@ -495,6 +502,13 @@ export function PlannerView({ clientId }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Channel connection warning */}
+      {hasEnabledButNoneConnected && (
+        <StatusBanner
+          warning={`You have ${enabledChannels.length} channel${enabledChannels.length !== 1 ? 's' : ''} enabled but none are connected. Connect your accounts to schedule and publish.`}
+        />
+      )}
 
       {/* First-run welcome card */}
       {showWelcome && !firstWeekInProgress && !firstWeekResult && (

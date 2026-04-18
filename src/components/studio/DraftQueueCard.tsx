@@ -37,9 +37,12 @@ import {
   useGenerateMedia,
   useGenerateVideo,
   useRatePerformance,
+  useChannelConnectionStatus,
   type Draft,
   type PerformanceRating,
 } from '@/hooks/useSquadpitch';
+import { validatePublishEligibility } from '@/lib/publishValidator';
+import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 import { DraftPreviewCard } from './DraftPreviewCard';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { MediaLightbox } from './MediaLightbox';
@@ -72,11 +75,13 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const generateMedia = useGenerateMedia(draft.clientId);
   const generateVideo = useGenerateVideo(draft.clientId);
   const ratePerformance = useRatePerformance(draft.clientId);
+  const connectionStatus = useChannelConnectionStatus(draft.clientId);
+  const eligibility = validatePublishEligibility(draft, connectionStatus, draft.clientId);
 
   const isEditable = draft.status === 'DRAFT' || draft.status === 'PENDING_REVIEW';
   const canApprove = isEditable;
   const canReject = isEditable || draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
-  const canSchedule = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
+  const canSchedule = (draft.status === 'APPROVED' || draft.status === 'SCHEDULED') && eligibility.canSchedule;
   const canPublish = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
 
   const anyError =
@@ -159,7 +164,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
             />
           </div>
         )}
-        <DraftPreviewCard draft={draft} compact={!expanded} />
+        <DraftPreviewCard draft={draft} compact={!expanded} clientId={draft.clientId} />
       </div>
 
       {/* Media indicator */}
@@ -212,7 +217,11 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
               <ImagePlus className="w-5 h-5 text-white-20" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-white-30 mb-1.5">No image assigned</p>
+              <p className="text-xs text-white-30 mb-1.5">
+                {getChannelRequirementHint(draft.channel)
+                  ? `${getChannelRequirementHint(draft.channel)} for ${getChannelLabel(draft.channel)}`
+                  : 'No image assigned'}
+              </p>
               <div className="flex items-center gap-3">
                 <Link
                   href={`/workspaces/${draft.clientId}/assets?draftId=${draft.id}`}
@@ -402,15 +411,23 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
             <X className="w-3 h-3" /> Reject
           </button>
         )}
-        {canSchedule && (
+        {(draft.status === 'APPROVED' || draft.status === 'SCHEDULED') && (
           <button
             onClick={() => {
+              if (!canSchedule) return;
               if (!showSchedule && draft.status === 'SCHEDULED' && draft.scheduledFor) {
                 setScheduleDate(new Date(draft.scheduledFor).toISOString().slice(0, 16));
               }
               setShowSchedule((v) => !v);
             }}
-            className="text-xs px-2.5 py-1 rounded-md bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30 flex items-center gap-1"
+            disabled={!canSchedule}
+            title={!canSchedule ? `${getChannelLabel(draft.channel)} is not connected` : undefined}
+            className={cn(
+              'text-xs px-2.5 py-1 rounded-md flex items-center gap-1',
+              canSchedule
+                ? 'bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30'
+                : 'bg-white-10 text-white-30 cursor-not-allowed'
+            )}
           >
             <Calendar className="w-3 h-3" /> {draft.status === 'SCHEDULED' ? 'Reschedule' : 'Schedule'}
           </button>
@@ -430,6 +447,34 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
           </button>
         )}
       </div>
+
+      {/* Eligibility issues */}
+      {eligibility.issues.length > 0 && draft.status !== 'PUBLISHED' && draft.status !== 'REJECTED' && (
+        <div className="px-5 space-y-1">
+          {eligibility.issues.map((issue) => (
+            <p
+              key={issue.code}
+              className={cn(
+                'text-[11px]',
+                issue.level === 'blocked' ? 'text-yellow-400' : 'text-white-30'
+              )}
+            >
+              {issue.message}
+              {issue.action && (
+                <>
+                  {' '}
+                  <Link
+                    href={issue.action.href}
+                    className="underline hover:text-accent-green-110"
+                  >
+                    {issue.action.label}
+                  </Link>
+                </>
+              )}
+            </p>
+          ))}
+        </div>
+      )}
 
       {editMode && (
         <div className="border-t border-white-10 p-5 space-y-2">

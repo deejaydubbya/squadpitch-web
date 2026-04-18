@@ -26,6 +26,7 @@ interface Props {
   hasChannels: boolean;
   hasSources: boolean;
   channelCount: number;
+  connectedCount: number;
   sourceCount: number;
   base: string;
 }
@@ -35,6 +36,7 @@ export function SetupProgress({
   hasChannels,
   hasSources,
   channelCount,
+  connectedCount,
   sourceCount,
   base,
 }: Props) {
@@ -53,8 +55,11 @@ export function SetupProgress({
       icon: Share2,
       label: 'Social channels',
       description: 'Connect your accounts to publish and track performance',
-      doneDescription: `${channelCount} channel${channelCount !== 1 ? 's' : ''} connected — publishing and analytics active`,
-      done: hasChannels,
+      doneDescription:
+        connectedCount > 0
+          ? `${connectedCount} channel${connectedCount !== 1 ? 's' : ''} connected — publishing and analytics active`
+          : `${channelCount} channel${channelCount !== 1 ? 's' : ''} enabled but not connected`,
+      done: connectedCount > 0,
       href: `${base}/settings/channels`,
     },
     {
