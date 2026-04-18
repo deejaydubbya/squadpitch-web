@@ -70,7 +70,7 @@ function GBPCard({
   status,
 }: {
   clientId: string;
-  status?: { status: string; email?: string | null; locationName?: string | null; businessName?: string | null; lastSyncedAt?: string | null; reviewCount?: number; averageRating?: string | null; lastError?: string | null };
+  status?: { status: string; email?: string | null; locationName?: string | null; businessName?: string | null; lastSyncedAt?: string | null; reviewCount?: number; averageRating?: string | null; unrepliedReviewCount?: number; lastError?: string | null };
 }) {
   const gbpConnect = useGBPConnect(clientId);
   const gbpCallback = useGBPCallback(clientId);
@@ -216,6 +216,11 @@ function GBPCard({
           {(status?.reviewCount ?? 0) > 0 && (
             <span className="text-white-40">
               {status?.reviewCount} reviews imported
+            </span>
+          )}
+          {(status?.unrepliedReviewCount ?? 0) > 0 && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20">
+              {status?.unrepliedReviewCount} unreplied
             </span>
           )}
           {status?.lastSyncedAt && (

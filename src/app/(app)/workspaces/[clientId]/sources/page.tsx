@@ -9,10 +9,12 @@ import { useClient } from '@/hooks/useSquadpitch';
 import { BusinessDataManager } from '@/components/studio/BusinessDataManager';
 import { AssetLibrary } from '@/components/studio/AssetLibrary';
 import { ConnectedSourcesOverview } from '@/components/studio/ConnectedSourcesOverview';
+import { PropertyLibrary } from '@/components/studio/PropertyLibrary';
 
-type Tab = 'knowledge' | 'media' | 'connections';
+type Tab = 'knowledge' | 'properties' | 'media' | 'connections';
 
 function resolveInitialTab(raw: string | null): Tab {
+  if (raw === 'properties') return 'properties';
   if (raw === 'media') return 'media';
   if (raw === 'connections') return 'connections';
   // backward compat: ?tab=data → knowledge
@@ -35,6 +37,7 @@ export default function SourcesPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'knowledge', label: knowledgeLabel },
+    ...(isRE ? [{ key: 'properties' as Tab, label: 'Properties' }] : []),
     { key: 'media', label: 'Media' },
     { key: 'connections', label: 'Connections' },
   ];
@@ -95,6 +98,23 @@ export default function SourcesPage() {
         </div>
       )}
 
+      {tab === 'properties' && (
+        <div className="flex items-center justify-between rounded-lg border border-white-10 bg-white-5 px-4 py-3">
+          <p className="text-sm text-white-40">
+            Saved properties for listing campaigns — import from search, URL, or CSV
+          </p>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+            <Link
+              href={`${base}/listing-campaign`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent-green-110 text-black hover:bg-accent-green-130 transition-colors"
+            >
+              <Megaphone className="w-3 h-3" />
+              Create Campaign
+            </Link>
+          </div>
+        </div>
+      )}
+
       {tab === 'media' && (
         <div className="flex items-center justify-between rounded-lg border border-white-10 bg-white-5 px-4 py-3">
           <p className="text-sm text-white-40">
@@ -131,6 +151,7 @@ export default function SourcesPage() {
 
       {/* Tab content */}
       {tab === 'knowledge' && <BusinessDataManager clientId={clientId} hideHeader />}
+      {tab === 'properties' && <PropertyLibrary clientId={clientId} />}
       {tab === 'media' && <AssetLibrary clientId={clientId} />}
       {tab === 'connections' && (
         <ConnectedSourcesOverview clientId={clientId} isRE={isRE} />

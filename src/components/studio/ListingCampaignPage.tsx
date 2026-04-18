@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
@@ -34,6 +34,7 @@ import {
   Tag,
   CheckSquare,
   AlertTriangle,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -60,6 +61,7 @@ import {
   useUploadAsset,
   useCreateFolder,
   autoTagAssetWithResult,
+  useProperties,
   useDataItems,
   useRecommendations,
   useAssets,
@@ -78,7 +80,10 @@ import {
   type ImageSource,
   type ImageSourcePass,
   type MediaAsset,
+  type UnifiedListing,
 } from '@/hooks/useSquadpitch';
+import { PropertySearchModal } from '@/components/studio/PropertySearchModal';
+import { PropertyPicker } from '@/components/studio/PropertyPicker';
 import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 
 // ── Types ──
@@ -259,6 +264,9 @@ interface PropertyForm {
   agentName: string;
   brokerage: string;
   campaignNotes: string;
+  yearBuilt: string;
+  daysOnMarket: string;
+  listingStatus: string;
 }
 
 const EMPTY_FORM: PropertyForm = {
@@ -278,6 +286,9 @@ const EMPTY_FORM: PropertyForm = {
   agentName: '',
   brokerage: '',
   campaignNotes: '',
+  yearBuilt: '',
+  daysOnMarket: '',
+  listingStatus: '',
 };
 
 const PROPERTY_TYPES = [
@@ -505,8 +516,18 @@ export function ListingCampaignPage({ clientId }: Props) {
   const regeneratePost = useRegeneratePost(clientId);
   const connectionStatus = useChannelConnectionStatus(clientId);
 
-  // Existing listings for selector
-  const { data: existingListings } = useDataItems(clientId, { type: 'CUSTOM', limit: 20 });
+  // Existing listings for selector — merge PROPERTY + legacy CUSTOM
+  const { data: propertyListings } = useProperties(clientId);
+  const { data: legacyCustomListings } = useDataItems(clientId, { type: 'CUSTOM', limit: 20 });
+  const existingListings = useMemo(() => {
+    const props = propertyListings ?? [];
+    const legacy = (legacyCustomListings ?? []).filter(
+      (c) => (c.dataJson as Record<string, unknown>)?._sourceType != null
+    );
+    // Dedupe by id in case backfill already migrated some
+    const seen = new Set(props.map((p) => p.id));
+    return [...props, ...legacy.filter((l) => !seen.has(l.id))];
+  }, [propertyListings, legacyCustomListings]);
 
   // Campaign recommendations from shared engine
   const { data: campaignRecs } = useRecommendations(clientId, 'listing_campaign');
@@ -527,6 +548,18 @@ export function ListingCampaignPage({ clientId }: Props) {
         prefillFromDataItem(listing);
         setStep('form');
       }
+    }
+
+    const source = searchParams.get('source');
+    if (source === 'nearby') {
+      try {
+        const raw = sessionStorage.getItem('sp_nearby_listing');
+        if (raw) {
+          sessionStorage.removeItem('sp_nearby_listing');
+          const nearbyListing = JSON.parse(raw) as UnifiedListing;
+          handlePropertySearchSelect(nearbyListing);
+        }
+      } catch { /* user lands on normal source step */ }
     }
     // Only run on mount / when listings load
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -580,6 +613,9 @@ export function ListingCampaignPage({ clientId }: Props) {
         cta: 'cta',
         agentName: 'agentName',
         brokerage: 'brokerage',
+        yearBuilt: 'yearBuilt',
+        daysOnMarket: 'daysOnMarket',
+        listingStatus: 'listingStatus',
       };
       for (const [src, dst] of Object.entries(map)) {
         const val = flat[src];
@@ -599,6 +635,41 @@ export function ListingCampaignPage({ clientId }: Props) {
     const data = item.dataJson ?? {};
     prefillFromData(data, `From listing: ${item.title}`);
     setDataItemId(item.id);
+  }, [prefillFromData]);
+
+  const handlePropertySearchSelect = useCallback((listing: UnifiedListing) => {
+    const PROPERTY_TYPE_MAP: Record<string, string> = {
+      single_family: 'Single Family',
+      condo: 'Condo',
+      townhouse: 'Townhouse',
+      multi_family: 'Multi-Family',
+      land: 'Land',
+      commercial: 'Commercial',
+    };
+
+    const data: Record<string, unknown> = {
+      address: {
+        street: listing.street ?? listing.formattedAddress ?? '',
+        city: listing.city ?? '',
+        state: listing.state ?? '',
+        zip: listing.zip ?? '',
+      },
+      price: listing.price,
+      beds: listing.bedrooms,
+      baths: listing.bathrooms,
+      sqft: listing.sqft,
+      propertyType: PROPERTY_TYPE_MAP[listing.propertyType ?? ''] ?? (listing.propertyType ? 'Other' : ''),
+      agentName: listing.agent,
+      brokerage: listing.office,
+      yearBuilt: listing.yearBuilt,
+      daysOnMarket: listing.daysOnMarket,
+      listingStatus: listing.status,
+    };
+
+    const label = `From search: ${listing.formattedAddress ?? listing.street ?? 'Property'}`;
+    prefillFromData(data, label);
+    setPropertySearchOpen(false);
+    setStep('images');
   }, [prefillFromData]);
 
   const handleUrlImport = useCallback(async () => {
@@ -816,6 +887,8 @@ export function ListingCampaignPage({ clientId }: Props) {
   }, [handleScreenshot]);
 
   const [pasteError, setPasteError] = useState<string>('');
+  const [propertySearchOpen, setPropertySearchOpen] = useState(false);
+  const [showPropertyPicker, setShowPropertyPicker] = useState(false);
 
   const handleClipboardRead = useCallback(async () => {
     setPasteError('');
@@ -864,6 +937,9 @@ export function ListingCampaignPage({ clientId }: Props) {
       const result = await generateCampaign.mutateAsync({
         propertyData: {
           address: fullAddress,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
           price: form.price,
           beds: form.beds,
           baths: form.baths,
@@ -876,6 +952,9 @@ export function ListingCampaignPage({ clientId }: Props) {
           agentName: form.agentName,
           brokerage: form.brokerage,
           campaignNotes: form.campaignNotes,
+          yearBuilt: form.yearBuilt,
+          daysOnMarket: form.daysOnMarket,
+          listingStatus: form.listingStatus,
         },
         campaignType,
         imageContext,
@@ -1014,6 +1093,9 @@ export function ListingCampaignPage({ clientId }: Props) {
       const result = await regeneratePost.mutateAsync({
         propertyData: {
           address: fullAddress,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
           price: form.price,
           beds: form.beds,
           baths: form.baths,
@@ -1025,6 +1107,9 @@ export function ListingCampaignPage({ clientId }: Props) {
           cta: form.cta,
           agentName: form.agentName,
           brokerage: form.brokerage,
+          yearBuilt: form.yearBuilt,
+          daysOnMarket: form.daysOnMarket,
+          listingStatus: form.listingStatus,
         },
         campaignType,
         slot: {
@@ -1091,6 +1176,7 @@ export function ListingCampaignPage({ clientId }: Props) {
     setGalleryContainer(null);
     setHeroBbox(null);
     setManualCropOpen(false);
+    setPropertySearchOpen(false);
   };
 
   const updateField = (field: keyof PropertyForm, value: string) =>
@@ -1117,36 +1203,13 @@ export function ListingCampaignPage({ clientId }: Props) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* Select Existing Listing */}
-          {existingListings && existingListings.length > 0 && (
+          {existingListings.length > 0 && (
             <SourceCard
               icon={ListChecks}
               title="Select Existing Listing"
-              description={`${existingListings.length} listing${existingListings.length === 1 ? '' : 's'} available`}
-              onClick={() => {
-                // Select the most recent listing
-                const latest = existingListings[0];
-                if (latest) {
-                  prefillFromDataItem(latest);
-                  setStep('images');
-                }
-              }}
-            >
-              <div className="mt-3 space-y-1.5 max-h-32 overflow-y-auto">
-                {existingListings.slice(0, 5).map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      prefillFromDataItem(item);
-                      setStep('images');
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg bg-white-5 hover:bg-white-10 text-white-60 text-xs transition-colors truncate"
-                  >
-                    {item.title || (typeof item.dataJson?.address === 'string' ? item.dataJson.address : null) || 'Untitled listing'}
-                  </button>
-                ))}
-              </div>
-            </SourceCard>
+              description={`${existingListings.length} saved propert${existingListings.length === 1 ? 'y' : 'ies'}`}
+              onClick={() => setShowPropertyPicker(true)}
+            />
           )}
 
           {/* Import from URL */}
@@ -1169,6 +1232,14 @@ export function ListingCampaignPage({ clientId }: Props) {
             </div>
             {urlError && <p className="text-orange-400 text-xs mt-2">{urlError}</p>}
           </SourceCard>
+
+          {/* Search for Property */}
+          <SourceCard
+            icon={Search}
+            title="Search for Property"
+            description="Find by address, city, or ZIP code"
+            onClick={() => setPropertySearchOpen(true)}
+          />
 
           {/* Import from Screenshot */}
           <SourceCard
@@ -1279,6 +1350,26 @@ export function ListingCampaignPage({ clientId }: Props) {
               })}
             </div>
           </div>
+        )}
+
+        {propertySearchOpen && (
+          <PropertySearchModal
+            clientId={clientId}
+            onSelect={handlePropertySearchSelect}
+            onClose={() => setPropertySearchOpen(false)}
+          />
+        )}
+
+        {showPropertyPicker && (
+          <PropertyPicker
+            clientId={clientId}
+            onSelect={(item) => {
+              prefillFromDataItem(item);
+              setShowPropertyPicker(false);
+              setStep('images');
+            }}
+            onClose={() => setShowPropertyPicker(false)}
+          />
         )}
       </div>
     );

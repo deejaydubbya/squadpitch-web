@@ -49,6 +49,9 @@ import {
   useGenerateContent,
   useChannelConnections,
   useIndustries,
+  useZillowExtract,
+  useLicenseLookup,
+  useCrmAnalyze,
   resolveBusinessDataLabels,
   squadpitchKeys,
   type Channel,
@@ -58,10 +61,13 @@ import {
   type OAuthStartResponse,
   type IndustryProfile,
   type OnboardingBrandData,
+  type AgentProfileDraft,
 } from '@/hooks/useSquadpitch';
 import { apiFetch } from '@/lib/apiFetch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { OnboardingPostCard } from '@/components/studio/OnboardingPostCard';
+import { RealEstateSourceCard } from '@/components/studio/RealEstateSourceCard';
+import { AgentProfileConfirmation } from '@/components/studio/AgentProfileConfirmation';
 
 function slugify(value: string) {
   return value
@@ -259,7 +265,7 @@ interface StreamCallbacks {
 }
 
 async function consumeAnalyzeStream(
-  body: { input: string; inputType: string; documentTexts?: string[]; industryKey?: string },
+  body: { input: string; inputType: string; documentTexts?: string[]; industryKey?: string; agentProfileDraft?: AgentProfileDraft },
   callbacks: Omit<StreamCallbacks, 'onDone'>,
 ): Promise<OnboardingAnalyzeResult | null> {
   const res = await fetch('/api/proxy/onboarding/analyze-stream', {
@@ -381,6 +387,17 @@ export function OnboardingWizard() {
   const [selectedGoal, setSelectedGoal] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<Channel[]>([]);
 
+  // RE-specific onboarding sources
+  const [reSourceDrafts, setReSourceDrafts] = useState<AgentProfileDraft[]>([]);
+  const [mergedDraft, setMergedDraft] = useState<AgentProfileDraft | null>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [zillowUrl, setZillowUrl] = useState('');
+  const [licenseState, setLicenseState] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [crmFile, setCrmFile] = useState<File | null>(null);
+  const [reSourceLoading, setReSourceLoading] = useState<string | null>(null);
+  const [reSourceError, setReSourceError] = useState<string | null>(null);
+
   // Step 3 state — Content preview bulk actions
   const [bulkActionRunning, setBulkActionRunning] = useState(false);
   const [bulkSuccess, setBulkSuccess] = useState(false);
@@ -441,9 +458,14 @@ export function OnboardingWizard() {
   const uploadDocuments = useOnboardingUploadDocuments();
   const createClient = useCreateClient();
   const generate = useGenerateContent();
+  const zillowExtract = useZillowExtract();
+  const licenseLookupMutation = useLicenseLookup();
+  const crmAnalyzeMutation = useCrmAnalyze();
 
+  const isRealEstate = selectedIndustry === 'real_estate';
   const hasBusinessInput = input.trim().length >= 3 || description.trim().length >= 10 || files.length > 0;
-  const canSubmit = !!selectedIndustry && hasBusinessInput;
+  const hasReSourceData = reSourceDrafts.length > 0;
+  const canSubmit = !!selectedIndustry && (hasBusinessInput || hasReSourceData);
 
   const handleFilesSelected = (selected: FileList | null) => {
     if (!selected) return;
@@ -465,6 +487,140 @@ export function OnboardingWizard() {
     setSelectedChannels((prev) =>
       prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]
     );
+  };
+
+  // ── RE Source Extraction Handlers ───────────────────────────────────
+
+  const hasDraftFromSource = (sourceType: string) =>
+    reSourceDrafts.some((d) => d.sourceType === sourceType);
+
+  const handleZillowExtract = async () => {
+    if (!zillowUrl.trim()) return;
+    setReSourceLoading('zillow_profile');
+    setReSourceError(null);
+    try {
+      const draft = await zillowExtract.mutateAsync(zillowUrl.trim());
+      setReSourceDrafts((prev) => [...prev.filter((d) => d.sourceType !== 'zillow_profile'), draft]);
+    } catch (err) {
+      setReSourceError(err instanceof Error ? err.message : 'Zillow extraction failed');
+    } finally {
+      setReSourceLoading(null);
+    }
+  };
+
+  const handleLicenseLookup = async () => {
+    if (!licenseState || !licenseNumber.trim()) return;
+    setReSourceLoading('license_lookup');
+    setReSourceError(null);
+    try {
+      const draft = await licenseLookupMutation.mutateAsync({
+        state: licenseState,
+        licenseNumber: licenseNumber.trim(),
+      });
+      setReSourceDrafts((prev) => [...prev.filter((d) => d.sourceType !== 'license_lookup'), draft]);
+    } catch (err) {
+      setReSourceError(err instanceof Error ? err.message : 'License lookup failed');
+    } finally {
+      setReSourceLoading(null);
+    }
+  };
+
+  const handleCrmAnalyze = async () => {
+    if (!crmFile) return;
+    setReSourceLoading('crm_import');
+    setReSourceError(null);
+    try {
+      const text = await crmFile.text();
+      const draft = await crmAnalyzeMutation.mutateAsync(text);
+      setReSourceDrafts((prev) => [...prev.filter((d) => d.sourceType !== 'crm_import'), draft]);
+    } catch (err) {
+      setReSourceError(err instanceof Error ? err.message : 'CRM analysis failed');
+    } finally {
+      setReSourceLoading(null);
+    }
+  };
+
+  const clientSideMergeDrafts = (drafts: AgentProfileDraft[]): AgentProfileDraft => {
+    if (drafts.length === 0) return { sourceType: 'manual' };
+    if (drafts.length === 1) return { ...drafts[0] };
+
+    const merged: AgentProfileDraft = { sourceType: 'manual' };
+    const priority = ['manual', 'license_lookup', 'zillow_profile', 'website', 'crm_import', 'documents'];
+    const sorted = [...drafts].sort((a, b) => {
+      const ai = priority.indexOf(a.sourceType);
+      const bi = priority.indexOf(b.sourceType);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+
+    const stringFields = [
+      'agentName', 'brokerageName', 'teamName', 'bio',
+      'primaryCity', 'primaryState', 'licenseNumber', 'licenseState',
+      'licenseStatus', 'websiteUrl', 'zillowProfileUrl',
+    ] as const;
+
+    const arrayFields = [
+      'specialties', 'serviceAreas', 'inferredAudience', 'inferredPriceBands', 'notes',
+    ] as const;
+
+    for (const field of stringFields) {
+      for (const draft of sorted) {
+        const val = draft[field];
+        if (val && String(val).trim()) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (merged as any)[field] = val;
+          break;
+        }
+      }
+    }
+
+    for (const field of arrayFields) {
+      const all: string[] = [];
+      for (const draft of sorted) {
+        const arr = draft[field];
+        if (Array.isArray(arr)) all.push(...arr);
+      }
+      if (all.length > 0) {
+        const seen = new Set<string>();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (merged as any)[field] = all.filter((v) => {
+          const key = v.toLowerCase().trim();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+    }
+
+    // Merge example listings
+    const listings = sorted.flatMap((d) => d.exampleListings ?? []);
+    if (listings.length > 0) merged.exampleListings = listings;
+
+    // Merge social links
+    const socialLinks: Record<string, string> = {};
+    for (const draft of sorted) {
+      if (draft.socialLinks) {
+        for (const [k, v] of Object.entries(draft.socialLinks)) {
+          if (v && !socialLinks[k]) socialLinks[k] = v;
+        }
+      }
+    }
+    if (Object.keys(socialLinks).length > 0) {
+      merged.socialLinks = socialLinks as AgentProfileDraft['socialLinks'];
+    }
+
+    return merged;
+  };
+
+  const handleReConfirmAndContinue = () => {
+    setShowConfirmation(false);
+    // mergedDraft is already set, proceed with setup
+    handleSetup();
+  };
+
+  const handleReProceedToConfirmation = () => {
+    const draft = clientSideMergeDrafts(reSourceDrafts);
+    setMergedDraft(draft);
+    setShowConfirmation(true);
   };
 
   const handleSetup = async () => {
@@ -519,6 +675,7 @@ export function OnboardingWizard() {
           inputType,
           documentTexts: documentTexts.length > 0 ? documentTexts : undefined,
           industryKey: selectedIndustry ?? undefined,
+          agentProfileDraft: mergedDraft ?? undefined,
         },
         {
           onCrawlPage: (page) => {
@@ -955,7 +1112,145 @@ export function OnboardingWizard() {
             )}
           </div>
 
+          {/* ── RE Agent Profile Sources ── */}
+          {isRealEstate && !showConfirmation && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  Set up your agent profile
+                </p>
+                <p className="text-xs text-white-40 mt-0.5">
+                  Add sources to auto-fill your profile — the more you add, the better your content.
+                </p>
+              </div>
+
+              {/* Zillow */}
+              <RealEstateSourceCard
+                icon={Home}
+                label="Zillow Agent Profile"
+                description="We'll extract your bio, specialties, service areas, and listings."
+                done={hasDraftFromSource('zillow_profile')}
+                loading={reSourceLoading === 'zillow_profile'}
+                error={reSourceLoading === 'zillow_profile' ? null : reSourceError}
+              >
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={zillowUrl}
+                    onChange={(e) => setZillowUrl(e.target.value)}
+                    placeholder="https://www.zillow.com/profile/your-name"
+                    className="flex-1 px-3 py-2 rounded-lg bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleZillowExtract}
+                    disabled={!zillowUrl.trim() || reSourceLoading === 'zillow_profile'}
+                    className="px-4 py-2 rounded-lg bg-accent-green-110 text-sp-surface text-sm font-semibold hover:bg-accent-green-120 transition-colors disabled:opacity-40"
+                  >
+                    Extract
+                  </button>
+                </div>
+              </RealEstateSourceCard>
+
+              {/* License Lookup */}
+              <RealEstateSourceCard
+                icon={Shield}
+                label="License Number Lookup"
+                description="Enter your state and license number for verification."
+                done={hasDraftFromSource('license_lookup')}
+                loading={reSourceLoading === 'license_lookup'}
+                error={reSourceLoading === 'license_lookup' ? null : reSourceError}
+              >
+                <div className="flex gap-2">
+                  <select
+                    value={licenseState}
+                    onChange={(e) => setLicenseState(e.target.value)}
+                    className="px-3 py-2 rounded-lg bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110"
+                  >
+                    <option value="">State</option>
+                    {['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map((st) => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={licenseNumber}
+                    onChange={(e) => setLicenseNumber(e.target.value)}
+                    placeholder="License number"
+                    className="flex-1 px-3 py-2 rounded-lg bg-sp-card border border-white-15 text-white text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleLicenseLookup}
+                    disabled={!licenseState || !licenseNumber.trim() || reSourceLoading === 'license_lookup'}
+                    className="px-4 py-2 rounded-lg bg-accent-green-110 text-sp-surface text-sm font-semibold hover:bg-accent-green-120 transition-colors disabled:opacity-40"
+                  >
+                    Look Up
+                  </button>
+                </div>
+              </RealEstateSourceCard>
+
+              {/* CRM Import */}
+              <RealEstateSourceCard
+                icon={Database}
+                label="CRM Import (CSV)"
+                description="Upload a CSV export from your CRM to infer service areas and client types."
+                done={hasDraftFromSource('crm_import')}
+                loading={reSourceLoading === 'crm_import'}
+                error={reSourceLoading === 'crm_import' ? null : reSourceError}
+              >
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setCrmFile(e.target.files?.[0] ?? null)}
+                    className="flex-1 text-sm text-white-50 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white-10 file:text-white-70 hover:file:bg-white-15"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCrmAnalyze}
+                    disabled={!crmFile || reSourceLoading === 'crm_import'}
+                    className="px-4 py-2 rounded-lg bg-accent-green-110 text-sp-surface text-sm font-semibold hover:bg-accent-green-120 transition-colors disabled:opacity-40"
+                  >
+                    Analyze
+                  </button>
+                </div>
+              </RealEstateSourceCard>
+
+              {/* MLS Integration — Coming Soon */}
+              <RealEstateSourceCard
+                icon={Building2}
+                label="MLS Integration"
+                comingSoon
+              >
+                <div />
+              </RealEstateSourceCard>
+
+              {/* Review & Confirm button */}
+              {reSourceDrafts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleReProceedToConfirmation}
+                  className="w-full px-4 py-2.5 rounded-xl border border-accent-green-110/40 text-accent-green-110 text-sm font-semibold hover:bg-accent-green-110/10 transition-colors"
+                >
+                  Review Extracted Profile ({reSourceDrafts.length} source{reSourceDrafts.length > 1 ? 's' : ''})
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── RE Confirmation Step ── */}
+          {isRealEstate && showConfirmation && mergedDraft && (
+            <AgentProfileConfirmation
+              draft={mergedDraft}
+              onChange={setMergedDraft}
+              onConfirm={handleReConfirmAndContinue}
+              onBack={() => setShowConfirmation(false)}
+            />
+          )}
+
           {/* ── Step 2: Business Details ── */}
+          {(!isRealEstate || !showConfirmation) && (
           <div className="space-y-4">
             <div>
               <p className="text-sm font-semibold text-white">
@@ -1061,19 +1356,22 @@ export function OnboardingWizard() {
               </div>
             </details>
           </div>
+          )}
 
           {/* ── Primary CTA ── */}
           {selectedIndustry && (
             <p className="text-xs text-white-40 text-center">Takes about 60 seconds</p>
           )}
+          {(!isRealEstate || !showConfirmation) && (
           <button
-            onClick={handleSetup}
+            onClick={isRealEstate && reSourceDrafts.length > 0 && !mergedDraft ? handleReProceedToConfirmation : handleSetup}
             disabled={!canSubmit}
             className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-bold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-glow-green"
           >
             <Sparkles className="w-5 h-5" />
             {activeProfile ? `Generate My ${activeProfile.label} Marketing System` : 'Choose an industry to continue'}
           </button>
+          )}
 
           <div className="flex items-center justify-center gap-4 text-[11px] text-white-30">
             <span>AI-powered</span>

@@ -11,10 +11,17 @@ import {
 } from '@/hooks/useSquadpitch';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
-import { ChannelConnectionCard } from './ChannelConnectionCard';
+import { ChannelConnectionCard, type ChannelRecommendationTier } from './ChannelConnectionCard';
+
+interface ChannelRecommendations {
+  primary: string[];
+  secondary: string[];
+  optional: string[];
+}
 
 interface Props {
   clientId: string;
+  channelRecommendations?: ChannelRecommendations | null;
 }
 
 const CHANNELS: Channel[] = [
@@ -26,7 +33,24 @@ const CHANNELS: Channel[] = [
   'YOUTUBE',
 ];
 
-export function ChannelConnectionsList({ clientId }: Props) {
+const COMING_SOON_CHANNELS: Channel[] = [
+  'PINTEREST',
+  'THREADS',
+  'REDDIT',
+];
+
+function resolveRecommendationTier(
+  channel: Channel,
+  recs: ChannelRecommendations | null | undefined,
+): ChannelRecommendationTier | null {
+  if (!recs) return null;
+  if (recs.primary.includes(channel)) return 'primary';
+  if (recs.secondary.includes(channel)) return 'secondary';
+  if (recs.optional.includes(channel)) return 'optional';
+  return null;
+}
+
+export function ChannelConnectionsList({ clientId, channelRecommendations }: Props) {
   const { data: connections, isLoading, error } = useChannelConnections(clientId);
   const qc = useQueryClient();
 
@@ -91,9 +115,27 @@ export function ChannelConnectionsList({ clientId }: Props) {
             clientId={clientId}
             channel={channel}
             connection={byChannel.get(channel) ?? null}
+            recommendationTier={resolveRecommendationTier(channel, channelRecommendations)}
           />
         ))}
       </div>
+
+      {COMING_SOON_CHANNELS.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-white-40 uppercase tracking-wider">
+            Coming Soon
+          </h3>
+          {COMING_SOON_CHANNELS.map((channel) => (
+            <ChannelConnectionCard
+              key={channel}
+              clientId={clientId}
+              channel={channel}
+              connection={null}
+              recommendationTier={resolveRecommendationTier(channel, channelRecommendations)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

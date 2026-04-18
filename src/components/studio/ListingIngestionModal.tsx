@@ -15,6 +15,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Home,
+  Search,
+  Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -23,6 +25,8 @@ import {
   useListingCSVImport,
   useListingUrlImport,
   useListingUrlConfirm,
+  usePropertyLookup,
+  useRentEstimate,
   type ManualListingInput,
   type CanonicalListing,
   type ListingCSVPreviewResult,
@@ -189,6 +193,13 @@ export function ListingIngestionModal({ clientId, onClose }: Props) {
 
 // ── Manual Tab ──────────────────────────────────────────────────────────────
 
+const fmtCurrency = (n: number) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(n);
+
 function ManualTab({
   clientId,
   onError,
@@ -199,13 +210,87 @@ function ManualTab({
   onSuccess: (msg: string) => void;
 }) {
   const manualImport = useManualListingImport(clientId);
+  const propertyLookup = usePropertyLookup(clientId);
+  const rentEstimateMutation = useRentEstimate(clientId);
 
   const [form, setForm] = useState<ManualListingInput>({
     status: 'active',
   });
+  const [lookupStatus, setLookupStatus] = useState<
+    'idle' | 'loading' | 'success' | 'not_found' | 'error'
+  >('idle');
+  const [rentEstimate, setRentEstimate] = useState<{
+    estimate: number;
+    rangeLow: number | null;
+    rangeHigh: number | null;
+  } | null>(null);
+  const [lastSaleInfo, setLastSaleInfo] = useState<{
+    price: number;
+    date: string | null;
+  } | null>(null);
 
   const set = (key: keyof ManualListingInput, value: string | number) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleLookup = () => {
+    const parts = [form.street, form.city, form.state, form.zip].filter(Boolean);
+    const address = parts.join(', ');
+    if (!address) return;
+
+    setLookupStatus('loading');
+    setRentEstimate(null);
+    setLastSaleInfo(null);
+
+    propertyLookup.mutate(address, {
+      onSuccess: (result) => {
+        const d = result.data;
+        if (!d) {
+          setLookupStatus('not_found');
+          return;
+        }
+
+        // Gap-fill: only populate fields the user hasn't already entered
+        setForm((prev) => {
+          const next = { ...prev };
+          if (!prev.beds && d.bedrooms != null) next.beds = d.bedrooms;
+          if (!prev.baths && d.bathrooms != null) next.baths = d.bathrooms;
+          if (!prev.sqft && d.sqft != null) next.sqft = d.sqft;
+          if (!prev.yearBuilt && d.yearBuilt != null) next.yearBuilt = d.yearBuilt;
+          if (!prev.propertyType && d.propertyType) next.propertyType = d.propertyType;
+          if (!prev.lotSize && d.lotSize != null) next.lotSize = String(d.lotSize);
+          if (!prev.garage && d.garage != null) next.garage = d.garage;
+          if (!prev.city && d.city) next.city = d.city;
+          if (!prev.state && d.state) next.state = d.state;
+          if (!prev.zip && d.zip) next.zip = d.zip;
+          if (!prev.price && d.lastSalePrice != null) next.price = String(d.lastSalePrice);
+          return next;
+        });
+
+        if (d.lastSalePrice != null) {
+          setLastSaleInfo({ price: d.lastSalePrice, date: d.lastSaleDate });
+        }
+
+        setLookupStatus('success');
+        setTimeout(() => setLookupStatus('idle'), 3000);
+      },
+      onError: () => {
+        setLookupStatus('error');
+      },
+    });
+
+    // Fire rent estimate in parallel (non-blocking)
+    rentEstimateMutation.mutate(address, {
+      onSuccess: (result) => {
+        if (result.data) {
+          setRentEstimate({
+            estimate: result.data.estimate,
+            rangeLow: result.data.rangeLow,
+            rangeHigh: result.data.rangeHigh,
+          });
+        }
+      },
+    });
   };
 
   const handleSave = () => {
@@ -263,6 +348,33 @@ function ManualTab({
             />
           </div>
         </div>
+      </div>
+
+      {/* Auto-fill button */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleLookup}
+          disabled={!form.street || lookupStatus === 'loading'}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-60 text-xs font-medium hover:bg-white-10 hover:text-white-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {lookupStatus === 'loading' ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Search className="w-3.5 h-3.5" />
+          )}
+          Auto-fill property details
+        </button>
+        {lookupStatus === 'success' && (
+          <span className="text-xs text-green-400">Property details found</span>
+        )}
+        {lookupStatus === 'not_found' && (
+          <span className="text-xs text-yellow-400">
+            No property found at this address
+          </span>
+        )}
+        {lookupStatus === 'error' && (
+          <span className="text-xs text-red-400">Lookup failed — try again</span>
+        )}
       </div>
 
       {/* Title (auto-fills from address if blank) */}
@@ -371,6 +483,50 @@ function ManualTab({
         </div>
       </div>
 
+      {/* Year Built / Lot Size / Garage */}
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+            Year Built
+          </label>
+          <input
+            type="number"
+            value={form.yearBuilt || ''}
+            onChange={(e) => set('yearBuilt', e.target.value)}
+            placeholder="2005"
+            min={1800}
+            max={2030}
+            className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+            Lot Size (sqft)
+          </label>
+          <input
+            type="number"
+            value={form.lotSize || ''}
+            onChange={(e) => set('lotSize', e.target.value)}
+            placeholder="8,500"
+            min={0}
+            className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+            Garage
+          </label>
+          <input
+            type="number"
+            value={form.garage || ''}
+            onChange={(e) => set('garage', e.target.value)}
+            placeholder="2"
+            min={0}
+            className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+          />
+        </div>
+      </div>
+
       {/* Description */}
       <div>
         <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
@@ -436,6 +592,34 @@ function ManualTab({
           />
         </div>
       </div>
+
+      {/* Rent estimate + last sale info */}
+      {(rentEstimate || lastSaleInfo) && (
+        <div className="rounded-lg border border-white-10 bg-white-5 px-3 py-2.5 space-y-1">
+          {rentEstimate && (
+            <div className="flex items-center gap-2 text-xs text-white-60">
+              <Info className="w-3.5 h-3.5 text-white-30 flex-shrink-0" />
+              <span>
+                Est. monthly rent:{' '}
+                <span className="text-white-100 font-medium">
+                  {rentEstimate.rangeLow != null && rentEstimate.rangeHigh != null
+                    ? `${fmtCurrency(rentEstimate.rangeLow)} – ${fmtCurrency(rentEstimate.rangeHigh)}`
+                    : fmtCurrency(rentEstimate.estimate)}
+                </span>
+              </span>
+            </div>
+          )}
+          {lastSaleInfo && (
+            <div className="flex items-center gap-2 text-xs text-white-60">
+              <Info className="w-3.5 h-3.5 text-white-30 flex-shrink-0" />
+              <span>
+                Last sold: {fmtCurrency(lastSaleInfo.price)}
+                {lastSaleInfo.date && ` on ${lastSaleInfo.date}`}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Save button */}
       <button

@@ -13,7 +13,10 @@ export type Channel =
   | 'X'
   | 'LINKEDIN'
   | 'FACEBOOK'
-  | 'YOUTUBE';
+  | 'YOUTUBE'
+  | 'PINTEREST'
+  | 'THREADS'
+  | 'REDDIT';
 
 export type MediaMode =
   | 'BRAND_ASSETS_ONLY'
@@ -434,6 +437,7 @@ export type DataItemType =
   | 'TEAM_SPOTLIGHT'
   | 'INDUSTRY_NEWS'
   | 'EVENT'
+  | 'PROPERTY'
   | 'CUSTOM';
 
 export type BlueprintCategory =
@@ -792,6 +796,8 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', clientId, 'dashboard-recommendations'] as const,
   dashboardActions: (clientId: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'dashboard-actions'] as const,
+  nearbyListings: (clientId: string, zipCode: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'nearby-listings', zipCode] as const,
 };
 
 // ── Clients ──────────────────────────────────────────────────────────────
@@ -1703,6 +1709,10 @@ export function useDataItems(clientId: string, filters: DataItemFilters = {}) {
   });
 }
 
+export function useProperties(clientId: string, filters?: Omit<DataItemFilters, 'type'>) {
+  return useDataItems(clientId, { ...filters, type: 'PROPERTY' });
+}
+
 export function useDataItem(id: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.dataItem(id ?? ''),
@@ -2269,7 +2279,8 @@ export function useDashboardRecommendations(clientId: string | undefined) {
         `workspaces/${clientId}/dashboard/recommendations`,
       ),
     enabled: Boolean(clientId),
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,            // 5 min — triggers recommendation engine + property loads
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -2281,7 +2292,8 @@ export function useDashboardActions(clientId: string | undefined) {
         `workspaces/${clientId}/dashboard/actions`,
       ),
     enabled: Boolean(clientId),
-    staleTime: 60_000,
+    staleTime: 2 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -2341,7 +2353,8 @@ export function useRecommendations(clientId: string | undefined, surface?: Recom
         `workspaces/${clientId}/recommendations${qs}`,
       ),
     enabled: Boolean(clientId),
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -2350,13 +2363,63 @@ export function useRecommendations(clientId: string | undefined, surface?: Recom
  * Helps the engine avoid showing the same recommendations repeatedly.
  */
 export function useAcceptRecommendation(clientId: string | undefined) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (recId: string) =>
       apiFetch<{ ok: boolean }>(
         `workspaces/${clientId}/recommendations/${recId}/accept`,
         { method: 'POST' },
       ),
+    onSuccess: () => {
+      if (clientId) {
+        qc.invalidateQueries({ queryKey: squadpitchKeys.dashboardRecommendations(clientId) });
+        qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'recommendations', clientId] });
+      }
+    },
   });
+}
+
+export function useDismissRecommendation(clientId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ recId, reason }: { recId: string; reason?: string }) =>
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/recommendations/${recId}/dismiss`,
+        { method: 'POST', body: JSON.stringify({ reason }) },
+      ),
+    onSuccess: () => {
+      if (clientId) {
+        qc.invalidateQueries({ queryKey: squadpitchKeys.dashboardRecommendations(clientId) });
+        qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'recommendations', clientId] });
+      }
+    },
+  });
+}
+
+// ── Agent Profile Draft (RE onboarding) ─────────────────────────────────
+
+export interface AgentProfileDraft {
+  sourceType: 'website' | 'zillow_profile' | 'license_lookup' | 'crm_import' | 'documents' | 'manual';
+  agentName?: string;
+  brokerageName?: string;
+  teamName?: string;
+  bio?: string;
+  specialties?: string[];
+  serviceAreas?: string[];
+  primaryCity?: string;
+  primaryState?: string;
+  licenseNumber?: string;
+  licenseState?: string;
+  licenseStatus?: string;
+  websiteUrl?: string;
+  zillowProfileUrl?: string;
+  socialLinks?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string };
+  exampleListings?: Array<{ address?: string; city?: string; state?: string; price?: number }>;
+  inferredAudience?: string[];
+  inferredPriceBands?: string[];
+  notes?: string[];
+  confidence?: Record<string, number>;
+  _mergedSources?: Record<string, string>;
 }
 
 // ── Onboarding ──────────────────────────────────────────────────────────
@@ -2365,6 +2428,7 @@ export type OnboardingAnalyzeInput = {
   input: string;
   inputType: 'url' | 'text';
   documentTexts?: string[];
+  agentProfileDraft?: AgentProfileDraft;
 };
 
 export interface OnboardingBrandData {
@@ -2512,6 +2576,11 @@ export interface IndustryProfile {
   content: {
     starterBlueprintSlugs: string[];
     starterChannels: string[];
+    channelRecommendations: {
+      primary: string[];
+      secondary: string[];
+      optional: string[];
+    } | null;
   };
   integrations: {
     supportedCapabilities: string[];
@@ -2524,6 +2593,13 @@ export interface IndustryProfile {
   contentTypeLabels: IndustryContentTypeLabel[] | null;
   ui: { icon: string };
   techStack: IndustryTechStackItem[];
+  onboardingSources?: Array<{
+    key: string;
+    label: string;
+    icon: string;
+    default?: boolean;
+    comingSoon?: boolean;
+  }>;
 }
 
 export function useIndustries() {
@@ -2750,6 +2826,38 @@ export function useOnboardingUploadDocuments() {
   });
 }
 
+// ── Agent Onboarding Sources (RE) ────────────────────────────────────────
+
+export function useZillowExtract() {
+  return useMutation({
+    mutationFn: (url: string) =>
+      apiFetch<AgentProfileDraft>('onboarding/zillow-extract', {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+      }),
+  });
+}
+
+export function useLicenseLookup() {
+  return useMutation({
+    mutationFn: (params: { state: string; licenseNumber: string }) =>
+      apiFetch<AgentProfileDraft>('onboarding/license-lookup', {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }),
+  });
+}
+
+export function useCrmAnalyze() {
+  return useMutation({
+    mutationFn: (csvText: string) =>
+      apiFetch<AgentProfileDraft>('onboarding/crm-analyze', {
+        method: 'POST',
+        body: JSON.stringify({ csvText }),
+      }),
+  });
+}
+
 // ── Planner Suggestions ─────────────────────────────────────────────────
 
 export function usePlannerSuggestions(clientId: string) {
@@ -2897,6 +3005,10 @@ export function useManualListingImport(clientId: string) {
   });
 }
 
+export function useSavePropertyToLibrary(clientId: string) {
+  return useManualListingImport(clientId);
+}
+
 export function useListingCSVPreview(clientId: string) {
   return useMutation({
     mutationFn: (body: { csvContent: string }) =>
@@ -2945,6 +3057,127 @@ export function useListingUrlConfirm(clientId: string) {
   });
 }
 
+// ── Property Data Lookup ────────────────────────────────────────────────
+
+export interface PropertyLookupResult {
+  data: {
+    provider: string;
+    providerId: string | null;
+    formattedAddress: string | null;
+    street: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+    propertyType: string | null;
+    bedrooms: number | null;
+    bathrooms: number | null;
+    sqft: number | null;
+    lotSize: number | null;
+    yearBuilt: number | null;
+    garage: number | null;
+    lastSalePrice: number | null;
+    lastSaleDate: string | null;
+    hoaFee: number | null;
+  } | null;
+}
+
+export interface RentEstimateResult {
+  data: {
+    provider: string;
+    estimate: number;
+    rangeLow: number | null;
+    rangeHigh: number | null;
+  } | null;
+}
+
+export function usePropertyLookup(clientId: string) {
+  return useMutation({
+    mutationFn: (address: string) =>
+      apiFetch<PropertyLookupResult>(
+        `workspaces/${clientId}/property-data/lookup?address=${encodeURIComponent(address)}`
+      ),
+  });
+}
+
+export function useRentEstimate(clientId: string) {
+  return useMutation({
+    mutationFn: (address: string) =>
+      apiFetch<RentEstimateResult>(
+        `workspaces/${clientId}/property-data/rent-estimate?address=${encodeURIComponent(address)}`
+      ),
+  });
+}
+
+// ── Property Listings Search ────────────────────────────────────────────
+
+export interface UnifiedListing {
+  provider: string;
+  providerId: string | null;
+  formattedAddress: string | null;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  propertyType: string | null;
+  price: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  sqft: number | null;
+  lotSize: number | null;
+  yearBuilt: number | null;
+  status: string | null;
+  daysOnMarket: number | null;
+  listedDate: string | null;
+  removedDate: string | null;
+  agent: string | null;
+  office: string | null;
+}
+
+export interface PropertyListingsSearchParams {
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  address?: string;
+  propertyType?: string;
+}
+
+export interface PropertyListingsSearchResult {
+  data: UnifiedListing[];
+}
+
+export function usePropertyListingsSearch(clientId: string) {
+  return useMutation({
+    mutationFn: (params: PropertyListingsSearchParams) => {
+      const qs = new URLSearchParams();
+      if (params.address) qs.set('address', params.address);
+      if (params.city) qs.set('city', params.city);
+      if (params.state) qs.set('state', params.state);
+      if (params.zipCode) qs.set('zipCode', params.zipCode);
+      if (params.propertyType) qs.set('propertyType', params.propertyType);
+      qs.set('limit', '20');
+      qs.set('offset', '0');
+      return apiFetch<PropertyListingsSearchResult>(
+        `workspaces/${clientId}/property-data/listings?${qs.toString()}`
+      );
+    },
+  });
+}
+
+export function useNearbyListings(clientId: string, zipCode: string) {
+  return useQuery({
+    queryKey: squadpitchKeys.nearbyListings(clientId, zipCode),
+    queryFn: () =>
+      apiFetch<PropertyListingsSearchResult>(
+        `workspaces/${clientId}/property-data/listings?zipCode=${encodeURIComponent(zipCode)}&limit=8`
+      ),
+    enabled: Boolean(clientId && zipCode),
+    staleTime: 15 * 60_000,          // 15 min — backend caches 1h, no need to refetch often
+    gcTime: 30 * 60_000,             // 30 min — keep in memory across navigations
+    refetchOnWindowFocus: false,     // Expensive endpoint — only refetch on explicit action
+    select: (data) => data.data,
+  });
+}
+
 // ── Integration Status (GBP + CRM) ─────────────────────────────────────
 
 export interface GBPConnectionStatus {
@@ -2955,7 +3188,42 @@ export interface GBPConnectionStatus {
   lastSyncedAt: string | null;
   reviewCount: number;
   averageRating: string | null;
+  unrepliedReviewCount: number;
   lastError: string | null;
+}
+
+export interface GBPReview {
+  id: string;
+  reviewer: string;
+  rating: number;
+  comment: string;
+  reviewDate: string | null;
+  reply: string | null;
+  dataItemId: string;
+  extractedThemes: string[];
+  sentiment: 'positive' | 'neutral' | 'negative' | null;
+  useCases: string[];
+  locationMentions: string[];
+  strongQuotes: string[];
+  analyzedAt: string | null;
+}
+
+export interface GBPReviewsResponse {
+  reviews: GBPReview[];
+  total: number;
+  unrepliedCount: number;
+}
+
+export interface GBPBusinessProfileResponse {
+  businessName: string;
+  description: string;
+  categories: string[];
+  address: object | null;
+  phone: string | null;
+  website: string | null;
+  reviewCount: number;
+  averageRating: number | null;
+  lastSyncedAt: string | null;
 }
 
 export interface CRMConnectionStatus {
@@ -3068,6 +3336,91 @@ export function useGBPDisconnect(clientId: string) {
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+    },
+  });
+}
+
+export function useGBPReviews(clientId: string) {
+  return useQuery({
+    queryKey: ['gbp-reviews', clientId],
+    queryFn: () =>
+      apiFetch<GBPReviewsResponse>(
+        `workspaces/${clientId}/integrations/gbp/reviews`
+      ),
+    enabled: !!clientId,
+  });
+}
+
+export function useGBPBusinessProfile(clientId: string) {
+  return useQuery({
+    queryKey: ['gbp-profile', clientId],
+    queryFn: () =>
+      apiFetch<GBPBusinessProfileResponse>(
+        `workspaces/${clientId}/integrations/gbp/profile`
+      ),
+    enabled: !!clientId,
+  });
+}
+
+export function useGBPReply(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { reviewId: string; replyText: string }) =>
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/integrations/gbp/reply`,
+        { method: 'POST', body: JSON.stringify(params) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['gbp-reviews', clientId] });
+      qc.invalidateQueries({ queryKey: ['integrationStatus', clientId] });
+    },
+  });
+}
+
+export function useGBPPost(clientId: string) {
+  return useMutation({
+    mutationFn: (params: { summary: string; callToAction?: { actionType?: string; url?: string } }) =>
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/integrations/gbp/post`,
+        { method: 'POST', body: JSON.stringify(params) }
+      ),
+  });
+}
+
+export interface GBPReviewInsights {
+  topThemes: Array<{ theme: string; count: number }>;
+  sentimentBreakdown: { positive: number; neutral: number; negative: number };
+  topUseCases: string[];
+  commonLocations: string[];
+  analyzedAt: string;
+}
+
+export interface GBPAnalyzeResult {
+  analyzed: number;
+}
+
+export function useGBPInsights(clientId: string) {
+  return useQuery({
+    queryKey: ['gbp-insights', clientId],
+    queryFn: () =>
+      apiFetch<GBPReviewInsights>(
+        `workspaces/${clientId}/integrations/gbp/insights`
+      ),
+    enabled: !!clientId,
+  });
+}
+
+export function useGBPAnalyze(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<GBPAnalyzeResult>(
+        `workspaces/${clientId}/integrations/gbp/analyze`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['gbp-reviews', clientId] });
+      qc.invalidateQueries({ queryKey: ['gbp-insights', clientId] });
     },
   });
 }

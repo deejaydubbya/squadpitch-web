@@ -50,7 +50,7 @@ const TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
 
 const RE_TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: '', label: 'All Types' },
-  { value: 'CUSTOM', label: 'Properties' },
+  { value: 'PROPERTY', label: 'Properties' },
   { value: 'TESTIMONIAL', label: 'Testimonials' },
   { value: 'STATISTIC', label: 'Statistics' },
   { value: 'TEAM_SPOTLIGHT', label: 'Team' },
@@ -64,7 +64,7 @@ const RE_TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
 ];
 
 const RE_SECTION_LABELS: Record<string, string> = {
-  CUSTOM: 'Properties',
+  PROPERTY: 'Properties',
   TESTIMONIAL: 'Testimonials',
   STATISTIC: 'Market Stats',
   TEAM_SPOTLIGHT: 'Team',
@@ -73,7 +73,7 @@ const RE_SECTION_LABELS: Record<string, string> = {
 };
 
 const RE_SECTION_ORDER: DataItemType[] = [
-  'CUSTOM', 'TESTIMONIAL', 'STATISTIC', 'TEAM_SPOTLIGHT', 'CASE_STUDY',
+  'PROPERTY', 'TESTIMONIAL', 'STATISTIC', 'TEAM_SPOTLIGHT', 'CASE_STUDY',
   'EVENT', 'MILESTONE', 'PRODUCT_LAUNCH', 'PROMOTION', 'FAQ', 'INDUSTRY_NEWS',
 ];
 

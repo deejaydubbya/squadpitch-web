@@ -1,8 +1,17 @@
 'use client';
 import { useParams } from 'next/navigation';
+import { useClient, useIndustries } from '@/hooks/useSquadpitch';
 import { ChannelConnectionsList } from '@/components/studio/ChannelConnectionsList';
+
 export default function SettingsChannelsPage() {
   const params = useParams<{ clientId: string }>();
+  const { data: client } = useClient(params.clientId);
+  const { data: industries } = useIndustries();
+
+  const industryProfile = client?.industryKey && industries
+    ? industries.find((p) => p.key === client.industryKey)
+    : undefined;
+
   return (
     <div className="space-y-4">
       <div>
@@ -11,7 +20,10 @@ export default function SettingsChannelsPage() {
           Connect your social accounts to publish posts and help Squadpitch learn what works best for your audience.
         </p>
       </div>
-      <ChannelConnectionsList clientId={params.clientId} />
+      <ChannelConnectionsList
+        clientId={params.clientId}
+        channelRecommendations={industryProfile?.content.channelRecommendations}
+      />
     </div>
   );
 }

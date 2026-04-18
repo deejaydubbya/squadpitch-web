@@ -15,6 +15,7 @@ const TYPE_COLORS: Record<DataItemType, string> = {
   TEAM_SPOTLIGHT: 'bg-pink-500/20 text-pink-400',
   INDUSTRY_NEWS: 'bg-red-500/20 text-red-400',
   EVENT: 'bg-emerald-500/20 text-emerald-400',
+  PROPERTY: 'bg-teal-500/20 text-teal-400',
   CUSTOM: 'bg-white-10 text-white-60',
 };
 
@@ -29,6 +30,7 @@ const TYPE_LABELS: Record<DataItemType, string> = {
   TEAM_SPOTLIGHT: 'Team Spotlight',
   INDUSTRY_NEWS: 'Industry News',
   EVENT: 'Event',
+  PROPERTY: 'Property',
   CUSTOM: 'Custom',
 };
 

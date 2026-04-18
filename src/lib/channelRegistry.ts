@@ -3,6 +3,7 @@ import type { Channel } from '@/hooks/useSquadpitch';
 export interface ChannelCapability {
   channel: Channel;
   label: string;
+  comingSoon?: boolean;
   requiresConnection: boolean;
   requiresMedia: boolean;
   requiresVideo: boolean;
@@ -64,6 +65,36 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresVideo: false,
     supportsTextOnly: true,
     maxCaptionLength: 63206,
+  },
+  PINTEREST: {
+    channel: 'PINTEREST',
+    label: 'Pinterest',
+    comingSoon: true,
+    requiresConnection: true,
+    requiresMedia: true,
+    requiresVideo: false,
+    supportsTextOnly: false,
+    maxCaptionLength: 500,
+  },
+  THREADS: {
+    channel: 'THREADS',
+    label: 'Threads',
+    comingSoon: true,
+    requiresConnection: true,
+    requiresMedia: false,
+    requiresVideo: false,
+    supportsTextOnly: true,
+    maxCaptionLength: 500,
+  },
+  REDDIT: {
+    channel: 'REDDIT',
+    label: 'Reddit',
+    comingSoon: true,
+    requiresConnection: true,
+    requiresMedia: false,
+    requiresVideo: false,
+    supportsTextOnly: true,
+    maxCaptionLength: 40000,
   },
 };
 

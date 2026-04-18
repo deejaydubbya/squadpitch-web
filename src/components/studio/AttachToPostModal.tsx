@@ -23,6 +23,9 @@ const CHANNEL_COLORS: Record<Channel, string> = {
   LINKEDIN: 'bg-blue-500/20 text-blue-400',
   FACEBOOK: 'bg-blue-600/20 text-blue-300',
   YOUTUBE: 'bg-red-500/20 text-red-400',
+  PINTEREST: 'bg-red-600/20 text-red-300',
+  THREADS: 'bg-white-20 text-white-60',
+  REDDIT: 'bg-orange-500/20 text-orange-400',
 };
 
 export function AttachToPostModal({ assetId, clientId, onClose, onCreated }: Props) {

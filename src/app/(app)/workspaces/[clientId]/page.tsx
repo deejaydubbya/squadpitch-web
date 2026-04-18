@@ -7,21 +7,13 @@ import { OnboardingWelcome } from '@/components/studio/OnboardingWelcome';
 import {
   Sparkles,
   Send,
-  CopyPlus,
-  Pencil,
-  Check,
   LinkIcon,
-  FileText,
   ChevronRight,
   Zap,
   Target,
-  Calendar,
   BarChart3,
   Eye,
-  Clock,
-  Megaphone,
   AlertCircle,
-  Plug,
 } from 'lucide-react';
 import {
   useClient,
@@ -31,19 +23,21 @@ import {
   useChannelConnectionStatus,
   useDashboardRecommendations,
   useTechStack,
-  useApproveDraft,
-  usePublishDraft,
-  useScheduleDraft,
   useDuplicateDraft,
   useAcceptRecommendation,
-  type Draft,
+  useDismissRecommendation,
+  useIntegrationStatus,
   type DashboardRecommendation,
   type DashboardRecommendationsResponse,
 } from '@/hooks/useSquadpitch';
 import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
 import { SetupProgress } from '@/components/studio/SetupProgress';
-import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { getChannelLabel } from '@/lib/channelRegistry';
+import { NearbyListingsWidget } from '@/components/studio/NearbyListingsWidget';
+import { GBPDashboardWidget } from '@/components/studio/GBPDashboardWidget';
+import { SystemStatusCard } from '@/components/studio/SystemStatusCard';
+import { OpportunitiesSection } from '@/components/studio/OpportunitiesSection';
+import { ContentActivitySection } from '@/components/studio/ContentActivitySection';
+import type { NextActionItem } from '@/components/studio/OpportunitiesSection';
 
 export default function OverviewPage() {
   const params = useParams<{ clientId: string }>();
@@ -63,8 +57,10 @@ export default function OverviewPage() {
   const connectionStatus = useChannelConnectionStatus(clientId);
   const techStack = useTechStack(clientId);
   const { data: recommendations } = useDashboardRecommendations(clientId);
+  const { data: integrationStatus } = useIntegrationStatus(clientId);
   const duplicate = useDuplicateDraft();
   const acceptRec = useAcceptRecommendation(clientId);
+  const dismissRec = useDismissRecommendation(clientId);
 
   if (!client) return null;
   const base = `/workspaces/${clientId}`;
@@ -123,18 +119,7 @@ export default function OverviewPage() {
 
   // ── Compute Next Actions from real state ──────────────────────────────
   const nextActions = useMemo(() => {
-    const items: {
-      id: string;
-      icon: React.ReactNode;
-      title: string;
-      description: string;
-      href?: string;
-      action?: string;
-      cta: string;
-      priority: number;
-      accent?: string;
-      sourceHint?: string;
-    }[] = [];
+    const items: NextActionItem[] = [];
 
     const approved = analytics?.byStatus?.APPROVED ?? 0;
     if (approved > 0) {
@@ -147,6 +132,7 @@ export default function OverviewPage() {
         cta: 'Publish',
         priority: 1,
         accent: 'text-accent-green-110 bg-accent-green-110/15',
+        reasons: ['You have approved posts ready to publish'],
       });
     }
 
@@ -161,6 +147,7 @@ export default function OverviewPage() {
         cta: 'Review',
         priority: 2,
         accent: 'text-yellow-400 bg-yellow-400/15',
+        reasons: ['Drafts are waiting for your review before they can be published'],
       });
     }
 
@@ -175,6 +162,7 @@ export default function OverviewPage() {
         cta: 'Create',
         priority: 3,
         accent: 'text-purple-400 bg-purple-400/15',
+        reasons: ['You have unused source material that can be turned into content'],
       });
     }
 
@@ -193,6 +181,7 @@ export default function OverviewPage() {
         cta: 'Schedule',
         priority: 4,
         accent: 'text-orange-400 bg-orange-400/15',
+        reasons: [published === 0 ? 'No posts published this week yet' : `Only ${published} of 5 weekly target posts published`],
       });
     }
 
@@ -208,6 +197,7 @@ export default function OverviewPage() {
         cta: 'Enable',
         priority: 5,
         accent: 'text-yellow-400 bg-yellow-400/15',
+        reasons: ['You have data sources but Autopilot is not enabled'],
       });
     }
 
@@ -221,6 +211,7 @@ export default function OverviewPage() {
         cta: 'Connect',
         priority: 6,
         accent: 'text-blue-400 bg-blue-400/15',
+        reasons: ['No publishing channels connected yet'],
       });
     }
 
@@ -244,12 +235,14 @@ export default function OverviewPage() {
           priority: 10 + rec.priority,
           accent: 'text-accent-green-110 bg-accent-green-110/15',
           sourceHint: hint,
+          reasons: rec.reasons,
+          dismissable: true,
         });
       }
     }
 
     return items.sort((a, b) => a.priority - b.priority).slice(0, 4);
-  }, [analytics, summary, enabledChannels, recommendations, base]);
+  }, [analytics, summary, connectedCount, recommendations, base]);
 
   const handleRecommendationAction = (rec: DashboardRecommendation) => {
     acceptRec.mutate(rec.id);
@@ -288,12 +281,22 @@ export default function OverviewPage() {
         router.push(`${base}/listing-campaign${qs ? `?${qs}` : ''}`);
         break;
       }
+      case 'draft_gbp_reply':
+        document.getElementById('gbp-dashboard-widget')?.scrollIntoView({ behavior: 'smooth' });
+        break;
+      case 'setup_integrations':
+        router.push(`${base}/settings/integrations`);
+        break;
       default:
         router.push(`${base}/create`);
     }
   };
 
-  const handleNextAction = (action: (typeof nextActions)[number]) => {
+  const handleDismissRecommendation = (recId: string) => {
+    dismissRec.mutate({ recId });
+  };
+
+  const handleNextAction = (action: NextActionItem) => {
     if (action.href) {
       router.push(action.href);
     } else if (action.action) {
@@ -307,7 +310,7 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-8 max-w-5xl">
-      {/* Onboarding welcome */}
+      {/* 1. Onboarding welcome */}
       {showWelcome && (
         <OnboardingWelcome
           clientId={clientId}
@@ -318,13 +321,13 @@ export default function OverviewPage() {
         />
       )}
 
-      {/* Page header */}
+      {/* 2. Page header */}
       <div>
         <h1 className="text-xl font-bold text-white-100">{client.name}</h1>
         <p className="text-sm text-white-40 mt-1">Here&apos;s what Squadpitch recommends based on your business and connected sources</p>
       </div>
 
-      {/* Setup progress — hidden once all steps complete */}
+      {/* 3. Setup progress — hidden once all steps complete */}
       <SetupProgress
         hasWebsite={Boolean(client.brandProfile?.website)}
         hasChannels={enabledChannels.length > 0}
@@ -335,372 +338,80 @@ export default function OverviewPage() {
         base={base}
       />
 
-      {/* Channel Status — show when channels are enabled */}
-      {enabledChannels.length > 0 && (
-        <div className="card p-5 border-white-10">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <LinkIcon className="w-4 h-4 text-accent-green-110" />
-              <h2 className="text-sm font-semibold text-white-100">Your Channels</h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
-                {connectedCount}/{enabledChannels.length} connected
+      {/* 4. Needs Attention — slim alert style */}
+      {attentionItems.length > 0 && (
+        <div className="card p-3 border-white-10">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <AlertCircle className="w-4 h-4 text-yellow-400" />
+              <span className="text-xs font-semibold text-white-100 uppercase tracking-wider">
+                Needs Attention
               </span>
             </div>
-            <Link
-              href={`${base}/settings/channels`}
-              className="text-[11px] text-accent-green-110 hover:underline"
-            >
-              Manage
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {enabledChannels.map((ch) => {
-              const connected = connectionStatus.get(ch.channel) === true;
-              return (
-                <div
-                  key={ch.channel}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white-5 border border-white-10"
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      connected ? 'bg-green-400' : 'bg-yellow-400'
-                    }`}
-                  />
-                  <span className="text-xs text-white-80 font-medium">{getChannelLabel(ch.channel)}</span>
-                  <span className={`text-[10px] ml-auto ${connected ? 'text-green-400' : 'text-yellow-400'}`}>
-                    {connected ? 'Connected' : 'Not connected'}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          {disconnectedCount > 0 && (
-            <Link
-              href={`${base}/settings/channels`}
-              className="mt-3 flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
-            >
-              <AlertCircle className="w-3.5 h-3.5" />
-              Connect your accounts to schedule and publish content
-              <ChevronRight className="w-3 h-3" />
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* Integrations Status */}
-      {techStack && (techStack.importData.length + techStack.enhanceWorkflow.length) > 0 && (
-        <div className="card p-5 border-white-10">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Plug className="w-4 h-4 text-accent-green-110" />
-              <h2 className="text-sm font-semibold text-white-100">Integrations</h2>
-              {(() => {
-                const items = [...techStack.importData, ...techStack.enhanceWorkflow];
-                const active = items.filter((i) => i.connectionStatus === 'connected').length;
-                return (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
-                    {active}/{items.length} active
-                  </span>
-                );
-              })()}
-            </div>
-            <Link
-              href={`${base}/settings/integrations`}
-              className="text-[11px] text-accent-green-110 hover:underline"
-            >
-              Manage
-            </Link>
-          </div>
-          {/* Show items by group (skip publishContent — covered by Your Channels card) */}
-          {(['importData', 'enhanceWorkflow'] as const).map((group) => {
-            const items = techStack[group];
-            if (items.length === 0) return null;
-            const groupLabel = group === 'importData' ? 'Data Sources' : 'Workflow';
-            return (
-              <div key={group} className="mb-2 last:mb-0">
-                <p className="text-[10px] text-white-25 uppercase tracking-wider mb-1.5">{groupLabel}</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {items.map((item) => (
-                    <div
-                      key={item.providerKey}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white-5 border border-white-10"
-                    >
-                      <span
-                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          item.connectionStatus === 'connected'
-                            ? 'bg-green-400'
-                            : item.connectionStatus === 'error'
-                              ? 'bg-red-400'
-                              : item.status === 'planned'
-                                ? 'bg-white-20'
-                                : 'bg-yellow-400'
-                        }`}
-                      />
-                      <span className="text-xs text-white-80 font-medium truncate">{item.label}</span>
-                      <span className={`text-[10px] ml-auto flex-shrink-0 ${
-                        item.connectionStatus === 'connected'
-                          ? 'text-green-400'
-                          : item.status === 'planned'
-                            ? 'text-white-20'
-                            : 'text-yellow-400'
-                      }`}>
-                        {item.statusBadge}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          {techStack.activeCount < techStack.totalCount && (
-            <Link
-              href={`${base}/settings/integrations`}
-              className="mt-3 flex items-center gap-1.5 text-xs text-accent-green-110 hover:underline transition-colors"
-            >
-              Connect more integrations to enhance your workflow
-              <ChevronRight className="w-3 h-3" />
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* Next Actions — AI Recommended */}
-      {nextActions.length > 0 && (
-        <div className="card p-6 bg-gradient-to-br from-accent-green-110/8 via-transparent to-transparent border-accent-green-110/20">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="w-4 h-4 text-accent-green-110" />
-            <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-              Next Actions
-            </h2>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
-              Based on your sources
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {nextActions.map((action) => (
-              <button
-                key={action.id}
-                onClick={() => handleNextAction(action)}
-                className="flex items-center gap-3 p-4 rounded-xl bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-all text-left group"
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${action.accent ?? 'text-accent-green-110 bg-accent-green-110/15'}`}>
-                  {action.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white-100 group-hover:text-white transition-colors">
-                    {action.title}
-                  </p>
-                  <p className="text-xs text-white-40 mt-0.5">{action.description}</p>
-                  {action.sourceHint && (
-                    <p className="text-[10px] text-accent-green-110/70 mt-0.5">{action.sourceHint}</p>
-                  )}
-                </div>
-                <span className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
-                  {action.cta}
-                </span>
-                <ChevronRight className="w-4 h-4 text-white-20 flex-shrink-0 group-hover:hidden" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Needs Attention */}
-      {attentionItems.length > 0 && (
-        <div className="card p-5 border-white-10">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertCircle className="w-4 h-4 text-yellow-400" />
-            <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-              Needs Attention
-            </h2>
-          </div>
-          <div className="flex flex-wrap gap-3">
             {attentionItems.map((item) => (
               <Link
                 key={item.label}
                 href={item.href}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-all group"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-all group"
               >
-                <span className={`text-lg font-bold ${item.accent}`}>{item.count}</span>
-                <span className="text-sm text-white-60 group-hover:text-white-100 transition-colors">
+                <span className={`text-sm font-bold ${item.accent}`}>{item.count}</span>
+                <span className="text-xs text-white-60 group-hover:text-white-100 transition-colors">
                   {item.label}
                 </span>
-                <ChevronRight className="w-3.5 h-3.5 text-white-20 ml-1" />
+                <ChevronRight className="w-3 h-3 text-white-20" />
               </Link>
             ))}
           </div>
         </div>
       )}
 
-      {/* Weekly Snapshot */}
+      {/* 5. System Status — channels + integrations combined */}
+      <SystemStatusCard
+        enabledChannels={enabledChannels}
+        connectionStatus={connectionStatus}
+        connectedCount={connectedCount}
+        disconnectedCount={disconnectedCount}
+        techStack={techStack}
+        base={base}
+      />
+
+      {/* 6. Opportunities — MOST PROMINENT */}
+      <OpportunitiesSection
+        nextActions={nextActions}
+        topRecommendation={topRecommendation}
+        autopilot={summary?.autopilot ? {
+          enabled: summary.autopilot.enabled,
+          draftsThisWeek: summary.autopilot.draftsThisWeek,
+          maxDraftsPerWeek: summary.autopilot.maxDraftsPerWeek,
+        } : undefined}
+        onNextAction={handleNextAction}
+        onRecommendationAction={handleRecommendationAction}
+        onDismissRecommendation={handleDismissRecommendation}
+      />
+
+      {/* 7. Google Business Profile Widget */}
+      {integrationStatus?.gbp?.status === 'connected' && (
+        <div id="gbp-dashboard-widget">
+          <GBPDashboardWidget clientId={clientId} />
+        </div>
+      )}
+
+      {/* 8. Nearby Listings (RE only) */}
+      {isRE && <NearbyListingsWidget clientId={clientId} />}
+
+      {/* 9. Weekly Snapshot */}
       <WeeklySnapshot analytics={analytics} recommendations={recommendations} base={base} />
 
-      {/* Coming Up — scheduled posts + active campaigns */}
-      {(upcomingPosts.length > 0 || activeCampaigns.length > 0) && (
-        <div className="card p-5 border-white-10">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="w-4 h-4 text-blue-400" />
-            <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-              Coming Up
-            </h2>
-          </div>
-
-          {/* Upcoming scheduled posts */}
-          {upcomingPosts.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {upcomingPosts.map((post) => (
-                <Link
-                  key={post.id}
-                  href={`${base}/planner`}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-white-5 transition-colors group"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                    <Calendar className="w-4 h-4 text-blue-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white-80 truncate">
-                      {post.body?.slice(0, 60) || post.channel}
-                    </p>
-                    <p className="text-[11px] text-white-30">
-                      {post.channel} · {new Date(post.scheduledFor!).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-white-20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </Link>
-              ))}
-            </div>
-          )}
-
-          {/* Active campaigns */}
-          {activeCampaigns.length > 0 && (
-            <div className={upcomingPosts.length > 0 ? 'pt-3 border-t border-white-10' : ''}>
-              <div className="flex items-center gap-2 mb-2">
-                <Megaphone className="w-3.5 h-3.5 text-accent-green-110" />
-                <span className="text-xs font-medium text-white-60">
-                  {activeCampaigns.length} active campaign{activeCampaigns.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {activeCampaigns.slice(0, 3).map((campaign) => (
-                  <Link
-                    key={campaign.campaignId}
-                    href={`${base}/campaigns`}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white-5 transition-colors group"
-                  >
-                    <span className="text-sm text-white-80 group-hover:text-white-100 transition-colors truncate">
-                      {campaign.campaignName}
-                    </span>
-                    <span className="text-[11px] text-white-30 flex-shrink-0 ml-2">
-                      {campaign.drafts.length} post{campaign.drafts.length !== 1 ? 's' : ''}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Top Recommendation — slim, high-confidence */}
-      {topRecommendation && (
-        <button
-          onClick={() => handleRecommendationAction(topRecommendation)}
-          className="w-full card p-4 border-white-10 hover:border-white-20 hover:bg-white-5 transition-all text-left group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent-green-110/10 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-accent-green-110" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-white-100 group-hover:text-white transition-colors truncate">
-                  {topRecommendation.title}
-                </p>
-                {topRecommendation.confidence === 'high' && (
-                  <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent-green-110/15 text-accent-green-110">
-                    Recommended
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-white-40 mt-0.5 truncate">
-                {topRecommendation.reasons?.[0] ?? topRecommendation.reason ?? topRecommendation.description}
-              </p>
-              {topRecommendation.sourceLabel && (
-                <p className="text-[10px] text-accent-green-110/70 mt-0.5">
-                  Based on your {topRecommendation.sourceLabel.toLowerCase()}
-                </p>
-              )}
-            </div>
-            <span className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
-              {topRecommendation.actionLabel}
-            </span>
-            <ChevronRight className="w-4 h-4 text-white-20 flex-shrink-0 group-hover:hidden" />
-          </div>
-        </button>
-      )}
-
-      {/* Recent drafts */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-accent-green-110" />
-            <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-              Recent Drafts
-            </h2>
-            {drafts && drafts.length > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
-                {drafts.length} latest
-              </span>
-            )}
-          </div>
-          <Link
-            href={`${base}/planner`}
-            className="text-xs text-accent-green-110 hover:underline"
-          >
-            View all
-          </Link>
-        </div>
-
-        {draftsLoading && (
-          <div className="flex items-center gap-2 py-4">
-            <LoadingSpinner size="sm" />
-            <span className="text-white-40 text-sm">Loading...</span>
-          </div>
-        )}
-
-        {drafts && drafts.length === 0 && (
-          <div className="card p-8 text-center">
-            <p className="text-sm text-white-40 mb-4">No posts yet. Create your first one:</p>
-            <div className="flex items-center justify-center gap-3">
-              <Link
-                href={`${base}/create`}
-                className="px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-dark text-sm font-semibold hover:bg-accent-green-110/90 transition-colors"
-              >
-                Create a quick post
-              </Link>
-              <Link
-                href={isRE ? `${base}/listing-campaign` : `${base}/campaigns`}
-                className="px-4 py-2.5 rounded-xl bg-white-10 text-white-100 text-sm font-semibold hover:bg-white-20 transition-colors"
-              >
-                {isRE ? 'Create a listing campaign' : 'Create a campaign'}
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {drafts && drafts.length > 0 && (
-          <div className="space-y-2">
-            {drafts.map((d) => (
-              <DraftCard
-                key={d.id}
-                draft={d}
-                base={base}
-                onDuplicate={() => duplicate.mutate(d.id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      {/* 10. Content & Campaigns */}
+      <ContentActivitySection
+        drafts={drafts}
+        draftsLoading={draftsLoading}
+        upcomingPosts={upcomingPosts}
+        activeCampaigns={activeCampaigns}
+        base={base}
+        isRE={isRE}
+        onDuplicate={(draftId) => duplicate.mutate(draftId)}
+      />
     </div>
   );
 }
@@ -791,154 +502,6 @@ function WeeklySnapshot({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Draft Card ───────────────────────────────────────────────────────────
-
-function DraftCard({
-  draft,
-  base,
-  onDuplicate,
-}: {
-  draft: Draft;
-  base: string;
-  onDuplicate: () => void;
-}) {
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState('');
-
-  const approve = useApproveDraft(draft.id);
-  const publish = usePublishDraft(draft.id);
-  const schedule = useScheduleDraft(draft.id);
-
-  const canEdit = draft.status === 'DRAFT' || draft.status === 'PENDING_REVIEW';
-  const canApprove = draft.status === 'PENDING_REVIEW';
-  const canSchedule = draft.status === 'APPROVED';
-  const canPublish = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
-  const isPending = approve.isPending || publish.isPending || schedule.isPending;
-
-  const statusColors: Record<string, string> = {
-    DRAFT: 'bg-white-10 text-white-60',
-    PENDING_REVIEW: 'bg-yellow-500/10 text-yellow-400',
-    APPROVED: 'bg-green-500/10 text-green-400',
-    SCHEDULED: 'bg-blue-500/10 text-blue-400',
-    PUBLISHED: 'bg-accent-green-110/10 text-accent-green-110',
-    REJECTED: 'bg-red-500/10 text-red-400',
-    FAILED: 'bg-red-500/10 text-red-400',
-  };
-
-  const handleSchedule = () => {
-    if (scheduleDate) {
-      schedule.mutate(new Date(scheduleDate).toISOString());
-      setShowSchedule(false);
-      setScheduleDate('');
-    }
-  };
-
-  return (
-    <div className="card p-4">
-      <div className="flex items-center gap-2 flex-wrap mb-1.5">
-        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[draft.status] ?? 'bg-white-10 text-white-60'}`}>
-          {draft.status.replace(/_/g, ' ')}
-        </span>
-        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white-10 text-white-60">
-          {draft.channel}
-        </span>
-        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white-10 text-white-60">
-          {draft.kind}
-        </span>
-        <span className="text-xs text-white-40 ml-auto">
-          {new Date(draft.createdAt).toLocaleString()}
-        </span>
-      </div>
-
-      <p className="text-sm text-white-80 line-clamp-2 mb-3">
-        {draft.body || <span className="italic text-white-40">(empty)</span>}
-      </p>
-
-      {/* Action buttons */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {canEdit && (
-          <Link
-            href={`${base}/planner`}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
-          >
-            <Pencil className="w-3 h-3" />
-            Edit
-          </Link>
-        )}
-        {canApprove && (
-          <button
-            onClick={() => approve.mutate()}
-            disabled={isPending}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 text-xs font-medium hover:bg-green-500/20 transition-colors disabled:opacity-50"
-          >
-            <Check className="w-3 h-3" />
-            Approve
-          </button>
-        )}
-        {canSchedule && !showSchedule && (
-          <button
-            onClick={() => setShowSchedule(true)}
-            disabled={isPending}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-medium hover:bg-blue-500/20 transition-colors disabled:opacity-50"
-          >
-            <Calendar className="w-3 h-3" />
-            Schedule
-          </button>
-        )}
-        {canPublish && (
-          <button
-            onClick={() => publish.mutate()}
-            disabled={isPending}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-medium hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
-          >
-            <Send className="w-3 h-3" />
-            Publish
-          </button>
-        )}
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            onDuplicate();
-          }}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
-        >
-          <CopyPlus className="w-3 h-3" />
-          Duplicate
-        </button>
-      </div>
-
-      {/* Inline schedule picker */}
-      {showSchedule && (
-        <div className="flex items-center gap-2 mt-2">
-          <input
-            type="datetime-local"
-            value={scheduleDate}
-            onChange={(e) => setScheduleDate(e.target.value)}
-            min={new Date().toISOString().slice(0, 16)}
-            className="px-2 py-1.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110"
-          />
-          <button
-            onClick={handleSchedule}
-            disabled={!scheduleDate || schedule.isPending}
-            className="px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
-          >
-            Confirm
-          </button>
-          <button
-            onClick={() => {
-              setShowSchedule(false);
-              setScheduleDate('');
-            }}
-            className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
     </div>
   );
 }

@@ -7,6 +7,9 @@ import {
   Twitter,
   Facebook,
   Youtube,
+  Pin,
+  AtSign,
+  Hash,
 
   Loader2,
   Link2,
@@ -22,10 +25,13 @@ import {
 import { useOAuthPopup } from '@/hooks/useOAuthPopup';
 import { cn } from '@/lib/utils';
 
+export type ChannelRecommendationTier = 'primary' | 'secondary' | 'optional';
+
 interface Props {
   clientId: string;
   channel: Channel;
   connection: ChannelConnection | null;
+  recommendationTier?: ChannelRecommendationTier | null;
 }
 
 const CHANNEL_META: Record<
@@ -38,6 +44,9 @@ const CHANNEL_META: Record<
   X: { label: 'X', icon: Twitter, real: true },
   FACEBOOK: { label: 'Facebook', icon: Facebook, real: true },
   YOUTUBE: { label: 'YouTube', icon: Youtube, real: true },
+  PINTEREST: { label: 'Pinterest', icon: Pin, real: false },
+  THREADS: { label: 'Threads', icon: AtSign, real: false },
+  REDDIT: { label: 'Reddit', icon: Hash, real: false },
 };
 
 const STATUS_PILL: Record<ChannelConnectionStatus, string> = {
@@ -60,7 +69,13 @@ function formatRelative(iso: string | null): string {
   return `${d}d ago`;
 }
 
-export function ChannelConnectionCard({ clientId, channel, connection }: Props) {
+const TIER_BADGE: Record<ChannelRecommendationTier, { label: string; className: string }> = {
+  primary: { label: 'Recommended', className: 'bg-accent-green-110/15 text-accent-green-110' },
+  secondary: { label: 'Good fit', className: 'bg-blue-400/15 text-blue-400' },
+  optional: { label: 'Optional', className: 'bg-white-10 text-white-40' },
+};
+
+export function ChannelConnectionCard({ clientId, channel, connection, recommendationTier }: Props) {
   const meta = CHANNEL_META[channel];
   const Icon = meta.icon;
   const oauthPopup = useOAuthPopup(clientId);
@@ -105,6 +120,16 @@ export function ChannelConnectionCard({ clientId, channel, connection }: Props) 
             {!meta.real && (
               <span className="text-xs text-white-40 font-medium">
                 Coming soon
+              </span>
+            )}
+            {recommendationTier && (
+              <span
+                className={cn(
+                  'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium',
+                  TIER_BADGE[recommendationTier].className,
+                )}
+              >
+                {TIER_BADGE[recommendationTier].label}
               </span>
             )}
             {connection && (
