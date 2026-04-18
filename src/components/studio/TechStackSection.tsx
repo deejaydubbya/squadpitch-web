@@ -132,6 +132,10 @@ function getMetadataSummary(
     if (field.type === 'password') {
       return `Key ending in ${maskValue(value)}`;
     }
+    if (field.type === 'select' && field.options) {
+      const opt = field.options.find((o) => o.value === value);
+      return opt?.label ?? value;
+    }
     return value;
   }
   return null;
@@ -307,18 +311,33 @@ function ManualSetupCard({
 
       {editing && !isConnected && (
         <div className="space-y-2 pt-1">
-          {fields.map((field, i) => (
-            <input
-              key={field.key}
-              type={field.type === 'url' ? 'url' : field.type === 'password' ? 'password' : 'text'}
-              value={values[field.key] ?? ''}
-              onChange={(e) => updateField(field.key, e.target.value)}
-              placeholder={field.placeholder ?? field.label}
-              className="input w-full text-sm"
-              autoFocus={i === 0}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
-            />
-          ))}
+          {fields.map((field, i) =>
+            field.type === 'select' && field.options ? (
+              <select
+                key={field.key}
+                value={values[field.key] ?? ''}
+                onChange={(e) => updateField(field.key, e.target.value)}
+                className="input w-full text-sm"
+                autoFocus={i === 0}
+              >
+                <option value="">{field.placeholder ?? `Select ${field.label}`}</option>
+                {field.options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                key={field.key}
+                type={field.type === 'url' ? 'url' : field.type === 'password' ? 'password' : 'text'}
+                value={values[field.key] ?? ''}
+                onChange={(e) => updateField(field.key, e.target.value)}
+                placeholder={field.placeholder ?? field.label}
+                className="input w-full text-sm"
+                autoFocus={i === 0}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+              />
+            ),
+          )}
           {error && <p className="text-xs text-red-400">{error}</p>}
           {saveSuccess && (
             <p className="text-xs text-accent-green-110">

@@ -2441,9 +2441,10 @@ export type ConnectionMode = 'oauth' | 'manual' | 'managed' | 'planned';
 export interface ManualSetupField {
   key: string;
   label: string;
-  type: 'url' | 'text' | 'password';
+  type: 'url' | 'text' | 'password' | 'select';
   required: boolean;
   placeholder?: string;
+  options?: { value: string; label: string }[];
 }
 
 export interface ManualSetupConfig {
