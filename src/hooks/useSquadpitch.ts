@@ -2868,9 +2868,18 @@ export interface ListingCSVImportResult {
   listings: WorkspaceDataItem[];
 }
 
+export interface ExtractionQuality {
+  grade: 'good' | 'partial' | 'poor';
+  score: number;
+  extracted: string[];
+  missing: string[];
+  message: string;
+}
+
 export interface ListingUrlPreviewResult {
   preview: CanonicalListing & { validation: ListingValidation };
   normalized: CanonicalListing;
+  quality?: ExtractionQuality;
 }
 
 export function useManualListingImport(clientId: string) {

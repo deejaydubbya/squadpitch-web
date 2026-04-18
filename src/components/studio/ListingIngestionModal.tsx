@@ -26,6 +26,7 @@ import {
   type ManualListingInput,
   type CanonicalListing,
   type ListingCSVPreviewResult,
+  type ExtractionQuality,
 } from '@/hooks/useSquadpitch';
 
 const TABS = [
@@ -698,6 +699,7 @@ function URLTab({
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState<CanonicalListing | null>(null);
   const [editedPreview, setEditedPreview] = useState<Record<string, unknown>>({});
+  const [quality, setQuality] = useState<ExtractionQuality | null>(null);
 
   const handleFetch = () => {
     urlImport.mutate(
@@ -706,6 +708,7 @@ function URLTab({
         onSuccess: (data) => {
           setPreview(data.normalized);
           setEditedPreview(data.normalized as unknown as Record<string, unknown>);
+          setQuality(data.quality ?? null);
         },
         onError: (err) => onError(err.message || 'Failed to fetch listing'),
       }
@@ -788,6 +791,7 @@ function URLTab({
           onClick={() => {
             setPreview(null);
             setEditedPreview({});
+            setQuality(null);
           }}
           className="flex items-center gap-1 text-xs text-white-40 hover:text-white-60"
         >
@@ -795,6 +799,30 @@ function URLTab({
           Try different URL
         </button>
       </div>
+
+      {/* Extraction quality feedback */}
+      {quality && quality.grade !== 'good' && (
+        <div
+          className={cn(
+            'rounded-lg border p-3 text-xs',
+            quality.grade === 'poor'
+              ? 'bg-red-500/10 border-red-500/30 text-red-300'
+              : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
+          )}
+        >
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1.5">
+              <p className="font-medium">{quality.message}</p>
+              {quality.missing.length > 0 && (
+                <p className="text-[10px] opacity-70">
+                  Missing: {quality.missing.join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Extracted image */}
       {imgs.length > 0 && (
