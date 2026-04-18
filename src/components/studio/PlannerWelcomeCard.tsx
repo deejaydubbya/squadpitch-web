@@ -31,9 +31,9 @@ export function PlannerWelcomeCard({
           Welcome to your Planner
         </h2>
         <p className="text-sm text-white-50 leading-relaxed">
-          Your planner turns listings and business assets into a weekly marketing
-          plan. We analyze your content, pick the best opportunities, and
-          schedule posts across your channels.
+          Your planner turns your sources into a weekly marketing plan. We
+          analyze your business info, find the best content ideas, and schedule
+          posts across your channels.
         </p>
 
         <div className="flex items-center gap-3 pt-1">

@@ -229,7 +229,7 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
                 ) : (
                   <Wand2 className="w-3.5 h-3.5" />
                 )}
-                Generate post
+                Create post
               </button>
             ) : (
               <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-3 space-y-3">

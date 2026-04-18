@@ -79,9 +79,10 @@ const RE_SECTION_ORDER: DataItemType[] = [
 
 interface Props {
   clientId: string;
+  hideHeader?: boolean;
 }
 
-export function BusinessDataManager({ clientId }: Props) {
+export function BusinessDataManager({ clientId, hideHeader }: Props) {
   const { data: client } = useClient(clientId);
   const isRE = client?.industryKey === 'real_estate';
   const bdLabels = useBusinessDataLabels(clientId);
@@ -172,17 +173,19 @@ export function BusinessDataManager({ clientId }: Props) {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-white-100">
-            {isRE ? 'Content Assets' : 'Business Data'}
-          </h1>
-          <p className="text-white-40 mt-1 text-sm">
-            {isRE
-              ? 'Your properties, testimonials, and market data power your marketing campaigns.'
-              : `Add your testimonials, stats, and ${bdLabels.itemPlural.toLowerCase()} to generate data-driven content.`}
-          </p>
-        </div>
+      <div className={cn('flex items-start justify-between gap-4', hideHeader && 'justify-end')}>
+        {!hideHeader && (
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-white-100">
+              {isRE ? 'Content Assets' : 'Knowledge'}
+            </h1>
+            <p className="text-white-40 mt-1 text-sm">
+              {isRE
+                ? 'Your properties, testimonials, and market data power your marketing campaigns.'
+                : `Add your testimonials, stats, and ${bdLabels.itemPlural.toLowerCase()} so Squadpitch can create smarter posts.`}
+            </p>
+          </div>
+        )}
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setShowAutopilot(true)}
@@ -376,7 +379,7 @@ export function BusinessDataManager({ clientId }: Props) {
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors"
           >
             <Wand2 className="w-3.5 h-3.5" />
-            Bulk Generate ({selectedItems.length})
+            Create Posts ({selectedItems.length})
           </button>
         )}
       </div>
@@ -395,7 +398,7 @@ export function BusinessDataManager({ clientId }: Props) {
                 ? 'No archived items.'
                 : isRE
                   ? 'Add properties, testimonials, or market data to power your campaigns.'
-                  : `No business data yet. Add your first ${bdLabels.itemSingular.toLowerCase()} to start generating data-driven content.`}
+                  : `No source material yet. Add your first ${bdLabels.itemSingular.toLowerCase()} so Squadpitch can create smarter content.`}
           </p>
           {!search && statusFilter === 'ACTIVE' && (
             <button

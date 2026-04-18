@@ -1104,9 +1104,12 @@ export function ListingCampaignPage({ clientId }: Props) {
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        <h1 className="text-2xl font-bold text-white-100 mb-2">Listing Campaign</h1>
+        <div className="mb-2">
+          <p className="text-xs font-medium text-accent-green-110 uppercase tracking-wider mb-1">Campaign Builder · Step 1 of 4</p>
+          <h1 className="text-2xl font-bold text-white-100">Listing Campaign</h1>
+        </div>
         <p className="text-white-40 text-sm mb-8">
-          Turn any property into a complete marketing campaign in minutes.
+          Build a coordinated multi-post campaign for any property. Choose your listing, select images, and generate a complete marketing strategy.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -2027,6 +2030,7 @@ export function ListingCampaignPage({ clientId }: Props) {
           Back
         </button>
 
+        <p className="text-xs font-medium text-accent-green-110 uppercase tracking-wider mb-1">Step 2 of 4</p>
         <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-white-100">
             {extractImage.isPending
@@ -2687,6 +2691,7 @@ export function ListingCampaignPage({ clientId }: Props) {
           Back
         </button>
 
+        <p className="text-xs font-medium text-accent-green-110 uppercase tracking-wider mb-1">Step 3 of 4</p>
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-2xl font-bold text-white-100">Confirm Property Details</h1>
           {sourceLabel && (
@@ -2944,6 +2949,7 @@ export function ListingCampaignPage({ clientId }: Props) {
           Back to details
         </button>
 
+        <p className="text-xs font-medium text-accent-green-110 uppercase tracking-wider mb-1">Step 4 of 4</p>
         <h1 className="text-2xl font-bold text-white-100 mb-1">Campaign Setup</h1>
         <p className="text-white-40 text-sm mb-8">
           Choose your campaign type and customize the post sequence.

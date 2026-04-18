@@ -23,7 +23,7 @@ export function RecommendationCards({ recommendations }: Props) {
       </h3>
       {recommendations.length === 0 ? (
         <p className="text-xs text-white-40 italic">
-          Not enough data yet — keep posting and check back.
+          Publish more posts and connect your sources to unlock personalized recommendations.
         </p>
       ) : (
         <div className="space-y-3">

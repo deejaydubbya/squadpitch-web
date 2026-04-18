@@ -244,11 +244,11 @@ export function VoiceProfileForm({ clientId }: Props) {
         </div>
         <p className="text-xs text-white-40 mb-3">
           Reusable content themes (e.g. launches, educational, testimonials).
-          Select one when generating.
+          Select one when creating a post.
         </p>
 
         {buckets.length === 0 && (
-          <p className="text-xs text-white-40 italic">No buckets yet.</p>
+          <p className="text-xs text-white-40 italic">No content themes yet. Add one to organize your post styles.</p>
         )}
 
         <div className="space-y-3">

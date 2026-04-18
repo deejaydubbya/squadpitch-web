@@ -82,8 +82,8 @@ export function BrandProfileForm({ clientId }: Props) {
       <div>
         <h2 className="text-lg font-bold text-white-100">Brand profile</h2>
         <p className="text-sm text-white-40 mt-0.5">
-          This information is injected into every generation prompt for this
-          client.
+          This is the core info about your brand. It shapes every post
+          Squadpitch creates.
         </p>
       </div>
 

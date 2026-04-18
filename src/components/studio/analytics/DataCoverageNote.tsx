@@ -19,19 +19,19 @@ export function DataCoverageNote({ summary, coverage, syncStatus }: Props) {
         {summary.dataCoverage === 'internal_only' ? (
           hasSyncData ? (
             <>
-              Metrics sync is active but engagement data hasn&apos;t been collected
-              for posts in this range yet. Scores are based on content quality signals.
+              Social media tracking is active but engagement hasn&apos;t been
+              collected for posts in this range yet. Scores are based on our AI quality assessment.
             </>
           ) : (
             <>
-              Analytics are based on content quality signals. Platform engagement
-              data will appear automatically as posts are synced.
+              Analytics are based on our AI quality assessment. Likes, shares,
+              and comments will appear automatically once your channels are synced.
             </>
           )
         ) : (
           <>
             Engagement data available for {coverage.coveragePercent}% of posts.
-            Remaining posts use content quality signals.
+            Remaining posts use our AI quality assessment.
           </>
         )}
       </p>

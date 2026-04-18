@@ -97,7 +97,7 @@ function BreakdownCard({
         {label}
       </h3>
       {entries.length === 0 ? (
-        <p className="text-xs text-white-40 italic">No data yet.</p>
+        <p className="text-xs text-white-40 italic">Publish posts to see stats here.</p>
       ) : (
         <div className="space-y-2">
           {entries.map(([key, count]) => (

@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
+import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle } from 'lucide-react';
+import { Inbox, Check, Loader2, Calendar, List, Clock, HelpCircle, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useDrafts,
@@ -31,6 +32,7 @@ import { FirstWeekProgress } from './FirstWeekProgress';
 import { PlannerSetupChecklist } from './PlannerSetupChecklist';
 import { CampaignFocusView } from './CampaignFocusView';
 import { CampaignSection } from './CampaignSection';
+import { groupDraftsByCampaign } from './campaignGrouping';
 
 interface Props {
   clientId: string;
@@ -89,6 +91,7 @@ export function PlannerView({ clientId }: Props) {
   const [view, setView] = useState<'calendar' | 'list'>('list');
   const [statusFilter, setStatusFilter] = useState<DraftStatus | 'ALL'>('ALL');
   const [channelFilter, setChannelFilter] = useState<Channel | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -173,19 +176,42 @@ export function PlannerView({ clientId }: Props) {
     return allDrafts.filter((d) => d.channel === channelFilter);
   }, [allDrafts, channelFilter]);
 
+  // Search filter
+  const searchFiltered = useMemo(() => {
+    if (!channelFiltered) return undefined;
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return channelFiltered;
+    return channelFiltered.filter((d) => {
+      const body = d.body?.toLowerCase() ?? '';
+      const hashtags = d.hashtags?.join(' ').toLowerCase() ?? '';
+      const cta = d.cta?.toLowerCase() ?? '';
+      const hooks = d.hooks?.join(' ').toLowerCase() ?? '';
+      const campaign = d.campaignName?.toLowerCase() ?? '';
+      const listing = d.sourceMeta?.listingTitle?.toLowerCase() ?? '';
+      return (
+        body.includes(q) ||
+        hashtags.includes(q) ||
+        cta.includes(q) ||
+        hooks.includes(q) ||
+        campaign.includes(q) ||
+        listing.includes(q)
+      );
+    });
+  }, [channelFiltered, searchQuery]);
+
   // Day filter (only in calendar view)
   const drafts = useMemo(() => {
-    if (!channelFiltered) return undefined;
-    if (!selectedDay || view !== 'calendar') return channelFiltered;
+    if (!searchFiltered) return undefined;
+    if (!selectedDay || view !== 'calendar') return searchFiltered;
 
-    return channelFiltered.filter((d) => {
+    return searchFiltered.filter((d) => {
       const date = d.scheduledFor ?? d.publishedAt;
       if (!date) return false;
       const dt = new Date(date);
       const key = `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
       return key === selectedDay;
     });
-  }, [channelFiltered, selectedDay, view]);
+  }, [searchFiltered, selectedDay, view]);
 
   const statusCounts = useMemo(() => {
     if (!allDrafts) return {};
@@ -209,53 +235,9 @@ export function PlannerView({ clientId }: Props) {
   }, [allDrafts]);
 
   // Group drafts by campaign for list view
-  const { campaignGroups, standalonesDrafts } = useMemo(() => {
-    if (!drafts) return { campaignGroups: [] as Array<{ campaignId: string; campaignName: string; campaignType: string; drafts: Draft[] }>, standalonesDrafts: [] as Draft[] };
-
-    const groups = new Map<string, { campaignId: string; campaignName: string; campaignType: string; drafts: Draft[] }>();
-    const standalones: Draft[] = [];
-
-    for (const d of drafts) {
-      if (d.campaignId) {
-        let group = groups.get(d.campaignId);
-        if (!group) {
-          group = {
-            campaignId: d.campaignId,
-            campaignName: d.campaignName || 'Unnamed Campaign',
-            campaignType: d.campaignType || 'just_listed',
-            drafts: [],
-          };
-          groups.set(d.campaignId, group);
-        }
-        group.drafts.push(d);
-      } else {
-        standalones.push(d);
-      }
-    }
-
-    // Sort drafts within each group by campaignOrder
-    for (const group of Array.from(groups.values())) {
-      group.drafts.sort((a, b) => (a.campaignOrder ?? 0) - (b.campaignOrder ?? 0));
-    }
-
-    // Sort campaign groups by most recent first (earliest scheduledFor date)
-    const sorted = Array.from(groups.values()).sort((a, b) => {
-      const aDate = a.drafts.reduce((min, d) => {
-        const dt = d.scheduledFor ?? d.publishedAt;
-        return dt && (!min || dt < min) ? dt : min;
-      }, null as string | null);
-      const bDate = b.drafts.reduce((min, d) => {
-        const dt = d.scheduledFor ?? d.publishedAt;
-        return dt && (!min || dt < min) ? dt : min;
-      }, null as string | null);
-      if (!aDate && !bDate) return 0;
-      if (!aDate) return 1;
-      if (!bDate) return -1;
-      // Most recent (latest date) first
-      return bDate.localeCompare(aDate);
-    });
-
-    return { campaignGroups: sorted, standalonesDrafts: standalones };
+  const { campaignGroups, standaloneDrafts: standalonesDrafts } = useMemo(() => {
+    if (!drafts) return { campaignGroups: [], standaloneDrafts: [] as Draft[] };
+    return groupDraftsByCampaign(drafts);
   }, [drafts]);
 
   // Auto-expand most recent campaign (and highlighted campaign if present)
@@ -447,15 +429,36 @@ export function PlannerView({ clientId }: Props) {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-white-100">Planner</h1>
-          {activeCampaignCount > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 font-medium">
-              {activeCampaignCount} campaign{activeCampaignCount !== 1 ? 's' : ''} active
-            </span>
-          )}
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-white-100">Content</h1>
+            {activeCampaignCount > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 font-medium">
+                {activeCampaignCount} campaign{activeCampaignCount !== 1 ? 's' : ''} active
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-white-40 mt-1">Manage, review, and schedule your posts</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href={`/workspaces/${clientId}/create`}
+            className="px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-dark text-xs font-semibold hover:bg-accent-green-110/90 transition-colors"
+          >
+            Quick Post
+          </Link>
+          <Link
+            href={`/workspaces/${clientId}/campaigns`}
+            className="px-3 py-1.5 rounded-lg bg-white-10 text-white-80 text-xs font-semibold hover:bg-white-20 transition-colors"
+          >
+            Campaign
+          </Link>
+          <Link
+            href={`/workspaces/${clientId}/library`}
+            className="text-xs text-white-40 hover:text-accent-green-110 transition-colors"
+          >
+            View library →
+          </Link>
           {/* Tour replay button */}
           <button
             onClick={handleStartTour}
@@ -523,8 +526,29 @@ export function PlannerView({ clientId }: Props) {
         />
       )}
 
-      {/* Filters */}
+      {/* Search + Filters */}
       <div className="space-y-3">
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white-30" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search content..."
+            className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-sm text-white-100 placeholder:text-white-30 focus:outline-none focus:border-accent-green-110 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white-30 hover:text-white-60 text-xs"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* Status filters */}
         <div className="flex items-center gap-2 flex-wrap">
           {STATUS_FILTERS.map((f) => {
             const count =
@@ -564,6 +588,13 @@ export function PlannerView({ clientId }: Props) {
               {f.label}
             </button>
           ))}
+
+          {/* Results count — shown when filtering */}
+          {drafts && (statusFilter !== 'ALL' || channelFilter !== 'ALL' || searchQuery.trim()) && (
+            <span className="text-[11px] text-white-30 ml-2">
+              Showing {drafts.length} of {totalCount}
+            </span>
+          )}
         </div>
 
         {/* Auto-schedule */}

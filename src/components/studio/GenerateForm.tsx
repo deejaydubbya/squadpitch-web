@@ -168,10 +168,10 @@ export function GenerateForm({ clientId }: Props) {
       <div className="card p-5 space-y-5">
         <div>
           <h2 className="text-lg font-bold text-white-100">
-            Generate content
+            Create post
           </h2>
           <p className="text-sm text-white-40 mt-0.5">
-            Uses OpenAI with {client?.name}&apos;s brand + voice profile.
+            Uses {client?.name}&apos;s brand and voice profile to write your post.
           </p>
         </div>
 

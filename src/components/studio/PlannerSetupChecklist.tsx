@@ -31,28 +31,28 @@ export function PlannerSetupChecklist({
     {
       key: 'listing_feed',
       label: 'Add your properties',
-      description: 'Add properties to generate listing campaigns',
+      description: 'Squadpitch uses your listings to recommend campaigns',
       done: hasListingFeed,
       href: `/workspaces/${clientId}/listing-campaign`,
     },
     {
       key: 'testimonial',
       label: 'Add a testimonial',
-      description: 'Client reviews build trust and engagement',
+      description: 'Real client reviews help Squadpitch create trust-building posts',
       done: hasTestimonials,
-      href: `/workspaces/${clientId}/data`,
+      href: `/workspaces/${clientId}/sources`,
     },
     {
       key: 'data',
-      label: 'Import business information',
-      description: 'Stats, bios, and market insights power better content',
+      label: 'Add your sources',
+      description: 'The more Squadpitch knows about your business, the better your posts',
       done: hasDataItems,
-      href: `/workspaces/${clientId}/data`,
+      href: `/workspaces/${clientId}/sources`,
     },
     {
       key: 'draft',
-      label: 'Approve your first draft',
-      description: 'Review and approve generated content to start publishing',
+      label: 'Approve your first post',
+      description: 'Review a post and approve it to start publishing',
       done: hasDrafts,
       href: `/workspaces/${clientId}/planner`,
     },
@@ -69,7 +69,7 @@ export function PlannerSetupChecklist({
           Get started with your Planner
         </h3>
         <p className="text-xs text-white-40 mt-0.5">
-          Complete these steps to unlock your first marketing plan.
+          Complete these steps to create your first marketing plan.
           <span className="text-white-60 ml-1 font-medium">
             {completedCount}/{items.length} done
           </span>

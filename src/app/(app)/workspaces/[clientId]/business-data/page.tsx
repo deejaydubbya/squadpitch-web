@@ -1,7 +1,9 @@
-'use client';
-import { useParams } from 'next/navigation';
-import { BusinessDataManager } from '@/components/studio/BusinessDataManager';
-export default function BusinessDataPage() {
-  const params = useParams<{ clientId: string }>();
-  return <BusinessDataManager clientId={params.clientId} />;
+import { redirect } from 'next/navigation';
+
+export default function BusinessDataPage({
+  params,
+}: {
+  params: { clientId: string };
+}) {
+  redirect(`/workspaces/${params.clientId}/sources?tab=knowledge`);
 }

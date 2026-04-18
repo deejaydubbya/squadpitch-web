@@ -59,9 +59,9 @@ export default function AnalyticsPage() {
         <div className="card p-8 text-center space-y-4">
           <BarChart3 className="w-10 h-10 text-white-20 mx-auto" />
           <div>
-            <h2 className="text-lg font-semibold text-white-100 mb-1">No data yet</h2>
+            <h2 className="text-lg font-semibold text-white-100 mb-1">No analytics yet</h2>
             <p className="text-sm text-white-40 max-w-md mx-auto">
-              Start creating and publishing content to see your performance metrics here.
+              Publish your first post to start seeing performance metrics here.
               We'll track everything automatically.
             </p>
           </div>
@@ -71,7 +71,7 @@ export default function AnalyticsPage() {
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"
             >
               <Wand2 className="w-4 h-4" />
-              Generate your first post
+              Create your first post
             </Link>
             <div className="flex items-center gap-4 text-xs text-white-40 pt-1">
               <Link

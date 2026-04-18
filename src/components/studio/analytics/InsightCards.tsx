@@ -19,7 +19,7 @@ export function InsightCards({ insights }: Props) {
       </h3>
       {insights.length === 0 ? (
         <p className="text-xs text-white-40 italic">
-          Not enough data yet — keep posting and check back.
+          Publish more posts to see what&apos;s working best for your audience.
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

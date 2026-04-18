@@ -32,7 +32,7 @@ export function TopPostsList({ title, posts, onPostClick }: Props) {
         {title}
       </h3>
       {posts.length === 0 ? (
-        <p className="text-xs text-white-40 italic">No data yet.</p>
+        <p className="text-xs text-white-40 italic">Publish posts to see your top performers.</p>
       ) : (
         <div className="space-y-3">
           {posts.map((post, i) => (

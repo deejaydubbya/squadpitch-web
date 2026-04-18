@@ -148,8 +148,8 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
             <>
               <div className="space-y-1.5">
                 <p className="text-sm text-white-60">
-                  Autopilot reviews your {bdLabels.itemPlural.toLowerCase()} and
-                  creates draft post ideas for the best content opportunities.
+                  Autopilot analyzes your sources and business context to
+                  create draft posts from the best content ideas.
                 </p>
                 <p className="text-xs text-white-30">
                   All output is saved as drafts for your review — nothing is
@@ -177,7 +177,7 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                     <div className="flex items-center justify-between pt-3">
                       <div>
                         <p className="text-xs font-medium text-white-100">Enable Autopilot</p>
-                        <p className="text-[10px] text-white-30 mt-0.5">Auto-create drafts when opportunities arise</p>
+                        <p className="text-[10px] text-white-30 mt-0.5">Auto-create drafts when good content ideas are found</p>
                       </div>
                       <button
                         onClick={() => updateSettings.mutate({
@@ -358,10 +358,10 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
               {suggestions.length === 0 ? (
                 <div className="text-center py-8 space-y-2">
                   <p className="text-white-40 text-sm">
-                    No strong opportunities found right now.
+                    No strong content ideas found right now.
                   </p>
                   <p className="text-white-30 text-xs">
-                    Try a different channel or add more data to your workspace.
+                    Try a different channel or add more sources to your workspace.
                   </p>
                 </div>
               ) : (
@@ -498,7 +498,7 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                 <p className="text-sm text-white-60">
                   {results.generated > 0
                     ? 'Saved as drafts for your review. You can edit, approve, or schedule them from the library.'
-                    : 'Autopilot could not generate drafts this time. Try different settings or add more data.'}
+                    : 'Autopilot could not create drafts this time. Try different settings or add more sources.'}
                 </p>
               </div>
 

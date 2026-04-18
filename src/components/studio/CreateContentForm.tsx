@@ -115,6 +115,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const [seriesParts, setSeriesParts] = useState(3);
 
   // Business data state
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [showBusinessData, setShowBusinessData] = useState(false);
   const [selectedDataItem, setSelectedDataItem] = useState<WorkspaceDataItem | null>(null);
   const [selectedBlueprint, setSelectedBlueprint] = useState<ContentBlueprint | null>(null);
@@ -316,10 +317,10 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
     <div className="max-w-2xl mx-auto space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-white-100">
-          What do you want to post about?
+          Quick Post
         </h1>
         <p className="text-white-40 mt-2">
-          Describe your idea and we'll generate on-brand content ready to publish.
+          Create a single post in seconds. Describe your idea and we'll handle the rest.
         </p>
       </div>
 
@@ -342,7 +343,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-accent-green-110 shrink-0" />
             <span className="text-xs font-medium text-accent-green-110">{campaignHint.title}</span>
-            <span className="ml-auto text-[10px] text-accent-green-110/60">Launch campaign →</span>
+            <span className="ml-auto text-[10px] text-accent-green-110/60">Create campaign →</span>
           </div>
           {campaignHint.reasons.length > 0 && (
             <p className="text-[11px] text-white-40 mt-1 ml-5.5">{campaignHint.reasons[0]}</p>
@@ -427,35 +428,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           </div>
         )}
 
-        {/* Content Type */}
-        <div>
-          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2.5">
-            Content Type
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {CONTENT_TYPES.map((ct) => {
-              const Icon = ct.icon;
-              return (
-                <button
-                  key={ct.value}
-                  type="button"
-                  onClick={() => setContentType(contentType === ct.value ? null : ct.value)}
-                  className={cn(
-                    'px-3.5 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
-                    contentType === ct.value
-                      ? 'bg-accent-green-110 text-sp-surface'
-                      : 'bg-white-10 text-white-60 hover:bg-white-20'
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {ct.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Platform pills */}
+        {/* Platform — primary selection */}
         <div>
           <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2.5">
             Platform
@@ -485,28 +458,82 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           )}
         </div>
 
-        {/* Goal pills */}
-        <div>
-          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2.5">
-            Goal
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {GOALS.map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => setGoal(g)}
-                className={cn(
-                  'px-4 py-2 rounded-full text-sm font-medium transition-colors',
-                  goal === g
-                    ? 'bg-accent-green-110 text-sp-surface'
-                    : 'bg-white-10 text-white-60 hover:bg-white-20'
-                )}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
+        {/* Advanced options — Content Type, Goal, Business Data */}
+        <div className="border border-white-10 rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-white-40 hover:bg-white-5 transition-colors"
+          >
+            <Layers className="w-4 h-4" />
+            Advanced options
+            {(contentType || goal !== 'Growth' || selectedDataItem) && (
+              <span className="px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-[10px] font-medium">
+                Customized
+              </span>
+            )}
+            {showAdvanced ? (
+              <ChevronDown className="w-3.5 h-3.5 ml-auto" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 ml-auto" />
+            )}
+          </button>
+
+          {showAdvanced && (
+            <div className="px-4 pb-4 space-y-5 border-t border-white-10 pt-4">
+              {/* Content Type */}
+              <div>
+                <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2.5">
+                  Content Type
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {CONTENT_TYPES.map((ct) => {
+                    const Icon = ct.icon;
+                    return (
+                      <button
+                        key={ct.value}
+                        type="button"
+                        onClick={() => setContentType(contentType === ct.value ? null : ct.value)}
+                        className={cn(
+                          'px-3.5 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+                          contentType === ct.value
+                            ? 'bg-accent-green-110 text-sp-surface'
+                            : 'bg-white-10 text-white-60 hover:bg-white-20'
+                        )}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {ct.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Goal */}
+              <div>
+                <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2.5">
+                  Goal
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {GOALS.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setGoal(g)}
+                      className={cn(
+                        'px-4 py-2 rounded-full text-sm font-medium transition-colors',
+                        goal === g
+                          ? 'bg-accent-green-110 text-sp-surface'
+                          : 'bg-white-10 text-white-60 hover:bg-white-20'
+                      )}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Business Data Section */}
@@ -517,8 +544,8 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-white-60 hover:bg-white-5 transition-colors"
           >
             <Database className="w-4 h-4" />
-            Use my data
-            <span className="text-[10px] text-white-30">(listings, testimonials, etc.)</span>
+            Use my sources
+            <span className="text-[10px] text-white-30">(listings, testimonials, stats, etc.)</span>
             {selectedDataItem && (
               <span className="ml-1 px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-[10px] font-semibold">
                 {selectedDataItem.title}
@@ -709,12 +736,12 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             {generate.isPending ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Generating...
+                Creating...
               </>
             ) : (
               <>
                 <Wand2 className="w-5 h-5" />
-                Generate 3 Variations
+                Create Post
               </>
             )}
           </button>
@@ -736,7 +763,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             className="flex items-center gap-2 text-xs text-white-40 hover:text-white-60 transition-colors"
           >
             <Layers className="w-3.5 h-3.5" />
-            {showSeries ? 'Hide series builder' : 'Create a multi-part series instead'}
+            {showSeries ? 'Hide series builder' : 'Or create a quick series (2-7 related posts)'}
             <ChevronDown className={cn('w-3 h-3 transition-transform', showSeries && 'rotate-180')} />
           </button>
 
@@ -784,12 +811,12 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
                 {generateSeries.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating series...
+                    Creating series...
                   </>
                 ) : (
                   <>
                     <Layers className="w-4 h-4" />
-                    Generate {seriesParts}-Part Series
+                    Create {seriesParts}-Part Series
                   </>
                 )}
               </button>

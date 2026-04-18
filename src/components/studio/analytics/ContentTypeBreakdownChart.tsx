@@ -21,7 +21,7 @@ export function ContentTypeBreakdownChart({ data }: Props) {
         <h3 className="text-sm font-semibold text-white-100 uppercase tracking-wider mb-3">
           Content Type Breakdown
         </h3>
-        <p className="text-xs text-white-40 italic">No data yet.</p>
+        <p className="text-xs text-white-40 italic">Publish posts to see a breakdown here.</p>
       </div>
     );
   }

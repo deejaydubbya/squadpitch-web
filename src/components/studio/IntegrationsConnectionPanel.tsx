@@ -50,10 +50,10 @@ export function IntegrationsConnectionPanel({ clientId }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold text-white-100">Data Connections</h3>
+        <h3 className="text-sm font-semibold text-white-100">Business Connections</h3>
         <p className="text-xs text-white-40 mt-0.5">
-          Connect your business accounts to import reviews, deals,
-          and client data for content generation.
+          Connect your business accounts so Squadpitch can learn from your
+          reviews, deals, and contacts to create smarter posts.
         </p>
       </div>
 
@@ -172,7 +172,7 @@ function GBPCard({
               Google Business Profile
             </h4>
             <p className="text-xs text-white-40">
-              Import reviews, business info, and ratings
+              Your reviews and ratings help Squadpitch create trust-building posts
             </p>
           </div>
         </div>
@@ -373,7 +373,7 @@ function CRMCard({
           </div>
           <div>
             <h4 className="text-sm font-semibold text-white-100">Real Estate CRM</h4>
-            <p className="text-xs text-white-40">Import deals, contacts, and client feedback</p>
+            <p className="text-xs text-white-40">Your deals and contacts help Squadpitch recommend the right campaigns</p>
           </div>
         </div>
       </div>

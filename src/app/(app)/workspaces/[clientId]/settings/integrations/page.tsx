@@ -588,7 +588,7 @@ function GenericIntegrationsSection() {
         ) : (
           !adding && (
             <div className="card p-6 text-center text-sm text-white-40">
-              No integrations configured. Click a type above to add one.
+              No integrations yet. Connect a service above to extend what Squadpitch can do.
             </div>
           )
         )}
@@ -898,7 +898,7 @@ function MediaImportSection() {
     <section>
       <h2 className="text-base font-semibold text-white-100 mb-4">Media Import</h2>
       <p className="text-sm text-white-40 mb-4">
-        Connect cloud storage to browse and import media into your content.
+        Connect cloud storage so Squadpitch can use your existing photos and files in posts.
       </p>
 
       <div className="grid grid-cols-2 gap-3 mb-4">

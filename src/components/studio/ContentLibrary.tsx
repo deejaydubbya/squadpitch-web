@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, Inbox, List, LayoutGrid, Zap, Home, Wand2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Inbox, List, LayoutGrid, Zap, Home, Wand2, ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useDrafts,
@@ -246,6 +247,7 @@ export function ContentLibrary({ clientId }: Props) {
   if (tab === 'MEDIA') {
     return (
       <div className="space-y-5">
+        <RedirectNotice clientId={clientId} />
         <h1 className="text-xl font-bold text-white-100">Content Library</h1>
         {tabBar}
         <AssetLibrary clientId={clientId} />
@@ -255,6 +257,7 @@ export function ContentLibrary({ clientId }: Props) {
 
   return (
     <div className="space-y-5">
+      <RedirectNotice clientId={clientId} />
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-white-100">Content Library</h1>
         {allDrafts && allDrafts.length > 0 && (
@@ -438,6 +441,23 @@ export function ContentLibrary({ clientId }: Props) {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+function RedirectNotice({ clientId }: { clientId: string }) {
+  return (
+    <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+      <Info className="w-4 h-4 text-blue-400 flex-shrink-0" />
+      <p className="text-sm text-white-60">
+        The main content manager has moved.{' '}
+        <Link
+          href={`/workspaces/${clientId}/planner`}
+          className="text-accent-green-110 hover:underline font-medium"
+        >
+          Go to Content →
+        </Link>
+      </p>
     </div>
   );
 }

@@ -5,64 +5,41 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { OnboardingWelcome } from '@/components/studio/OnboardingWelcome';
 import {
-  Wand2,
-  Calendar,
-  Library,
-  BarChart3,
-  ArrowRight,
-  Loader2,
   Sparkles,
-  Settings,
-  Image as ImageIcon,
   Send,
   CopyPlus,
   Pencil,
   Check,
-  Database,
   LinkIcon,
-  TrendingUp,
   FileText,
   ChevronRight,
   Zap,
   Target,
-  Film,
-  Home,
-  Clock,
-  RefreshCw,
+  Calendar,
+  BarChart3,
   Eye,
-  Activity,
-  Lightbulb,
+  Clock,
+  Megaphone,
+  AlertCircle,
 } from 'lucide-react';
 import {
   useClient,
   useDrafts,
   useClientAnalytics,
   useChannelSettings,
-  useGenerateContent,
-  useAnalyticsOverview,
-  useAssets,
   useDashboardRecommendations,
-  useDashboardActions,
-  usePerformanceInsights,
   useApproveDraft,
   usePublishDraft,
   useScheduleDraft,
   useDuplicateDraft,
-  useBusinessDataLabels,
-  useAutopilotSettings,
-  useUpdateAutopilotSettings,
-  useRefreshListingFeed,
   useAcceptRecommendation,
-  type Channel,
   type Draft,
-  type MediaAsset,
   type DashboardRecommendation,
-  type DashboardAction,
   type DashboardRecommendationsResponse,
 } from '@/hooks/useSquadpitch';
+import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
+import { SetupProgress } from '@/components/studio/SetupProgress';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { StatusBanner } from '@/components/common/StatusBanner';
-import { TechStackSection } from '@/components/studio/TechStackSection';
 
 export default function OverviewPage() {
   const params = useParams<{ clientId: string }>();
@@ -76,37 +53,62 @@ export default function OverviewPage() {
     clientId,
     limit: 5,
   });
+  const { data: allDrafts } = useDrafts({ clientId, limit: 100 });
   const { data: analytics } = useClientAnalytics(clientId);
   const { data: channels } = useChannelSettings(clientId);
-  const { data: overview } = useAnalyticsOverview(clientId, '30d');
-  const { data: recentAssets } = useAssets(clientId, { limit: 4, status: 'READY' });
   const { data: recommendations } = useDashboardRecommendations(clientId);
-  const { data: actionsData } = useDashboardActions(clientId);
-  const { data: apSettings } = useAutopilotSettings(clientId);
-  const { data: perfInsights } = usePerformanceInsights(clientId);
-  const generate = useGenerateContent();
   const duplicate = useDuplicateDraft();
   const acceptRec = useAcceptRecommendation(clientId);
-
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [genError, setGenError] = useState<string | null>(null);
-  const [genSuccess, setGenSuccess] = useState(false);
 
   if (!client) return null;
   const base = `/workspaces/${clientId}`;
 
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
   const summary = recommendations?.summary;
-  const isAPEnabled = apSettings?.enabled ?? summary?.autopilot?.enabled ?? false;
+  const isRE = client.industryKey === 'real_estate';
 
-  const quickLinks = [
-    { href: `${base}/create`, icon: Wand2, label: 'Create', desc: 'Generate posts' },
-    { href: `${base}/planner`, icon: Calendar, label: 'Planner', desc: 'Schedule & queue' },
-    { href: `${base}/library`, icon: Library, label: 'Library', desc: 'All content' },
-    { href: `${base}/assets`, icon: ImageIcon, label: 'Media', desc: 'Images & video' },
-    { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics', desc: 'Performance' },
-    { href: `${base}/settings/brand`, icon: Settings, label: 'Settings', desc: 'Brand & channels' },
-  ];
+  // ── Derived data for dashboard sections ────────────────────────────────
+
+  // Upcoming scheduled posts (next 5, sorted by date)
+  const upcomingPosts = useMemo(() => {
+    if (!allDrafts) return [];
+    return allDrafts
+      .filter((d) => d.status === 'SCHEDULED' && d.scheduledFor)
+      .sort((a, b) => (a.scheduledFor! > b.scheduledFor! ? 1 : -1))
+      .slice(0, 5);
+  }, [allDrafts]);
+
+  // Active campaigns
+  const { campaignGroups: activeCampaigns } = useMemo(() => {
+    if (!allDrafts) return { campaignGroups: [], standaloneDrafts: [] };
+    const active = allDrafts.filter((d) => d.campaignId && d.status !== 'PUBLISHED');
+    return groupDraftsByCampaign(active);
+  }, [allDrafts]);
+
+  // Needs-attention counters
+  const attentionItems = useMemo(() => {
+    const items: { label: string; count: number; href: string; accent: string }[] = [];
+    const pending = analytics?.byStatus?.PENDING_REVIEW ?? 0;
+    if (pending > 0) {
+      items.push({ label: 'Pending review', count: pending, href: `${base}/planner`, accent: 'text-yellow-400' });
+    }
+    const approvedUnscheduled = allDrafts?.filter((d) => d.status === 'APPROVED' && !d.scheduledFor).length ?? 0;
+    if (approvedUnscheduled > 0) {
+      items.push({ label: 'Approved, not scheduled', count: approvedUnscheduled, href: `${base}/planner`, accent: 'text-green-400' });
+    }
+    const failed = analytics?.byStatus?.FAILED ?? 0;
+    if (failed > 0) {
+      items.push({ label: 'Failed to publish', count: failed, href: `${base}/planner`, accent: 'text-red-400' });
+    }
+    return items;
+  }, [analytics, allDrafts, base]);
+
+  // Top recommendation (1 high-confidence rec, not duplicating Next Actions)
+  const topRecommendation = useMemo(() => {
+    if (!recommendations?.recommendations) return null;
+    const high = recommendations.recommendations.find((r) => r.confidence === 'high');
+    return high ?? recommendations.recommendations[0] ?? null;
+  }, [recommendations]);
 
   // ── Compute Next Actions from real state ──────────────────────────────
   const nextActions = useMemo(() => {
@@ -120,6 +122,7 @@ export default function OverviewPage() {
       cta: string;
       priority: number;
       accent?: string;
+      sourceHint?: string;
     }[] = [];
 
     const approved = analytics?.byStatus?.APPROVED ?? 0;
@@ -128,7 +131,7 @@ export default function OverviewPage() {
         id: 'publish-approved',
         icon: <Send className="w-5 h-5" />,
         title: `Publish ${approved} approved post${approved > 1 ? 's' : ''}`,
-        description: 'Approved content is ready to go live',
+        description: 'Approved posts ready to go live',
         href: `${base}/planner`,
         cta: 'Publish',
         priority: 1,
@@ -143,7 +146,7 @@ export default function OverviewPage() {
         icon: <Eye className="w-5 h-5" />,
         title: `Review ${pending} pending draft${pending > 1 ? 's' : ''}`,
         description: 'Drafts waiting for your approval',
-        href: `${base}/library`,
+        href: `${base}/planner`,
         cta: 'Review',
         priority: 2,
         accent: 'text-yellow-400 bg-yellow-400/15',
@@ -155,8 +158,8 @@ export default function OverviewPage() {
       items.push({
         id: 'create-from-data',
         icon: <Sparkles className="w-5 h-5" />,
-        title: `Create posts from ${unused} unused opportunit${unused > 1 ? 'ies' : 'y'}`,
-        description: 'Business data ready for content creation',
+        title: `Create posts from ${unused} unused source${unused > 1 ? 's' : ''}`,
+        description: 'Source material ready to turn into posts',
         href: `${base}/create`,
         cta: 'Create',
         priority: 3,
@@ -182,13 +185,14 @@ export default function OverviewPage() {
       });
     }
 
+    const isAPEnabled = summary?.autopilot?.enabled ?? false;
     const hasData = (summary?.totalDataItems ?? 0) > 0;
     if (!isAPEnabled && hasData && items.length < 4) {
       items.push({
         id: 'enable-autopilot',
         icon: <Zap className="w-5 h-5" />,
         title: 'Turn on Autopilot',
-        description: 'Let Squadpitch generate and plan content automatically',
+        description: 'Let Squadpitch create and schedule posts automatically',
         action: 'toggle_autopilot',
         cta: 'Enable',
         priority: 5,
@@ -214,6 +218,11 @@ export default function OverviewPage() {
       for (const rec of recommendations.recommendations) {
         if (items.length >= 4) break;
         if (items.some((i) => i.id === rec.id)) continue;
+        const hint = rec.sourceLabel
+          ? `Based on your ${rec.sourceLabel.toLowerCase()}`
+          : rec.sourceType
+            ? `Based on your ${rec.sourceType.replace(/_/g, ' ')}`
+            : undefined;
         items.push({
           id: rec.id,
           icon: <Sparkles className="w-5 h-5" />,
@@ -223,49 +232,15 @@ export default function OverviewPage() {
           cta: rec.actionLabel,
           priority: 10 + rec.priority,
           accent: 'text-accent-green-110 bg-accent-green-110/15',
+          sourceHint: hint,
         });
       }
     }
 
     return items.sort((a, b) => a.priority - b.priority).slice(0, 4);
-  }, [analytics, summary, isAPEnabled, enabledChannels, recommendations, base]);
-
-  const handleGenerateSuggested = async () => {
-    if (enabledChannels.length === 0) return;
-    setIsGenerating(true);
-    setGenError(null);
-    setGenSuccess(false);
-
-    try {
-      const channel = enabledChannels[0].channel as Channel;
-      const topics = [
-        'Create a data-driven post using our best business data',
-        'Share an insight that demonstrates our expertise',
-        'Create an engaging post that drives conversation',
-      ];
-      for (const topic of topics) {
-        await generate.mutateAsync({
-          clientId,
-          kind: 'POST',
-          channel,
-          guidance: `[Goal: Growth] ${topic}`,
-        });
-      }
-      setGenSuccess(true);
-      fetch('/api/proxy/workspaces/' + clientId + '/batch-complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count: topics.length }),
-      }).catch(() => {});
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : 'Generation failed');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  }, [analytics, summary, enabledChannels, recommendations, base]);
 
   const handleRecommendationAction = (rec: DashboardRecommendation) => {
-    // Track acceptance (fire-and-forget)
     acceptRec.mutate(rec.id);
 
     switch (rec.action) {
@@ -277,7 +252,7 @@ export default function OverviewPage() {
         break;
       }
       case 'generate_from_data':
-        router.push(`${base}/business-data`);
+        router.push(`${base}/sources`);
         break;
       case 'generate_content':
         router.push(`${base}/create`);
@@ -286,10 +261,10 @@ export default function OverviewPage() {
         router.push(`${base}/settings/media`);
         break;
       case 'add_data':
-        router.push(`${base}/business-data`);
+        router.push(`${base}/sources`);
         break;
       case 'review_drafts':
-        router.push(`${base}/library`);
+        router.push(`${base}/planner`);
         break;
       case 'schedule_drafts':
         router.push(`${base}/planner`);
@@ -311,12 +286,10 @@ export default function OverviewPage() {
     if (action.href) {
       router.push(action.href);
     } else if (action.action) {
-      // Find matching recommendation for action dispatch
       const rec = recommendations?.recommendations.find((r) => r.action === action.action);
       if (rec) handleRecommendationAction(rec);
       else if (action.action === 'toggle_autopilot') {
-        // handled by AutopilotCard directly, but navigate as fallback
-        router.push(`${base}/business-data`);
+        router.push(`${base}/sources`);
       }
     }
   };
@@ -334,7 +307,21 @@ export default function OverviewPage() {
         />
       )}
 
-      {/* ═══════════════ TOP ═══════════════ */}
+      {/* Page header */}
+      <div>
+        <h1 className="text-xl font-bold text-white-100">{client.name}</h1>
+        <p className="text-sm text-white-40 mt-1">Here&apos;s what Squadpitch recommends based on your business and connected sources</p>
+      </div>
+
+      {/* Setup progress — hidden once all steps complete */}
+      <SetupProgress
+        hasWebsite={Boolean(client.brandProfile?.website)}
+        hasChannels={enabledChannels.length > 0}
+        hasSources={(summary?.totalDataItems ?? 0) > 0}
+        channelCount={enabledChannels.length}
+        sourceCount={summary?.totalDataItems ?? 0}
+        base={base}
+      />
 
       {/* Next Actions — AI Recommended */}
       {nextActions.length > 0 && (
@@ -345,7 +332,7 @@ export default function OverviewPage() {
               Next Actions
             </h2>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
-              AI Recommended
+              Based on your sources
             </span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -363,6 +350,9 @@ export default function OverviewPage() {
                     {action.title}
                   </p>
                   <p className="text-xs text-white-40 mt-0.5">{action.description}</p>
+                  {action.sourceHint && (
+                    <p className="text-[10px] text-accent-green-110/70 mt-0.5">{action.sourceHint}</p>
+                  )}
                 </div>
                 <span className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
                   {action.cta}
@@ -374,149 +364,141 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Opportunities — moved up, action-oriented */}
-      {recommendations && recommendations.recommendations.length > 0 && (
-        <div className="card p-5 border-white-10">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-accent-green-110" />
-              <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">
-                Opportunities
-              </h2>
-              {(summary?.unusedDataCount ?? 0) > 0 && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-400/10 text-purple-400">
-                  {summary!.unusedDataCount} ready
-                </span>
-              )}
-            </div>
-            <button
-              onClick={handleGenerateSuggested}
-              disabled={isGenerating || enabledChannels.length === 0}
-              className="px-4 py-2 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold flex items-center gap-1.5 hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Generate Content
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {recommendations.recommendations.slice(0, 3).map((rec) => (
-              <RecommendationCard
-                key={rec.id}
-                rec={rec}
-                onAction={() => handleRecommendationAction(rec)}
-              />
-            ))}
-          </div>
-
-          {enabledChannels.length === 0 && (
-            <p className="text-xs text-white-30 mt-2">
-              Enable a channel in{' '}
-              <Link href={`${base}/settings/media`} className="text-accent-green-110 hover:underline">
-                Settings
-              </Link>{' '}
-              first.
-            </p>
-          )}
-          {genSuccess && (
-            <p className="text-xs text-accent-green-110 mt-2">
-              Content ready.{' '}
-              <Link href={`${base}/library`} className="underline">View in library</Link>
-            </p>
-          )}
-          {genError && <StatusBanner error={genError} />}
-        </div>
-      )}
-
-      {/* ═══════════════ UPPER-MIDDLE ═══════════════ */}
-
-      {/* Weekly Snapshot — consolidated stats */}
-      <WeeklySnapshot analytics={analytics} recommendations={recommendations} base={base} />
-
-      {/* Content Pipeline + Content Assets + Consistency */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <ContentPipeline analytics={analytics} base={base} />
-        <BusinessDataSnapshot recommendations={recommendations} base={base} clientId={clientId} />
-        <ConsistencyTracker recommendations={recommendations} />
-      </div>
-
-      {/* ═══════════════ MIDDLE ═══════════════ */}
-
-      {/* Autopilot — prominent full-width card */}
-      <AutopilotCard recommendations={recommendations} base={base} clientId={clientId} />
-
-      {/* Quick Actions */}
-      {actionsData && actionsData.actions.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider mb-3">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {actionsData.actions.map((action) => (
-              <ActionCard
-                key={action.id}
-                action={action}
-                base={base}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Media + System Freshness */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <MediaPreview assets={recentAssets} base={base} recommendations={recommendations} />
-        <SystemFreshness recommendations={recommendations} base={base} />
-      </div>
-
-      {/* ═══════════════ LOWER ═══════════════ */}
-
-      {/* System Status — real estate workspaces */}
-      {client.industryKey === 'real_estate' && recommendations?.summary && (
-        <SystemStatus summary={recommendations.summary} base={base} />
-      )}
-
-      {/* Performance Insights — lightweight */}
-      {perfInsights?.hasEnoughData && perfInsights.insights.length > 0 && (
+      {/* Needs Attention */}
+      {attentionItems.length > 0 && (
         <div className="card p-5 border-white-10">
           <div className="flex items-center gap-2 mb-3">
-            <Lightbulb className="w-4 h-4 text-amber-400" />
-            <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">
-              Performance Insights
+            <AlertCircle className="w-4 h-4 text-yellow-400" />
+            <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+              Needs Attention
             </h2>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-400/10 text-amber-400">
-              {perfInsights.totalRated} rated
-            </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {perfInsights.insights.map((insight) => (
-              <div
-                key={insight.id}
-                className="flex items-start gap-2 p-3 rounded-lg bg-white-5"
+          <div className="flex flex-wrap gap-3">
+            {attentionItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-all group"
               >
-                <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
-                  insight.type === 'positive' ? 'bg-accent-green-110' : 'bg-amber-400'
-                }`} />
-                <div>
-                  <p className="text-xs font-medium text-white-80">{insight.text}</p>
-                  <p className="text-[11px] text-white-40 mt-0.5">{insight.detail}</p>
-                </div>
-              </div>
+                <span className={`text-lg font-bold ${item.accent}`}>{item.count}</span>
+                <span className="text-sm text-white-60 group-hover:text-white-100 transition-colors">
+                  {item.label}
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-white-20 ml-1" />
+              </Link>
             ))}
           </div>
         </div>
       )}
 
-      {/* Recent drafts — system output */}
+      {/* Weekly Snapshot */}
+      <WeeklySnapshot analytics={analytics} recommendations={recommendations} base={base} />
+
+      {/* Coming Up — scheduled posts + active campaigns */}
+      {(upcomingPosts.length > 0 || activeCampaigns.length > 0) && (
+        <div className="card p-5 border-white-10">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-4 h-4 text-blue-400" />
+            <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+              Coming Up
+            </h2>
+          </div>
+
+          {/* Upcoming scheduled posts */}
+          {upcomingPosts.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {upcomingPosts.map((post) => (
+                <Link
+                  key={post.id}
+                  href={`${base}/planner`}
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-white-5 transition-colors group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                    <Calendar className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white-80 truncate">
+                      {post.body?.slice(0, 60) || post.channel}
+                    </p>
+                    <p className="text-[11px] text-white-30">
+                      {post.channel} · {new Date(post.scheduledFor!).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-white-20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Active campaigns */}
+          {activeCampaigns.length > 0 && (
+            <div className={upcomingPosts.length > 0 ? 'pt-3 border-t border-white-10' : ''}>
+              <div className="flex items-center gap-2 mb-2">
+                <Megaphone className="w-3.5 h-3.5 text-accent-green-110" />
+                <span className="text-xs font-medium text-white-60">
+                  {activeCampaigns.length} active campaign{activeCampaigns.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {activeCampaigns.slice(0, 3).map((campaign) => (
+                  <Link
+                    key={campaign.campaignId}
+                    href={`${base}/campaigns`}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white-5 transition-colors group"
+                  >
+                    <span className="text-sm text-white-80 group-hover:text-white-100 transition-colors truncate">
+                      {campaign.campaignName}
+                    </span>
+                    <span className="text-[11px] text-white-30 flex-shrink-0 ml-2">
+                      {campaign.drafts.length} post{campaign.drafts.length !== 1 ? 's' : ''}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Top Recommendation — slim, high-confidence */}
+      {topRecommendation && (
+        <button
+          onClick={() => handleRecommendationAction(topRecommendation)}
+          className="w-full card p-4 border-white-10 hover:border-white-20 hover:bg-white-5 transition-all text-left group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent-green-110/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-accent-green-110" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-white-100 group-hover:text-white transition-colors truncate">
+                  {topRecommendation.title}
+                </p>
+                {topRecommendation.confidence === 'high' && (
+                  <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent-green-110/15 text-accent-green-110">
+                    Recommended
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-white-40 mt-0.5 truncate">
+                {topRecommendation.reasons?.[0] ?? topRecommendation.reason ?? topRecommendation.description}
+              </p>
+              {topRecommendation.sourceLabel && (
+                <p className="text-[10px] text-accent-green-110/70 mt-0.5">
+                  Based on your {topRecommendation.sourceLabel.toLowerCase()}
+                </p>
+              )}
+            </div>
+            <span className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+              {topRecommendation.actionLabel}
+            </span>
+            <ChevronRight className="w-4 h-4 text-white-20 flex-shrink-0 group-hover:hidden" />
+          </div>
+        </button>
+      )}
+
+      {/* Recent drafts */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -531,7 +513,7 @@ export default function OverviewPage() {
             )}
           </div>
           <Link
-            href={`${base}/library`}
+            href={`${base}/planner`}
             className="text-xs text-accent-green-110 hover:underline"
           >
             View all
@@ -546,11 +528,22 @@ export default function OverviewPage() {
         )}
 
         {drafts && drafts.length === 0 && (
-          <div className="card p-6 text-center text-sm text-white-40">
-            No drafts yet.{' '}
-            <Link href={`${base}/create`} className="text-accent-green-110 hover:underline">
-              Create your first post
-            </Link>
+          <div className="card p-8 text-center">
+            <p className="text-sm text-white-40 mb-4">No posts yet. Create your first one:</p>
+            <div className="flex items-center justify-center gap-3">
+              <Link
+                href={`${base}/create`}
+                className="px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-dark text-sm font-semibold hover:bg-accent-green-110/90 transition-colors"
+              >
+                Create a quick post
+              </Link>
+              <Link
+                href={isRE ? `${base}/listing-campaign` : `${base}/campaigns`}
+                className="px-4 py-2.5 rounded-xl bg-white-10 text-white-100 text-sm font-semibold hover:bg-white-20 transition-colors"
+              >
+                {isRE ? 'Create a listing campaign' : 'Create a campaign'}
+              </Link>
+            </div>
           </div>
         )}
 
@@ -567,39 +560,6 @@ export default function OverviewPage() {
           </div>
         )}
       </div>
-
-      {/* Recent Activity — real estate workspaces */}
-      {client.industryKey === 'real_estate' && (
-        <RecentActivity drafts={drafts} recommendations={recommendations} />
-      )}
-
-      {/* Tech Stack */}
-      <TechStackSection clientId={clientId} />
-
-      {/* Workspace links */}
-      <div>
-        <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider mb-3">
-          Workspace
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {quickLinks.map((ql) => (
-            <Link
-              key={ql.href}
-              href={ql.href}
-              className="card-hover p-4 flex items-center gap-3"
-            >
-              <div className="w-10 h-10 rounded-xl bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
-                <ql.icon className="w-5 h-5 text-accent-green-110" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white-100">{ql.label}</p>
-                <p className="text-xs text-white-40">{ql.desc}</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-white-40" />
-            </Link>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -608,7 +568,7 @@ export default function OverviewPage() {
 // Sub-components
 // ══════════════════════════════════════════════════════════════════════════
 
-// ── Weekly Snapshot (replaces 4 stat cards) ──────────────────────────────
+// ── Weekly Snapshot ───────────────────────────────────────────────────────
 
 function WeeklySnapshot({
   analytics,
@@ -625,10 +585,6 @@ function WeeklySnapshot({
   const target = 5;
   const pct = Math.min(100, Math.round((published / target) * 100));
 
-  const approved =
-    (analytics?.byStatus?.APPROVED ?? 0) +
-    (analytics?.byStatus?.PUBLISHED ?? 0) +
-    (analytics?.byStatus?.SCHEDULED ?? 0);
   const pending = analytics?.byStatus?.PENDING_REVIEW ?? 0;
   const approvalRate = Math.round((analytics?.approvalRate ?? 0) * 100);
   const pipelineSize = analytics?.total ?? 0;
@@ -695,99 +651,6 @@ function WeeklySnapshot({
         </div>
       </div>
     </div>
-  );
-}
-
-// ── Recommendation Card ──────────────────────────────────────────────────
-
-const CONFIDENCE_STYLES: Record<string, string> = {
-  high: 'bg-accent-green-110/15 text-accent-green-110',
-  medium: 'bg-yellow-400/15 text-yellow-400',
-  low: 'bg-white-10 text-white-40',
-};
-
-function RecommendationCard({
-  rec,
-  onAction,
-}: {
-  rec: DashboardRecommendation;
-  onAction: () => void;
-}) {
-  const iconMap: Record<string, React.ReactNode> = {
-    data: <Database className="w-4 h-4 text-accent-green-110" />,
-    frequency: <Calendar className="w-4 h-4 text-blue-400" />,
-    setup: <LinkIcon className="w-4 h-4 text-yellow-400" />,
-    growth: <BarChart3 className="w-4 h-4 text-purple-400" />,
-    workflow: <Check className="w-4 h-4 text-orange-400" />,
-    content: <Wand2 className="w-4 h-4 text-accent-green-110" />,
-    cadence: <Clock className="w-4 h-4 text-orange-400" />,
-    real_estate: <Home className="w-4 h-4 text-accent-green-110" />,
-  };
-
-  const reasonText = rec.reasons?.[0] ?? rec.reason;
-  const isCampaign = rec.type?.includes('campaign') && rec.type !== 'campaign_hint';
-
-  return (
-    <button
-      onClick={onAction}
-      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white-5 transition-colors group text-left"
-    >
-      <div className="flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-        {iconMap[rec.category] ?? <Sparkles className="w-4 h-4 text-white-40" />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-white-80 group-hover:text-white-100 transition-colors truncate">{rec.title}</p>
-          {isCampaign && (
-            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-400/15 text-purple-400">
-              Campaign
-            </span>
-          )}
-          {rec.confidence && rec.confidence !== 'low' && (
-            <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${CONFIDENCE_STYLES[rec.confidence]}`}>
-              {rec.confidence === 'high' ? 'Recommended' : 'Suggested'}
-            </span>
-          )}
-        </div>
-        {reasonText && (
-          <p className="text-[11px] text-white-30 mt-0.5 truncate">{reasonText}</p>
-        )}
-      </div>
-      <span className="flex-shrink-0 px-3 py-1.5 rounded-lg text-accent-green-110 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent-green-110/10">
-        {rec.actionLabel}
-      </span>
-      <ChevronRight className="w-3.5 h-3.5 text-white-20 flex-shrink-0 group-hover:hidden" />
-    </button>
-  );
-}
-
-// ── Action Card ──────────────────────────────────────────────────────────
-
-function ActionCard({ action, base }: { action: DashboardAction; base: string }) {
-  const iconMap: Record<string, React.ReactNode> = {
-    review: <Pencil className="w-5 h-5 text-yellow-400" />,
-    publish: <Send className="w-5 h-5 text-accent-green-110" />,
-    setup: <LinkIcon className="w-5 h-5 text-blue-400" />,
-    data: <Database className="w-5 h-5 text-purple-400" />,
-    schedule: <Calendar className="w-5 h-5 text-orange-400" />,
-  };
-
-  return (
-    <Link
-      href={`${base}/${action.actionRoute}`}
-      className="card-hover p-4 flex items-center gap-3"
-    >
-      <div className="w-10 h-10 rounded-xl bg-white-10 flex items-center justify-center flex-shrink-0">
-        {iconMap[action.type] ?? <ArrowRight className="w-5 h-5 text-white-40" />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white-100">{action.title}</p>
-        <p className="text-xs text-white-40 line-clamp-1">{action.description}</p>
-      </div>
-      <span className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold">
-        {action.actionLabel}
-      </span>
-    </Link>
   );
 }
 
@@ -858,7 +721,7 @@ function DraftCard({
       <div className="flex items-center gap-2 flex-wrap">
         {canEdit && (
           <Link
-            href={`${base}/library`}
+            href={`${base}/planner`}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
           >
             <Pencil className="w-3 h-3" />
@@ -937,893 +800,4 @@ function DraftCard({
       )}
     </div>
   );
-}
-
-// ── Content Pipeline ─────────────────────────────────────────────────────
-
-function ContentPipeline({
-  analytics,
-  base,
-}: {
-  analytics: ReturnType<typeof useClientAnalytics>['data'];
-  base: string;
-}) {
-  const stages = [
-    { label: 'Draft', status: 'DRAFT', color: 'bg-white-20' },
-    { label: 'Approved', status: 'APPROVED', color: 'bg-green-500/20' },
-    { label: 'Scheduled', status: 'SCHEDULED', color: 'bg-blue-500/20' },
-    { label: 'Published', status: 'PUBLISHED', color: 'bg-accent-green-110/20' },
-  ];
-
-  return (
-    <div className="card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <TrendingUp className="w-4 h-4 text-accent-green-110" />
-        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          Content Pipeline
-        </h3>
-      </div>
-
-      <div className="space-y-1.5">
-        {stages.map((stage) => {
-          const count =
-            (analytics?.byStatus as Record<string, number> | undefined)?.[stage.status] ?? 0;
-          return (
-            <Link
-              key={stage.status}
-              href={`${base}/library`}
-              className="flex items-center gap-2 group"
-            >
-              <div className={`w-2 h-2 rounded-full ${stage.color} flex-shrink-0`} />
-              <span className="text-xs text-white-40 flex-1 group-hover:text-white-60 transition-colors">
-                {stage.label}
-              </span>
-              <span className="text-xs font-semibold text-white-100">{count}</span>
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Visual bar */}
-      <div className="flex h-2 rounded-full overflow-hidden bg-white-5">
-        {stages.map((stage) => {
-          const count =
-            (analytics?.byStatus as Record<string, number> | undefined)?.[stage.status] ?? 0;
-          const total = analytics?.total ?? 1;
-          const pct = total > 0 ? (count / total) * 100 : 0;
-          if (pct === 0) return null;
-          return (
-            <div
-              key={stage.status}
-              className={`${stage.color} transition-all`}
-              style={{ width: `${pct}%` }}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Content Assets (enhanced with action suggestions) ────────────────────
-
-const DATA_TYPE_LABELS: Record<string, string> = {
-  TESTIMONIAL: 'Testimonials',
-  CASE_STUDY: 'Case Studies',
-  STATISTIC: 'Statistics',
-  PRODUCT_LAUNCH: 'Launches',
-  PROMOTION: 'Promotions',
-  FAQ: 'FAQ',
-  TEAM_SPOTLIGHT: 'Team',
-  MILESTONE: 'Milestones',
-  INDUSTRY_NEWS: 'News',
-  EVENT: 'Events',
-  CUSTOM: 'Custom',
-};
-
-const RE_TYPE_LABELS: Record<string, string> = {
-  ...DATA_TYPE_LABELS,
-  CUSTOM: 'Listings',
-};
-
-const ACTION_SUGGESTIONS: Record<string, string> = {
-  TESTIMONIAL: 'Create trust-building post',
-  MILESTONE: 'Create celebration content',
-  CUSTOM: 'Create listing post',
-  STATISTIC: 'Create data-driven post',
-  CASE_STUDY: 'Create success story',
-  PROMOTION: 'Create promo post',
-  EVENT: 'Create event highlight',
-  TEAM_SPOTLIGHT: 'Create team spotlight',
-  INDUSTRY_NEWS: 'Create thought leadership',
-};
-
-function BusinessDataSnapshot({
-  recommendations,
-  base,
-  clientId,
-}: {
-  recommendations: ReturnType<typeof useDashboardRecommendations>['data'];
-  base: string;
-  clientId: string;
-}) {
-  const { data: client } = useClient(clientId);
-  const bdLabels = useBusinessDataLabels(clientId);
-  const summary = recommendations?.summary;
-  const dataByType = summary?.dataByType ?? {};
-  const entries = Object.entries(dataByType).filter(([, count]) => (count ?? 0) > 0);
-  const isRE = client?.industryKey === 'real_estate';
-  const labels = isRE ? RE_TYPE_LABELS : DATA_TYPE_LABELS;
-
-  return (
-    <div className="card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Database className="w-4 h-4 text-purple-400" />
-        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          Content Assets
-        </h3>
-      </div>
-
-      {entries.length > 0 ? (
-        <>
-          <div className="space-y-1.5">
-            {entries.slice(0, 5).map(([type, count]) => (
-              <Link
-                key={type}
-                href={`${base}/create?guidance=${encodeURIComponent(ACTION_SUGGESTIONS[type] ?? 'Create post')}`}
-                className="flex items-center justify-between group"
-              >
-                <span className="text-xs text-white-40 group-hover:text-white-60 transition-colors">
-                  {count} {labels[type] ?? type}
-                </span>
-                <span className="text-[10px] text-accent-green-110 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {ACTION_SUGGESTIONS[type] ?? 'Create post'} →
-                </span>
-              </Link>
-            ))}
-            {entries.length > 5 && (
-              <p className="text-[11px] text-white-30">
-                +{entries.length - 5} more type{entries.length - 5 > 1 ? 's' : ''}
-              </p>
-            )}
-          </div>
-
-          {(summary?.unusedDataCount ?? 0) > 0 && (
-            <p className="text-[11px] text-accent-green-110 font-medium">
-              {summary!.unusedDataCount} unused opportunit{summary!.unusedDataCount > 1 ? 'ies' : 'y'} ready
-            </p>
-          )}
-
-          <Link
-            href={`${base}/business-data`}
-            className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
-          >
-            <Wand2 className="w-3 h-3" />
-            Generate content from assets
-          </Link>
-        </>
-      ) : (
-        <>
-          <p className="text-xs text-white-40">
-            {isRE
-              ? 'Import listings, testimonials, or market data to power your content.'
-              : `No data yet. Add testimonials, stats, or ${bdLabels.itemPlural.toLowerCase()}.`}
-          </p>
-          <Link
-            href={`${base}/business-data`}
-            className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
-          >
-            <FileText className="w-3 h-3" />
-            {isRE ? 'Import your first listing' : `Add your first ${bdLabels.itemSingular.toLowerCase()}`}
-          </Link>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Consistency Tracker ──────────────────────────────────────────────────
-
-function ConsistencyTracker({
-  recommendations,
-}: {
-  recommendations: DashboardRecommendationsResponse | undefined;
-}) {
-  const summary = recommendations?.summary;
-  const published = summary?.publishedThisWeek ?? 0;
-  const target = 5;
-  const pct = Math.min(100, Math.round((published / target) * 100));
-
-  const upcoming = summary?.scheduledUpcoming ?? 0;
-  const projected = published + upcoming;
-
-  return (
-    <div className="card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Target className="w-4 h-4 text-orange-400" />
-        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          Consistency
-        </h3>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-baseline justify-between">
-          <span className="text-2xl font-bold text-white-100">{published}</span>
-          <span className="text-xs text-white-40">/ {target} this week</span>
-        </div>
-
-        {/* Progress bar */}
-        <div className="h-2 rounded-full bg-white-5 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${
-              pct >= 100
-                ? 'bg-accent-green-110'
-                : pct >= 60
-                  ? 'bg-yellow-400'
-                  : 'bg-orange-400'
-            }`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-
-        <div className="flex items-center justify-between text-[11px]">
-          <span className={pct >= 100 ? 'text-accent-green-110' : 'text-white-40'}>
-            {pct >= 100 ? 'Target reached!' : `${pct}% of target`}
-          </span>
-          {upcoming > 0 && (
-            <span className="text-white-30">
-              +{upcoming} scheduled
-            </span>
-          )}
-        </div>
-
-        {projected < target && projected > published && (
-          <p className="text-[11px] text-white-30">
-            With scheduled posts: {projected}/{target}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Autopilot Card (full-width, prominent) ───────────────────────────────
-
-function AutopilotCard({
-  recommendations,
-  base,
-  clientId,
-}: {
-  recommendations: DashboardRecommendationsResponse | undefined;
-  base: string;
-  clientId: string;
-}) {
-  const bdLabels = useBusinessDataLabels(clientId);
-  const { data: apSettings } = useAutopilotSettings(clientId);
-  const updateSettings = useUpdateAutopilotSettings(clientId);
-  const summary = recommendations?.summary;
-  const ap = summary?.autopilot;
-  const hasData = (summary?.totalDataItems ?? 0) > 0;
-
-  const isEnabled = apSettings?.enabled ?? ap?.enabled ?? false;
-
-  const handleToggle = () => {
-    updateSettings.mutate({
-      enabled: !isEnabled,
-      mode: !isEnabled ? 'draft_assist' : 'off',
-    });
-  };
-
-  const lastRunAt = ap?.lastActionAt ?? summary?.lastAutopilotAt;
-  const lastRunLabel = lastRunAt ? formatTimeAgo(new Date(lastRunAt)) : 'Never';
-  const draftsThisWeek = ap?.draftsThisWeek ?? 0;
-  const maxPerWeek = ap?.maxDraftsPerWeek ?? 3;
-  const coverageGaps = ap?.coverageGaps ?? [];
-
-  // Human-readable status line
-  const statusLine = isEnabled
-    ? draftsThisWeek > 0
-      ? `Autopilot is active — created ${draftsThisWeek} draft${draftsThisWeek > 1 ? 's' : ''} this week`
-      : "Autopilot is active — this week's plan is running"
-    : hasData
-      ? "Autopilot is off — you're manually managing content"
-      : 'Autopilot is off — add business data to get started';
-
-  const ctaLabel = isEnabled
-    ? 'Review Autopilot Plan'
-    : hasData
-      ? 'Turn On Autopilot'
-      : `Add ${bdLabels.itemPlural}`;
-
-  return (
-    <div
-      className={`card p-6 border-2 transition-colors ${
-        isEnabled
-          ? 'border-accent-green-110/30 bg-gradient-to-br from-accent-green-110/5 via-transparent to-transparent'
-          : 'border-white-10'
-      }`}
-    >
-      <div className="flex items-center gap-4">
-        <div
-          className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-            isEnabled ? 'bg-accent-green-110/15 text-accent-green-110' : 'bg-white-10 text-white-40'
-          }`}
-        >
-          <Zap className="w-7 h-7" />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-base font-bold text-white-100">Autopilot</h2>
-            <div className={`w-2 h-2 rounded-full ${isEnabled ? 'bg-accent-green-110 animate-pulse' : 'bg-white-20'}`} />
-            <span className={`text-xs font-medium ${isEnabled ? 'text-accent-green-110' : 'text-white-40'}`}>
-              {isEnabled ? 'ON' : 'OFF'}
-            </span>
-          </div>
-          <p className="text-sm text-white-40">{statusLine}</p>
-        </div>
-
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {isEnabled ? (
-            <Link
-              href={`${base}/business-data`}
-              className="px-5 py-2.5 rounded-xl bg-accent-green-110/10 text-accent-green-110 text-sm font-semibold hover:bg-accent-green-110/20 transition-colors"
-            >
-              {ctaLabel}
-            </Link>
-          ) : hasData ? (
-            <button
-              onClick={handleToggle}
-              disabled={updateSettings.isPending}
-              className="px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-dark text-sm font-semibold hover:bg-accent-green-110/90 transition-colors disabled:opacity-50"
-            >
-              {updateSettings.isPending ? 'Enabling...' : ctaLabel}
-            </button>
-          ) : (
-            <Link
-              href={`${base}/business-data`}
-              className="px-5 py-2.5 rounded-xl bg-white-10 text-white-60 text-sm font-semibold hover:bg-white-20 transition-colors"
-            >
-              {ctaLabel}
-            </Link>
-          )}
-
-          <button
-            onClick={handleToggle}
-            disabled={updateSettings.isPending}
-            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-              isEnabled ? 'bg-accent-green-110' : 'bg-white-20'
-            } ${updateSettings.isPending ? 'opacity-50' : ''}`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                isEnabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-      </div>
-
-      {/* Details row */}
-      {(isEnabled || lastRunAt) && (
-        <div className="mt-4 pt-4 border-t border-white-10 grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-[10px] text-white-30 uppercase tracking-wider mb-0.5">Last run</p>
-            <p className="text-xs font-medium text-white-80">
-              {lastRunAt
-                ? `Created ${ap?.lastActionType === 'draft' ? 'drafts' : 'content'} · ${lastRunLabel}`
-                : 'No runs yet'}
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] text-white-30 uppercase tracking-wider mb-0.5">This week</p>
-            <p className="text-xs font-medium text-white-80">
-              {draftsThisWeek}/{maxPerWeek} drafts created
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] text-white-30 uppercase tracking-wider mb-0.5">Next</p>
-            <p className="text-xs font-medium text-white-60">
-              {!isEnabled
-                ? 'Enable to start'
-                : !hasData
-                  ? 'Waiting for data'
-                  : draftsThisWeek >= maxPerWeek
-                    ? 'Weekly limit reached'
-                    : 'Runs automatically'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {coverageGaps.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-white-10">
-          <span className="text-[10px] font-medium text-white-30 uppercase tracking-wider">
-            Opportunity detected
-          </span>
-          <div className="mt-1 space-y-0.5">
-            {coverageGaps.slice(0, 2).map((gap, i) => (
-              <p key={i} className="text-[11px] text-white-40">
-                {gap}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {summary?.realEstate?.listingFeedConnected && (
-        <div className="mt-3 pt-3 border-t border-white-10">
-          <RefreshListingsButton clientId={clientId} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RefreshListingsButton({ clientId }: { clientId: string }) {
-  const refresh = useRefreshListingFeed(clientId);
-  return (
-    <button
-      onClick={() => refresh.mutate({})}
-      disabled={refresh.isPending}
-      className="flex items-center gap-1.5 text-xs font-semibold text-white-40 hover:text-white-100 transition-colors"
-    >
-      <RefreshCw className={`w-3 h-3 ${refresh.isPending ? 'animate-spin' : ''}`} />
-      {refresh.isPending ? 'Refreshing...' : 'Refresh Listings'}
-    </button>
-  );
-}
-
-// ── Media Preview (enhanced) ─────────────────────────────────────────────
-
-function MediaPreview({
-  assets,
-  base,
-  recommendations,
-}: {
-  assets: MediaAsset[] | undefined;
-  base: string;
-  recommendations: DashboardRecommendationsResponse | undefined;
-}) {
-  const recent = assets?.slice(0, 4) ?? [];
-  const imageCount = recent.filter((a) => a.assetType === 'image').length;
-  const videoCount = recent.filter((a) => a.assetType === 'video').length;
-
-  return (
-    <div className="card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <ImageIcon className="w-4 h-4 text-blue-400" />
-        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          Media
-        </h3>
-        <Link
-          href={`${base}/assets`}
-          className="ml-auto text-[11px] text-accent-green-110 hover:underline"
-        >
-          View all
-        </Link>
-      </div>
-
-      {recent.length > 0 ? (
-        <>
-          {/* Summary line */}
-          <p className="text-xs text-white-60">
-            {imageCount > 0 && `${imageCount} image${imageCount > 1 ? 's' : ''}`}
-            {imageCount > 0 && videoCount > 0 && ', '}
-            {videoCount > 0 && `${videoCount} video${videoCount > 1 ? 's' : ''}`}
-            {' '}ready to use
-          </p>
-
-          <div className="grid grid-cols-4 gap-1.5">
-            {recent.map((asset) => (
-              <div
-                key={asset.id}
-                className="relative aspect-square rounded-lg overflow-hidden bg-white-5"
-              >
-                {asset.thumbnailUrl || asset.url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={asset.thumbnailUrl ?? asset.url!}
-                    alt={asset.altText ?? asset.filename ?? 'Asset'}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Film className="w-4 h-4 text-white-30" />
-                  </div>
-                )}
-                {asset.assetType === 'video' && (
-                  <div className="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-black/60">
-                    <Film className="w-2.5 h-2.5 text-white" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href={`${base}/create`}
-              className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
-            >
-              <Wand2 className="w-3 h-3" />
-              Create post from media
-            </Link>
-            <Link
-              href={`${base}/assets`}
-              className="flex items-center gap-1.5 text-xs font-semibold text-white-40 hover:text-white-100 transition-colors"
-            >
-              <ImageIcon className="w-3 h-3" />
-              Upload more
-            </Link>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="text-xs text-white-40">
-            No media assets yet. Upload images or videos to enhance your posts.
-          </p>
-          <Link
-            href={`${base}/assets`}
-            className="flex items-center gap-1.5 text-xs font-semibold text-accent-green-110 hover:underline"
-          >
-            <ImageIcon className="w-3 h-3" />
-            Upload media
-          </Link>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── System Freshness (NEW) ───────────────────────────────────────────────
-
-function SystemFreshness({
-  recommendations,
-  base,
-}: {
-  recommendations: DashboardRecommendationsResponse | undefined;
-  base: string;
-}) {
-  const summary = recommendations?.summary;
-  const ap = summary?.autopilot;
-  const re = summary?.realEstate;
-
-  const signals: { label: string; status: 'fresh' | 'stale' | 'missing'; detail: string }[] = [];
-
-  // Autopilot last run
-  if (ap) {
-    const lastRun = ap.lastActionAt ? new Date(ap.lastActionAt) : null;
-    const hoursSince = lastRun ? (Date.now() - lastRun.getTime()) / 3600000 : null;
-    if (ap.enabled && lastRun && hoursSince != null) {
-      signals.push({
-        label: 'Autopilot',
-        status: hoursSince < 48 ? 'fresh' : 'stale',
-        detail: `Last ran ${formatTimeAgo(lastRun)}`,
-      });
-    } else if (!ap.enabled) {
-      signals.push({
-        label: 'Autopilot',
-        status: 'missing',
-        detail: 'Not enabled',
-      });
-    }
-  }
-
-  // Listing feed
-  if (re) {
-    if (re.listingFeedConnected) {
-      signals.push({
-        label: 'Listings',
-        status: re.listingCount > 0 ? 'fresh' : 'stale',
-        detail: re.listingCount > 0 ? `${re.listingCount} imported` : 'Feed connected, no listings yet',
-      });
-    } else {
-      signals.push({
-        label: 'Listings',
-        status: 'missing',
-        detail: 'Feed not connected',
-      });
-    }
-  }
-
-  // Channels
-  const channels = re?.availableChannels ?? [];
-  if (summary?.enabledChannels != null) {
-    signals.push({
-      label: 'Channels',
-      status: (summary.enabledChannels ?? 0) > 0 ? 'fresh' : 'missing',
-      detail: (summary.enabledChannels ?? 0) > 0
-        ? `${summary.enabledChannels} connected`
-        : 'No channels connected',
-    });
-  }
-
-  // Content freshness
-  const daysSince = summary?.daysSinceLastGeneration;
-  if (daysSince != null) {
-    signals.push({
-      label: 'Content',
-      status: daysSince <= 3 ? 'fresh' : daysSince <= 7 ? 'stale' : 'missing',
-      detail: daysSince === 0
-        ? 'Generated today'
-        : daysSince === 1
-          ? 'Generated yesterday'
-          : `${daysSince} days since last content`,
-    });
-  }
-
-  if (signals.length === 0) return null;
-
-  const statusIcon = (s: 'fresh' | 'stale' | 'missing') => {
-    switch (s) {
-      case 'fresh':
-        return <div className="w-2 h-2 rounded-full bg-accent-green-110 flex-shrink-0" />;
-      case 'stale':
-        return <div className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" />;
-      case 'missing':
-        return <div className="w-2 h-2 rounded-full bg-white-20 flex-shrink-0" />;
-    }
-  };
-
-  return (
-    <div className="card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Activity className="w-4 h-4 text-white-40" />
-        <h3 className="text-xs font-semibold text-white-100 uppercase tracking-wider">
-          System Status
-        </h3>
-      </div>
-
-      <div className="space-y-2">
-        {signals.map((signal) => (
-          <div key={signal.label} className="flex items-center gap-2">
-            {statusIcon(signal.status)}
-            <span className="text-xs text-white-60 w-16 flex-shrink-0">{signal.label}</span>
-            <span className={`text-xs flex-1 ${
-              signal.status === 'fresh'
-                ? 'text-white-80'
-                : signal.status === 'stale'
-                  ? 'text-yellow-400'
-                  : 'text-white-30'
-            }`}>
-              {signal.detail}
-            </span>
-            {signal.status === 'missing' && signal.label === 'Listings' && (
-              <Link
-                href={`${base}/settings/integrations`}
-                className="text-[10px] text-accent-green-110 hover:underline flex-shrink-0"
-              >
-                Connect
-              </Link>
-            )}
-            {signal.status === 'missing' && signal.label === 'Channels' && (
-              <Link
-                href={`${base}/settings/media`}
-                className="text-[10px] text-accent-green-110 hover:underline flex-shrink-0"
-              >
-                Setup
-              </Link>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <p className="text-[10px] text-white-20">
-        {signals.every((s) => s.status === 'fresh')
-          ? 'All systems running normally'
-          : signals.some((s) => s.status === 'missing')
-            ? 'Complete setup to get the most from Squadpitch'
-            : 'Some systems may need attention'}
-      </p>
-    </div>
-  );
-}
-
-// ── System Status (real estate) ──────────────────────────────────────────
-
-function SystemStatus({
-  summary,
-  base,
-}: {
-  summary: DashboardRecommendationsResponse['summary'];
-  base: string;
-}) {
-  const re = summary.realEstate;
-  const ap = summary.autopilot;
-
-  const signals: { label: string; value: string; accent?: boolean }[] = [];
-
-  if (re) {
-    if (re.listingCount > 0) {
-      signals.push({
-        label: 'Listings ready',
-        value: `${re.listingCount} ready for content`,
-        accent: true,
-      });
-    }
-    if (re.availableChannels.length > 0) {
-      signals.push({
-        label: 'Channels',
-        value: re.availableChannels.map((c) => c.charAt(0) + c.slice(1).toLowerCase()).join(', '),
-      });
-    }
-  }
-
-  if (ap) {
-    signals.push({
-      label: 'Autopilot',
-      value: ap.enabled ? 'Active' : 'Off',
-      accent: ap.enabled,
-    });
-    if (ap.draftsThisWeek > 0) {
-      signals.push({
-        label: 'This week',
-        value: `${ap.draftsThisWeek} drafts created`,
-      });
-    }
-  }
-
-  if ((summary.unusedDataCount ?? 0) > 0) {
-    signals.push({
-      label: 'Opportunity',
-      value: `${summary.unusedDataCount} unused opportunities`,
-      accent: true,
-    });
-  }
-
-  // Momentum messaging
-  const published = summary.publishedThisWeek ?? 0;
-  const daysSince = summary.daysSinceLastGeneration;
-  let momentumText = '';
-  let momentumTone: 'positive' | 'neutral' | 'warn' = 'neutral';
-
-  if (published >= 3) {
-    momentumText = `You posted ${published} times this week — on track for consistent posting`;
-    momentumTone = 'positive';
-  } else if (published > 0) {
-    momentumText = `You posted ${published} time${published > 1 ? 's' : ''} this week — keep going to stay consistent`;
-    momentumTone = 'neutral';
-  } else if (daysSince != null && daysSince > 4) {
-    momentumText = `No posts in ${daysSince} days — activity is low`;
-    momentumTone = 'warn';
-  } else if (daysSince != null && daysSince > 0) {
-    momentumText = `Last content ${daysSince} day${daysSince > 1 ? 's' : ''} ago`;
-    momentumTone = 'neutral';
-  }
-
-  if (signals.length === 0 && !momentumText) return null;
-
-  const momentumColors = {
-    positive: 'text-accent-green-110',
-    neutral: 'text-white-40',
-    warn: 'text-orange-400',
-  };
-
-  return (
-    <div className="card p-5 bg-gradient-to-r from-accent-green-110/5 to-transparent border-accent-green-110/10">
-      <div className="flex items-center gap-2 mb-3">
-        <Home className="w-4 h-4 text-accent-green-110" />
-        <h2 className="text-sm font-semibold text-white-100">Your Marketing System</h2>
-      </div>
-      {momentumText && (
-        <p className={`text-xs font-medium mb-3 ${momentumColors[momentumTone]}`}>
-          {momentumText}
-        </p>
-      )}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {signals.slice(0, 4).map((s) => (
-          <div key={s.label}>
-            <p className="text-[10px] text-white-30 uppercase tracking-wider mb-0.5">{s.label}</p>
-            <p className={`text-xs font-medium ${s.accent ? 'text-accent-green-110' : 'text-white-80'}`}>
-              {s.value}
-            </p>
-          </div>
-        ))}
-      </div>
-      {re && !re.listingFeedConnected && (
-        <Link
-          href={`${base}/settings/media`}
-          className="inline-flex items-center gap-1 mt-3 text-[11px] text-accent-green-110 hover:underline"
-        >
-          Connect property listings to unlock more opportunities
-          <ChevronRight className="w-3 h-3" />
-        </Link>
-      )}
-    </div>
-  );
-}
-
-// ── Recent Activity (real estate) ────────────────────────────────────────
-
-function RecentActivity({
-  drafts,
-  recommendations,
-}: {
-  drafts: Draft[] | undefined;
-  recommendations: DashboardRecommendationsResponse | undefined;
-}) {
-  const events: { icon: React.ReactNode; text: string; time: string }[] = [];
-
-  const ap = recommendations?.summary?.autopilot;
-  if (ap && ap.draftsThisWeek > 0) {
-    events.push({
-      icon: <Zap className="w-3.5 h-3.5 text-yellow-400" />,
-      text: `Autopilot created ${ap.draftsThisWeek} draft${ap.draftsThisWeek > 1 ? 's' : ''} this week`,
-      time: ap.lastActionAt ? formatTimeAgo(new Date(ap.lastActionAt)) : '',
-    });
-  }
-
-  if (drafts) {
-    const recentPublished = drafts.filter((d) => d.status === 'PUBLISHED');
-    if (recentPublished.length > 0) {
-      events.push({
-        icon: <Send className="w-3.5 h-3.5 text-accent-green-110" />,
-        text: `${recentPublished.length} post${recentPublished.length > 1 ? 's' : ''} published`,
-        time: formatTimeAgo(new Date(recentPublished[0].createdAt)),
-      });
-    }
-
-    const recentScheduled = drafts.filter((d) => d.status === 'SCHEDULED');
-    if (recentScheduled.length > 0) {
-      events.push({
-        icon: <Calendar className="w-3.5 h-3.5 text-blue-400" />,
-        text: `${recentScheduled.length} post${recentScheduled.length > 1 ? 's' : ''} scheduled`,
-        time: formatTimeAgo(new Date(recentScheduled[0].createdAt)),
-      });
-    }
-
-    const recentDrafts = drafts.filter((d) => d.status === 'DRAFT');
-    if (recentDrafts.length > 0) {
-      events.push({
-        icon: <Wand2 className="w-3.5 h-3.5 text-purple-400" />,
-        text: `${recentDrafts.length} draft${recentDrafts.length > 1 ? 's' : ''} generated`,
-        time: formatTimeAgo(new Date(recentDrafts[0].createdAt)),
-      });
-    }
-  }
-
-  const re = recommendations?.summary?.realEstate;
-  if (re && re.listingCount > 0) {
-    events.push({
-      icon: <Home className="w-3.5 h-3.5 text-accent-green-110" />,
-      text: `${re.listingCount} listings imported from your feed`,
-      time: '',
-    });
-  }
-
-  if (events.length === 0) return null;
-
-  return (
-    <div className="card p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <Clock className="w-4 h-4 text-white-40" />
-        <h2 className="text-sm font-semibold text-white-100">Recent Activity</h2>
-      </div>
-      <div className="space-y-2">
-        {events.slice(0, 5).map((ev, i) => (
-          <div key={i} className="flex items-center gap-2.5">
-            <div className="flex-shrink-0">{ev.icon}</div>
-            <p className="text-xs text-white-80 flex-1">{ev.text}</p>
-            {ev.time && (
-              <span className="text-[10px] text-white-30 flex-shrink-0">{ev.time}</span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-function formatTimeAgo(date: Date): string {
-  const diff = Date.now() - date.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString();
 }

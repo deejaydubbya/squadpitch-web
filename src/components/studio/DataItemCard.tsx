@@ -123,7 +123,7 @@ export function DataItemCard({
           <button
             onClick={onGenerate}
             className="p-1.5 rounded-lg text-accent-green-110 hover:bg-accent-green-110/10 transition-colors"
-            title="Generate content"
+            title="Create post"
           >
             <Wand2 className="w-3.5 h-3.5" />
           </button>

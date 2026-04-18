@@ -21,7 +21,7 @@ export function PublishingTrendChart({ data }: Props) {
         <h3 className="text-sm font-semibold text-white-100 uppercase tracking-wider mb-3">
           Publishing Trend
         </h3>
-        <p className="text-xs text-white-40 italic">No data yet.</p>
+        <p className="text-xs text-white-40 italic">Publish posts to see your publishing trend.</p>
       </div>
     );
   }

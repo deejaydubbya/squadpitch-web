@@ -93,7 +93,7 @@ export function GenerateFromDataModal({
       <div className="bg-sp-bg border border-white-10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold text-white-100">
-            Generate from Data
+            Create Post from Source
           </h2>
           <button
             onClick={onClose}
@@ -124,7 +124,7 @@ export function GenerateFromDataModal({
             </label>
             {!blueprints || blueprints.length === 0 ? (
               <p className="text-sm text-white-40 italic">
-                No blueprints available for this data type.
+                No content angles available for this source type.
               </p>
             ) : (
               <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -200,7 +200,7 @@ export function GenerateFromDataModal({
             <textarea
               value={guidance}
               onChange={(e) => setGuidance(e.target.value)}
-              placeholder="Any extra instructions for generation..."
+              placeholder="Any extra instructions for this post..."
               rows={2}
               maxLength={4000}
               className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none placeholder:text-white-30"
@@ -219,12 +219,12 @@ export function GenerateFromDataModal({
             {generate.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
+                Creating...
               </>
             ) : (
               <>
                 <Wand2 className="w-4 h-4" />
-                Generate Content
+                Create Post
               </>
             )}
           </button>

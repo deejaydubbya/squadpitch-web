@@ -31,7 +31,7 @@ export function PlatformBreakdownChart({ data }: Props) {
         <h3 className="text-sm font-semibold text-white-100 uppercase tracking-wider mb-3">
           Platform Breakdown
         </h3>
-        <p className="text-xs text-white-40 italic">No data yet.</p>
+        <p className="text-xs text-white-40 italic">Publish posts to see a breakdown by platform.</p>
       </div>
     );
   }

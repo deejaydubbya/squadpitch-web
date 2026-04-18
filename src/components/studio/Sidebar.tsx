@@ -6,14 +6,10 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Wand2,
-  Calendar,
-  Library,
   BarChart3,
   Settings,
-  Building2,
   Megaphone,
-  Image as ImageIcon,
-  Plug,
+  FileText,
   ChevronDown,
   ChevronRight,
   ArrowLeft,
@@ -50,13 +46,11 @@ export function Sidebar({ client }: Props) {
   const isRE = client.industryKey === 'real_estate';
 
   const navItems = [
-    { href: base, icon: LayoutDashboard, label: 'Dashboard', exact: true },
-    { href: `${base}/create`, icon: Wand2, label: 'Create Content', primary: true },
-    ...(isRE ? [{ href: `${base}/listing-campaign`, icon: Home, label: 'Listing Campaign', primary: true as const }] : []),
-    { href: `${base}/business-data`, icon: Database, label: isRE ? 'Content Assets' : 'Business Data' },
-    { href: `${base}/planner`, icon: Calendar, label: 'Planner' },
-    { href: `${base}/library`, icon: Library, label: 'Content Library' },
-    { href: `${base}/assets`, icon: ImageIcon, label: 'Media Library' },
+    { href: base, icon: LayoutDashboard, label: 'Home', exact: true },
+    { href: `${base}/planner`, icon: FileText, label: 'Content' },
+    { href: `${base}/campaigns`, icon: Megaphone, label: 'Campaigns', activeAlso: [`${base}/listing-campaign`] },
+    { href: `${base}/create`, icon: Wand2, label: 'Quick Post', primary: true },
+    { href: `${base}/sources`, icon: Database, label: 'Sources' },
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics' },
   ];
 
@@ -70,8 +64,12 @@ export function Sidebar({ client }: Props) {
     { href: `${base}/settings/billing`, label: 'Billing' },
   ];
 
-  const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname.startsWith(href);
+  const isActive = (href: string, exact?: boolean, activeAlso?: string[]) => {
+    if (exact) return pathname === href;
+    if (pathname.startsWith(href)) return true;
+    if (activeAlso?.some((p) => pathname.startsWith(p))) return true;
+    return false;
+  };
 
   return (
     <aside className="w-64 flex-shrink-0 border-r border-white-10 bg-sp-bg flex flex-col min-h-screen sticky top-0">
@@ -99,23 +97,39 @@ export function Sidebar({ client }: Props) {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1">
         {navItems.map((item) => {
-          const active = isActive(item.href, item.exact);
+          const active = isActive(item.href, item.exact, item.activeAlso);
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                item.primary && !active
-                  ? 'text-green-400 hover:bg-green-500/10'
-                  : active
-                    ? 'bg-accent-green-110/15 text-accent-green-110'
-                    : 'text-white-60 hover:bg-white-5 hover:text-white-100'
+            <div key={item.href}>
+              <Link
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  item.primary && !active
+                    ? 'text-green-400 hover:bg-green-500/10'
+                    : active
+                      ? 'bg-accent-green-110/15 text-accent-green-110'
+                      : 'text-white-60 hover:bg-white-5 hover:text-white-100'
+                )}
+              >
+                <item.icon className={cn('w-4.5 h-4.5', item.primary && !active ? 'text-green-400' : '')} />
+                {item.label}
+              </Link>
+              {/* Listing Campaign sub-item for RE workspaces */}
+              {item.label === 'Campaigns' && isRE && (
+                <Link
+                  href={`${base}/listing-campaign`}
+                  className={cn(
+                    'flex items-center gap-3 ml-4 pl-4 border-l border-white-10 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    pathname.startsWith(`${base}/listing-campaign`)
+                      ? 'text-accent-green-110 bg-accent-green-110/10'
+                      : 'text-white-40 hover:text-white-100 hover:bg-white-5'
+                  )}
+                >
+                  <Home className="w-3.5 h-3.5" />
+                  Listing Campaign
+                </Link>
               )}
-            >
-              <item.icon className={cn('w-4.5 h-4.5', item.primary && !active ? 'text-green-400' : '')} />
-              {item.label}
-            </Link>
+            </div>
           );
         })}
 

@@ -670,7 +670,7 @@ export function AssetLibrary({ clientId }: Props) {
                 <ImageOff className="w-10 h-10 mx-auto text-white-20" />
                 <p className="text-sm text-white-40">
                   {activeFolderId
-                    ? 'No assets in this folder yet.'
+                    ? 'No media in this folder yet.'
                     : 'Upload images or generate visuals to start building your media library.'}
                 </p>
                 <div className="flex items-center justify-center gap-3">

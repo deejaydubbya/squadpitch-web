@@ -69,7 +69,7 @@ export default function SettingsPage() {
         <div>
           <h2 className="text-lg font-bold text-white-100">Settings</h2>
           <p className="text-sm text-white-40 mt-0.5">
-            Rename the client or update its logo.
+            Rename your workspace or update its logo.
           </p>
         </div>
 

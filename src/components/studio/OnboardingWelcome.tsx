@@ -146,19 +146,19 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
               >
                 <LinkIcon className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
                 <span className="text-xs text-white-70 group-hover:text-white transition-colors">
-                  Connect your social accounts to publish directly
+                  Connect your social accounts to publish and track performance
                 </span>
                 <ArrowRight className="w-3 h-3 text-white-30 ml-auto flex-shrink-0" />
               </Link>
             )}
             {totalDataItems < 3 && (
               <Link
-                href={`${base}/business-data`}
+                href={`${base}/sources`}
                 className="flex items-center gap-2.5 group"
               >
                 <Database className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
                 <span className="text-xs text-white-70 group-hover:text-white transition-colors">
-                  Add testimonials & data for better content
+                  Add sources so Squadpitch can create smarter posts
                 </span>
                 <ArrowRight className="w-3 h-3 text-white-30 ml-auto flex-shrink-0" />
               </Link>

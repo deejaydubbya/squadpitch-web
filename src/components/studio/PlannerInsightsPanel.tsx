@@ -85,7 +85,7 @@ export function PlannerInsightsPanel({
               <div className="flex items-center gap-2 mb-3">
                 <Megaphone className="w-4 h-4 text-purple-400" />
                 <h3 className="text-xs font-semibold text-white-60 uppercase tracking-wider">
-                  Campaign Opportunities
+                  Campaign Ideas
                 </h3>
                 <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-400/15 text-purple-400">
                   {campaignSuggestions.length}

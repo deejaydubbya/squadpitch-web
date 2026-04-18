@@ -91,7 +91,7 @@ export function BulkGenerateModal({ clientId, items, onClose }: Props) {
       <div className="bg-sp-bg border border-white-10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold text-white-100">
-            Bulk Generate ({items.length} items)
+            Create Posts ({items.length} items)
           </h2>
           <button
             onClick={onClose}
@@ -129,7 +129,7 @@ export function BulkGenerateModal({ clientId, items, onClose }: Props) {
         <div className="space-y-3 mb-5">
           <div className="flex items-center gap-2">
             <label className="block text-xs font-medium text-white-40 uppercase tracking-wider">
-              Blueprint Assignment
+              Content Angle
             </label>
             {autoOptimized && (
               <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-[10px] font-semibold">
@@ -175,7 +175,7 @@ export function BulkGenerateModal({ clientId, items, onClose }: Props) {
         {bulkGenerate.data && (
           <div className="mb-5 p-3 rounded-lg bg-white-5 border border-white-10">
             <p className="text-sm font-semibold text-white-100 mb-2">
-              Generated {bulkGenerate.data.generated} / {bulkGenerate.data.total}
+              Created {bulkGenerate.data.generated} / {bulkGenerate.data.total}
             </p>
             <div className="space-y-1">
               {bulkGenerate.data.results.map((r, i) => (
@@ -215,14 +215,14 @@ export function BulkGenerateModal({ clientId, items, onClose }: Props) {
           {bulkGenerate.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Generating...
+              Creating...
             </>
           ) : bulkGenerate.data ? (
             'Done'
           ) : (
             <>
               <Wand2 className="w-4 h-4" />
-              Generate All
+              Create All
             </>
           )}
         </button>
