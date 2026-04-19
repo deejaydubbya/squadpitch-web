@@ -583,7 +583,13 @@ export function ListingCampaignPage({ clientId }: Props) {
     const nested = data.address;
     if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
       const addr = nested as Record<string, unknown>;
-      if (addr.street != null && addr.street !== '') flat.address = addr.street;
+      // Lift nested address fields to flat keys
+      if (addr.street != null && addr.street !== '') {
+        flat.address = addr.street;
+      } else {
+        // Remove nested object so it doesn't stringify to "[object Object]"
+        delete flat.address;
+      }
       if (addr.city != null && addr.city !== '' && flat.city == null) flat.city = addr.city;
       if (addr.state != null && addr.state !== '' && flat.state == null) flat.state = addr.state;
       if (addr.zip != null && addr.zip !== '' && flat.zip == null) flat.zip = addr.zip;
@@ -763,14 +769,20 @@ export function ListingCampaignPage({ clientId }: Props) {
     try {
       const result = await urlImport.mutateAsync({ url: url.trim() });
       const r = result as unknown as Record<string, unknown>;
-      const data = (r.preview ?? r) as Record<string, unknown>;
+      const data = (r.preview ?? r.normalized ?? r) as Record<string, unknown>;
       prefillFromData(data, 'From URL');
-      setStep('form');
+
+      // Load extracted images into the media pool
+      const imgs = Array.isArray(data.images) ? (data.images as string[]) : [];
+      if (imgs.length > 0) {
+        loadListingImages(imgs);
+      }
+      setStep('images');
     } catch {
       setUrlError('Could not extract details from that URL. You can enter them manually.');
       setStep('form');
     }
-  }, [url, urlImport, prefillFromData]);
+  }, [url, urlImport, prefillFromData, loadListingImages]);
 
   // Crop each detected region out of the source screenshot using Canvas,
   // with post-crop pixel + aspect validation. Gallery-first (spinstr100):
