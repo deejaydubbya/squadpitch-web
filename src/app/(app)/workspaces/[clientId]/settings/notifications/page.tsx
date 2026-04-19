@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, Smartphone, Bell, BellRing, CalendarDays, Loader2, CheckCircle, Clock, XCircle, SkipForward, AlertTriangle } from 'lucide-react';
+import { Mail, Smartphone, Bell, BellRing, CalendarDays, Loader2, CheckCircle, Clock, XCircle, SkipForward, AlertTriangle, ChevronDown } from 'lucide-react';
 import {
   useNotificationPreferences,
   useUpdateNotificationPreferences,
@@ -106,6 +106,7 @@ export default function NotificationSettingsPage() {
 
   const [phone, setPhone] = useState('');
   const [phoneEditing, setPhoneEditing] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   /** Strip non-digits, keep leading +, normalize to E.164 */
   const normalizePhone = (raw: string): string => {
@@ -180,35 +181,41 @@ export default function NotificationSettingsPage() {
       <section>
         <h2 className="text-base font-semibold text-white-100 mb-4">In-app</h2>
         <div className="space-y-3">
-          <div className="card p-4 flex items-center gap-3">
+          <button
+            onClick={() => setExpanded((s) => ({ ...s, inapp: !s.inapp }))}
+            className="card p-4 flex items-center gap-3 w-full text-left hover:bg-white-5 transition-colors"
+          >
             <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
               <BellRing className="w-4.5 h-4.5 text-accent-green-110" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white-100">In-app notifications</p>
               <p className="text-xs text-white-40">Notifications in the bell icon and notifications page</p>
             </div>
-          </div>
-          <div className="space-y-1 ml-1">
-            {INAPP_EVENT_TYPES.map((evt) => {
-              const enabled = eventPrefs[evt.key] !== false;
-              return (
-                <div
-                  key={evt.key}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-white-5 transition-colors"
-                >
-                  <div className="flex-1 min-w-0 pr-4">
-                    <p className="text-sm font-medium text-white-100">{evt.label}</p>
-                    <p className="text-xs text-white-40">{evt.desc}</p>
+            <ChevronDown className={`w-4 h-4 text-white-40 transition-transform ${expanded.inapp ? 'rotate-180' : ''}`} />
+          </button>
+          {expanded.inapp && (
+            <div className="space-y-1 ml-1">
+              {INAPP_EVENT_TYPES.map((evt) => {
+                const enabled = eventPrefs[evt.key] !== false;
+                return (
+                  <div
+                    key={evt.key}
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-white-5 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0 pr-4">
+                      <p className="text-sm font-medium text-white-100">{evt.label}</p>
+                      <p className="text-xs text-white-40">{evt.desc}</p>
+                    </div>
+                    <Toggle
+                      checked={enabled}
+                      onChange={() => toggleEvent(evt.key)}
+                    />
                   </div>
-                  <Toggle
-                    checked={enabled}
-                    onChange={() => toggleEvent(evt.key)}
-                  />
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -217,11 +224,14 @@ export default function NotificationSettingsPage() {
         <h2 className="text-base font-semibold text-white-100 mb-4">Email</h2>
         <div className="space-y-3">
           <div className="card p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
+            <button
+              onClick={() => prefs.emailEnabled && setExpanded((s) => ({ ...s, email: !s.email }))}
+              className="flex items-center gap-3 flex-1 min-w-0 text-left"
+            >
+              <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
                 <Mail className="w-4.5 h-4.5 text-accent-green-110" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white-100">
                   Email notifications
                 </p>
@@ -229,8 +239,11 @@ export default function NotificationSettingsPage() {
                   Receive updates via email
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
+              {prefs.emailEnabled && (
+                <ChevronDown className={`w-4 h-4 text-white-40 transition-transform flex-shrink-0 ${expanded.email ? 'rotate-180' : ''}`} />
+              )}
+            </button>
+            <div className="flex items-center gap-3 ml-3 flex-shrink-0">
               {prefs.emailEnabled && (
                 <div className="flex items-center gap-2">
                   <button
@@ -255,7 +268,7 @@ export default function NotificationSettingsPage() {
             </div>
           </div>
 
-          {prefs.emailEnabled && (
+          {prefs.emailEnabled && expanded.email && (
             <div className="space-y-1 ml-1">
               {EVENT_TYPES.map((evt) => {
                 const enabled = eventPrefs[evt.key] !== false;
@@ -287,11 +300,14 @@ export default function NotificationSettingsPage() {
         <h2 className="text-base font-semibold text-white-100 mb-4">SMS</h2>
         <div className="card p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
+            <button
+              onClick={() => prefs.smsEnabled && setExpanded((s) => ({ ...s, sms: !s.sms }))}
+              className="flex items-center gap-3 flex-1 min-w-0 text-left"
+            >
+              <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
                 <Smartphone className="w-4.5 h-4.5 text-accent-green-110" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white-100">
                   SMS notifications
                 </p>
@@ -299,13 +315,18 @@ export default function NotificationSettingsPage() {
                   Critical alerts only: post failed, connection expired
                 </p>
               </div>
+              {prefs.smsEnabled && (
+                <ChevronDown className={`w-4 h-4 text-white-40 transition-transform flex-shrink-0 ${expanded.sms ? 'rotate-180' : ''}`} />
+              )}
+            </button>
+            <div className="ml-3 flex-shrink-0">
+              <Toggle
+                checked={prefs.smsEnabled}
+                onChange={() => toggleGlobal('smsEnabled')}
+              />
             </div>
-            <Toggle
-              checked={prefs.smsEnabled}
-              onChange={() => toggleGlobal('smsEnabled')}
-            />
           </div>
-          {prefs.smsEnabled && (
+          {prefs.smsEnabled && expanded.sms && (
             <div className="mt-3 ml-12">
               {phoneEditing || !prefs.phoneNumber ? (
                 <div className="flex gap-2">
@@ -365,11 +386,14 @@ export default function NotificationSettingsPage() {
         <div className="space-y-3">
           <div className="card p-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center">
+              <button
+                onClick={() => prefs?.pushEnabled && pushSubscribed && setExpanded((s) => ({ ...s, push: !s.push }))}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+              >
+                <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
                   <Bell className="w-4.5 h-4.5 text-accent-green-110" />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white-100">
                     Browser push notifications
                   </p>
@@ -381,11 +405,16 @@ export default function NotificationSettingsPage() {
                         : 'Click to enable'}
                   </p>
                 </div>
+                {prefs?.pushEnabled && pushSubscribed && (
+                  <ChevronDown className={`w-4 h-4 text-white-40 transition-transform flex-shrink-0 ${expanded.push ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+              <div className="ml-3 flex-shrink-0">
+                <Toggle
+                  checked={!!prefs?.pushEnabled && pushSubscribed}
+                  onChange={togglePush}
+                />
               </div>
-              <Toggle
-                checked={!!prefs?.pushEnabled && pushSubscribed}
-                onChange={togglePush}
-              />
             </div>
             {pushPermission === 'denied' && (
               <div className="mt-3 ml-12 flex items-center gap-2 text-xs text-yellow-400">
@@ -395,7 +424,7 @@ export default function NotificationSettingsPage() {
             )}
           </div>
 
-          {prefs?.pushEnabled && pushSubscribed && (
+          {prefs?.pushEnabled && pushSubscribed && expanded.push && (
             <div className="space-y-1 ml-1">
               {PUSH_EVENT_TYPES.map((evt) => {
                 const enabled = eventPrefs[evt.key] !== false;
