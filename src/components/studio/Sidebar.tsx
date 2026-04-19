@@ -97,7 +97,7 @@ export function Sidebar({ client }: Props) {
       </Link>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto scrollbar-hide py-4 px-3 space-y-1">
         {navItems.map((item) => {
           const active = isActive(item.href, item.exact, item.activeAlso);
           return (
