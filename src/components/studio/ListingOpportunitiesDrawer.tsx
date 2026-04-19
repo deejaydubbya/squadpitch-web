@@ -400,7 +400,7 @@ export function ListingOpportunitiesDrawer({ clientId, isOpen, onClose, initialA
           <select
             value={propertyType}
             onChange={(e) => setPropertyType(e.target.value as PropertyTypeFilter)}
-            className="rounded-md border border-white-10 bg-white/5 px-2 py-1 text-xs text-white-100 focus:outline-none focus:border-blue-500"
+            className="rounded-md border border-white-10 bg-sp-bg px-2 py-1 text-xs text-white-100 focus:outline-none focus:border-blue-500 [&>option]:bg-sp-bg [&>option]:text-white-100"
           >
             <option value="all">All Types</option>
             <option value="Single Family">Single Family</option>
@@ -428,7 +428,7 @@ export function ListingOpportunitiesDrawer({ clientId, isOpen, onClose, initialA
           <select
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="ml-auto rounded-md border border-white-10 bg-white/5 px-2 py-1 text-xs text-white-100 focus:outline-none focus:border-blue-500"
+            className="ml-auto rounded-md border border-white-10 bg-sp-bg px-2 py-1 text-xs text-white-100 focus:outline-none focus:border-blue-500 [&>option]:bg-sp-bg [&>option]:text-white-100"
           >
             <option value="relevance">Relevance</option>
             <option value="price_asc">Price ↑</option>
