@@ -248,7 +248,9 @@ export interface AnalyticsPost {
   channel: Channel;
   publishedAt: string;
   mediaType: string | null;
-  performanceScore: number | null;
+  qualityScore: number | null;
+  observedScore: number | null;
+  compositeScore: number | null;
   engagementRate: number | null;
   impressions: number | null;
   contentType?: string | null;
@@ -305,7 +307,9 @@ export interface ScoreComponent {
 }
 
 export interface ScoreBreakdown {
-  score: number;
+  qualityScore: number;
+  observedScore: number | null;
+  compositeScore: number;
   tier: string;
   mode: 'weighted' | 'internal_only';
   components: {
@@ -329,7 +333,9 @@ export interface PostDetailMetrics {
 }
 
 export interface PostDetailInsight {
-  performanceScore: number | null;
+  qualityScore: number | null;
+  observedScore: number | null;
+  compositeScore: number | null;
   contentType: string | null;
   hookType: string | null;
   sentiment: string | null;
@@ -337,6 +343,48 @@ export interface PostDetailInsight {
   mediaType: string | null;
   postingTimeBucket: string | null;
   recommendationTags: string[] | null;
+}
+
+export interface MetricSnapshot {
+  snapshotAt: string;
+  impressions: number;
+  reach: number;
+  engagements: number;
+  clicks: number;
+  saves: number;
+  shares: number;
+  comments: number;
+  likes: number;
+  engagementRate: number | null;
+}
+
+export interface MetricGrowth {
+  impressionsDelta: number;
+  reachDelta: number;
+  engagementsDelta: number;
+  clicksDelta: number;
+  engagementRateDelta: number | null;
+  periodHours: number;
+}
+
+export interface PostMetricHistory {
+  history: MetricSnapshot[];
+  growth: MetricGrowth | null;
+}
+
+export interface PostBenchmarkComparison {
+  vsWorkspace: {
+    score: BenchmarkComparison | null;
+    engagement: BenchmarkComparison | null;
+  };
+  vsChannel: {
+    score: BenchmarkComparison | null;
+    engagement: BenchmarkComparison | null;
+  };
+  vsContentType: {
+    score: BenchmarkComparison | null;
+    engagement: BenchmarkComparison | null;
+  } | null;
 }
 
 export interface PostDetail {
@@ -350,13 +398,301 @@ export interface PostDetail {
   metrics: PostDetailMetrics | null;
   insight: PostDetailInsight | null;
   scoreBreakdown: ScoreBreakdown;
+  benchmarkComparison: PostBenchmarkComparison | null;
+  growth: MetricGrowth | null;
+}
+
+export interface DistributionSection {
+  totalImpressions: number | null;
+  totalReach: number | null;
+  postsPublished: number;
+  publishingTrend: TrendPoint[];
+  platformReach: PlatformStat[];
+  hasReachData: boolean;
+}
+
+export interface EngagementSection {
+  engagementRate: number | null;
+  observedScore: number | null;
+  topPosts: AnalyticsPost[];
+  worstPosts: AnalyticsPost[];
+  hasEngagementData: boolean;
+}
+
+export interface ContentIntelligenceSection {
+  qualityScore: number | null;
+  compositeScore: number | null;
+  insights: Insight[];
+  recommendations: Recommendation[];
+  contentTypeBreakdown: ContentTypeStat[];
+  topPlatform: string | null;
+  bestContentType: string | null;
+  bestMediaType: string | null;
+}
+
+export interface ChannelCoverage {
+  channel: string;
+  published: number;
+  synced: number;
+  internalOnly: number;
+  coveragePercent: number;
+  lastSyncedAt: string | null;
+}
+export interface ConnectionHealthItem {
+  channel: string;
+  status: string;
+  displayName: string | null;
+  tokenExpiresAt: string | null;
+  lastValidatedAt: string | null;
+  lastError: string | null;
+  isHealthy: boolean;
+}
+export interface FreshnessWarning {
+  type: string;
+  message: string;
+  severity: 'info' | 'warning';
+  count: number;
+}
+export interface CoverageSection {
+  totalPublished: number;
+  withEngagementData: number;
+  withInternalOnly: number;
+  coveragePercent: number;
+  coverageLabel: 'full' | 'partial' | 'internal_only';
+  syncStatus: SyncStatus;
+  channelCoverage: ChannelCoverage[];
+  connectionHealth: ConnectionHealthItem[];
+  freshnessWarnings: FreshnessWarning[];
+  overallHealth: 'healthy' | 'degraded' | 'unhealthy';
+}
+
+export interface ConversionByType {
+  type: string;
+  count: number;
+}
+export interface ConversionByChannel {
+  channel: Channel;
+  count: number;
+}
+export interface ConversionTopDraft {
+  draftId: string;
+  body: string;
+  channel: Channel;
+  count: number;
+}
+export interface ConversionsSection {
+  totalConversions: number;
+  conversionRate: number | null;
+  totalPublishedPosts: number;
+  activeLinks: number;
+  byType: ConversionByType[];
+  byChannel: ConversionByChannel[];
+  topDrafts: ConversionTopDraft[];
+  hasData: boolean;
+}
+
+export interface CampaignTypeStat {
+  campaignType: string;
+  campaignCount: number;
+  totalPosts: number;
+  avgScore: number | null;
+  avgEngagementRate: number | null;
+  avgCompletionRate: number | null;
+}
+export interface CampaignDayStat {
+  day: number;
+  postCount: number;
+  avgScore: number | null;
+  avgEngagementRate: number | null;
+}
+export interface CampaignRanked {
+  campaignId: string;
+  campaignName: string;
+  campaignType: string;
+  postCount: number;
+  campaignTotal: number;
+  completionRate: number;
+  avgScore: number | null;
+  avgEngagementRate: number | null;
+  totalReach: number | null;
+}
+export interface CampaignsSection {
+  totalCampaigns: number;
+  completedCampaigns: number;
+  avgCompletionRate: number | null;
+  totalCampaignReach: number | null;
+  totalCampaignImpressions: number | null;
+  avgCampaignScore: number | null;
+  byType: CampaignTypeStat[];
+  byDay: CampaignDayStat[];
+  topCampaigns: CampaignRanked[];
+  worstCampaigns: CampaignRanked[];
+  hasData: boolean;
+}
+
+export interface TrackableLink {
+  id: string;
+  clientId: string;
+  draftId: string | null;
+  shortCode: string;
+  destinationUrl: string;
+  redirectUrl: string;
+  label: string | null;
+  channel: Channel | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmTerm: string | null;
+  utmContent: string | null;
+  isActive: boolean;
+  clickCount: number;
+  createdAt: string;
+}
+
+export interface AutopilotChannelStat {
+  channel: string;
+  count: number;
+  publishedCount: number;
+  avgScore: number | null;
+}
+export interface AutopilotTriggerStat {
+  trigger: string;
+  count: number;
+  publishedCount: number;
+  avgScore: number | null;
+}
+export interface AutopilotActivity {
+  id: string;
+  channel: string;
+  status: string;
+  body: string;
+  trigger: string | null;
+  reason: string | null;
+  angle: string | null;
+  createdAt: string | null;
+  publishedAt: string | null;
+  score: number | null;
+}
+export interface AutopilotSection {
+  totalGenerated: number;
+  totalPublished: number;
+  totalApproved: number;
+  totalRejected: number;
+  totalPending: number;
+  approvalRate: number | null;
+  publishRate: number | null;
+  avgAutopilotScore: number | null;
+  avgManualScore: number | null;
+  scoreDelta: number | null;
+  avgAutopilotEngagement: number | null;
+  avgManualEngagement: number | null;
+  engagementDelta: number | null;
+  byChannel: AutopilotChannelStat[];
+  byTrigger: AutopilotTriggerStat[];
+  recentActivity: AutopilotActivity[];
+  hasData: boolean;
+}
+
+export interface BusinessDataTypeStat {
+  type: string;
+  itemCount: number;
+  totalDrafts: number;
+  totalPublished: number;
+  avgScore: number | null;
+  avgEngagement: number | null;
+}
+export interface BusinessDataBlueprintStat {
+  blueprintId: string;
+  blueprintName: string;
+  category: string;
+  totalDrafts: number;
+  totalPublished: number;
+  avgScore: number | null;
+  avgEngagement: number | null;
+}
+export interface BusinessDataFreshnessStat {
+  bucket: string;
+  label: string;
+  itemCount: number;
+  avgScore: number | null;
+}
+export interface BusinessDataTopItem {
+  id: string;
+  title: string;
+  type: string;
+  usageCount: number;
+  totalPublished: number;
+  avgScore: number | null;
+  avgEngagement: number | null;
+}
+export interface BusinessDataUnusedItem {
+  id: string;
+  title: string;
+  type: string;
+  usageCount: number;
+  daysSinceCreation: number;
+}
+export interface BusinessDataSection {
+  totalDataItems: number;
+  totalUsed: number;
+  totalUnused: number;
+  totalStale: number;
+  totalDraftsFromData: number;
+  totalPublishedFromData: number;
+  byType: BusinessDataTypeStat[];
+  byBlueprint: BusinessDataBlueprintStat[];
+  byFreshness: BusinessDataFreshnessStat[];
+  topItems: BusinessDataTopItem[];
+  underusedItems: BusinessDataUnusedItem[];
+  hasData: boolean;
+}
+
+export interface BenchmarkValue {
+  avgScore: number | null;
+  avgEngagementRate: number | null;
+  avgReach: number | null;
+  sampleSize: number;
+  scoreSampleSize: number;
+  engagementSampleSize: number;
+  confidence: 'high' | 'medium' | 'low' | 'insufficient';
+}
+export interface BenchmarkComparison {
+  delta: number;
+  benchmarkValue: number;
+  label: 'above' | 'below' | 'at';
+  confidence: 'high' | 'medium' | 'low';
+  sampleSize: number;
+  unit: 'pts' | 'pp';
+}
+export interface BenchmarksSection {
+  workspace: BenchmarkValue;
+  byChannel: Record<string, BenchmarkValue>;
+  byContentType: Record<string, BenchmarkValue>;
+  byMediaType: Record<string, BenchmarkValue>;
+  hasData: boolean;
+}
+
+export interface AnalyticsOverviewSections {
+  distribution: DistributionSection;
+  engagement: EngagementSection;
+  contentIntelligence: ContentIntelligenceSection;
+  coverage: CoverageSection;
+  conversions: ConversionsSection;
+  campaigns: CampaignsSection;
+  autopilot: AutopilotSection;
+  businessData: BusinessDataSection;
+  benchmarks: BenchmarksSection;
 }
 
 export interface AnalyticsOverview {
+  timezone?: string;
   summary: {
-    performanceScore: number | null;
+    qualityScore: number | null;
+    observedScore: number | null;
+    compositeScore: number | null;
     engagementRate: number | null;
     totalReach: number | null;
+    totalImpressions: number | null;
     postsPublished: number;
     dataCoverage: 'full' | 'partial' | 'internal_only';
   };
@@ -379,6 +715,7 @@ export interface AnalyticsOverview {
   insights?: Insight[];
   recommendations?: Recommendation[];
   contentTypeBreakdown?: ContentTypeStat[];
+  sections: AnalyticsOverviewSections;
 }
 
 export type MediaAssetSource = 'UPLOAD' | 'AI_GENERATED' | 'IMPORTED';
@@ -469,7 +806,9 @@ export interface DataItemPerformanceStats {
   totalDrafts: number;
   totalPublished: number;
   avgEngagement: number | null;
-  avgPerformanceScore: number | null;
+  avgQualityScore: number | null;
+  avgObservedScore: number | null;
+  avgCompositeScore: number | null;
   lastCalculated: string;
 }
 
@@ -767,6 +1106,8 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', id, 'analytics'] as const,
   analyticsOverview: (id: string, range: string) =>
     [...squadpitchKeys.all, 'client', id, 'analytics-overview', range] as const,
+  trackableLinks: (id: string, draftId?: string) =>
+    [...squadpitchKeys.all, 'client', id, 'trackable-links', draftId ?? ''] as const,
   drafts: (filters?: Record<string, unknown>) =>
     [...squadpitchKeys.all, 'drafts', filters ?? {}] as const,
   draft: (id: string) => [...squadpitchKeys.all, 'draft', id] as const,
@@ -779,6 +1120,8 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', clientId, 'asset-tag-defaults'] as const,
   postDetail: (clientId: string, postId: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'post-detail', postId] as const,
+  postMetricHistory: (clientId: string, postId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'post-metric-history', postId] as const,
   dataSources: (clientId: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'data-sources'] as const,
   dataItems: (clientId: string, filters?: Record<string, unknown>) =>
@@ -1028,6 +1371,63 @@ export function useAnalyticsOverview(
   });
 }
 
+export function useTrackableLinks(
+  clientId: string | undefined,
+  draftId?: string,
+) {
+  const query = draftId ? `?draftId=${draftId}` : '';
+  return useQuery({
+    queryKey: squadpitchKeys.trackableLinks(clientId ?? '', draftId),
+    queryFn: () =>
+      apiFetch<{ links: TrackableLink[] }>(
+        `workspaces/${clientId}/links${query}`,
+      ),
+    select: (data) => data.links,
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useCreateTrackableLink(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      destinationUrl: string;
+      draftId?: string;
+      label?: string;
+      channel?: Channel;
+      utmSource?: string;
+      utmMedium?: string;
+      utmCampaign?: string;
+      utmTerm?: string;
+      utmContent?: string;
+    }) =>
+      apiFetch<TrackableLink>(`workspaces/${clientId}/links`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: [...squadpitchKeys.all, 'client', clientId, 'trackable-links'],
+      });
+    },
+  });
+}
+
+export function useDeleteTrackableLink(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (linkId: string) =>
+      apiFetch<{ ok: boolean }>(`workspaces/${clientId}/links/${linkId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: [...squadpitchKeys.all, 'client', clientId, 'trackable-links'],
+      });
+    },
+  });
+}
+
 export function useSyncMetrics(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -1050,6 +1450,21 @@ export function usePostDetail(clientId: string | undefined, postId: string | und
     queryFn: () =>
       apiFetch<PostDetail>(`workspaces/${clientId}/analytics/posts/${postId}`),
     enabled: Boolean(clientId) && Boolean(postId),
+  });
+}
+
+export function usePostMetricHistory(
+  clientId: string | undefined,
+  postId: string | undefined,
+  enabled = false,
+) {
+  return useQuery({
+    queryKey: squadpitchKeys.postMetricHistory(clientId ?? '', postId ?? ''),
+    queryFn: () =>
+      apiFetch<PostMetricHistory>(
+        `workspaces/${clientId}/analytics/posts/${postId}/history`,
+      ),
+    enabled: Boolean(clientId) && Boolean(postId) && enabled,
   });
 }
 

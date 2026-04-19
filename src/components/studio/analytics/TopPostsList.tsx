@@ -53,7 +53,10 @@ export function TopPostsList({ title, posts, onPostClick }: Props) {
                 <div className="flex items-center gap-2 mt-1">
                   {channelBadge(post.channel)}
                   {post.contentType && contentTypeBadge(post.contentType)}
-                  <ScoreBadge score={post.performanceScore} />
+                  <ScoreBadge
+                    score={post.observedScore ?? post.compositeScore}
+                    variant={post.observedScore != null ? 'observed' : 'composite'}
+                  />
                   {post.engagementRate != null && (
                     <span className="text-[10px] text-white-40">
                       {(post.engagementRate * 100).toFixed(2)}% ER

@@ -1,8 +1,9 @@
 'use client';
 
-import { X, ExternalLink, Loader2 } from 'lucide-react';
-import { usePostDetail } from '@/hooks/useSquadpitch';
-import type { ScoreComponent } from '@/hooks/useSquadpitch';
+import { useState } from 'react';
+import { X, ExternalLink, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { usePostDetail, usePostMetricHistory } from '@/hooks/useSquadpitch';
+import type { ScoreComponent, MetricGrowth, BenchmarkComparison } from '@/hooks/useSquadpitch';
 import { ScoreBadge } from './ScoreBadge';
 
 interface Props {
@@ -16,6 +17,15 @@ function formatDate(iso: string): string {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatShortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -41,6 +51,22 @@ function ProgressBar({ label, component, maxWeight }: { label: string; component
   );
 }
 
+function BenchmarkLine({ label, cmp }: { label: string; cmp: BenchmarkComparison | null }) {
+  if (!cmp) return null;
+  const color = cmp.label === 'above' ? 'text-green-400' : cmp.label === 'below' ? 'text-red-400' : 'text-white-60';
+  const sign = cmp.delta > 0 ? '+' : '';
+  const unitLabel = cmp.unit === 'pp' ? 'pp' : 'pts';
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="text-white-60">{label}</span>
+      <span className={`font-mono ${color}`}>
+        {cmp.label === 'at' ? 'At baseline' : `${sign}${cmp.delta} ${unitLabel}`}
+        {cmp.confidence === 'low' && <span className="text-white-40 ml-1">(limited data)</span>}
+      </span>
+    </div>
+  );
+}
+
 function Tag({ children }: { children: React.ReactNode }) {
   return (
     <span className="px-2 py-0.5 rounded-full bg-white-10 text-[10px] text-white-60 font-mono">
@@ -49,19 +75,46 @@ function Tag({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MetricCell({ label, value }: { label: string; value: number | null }) {
+function DeltaBadge({ value }: { value: number }) {
+  if (value === 0) return null;
+  const positive = value > 0;
+  return (
+    <span className={`text-[10px] font-mono ${positive ? 'text-green-400' : 'text-red-400'}`}>
+      {positive ? '+' : ''}{value.toLocaleString()}
+    </span>
+  );
+}
+
+function MetricCell({ label, value, delta }: { label: string; value: number | null; delta?: number }) {
   return (
     <div className="text-center">
-      <p className="text-sm font-semibold text-white-100 tabular-nums">
-        {value != null ? value.toLocaleString() : '—'}
-      </p>
+      <div className="flex items-center justify-center gap-1">
+        <p className="text-sm font-semibold text-white-100 tabular-nums">
+          {value != null ? value.toLocaleString() : '—'}
+        </p>
+        {delta != null && <DeltaBadge value={delta} />}
+      </div>
       <p className="text-[10px] text-white-40 uppercase tracking-wider">{label}</p>
     </div>
   );
 }
 
+function GrowthPeriod({ growth }: { growth: MetricGrowth }) {
+  const hours = growth.periodHours;
+  const label = hours >= 24 ? `${Math.round(hours / 24)}d` : `${hours}h`;
+  return (
+    <span className="text-[10px] text-white-40 font-mono">vs {label} ago</span>
+  );
+}
+
 export function PostDetailModal({ clientId, postId, onClose }: Props) {
   const { data, isLoading, error } = usePostDetail(clientId, postId);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { data: historyData, isLoading: historyLoading } = usePostMetricHistory(
+    clientId,
+    postId,
+    historyOpen,
+  );
 
   return (
     <div
@@ -120,9 +173,16 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <span className="text-2xl font-bold text-white-100">
-                  {data.scoreBreakdown.score}
+                  {data.scoreBreakdown.compositeScore}
                 </span>
-                <ScoreBadge score={data.scoreBreakdown.score} />
+                <ScoreBadge score={data.scoreBreakdown.compositeScore} variant="composite" />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <ScoreBadge score={data.scoreBreakdown.qualityScore} variant="quality" showLabel />
+                {data.scoreBreakdown.observedScore != null && (
+                  <ScoreBadge score={data.scoreBreakdown.observedScore} variant="observed" showLabel />
+                )}
               </div>
 
               <div className="space-y-2">
@@ -150,6 +210,18 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
               </p>
             </div>
 
+            {/* Benchmark comparison */}
+            {data.benchmarkComparison && (
+              <div className="border-t border-white-10 pt-3 space-y-1.5">
+                <p className="text-[10px] text-white-40 uppercase tracking-wider mb-2">vs Your Benchmarks</p>
+                <BenchmarkLine label="vs Workspace avg" cmp={data.benchmarkComparison.vsWorkspace.score} />
+                <BenchmarkLine label={`vs ${data.channel} avg`} cmp={data.benchmarkComparison.vsChannel.score} />
+                {data.benchmarkComparison.vsContentType && (
+                  <BenchmarkLine label="vs Content type avg" cmp={data.benchmarkComparison.vsContentType.score} />
+                )}
+              </div>
+            )}
+
             {/* Classification tags */}
             {data.insight && (
               <div className="flex flex-wrap gap-1.5">
@@ -162,17 +234,24 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
               </div>
             )}
 
-            {/* Metrics grid */}
+            {/* Metrics grid with growth deltas */}
             {data.metrics && (
-              <div className="grid grid-cols-4 gap-3 py-3 border-t border-white-10">
-                <MetricCell label="Impressions" value={data.metrics.impressions} />
-                <MetricCell label="Reach" value={data.metrics.reach} />
-                <MetricCell label="Engagements" value={data.metrics.engagements} />
-                <MetricCell label="Clicks" value={data.metrics.clicks} />
-                <MetricCell label="Saves" value={data.metrics.saves} />
-                <MetricCell label="Shares" value={data.metrics.shares} />
-                <MetricCell label="Comments" value={data.metrics.comments} />
-                <MetricCell label="Likes" value={data.metrics.likes} />
+              <div className="py-3 border-t border-white-10">
+                {data.growth && (
+                  <div className="flex justify-end mb-2">
+                    <GrowthPeriod growth={data.growth} />
+                  </div>
+                )}
+                <div className="grid grid-cols-4 gap-3">
+                  <MetricCell label="Impressions" value={data.metrics.impressions} delta={data.growth?.impressionsDelta} />
+                  <MetricCell label="Reach" value={data.metrics.reach} delta={data.growth?.reachDelta} />
+                  <MetricCell label="Engagements" value={data.metrics.engagements} delta={data.growth?.engagementsDelta} />
+                  <MetricCell label="Clicks" value={data.metrics.clicks} delta={data.growth?.clicksDelta} />
+                  <MetricCell label="Saves" value={data.metrics.saves} />
+                  <MetricCell label="Shares" value={data.metrics.shares} />
+                  <MetricCell label="Comments" value={data.metrics.comments} />
+                  <MetricCell label="Likes" value={data.metrics.likes} />
+                </div>
               </div>
             )}
 
@@ -192,6 +271,58 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
                 </div>
               </div>
             )}
+
+            {/* Collapsible metric history */}
+            <div className="border-t border-white-10 pt-3">
+              <button
+                onClick={() => setHistoryOpen((o) => !o)}
+                className="flex items-center gap-1 text-[10px] text-white-40 uppercase tracking-wider hover:text-white-60 transition"
+              >
+                {historyOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                Metric History
+              </button>
+
+              {historyOpen && (
+                <div className="mt-3">
+                  {historyLoading && (
+                    <div className="flex justify-center py-4">
+                      <Loader2 size={14} className="animate-spin text-white-40" />
+                    </div>
+                  )}
+                  {historyData && historyData.history.length === 0 && (
+                    <p className="text-[11px] text-white-40 font-mono">No snapshots recorded yet.</p>
+                  )}
+                  {historyData && historyData.history.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[11px] font-mono">
+                        <thead>
+                          <tr className="text-white-40 uppercase tracking-wider">
+                            <th className="text-left py-1 pr-3">Date</th>
+                            <th className="text-right py-1 px-2">Impr.</th>
+                            <th className="text-right py-1 px-2">Reach</th>
+                            <th className="text-right py-1 px-2">Eng.</th>
+                            <th className="text-right py-1 pl-2">ER</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {historyData.history.map((row) => (
+                            <tr key={row.snapshotAt} className="text-white-80 border-t border-white-5">
+                              <td className="py-1.5 pr-3 text-white-60">{formatShortDate(row.snapshotAt)}</td>
+                              <td className="text-right py-1.5 px-2 tabular-nums">{row.impressions.toLocaleString()}</td>
+                              <td className="text-right py-1.5 px-2 tabular-nums">{row.reach.toLocaleString()}</td>
+                              <td className="text-right py-1.5 px-2 tabular-nums">{row.engagements.toLocaleString()}</td>
+                              <td className="text-right py-1.5 pl-2 tabular-nums">
+                                {row.engagementRate != null ? `${(row.engagementRate * 100).toFixed(2)}%` : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
