@@ -3,14 +3,17 @@
 import Link from 'next/link';
 import { Plug, ChevronRight, AlertCircle } from 'lucide-react';
 import { getChannelLabel } from '@/lib/channelRegistry';
-import type { Channel, ChannelSettings, GroupedTechStack } from '@/hooks/useSquadpitch';
+import type { Channel, ChannelSettings } from '@/hooks/useSquadpitch';
 
 interface SystemStatusCardProps {
   enabledChannels: ChannelSettings[];
   connectionStatus: Map<Channel, boolean>;
   connectedCount: number;
   disconnectedCount: number;
-  techStack: GroupedTechStack | null;
+  integrationStatus?: { gbp?: { status: string }; crm?: { status: string } } | null;
+  isRE: boolean;
+  listingSourceCount: number;
+  cloudStorageConnected: boolean;
   base: string;
 }
 
@@ -19,25 +22,35 @@ export function SystemStatusCard({
   connectionStatus,
   connectedCount,
   disconnectedCount,
-  techStack,
+  integrationStatus,
+  isRE,
+  listingSourceCount,
+  cloudStorageConnected,
   base,
 }: SystemStatusCardProps) {
   const hasChannels = enabledChannels.length > 0;
-  const hasIntegrations =
-    techStack && techStack.importData.length + techStack.enhanceWorkflow.length > 0;
+
+  const gbpConnected = integrationStatus?.gbp?.status === 'connected';
+  const crmConnected = integrationStatus?.crm?.status === 'connected';
+  const listingsConnected = listingSourceCount > 0;
+
+  // Build integration items — same sources shown on Sources/Connections and Settings/Integrations
+  const integrations: { key: string; label: string; connected: boolean; href: string }[] = [
+    { key: 'gbp', label: 'Google Business Profile', connected: gbpConnected, href: `${base}/settings/integrations` },
+  ];
+  if (isRE) {
+    integrations.push({ key: 'crm', label: 'CRM', connected: crmConnected, href: `${base}/settings/integrations` });
+    integrations.push({ key: 'listings', label: 'Listing Feeds', connected: listingsConnected, href: `${base}/sources?tab=connections` });
+  }
+  integrations.push({ key: 'cloud', label: 'Cloud Storage', connected: cloudStorageConnected, href: `${base}/settings/integrations` });
+
+  const hasIntegrations = integrations.length > 0;
 
   if (!hasChannels && !hasIntegrations) return null;
 
-  const totalActive =
-    connectedCount +
-    (techStack
-      ? [...techStack.importData, ...techStack.enhanceWorkflow].filter(
-          (i) => i.connectionStatus === 'connected',
-        ).length
-      : 0);
-  const totalItems =
-    enabledChannels.length +
-    (techStack ? techStack.importData.length + techStack.enhanceWorkflow.length : 0);
+  const activeIntegrations = integrations.filter((i) => i.connected).length;
+  const totalActive = connectedCount + activeIntegrations;
+  const totalItems = enabledChannels.length + integrations.length;
 
   return (
     <div className="card p-5 border-white-10">
@@ -97,93 +110,51 @@ export function SystemStatusCard({
         <div className="border-t border-white-10 my-3" />
       )}
 
-      {/* Integrations subsection */}
-      {hasIntegrations && techStack && (
+      {/* Data Sources subsection */}
+      {hasIntegrations && (
         <div>
-          {(['importData', 'enhanceWorkflow'] as const).map((group) => {
-            const items = techStack[group];
-            if (items.length === 0) return null;
-            const groupLabel = group === 'importData' ? 'Data Sources' : 'Workflow';
-            return (
-              <div key={group} className="mb-2 last:mb-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] text-white-25 uppercase tracking-wider">
-                    {groupLabel}
-                  </p>
-                  {group === 'importData' && (
-                    <Link
-                      href={`${base}/settings/integrations`}
-                      className="text-[11px] text-accent-green-110 hover:underline"
-                    >
-                      Manage
-                    </Link>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {items.map((item) => (
-                    <div
-                      key={item.providerKey}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10"
-                    >
-                      <span
-                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          item.connectionStatus === 'connected'
-                            ? 'bg-green-400'
-                            : item.connectionStatus === 'error'
-                              ? 'bg-red-400'
-                              : item.status === 'planned'
-                                ? 'bg-white-20'
-                                : 'bg-yellow-400'
-                        }`}
-                      />
-                      <span className="text-xs text-white-80 font-medium truncate">
-                        {item.label}
-                      </span>
-                      <span
-                        className={`text-[10px] flex-shrink-0 ${
-                          item.connectionStatus === 'connected'
-                            ? 'text-green-400'
-                            : item.status === 'planned'
-                              ? 'text-white-20'
-                              : 'text-yellow-400'
-                        }`}
-                      >
-                        {item.statusBadge}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-[10px] text-white-25 uppercase tracking-wider">Data Sources</p>
+            <Link
+              href={`${base}/settings/integrations`}
+              className="text-[11px] text-accent-green-110 hover:underline"
+            >
+              Manage
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {integrations.map((item) => (
+              <Link
+                key={item.key}
+                href={item.href}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-all"
+              >
+                <span
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    item.connected ? 'bg-green-400' : 'bg-yellow-400'
+                  }`}
+                />
+                <span className="text-xs text-white-80 font-medium">{item.label}</span>
+                <span className={`text-[10px] ${item.connected ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {item.connected ? 'Connected' : 'Not connected'}
+                </span>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Combined warning CTA */}
-      {(disconnectedCount > 0 ||
-        (techStack && techStack.activeCount < techStack.totalCount)) && (
-        <div className="mt-3 flex flex-col gap-1.5">
-          {disconnectedCount > 0 && (
-            <Link
-              href={`${base}/settings/channels`}
-              className="flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
-            >
-              <AlertCircle className="w-3.5 h-3.5" />
-              Connect your accounts to schedule and publish content
-              <ChevronRight className="w-3 h-3" />
-            </Link>
-          )}
-          {techStack &&
-            techStack.activeCount < techStack.totalCount &&
-            disconnectedCount === 0 && (
-              <Link
-                href={`${base}/settings/integrations`}
-                className="flex items-center gap-1.5 text-xs text-accent-green-110 hover:underline transition-colors"
-              >
-                Connect more integrations to enhance your workflow
-                <ChevronRight className="w-3 h-3" />
-              </Link>
-            )}
+      {disconnectedCount > 0 && (
+        <div className="mt-3">
+          <Link
+            href={`${base}/settings/channels`}
+            className="flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 transition-colors"
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            Connect your accounts to schedule and publish content
+            <ChevronRight className="w-3 h-3" />
+          </Link>
         </div>
       )}
     </div>

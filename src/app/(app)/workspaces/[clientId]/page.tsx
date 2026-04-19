@@ -22,14 +22,15 @@ import {
   useChannelSettings,
   useChannelConnectionStatus,
   useDashboardRecommendations,
-  useTechStack,
   useDuplicateDraft,
   useAcceptRecommendation,
   useDismissRecommendation,
   useIntegrationStatus,
+  useListingSources,
   type DashboardRecommendation,
   type DashboardRecommendationsResponse,
 } from '@/hooks/useSquadpitch';
+import { useGenericIntegrations } from '@/hooks/useIntegrations';
 import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
 import { SetupProgress } from '@/components/studio/SetupProgress';
 import { NearbyListingsWidget } from '@/components/studio/NearbyListingsWidget';
@@ -55,9 +56,10 @@ export default function OverviewPage() {
   const { data: analytics } = useClientAnalytics(clientId);
   const { data: channels } = useChannelSettings(clientId);
   const connectionStatus = useChannelConnectionStatus(clientId);
-  const techStack = useTechStack(clientId);
   const { data: recommendations } = useDashboardRecommendations(clientId);
   const { data: integrationStatus } = useIntegrationStatus(clientId);
+  const { data: listingData } = useListingSources(clientId);
+  const { data: genericIntegrations } = useGenericIntegrations();
   const duplicate = useDuplicateDraft();
   const acceptRec = useAcceptRecommendation(clientId);
   const dismissRec = useDismissRecommendation(clientId);
@@ -371,7 +373,14 @@ export default function OverviewPage() {
         connectionStatus={connectionStatus}
         connectedCount={connectedCount}
         disconnectedCount={disconnectedCount}
-        techStack={techStack}
+        integrationStatus={integrationStatus}
+        isRE={isRE}
+        listingSourceCount={listingData?.sources?.length ?? 0}
+        cloudStorageConnected={
+          (genericIntegrations ?? []).some(
+            (i) => (i.type === 'google_drive' || i.type === 'dropbox') && i.isActive,
+          )
+        }
         base={base}
       />
 

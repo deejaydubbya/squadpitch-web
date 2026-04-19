@@ -83,7 +83,6 @@ import {
   type UnifiedListing,
 } from '@/hooks/useSquadpitch';
 import { PropertySearchModal } from '@/components/studio/PropertySearchModal';
-import { PropertyPicker } from '@/components/studio/PropertyPicker';
 import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 
 // ── Types ──
@@ -267,6 +266,8 @@ interface PropertyForm {
   yearBuilt: string;
   daysOnMarket: string;
   listingStatus: string;
+  lotSize: string;
+  listedDate: string;
 }
 
 const EMPTY_FORM: PropertyForm = {
@@ -289,6 +290,8 @@ const EMPTY_FORM: PropertyForm = {
   yearBuilt: '',
   daysOnMarket: '',
   listingStatus: '',
+  lotSize: '',
+  listedDate: '',
 };
 
 const PROPERTY_TYPES = [
@@ -546,6 +549,10 @@ export function ListingCampaignPage({ clientId }: Props) {
       const listing = existingListings.find((item) => item.id === listingId);
       if (listing) {
         prefillFromDataItem(listing);
+        // Load images from saved listing into media pool
+        const d = listing.dataJson as Record<string, unknown>;
+        const imgs = Array.isArray(d.images) ? (d.images as string[]) : d.imageUrl ? [d.imageUrl as string] : [];
+        if (imgs.length > 0) loadListingImages(imgs);
         setStep('form');
       }
     }
@@ -616,6 +623,8 @@ export function ListingCampaignPage({ clientId }: Props) {
         yearBuilt: 'yearBuilt',
         daysOnMarket: 'daysOnMarket',
         listingStatus: 'listingStatus',
+        lotSize: 'lotSize',
+        listedDate: 'listedDate',
       };
       for (const [src, dst] of Object.entries(map)) {
         const val = flat[src];
@@ -636,6 +645,80 @@ export function ListingCampaignPage({ clientId }: Props) {
     prefillFromData(data, `From listing: ${item.title}`);
     setDataItemId(item.id);
   }, [prefillFromData]);
+
+  // Load images from a saved listing's dataJson into the candidate image pool.
+  // Same fetch→blob→dataUrl pattern as addFromLibrary.
+  const loadListingImages = useCallback(async (images: string[]) => {
+    const capped = images.slice(0, 10);
+    for (let i = 0; i < capped.length; i++) {
+      const imgUrl = capped[i];
+      try {
+        const res = await fetch(imgUrl, { mode: 'cors' });
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        let qualityScore = 50;
+        let qualityLabel: QualityLabel = 'fair';
+        try {
+          const q = await computeImageQuality(dataUrl);
+          qualityScore = q.score;
+          qualityLabel = q.label;
+        } catch { /* best-effort */ }
+        const id = `saved_listing_img_${Date.now()}_${i}`;
+        const candidate: CandidateImage = {
+          id,
+          originalUrl: dataUrl,
+          cleanedUrl: null,
+          enhancedUrl: null,
+          cleanedEnhancedUrl: null,
+          cleanEnabled: false,
+          enhanceEnabled: false,
+          cleaning: false,
+          enhancing: false,
+          label: 'other',
+          description: '',
+          layoutRole: i === 0 ? 'hero' : 'gallery',
+          photoConfidence: 1,
+          hasText: false,
+          quality: 'bright',
+          bbox: { x: 0, y: 0, w: 1, h: 1 },
+          pixelWidth: 0,
+          pixelHeight: 0,
+          qualityScore,
+          qualityLabel,
+          sourcePass: 'manual',
+          parentRegionId: null,
+          source: i === 0 ? 'hero' : 'manual_crop',
+          overlays: [],
+          overlayRemoved: false,
+          ...EMPTY_CLEANUP_META,
+        };
+        setCandidateImages((prev) => [...prev, candidate]);
+        setSelectedImageIds((prev) => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+      } catch { /* skip failed images */ }
+    }
+  }, []);
+
+  const handleSelectSavedListing = useCallback((item: { id: string; title: string; dataJson?: Record<string, unknown> }) => {
+    prefillFromDataItem(item);
+    const d = item.dataJson as Record<string, unknown> | undefined;
+    const imgs = d
+      ? Array.isArray(d.images) ? (d.images as string[]) : d.imageUrl ? [d.imageUrl as string] : []
+      : [];
+    if (imgs.length > 0) {
+      loadListingImages(imgs);
+    }
+    setStep('images');
+  }, [prefillFromDataItem, loadListingImages]);
 
   const handlePropertySearchSelect = useCallback((listing: UnifiedListing) => {
     const PROPERTY_TYPE_MAP: Record<string, string> = {
@@ -664,6 +747,8 @@ export function ListingCampaignPage({ clientId }: Props) {
       yearBuilt: listing.yearBuilt,
       daysOnMarket: listing.daysOnMarket,
       listingStatus: listing.status,
+      lotSize: listing.lotSize,
+      listedDate: listing.listedDate,
     };
 
     const label = `From search: ${listing.formattedAddress ?? listing.street ?? 'Property'}`;
@@ -888,7 +973,7 @@ export function ListingCampaignPage({ clientId }: Props) {
 
   const [pasteError, setPasteError] = useState<string>('');
   const [propertySearchOpen, setPropertySearchOpen] = useState(false);
-  const [showPropertyPicker, setShowPropertyPicker] = useState(false);
+  const [savedListingFilter, setSavedListingFilter] = useState('');
 
   const handleClipboardRead = useCallback(async () => {
     setPasteError('');
@@ -1201,17 +1286,63 @@ export function ListingCampaignPage({ clientId }: Props) {
           Build a coordinated multi-post campaign for any property. Choose your listing, select images, and generate a complete marketing strategy.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Select Existing Listing */}
-          {existingListings.length > 0 && (
-            <SourceCard
-              icon={ListChecks}
-              title="Select Existing Listing"
-              description={`${existingListings.length} saved propert${existingListings.length === 1 ? 'y' : 'ies'}`}
-              onClick={() => setShowPropertyPicker(true)}
-            />
-          )}
+        {/* Inline Saved Properties */}
+        {existingListings.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-sm font-semibold text-white-60">Your Saved Properties</h2>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white-10 text-white-40">{existingListings.length}</span>
+            </div>
+            {existingListings.length > 4 && (
+              <input
+                value={savedListingFilter}
+                onChange={(e) => setSavedListingFilter(e.target.value)}
+                placeholder="Search by address..."
+                className="w-full px-3 py-2 mb-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+              />
+            )}
+            <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+              {existingListings
+                .filter((item) => {
+                  if (!savedListingFilter.trim()) return true;
+                  const q = savedListingFilter.toLowerCase();
+                  const d = item.dataJson as Record<string, unknown>;
+                  const addr = typeof d.address === 'string' ? d.address : typeof d.address === 'object' && d.address ? (d.address as Record<string, unknown>).street ?? '' : '';
+                  return item.title.toLowerCase().includes(q) || String(addr).toLowerCase().includes(q);
+                })
+                .map((item) => {
+                  const d = item.dataJson as Record<string, unknown>;
+                  const thumb = typeof d.imageUrl === 'string' ? d.imageUrl : Array.isArray(d.images) && typeof (d.images as string[])[0] === 'string' ? (d.images as string[])[0] : null;
+                  const price = typeof d.price === 'number' ? `$${d.price.toLocaleString()}` : null;
+                  const beds = d.beds ?? d.bedrooms;
+                  const baths = d.baths ?? d.bathrooms;
+                  const sqft = d.sqft;
+                  const specs = [beds != null ? `${beds} bd` : null, baths != null ? `${baths} ba` : null, sqft != null ? `${Number(sqft).toLocaleString()} sqft` : null].filter(Boolean).join(' · ');
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelectSavedListing(item)}
+                      className="w-full flex items-center gap-3 p-2.5 rounded-lg bg-white-5 border border-white-10 hover:border-accent-green-110/40 hover:bg-white-8 text-left transition-all"
+                    >
+                      {thumb ? (
+                        <img src={thumb} alt="" className="w-12 h-12 rounded-md object-cover shrink-0 bg-white-10" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-md bg-white-10 flex items-center justify-center shrink-0">
+                          <ListChecks className="w-5 h-5 text-white-20" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white-80 truncate">{item.title}</p>
+                        <p className="text-xs text-white-40 truncate">{[price, specs].filter(Boolean).join(' — ')}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* Import from URL */}
           <SourceCard icon={Link2} title="Import from URL" description="Paste a Zillow, Realtor.com, or listing URL">
             <div className="mt-3 flex gap-2">
@@ -1322,6 +1453,10 @@ export function ListingCampaignPage({ clientId }: Props) {
                         const item = existingListings.find((l) => l.id === sourceId);
                         if (item) {
                           prefillFromDataItem(item);
+                          // Load images from saved listing into media pool
+                          const d = item.dataJson as Record<string, unknown>;
+                          const imgs = Array.isArray(d.images) ? (d.images as string[]) : d.imageUrl ? [d.imageUrl as string] : [];
+                          if (imgs.length > 0) loadListingImages(imgs);
                         }
                       }
                       const recCampaignType = payload?.campaignType ?? rec.suggestedCampaignType;
@@ -1357,18 +1492,6 @@ export function ListingCampaignPage({ clientId }: Props) {
             clientId={clientId}
             onSelect={handlePropertySearchSelect}
             onClose={() => setPropertySearchOpen(false)}
-          />
-        )}
-
-        {showPropertyPicker && (
-          <PropertyPicker
-            clientId={clientId}
-            onSelect={(item) => {
-              prefillFromDataItem(item);
-              setShowPropertyPicker(false);
-              setStep('images');
-            }}
-            onClose={() => setShowPropertyPicker(false)}
           />
         )}
       </div>

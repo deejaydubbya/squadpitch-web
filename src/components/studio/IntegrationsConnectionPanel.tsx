@@ -292,6 +292,27 @@ function GBPCard({
         </div>
       )}
 
+      {/* Pending state without location picker — allow retry */}
+      {isPending && !callbackResult && (
+        <div className="space-y-2">
+          <p className="text-xs text-white-40">
+            Connection started but not finished. Try connecting again to complete setup.
+          </p>
+          <button
+            onClick={handleConnect}
+            disabled={isConnecting}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors disabled:opacity-50"
+          >
+            {isConnecting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ExternalLink className="w-4 h-4" />
+            )}
+            Reconnect Google Business Profile
+          </button>
+        </div>
+      )}
+
       {/* Connect button */}
       {!isConnected && !isPending && !callbackResult && (
         <button
