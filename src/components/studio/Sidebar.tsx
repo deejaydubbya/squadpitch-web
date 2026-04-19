@@ -17,6 +17,7 @@ import {
   Activity,
   Database,
   Home,
+  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
@@ -52,13 +53,14 @@ export function Sidebar({ client }: Props) {
     { href: `${base}/create`, icon: Wand2, label: 'Quick Post', primary: true },
     { href: `${base}/sources`, icon: Database, label: 'Sources' },
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics' },
+    { href: `${base}/autopilot`, icon: Zap, label: 'Autopilot' },
   ];
 
   const settingsItems = [
-    { href: `${base}/settings/brand`, label: 'Brand' },
-    { href: `${base}/settings/voice`, label: 'Voice' },
-    { href: `${base}/settings/media`, label: 'Media' },
-    { href: `${base}/settings/channels`, label: 'Channels' },
+    { href: `${base}/settings/brand`, label: 'Brand & Audience' },
+    { href: `${base}/settings/voice`, label: 'Content Strategy' },
+    { href: `${base}/settings/channels`, label: 'Channels & Publishing' },
+    { href: `${base}/settings/autopilot`, label: 'Autopilot' },
     { href: `${base}/settings/notifications`, label: 'Notifications' },
     { href: `${base}/settings/integrations`, label: 'Integrations' },
     { href: `${base}/settings/billing`, label: 'Billing' },
@@ -184,7 +186,7 @@ export function Sidebar({ client }: Props) {
                   : 'text-white-40 hover:text-white-100 hover:bg-white-5'
               )}
             >
-              General
+              Workspace
             </Link>
             {settingsItems.map((item) => {
               const active = isActive(item.href);

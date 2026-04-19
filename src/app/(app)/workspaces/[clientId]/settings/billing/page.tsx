@@ -1,15 +1,12 @@
 'use client';
 
-import { ArrowUpRight, ArrowDownRight, CreditCard, ExternalLink, Loader2, Zap, Activity } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, CreditCard, ExternalLink, Loader2, Zap } from 'lucide-react';
 import {
   useSubscription,
   useUsage,
   useCreatePortal,
   useCreateCheckout,
   useChangePlan,
-  useAiUsage,
-  useAiCostBreakdown,
-  useSystemHealth,
   type PlanTier,
 } from '@/hooks/useBilling';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -17,49 +14,73 @@ import { StatusBanner } from '@/components/common/StatusBanner';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { UsageMeter } from '@/components/billing/UsageMeter';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
-import { cn } from '@/lib/utils';
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
 
 const PLANS: { tier: PlanTier; label: string; price: string; features: string[] }[] = [
   {
     tier: 'STARTER',
     label: 'Starter',
     price: '$19/mo',
-    features: ['3 workspaces', '50 posts/mo', '10 images/mo'],
+    features: [
+      '3 workspaces',
+      '75 posts/mo',
+      '30 images/mo',
+      '3 videos/mo',
+      '3 GB storage',
+      'AI: 75 image + 5 video generations',
+      '50 enhancement runs/mo',
+    ],
   },
   {
     tier: 'PRO',
     label: 'Pro',
     price: '$49/mo',
-    features: ['5 workspaces', '200 posts/mo', '50 images/mo', '5 videos/mo'],
+    features: [
+      '5 workspaces',
+      '250 posts/mo',
+      '75 images/mo',
+      '10 videos/mo',
+      '10 GB storage',
+      'AI: 300 image + 15 video generations',
+      '200 enhancement runs/mo',
+    ],
   },
   {
     tier: 'GROWTH',
     label: 'Growth',
     price: '$99/mo',
-    features: ['10 workspaces', '500 posts/mo', '150 images/mo', '20 videos/mo'],
+    features: [
+      '10 workspaces',
+      '600 posts/mo',
+      '200 images/mo',
+      '30 videos/mo',
+      '30 GB storage',
+      'AI: 800 image + 40 video generations',
+      '500 enhancement runs/mo',
+    ],
   },
   {
     tier: 'AGENCY',
     label: 'Agency',
     price: '$199/mo',
-    features: ['Unlimited workspaces', '1,000 posts/mo', '500 images/mo', '100 videos/mo'],
+    features: [
+      'Unlimited workspaces',
+      '1,200 posts/mo',
+      '500 images/mo',
+      '100 videos/mo',
+      '100 GB storage',
+      'AI: 2,000 image + 100 video generations',
+      '1,500 enhancement runs/mo',
+    ],
   },
 ];
-
-const ACTION_LABELS: Record<string, string> = {
-  POST: 'Posts generated',
-  IMAGE: 'Images generated',
-  VIDEO: 'Videos generated',
-  IDEAS: 'Ideas generated',
-};
-
-function StatusDot({ status }: { status: string }) {
-  const color =
-    status === 'healthy' ? 'bg-zone-green' :
-    status === 'degraded' ? 'bg-yellow-400' :
-    'bg-accent-red';
-  return <span className={cn('inline-block w-2 h-2 rounded-full', color)} />;
-}
 
 export default function BillingSettingsPage() {
   const { data: subscription, isLoading: subLoading } = useSubscription();
@@ -67,10 +88,6 @@ export default function BillingSettingsPage() {
   const portal = useCreatePortal();
   const checkout = useCreateCheckout();
   const changePlan = useChangePlan();
-  const { data: aiUsage } = useAiUsage();
-  const { data: costBreakdown } = useAiCostBreakdown();
-  const { data: health } = useSystemHealth();
-
   const isLoading = subLoading || usageLoading;
 
   if (isLoading) {
@@ -84,17 +101,32 @@ export default function BillingSettingsPage() {
 
   const tier = usage?.tier ?? 'STARTER';
   const hasSubscription = subscription?.stripeSubscriptionId;
-  const isAtPostLimit =
-    usage && isFinite(usage.limits.posts) && usage.usage.posts >= usage.limits.posts;
+
+  // Check if any limit is at capacity
+  const atLimitFields: string[] = [];
+  if (usage) {
+    const checks: [string, number, number][] = [
+      ['Post', usage.usage.posts, usage.limits.posts],
+      ['Image', usage.usage.images, usage.limits.images],
+      ['Video', usage.usage.videos, usage.limits.videos],
+      ['Image generation', usage.usage.imageGenerations, usage.limits.imageGenerations],
+      ['Video generation', usage.usage.videoGenerations, usage.limits.videoGenerations],
+      ['Enhancement', usage.usage.enhancementRuns, usage.limits.enhancementRuns],
+    ];
+    for (const [label, current, limit] of checks) {
+      if (isFinite(limit) && current >= limit) atLimitFields.push(label);
+    }
+    if (isFinite(usage.limits.totalStorageBytes) && usage.storage.totalBytes >= usage.limits.totalStorageBytes) {
+      atLimitFields.push('Storage');
+    }
+  }
 
   const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
 
   const handlePlanAction = (planTier: PlanTier) => {
     if (hasSubscription) {
-      // Existing subscriber — upgrade/downgrade via proration
       changePlan.mutate({ tier: planTier });
     } else {
-      // No subscription — go through Stripe Checkout
       checkout.mutate({
         tier: planTier,
         successUrl: window.location.href,
@@ -106,9 +138,6 @@ export default function BillingSettingsPage() {
   const mutationError =
     changePlan.error?.message || checkout.error?.message || portal.error?.message;
 
-  // Total estimated cost from breakdown
-  const totalCostCents = costBreakdown?.breakdown?.reduce((sum, e) => sum + e.totalCostCents, 0) ?? 0;
-
   return (
     <div className="space-y-6 max-w-3xl">
       {mutationError && <StatusBanner error={mutationError} />}
@@ -117,6 +146,34 @@ export default function BillingSettingsPage() {
           success
           message={`Plan ${changePlan.data?.isUpgrade ? 'upgraded' : 'changed'} to ${changePlan.data?.tier ?? 'new plan'}.`}
         />
+      )}
+
+      {/* Free tier banner */}
+      {tier === 'FREE' && !hasSubscription && (
+        <div className="card p-5 border-accent-blue/30 bg-accent-blue/5 space-y-3">
+          <div className="flex items-start gap-3">
+            <Zap className="w-5 h-5 text-accent-blue flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-white-100">You&apos;re on the Free plan</h3>
+              <p className="text-xs text-white-60 mt-1">
+                Free includes 1 workspace, 10 posts/mo, 5 images/mo, and 250 MB storage.
+                Upgrade to unlock more workspaces, higher limits, and AI generation.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => handlePlanAction('STARTER')}
+            disabled={checkout.isPending}
+            className="btn btn-primary text-xs flex items-center gap-1.5"
+          >
+            {checkout.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Zap className="w-3.5 h-3.5" />
+            )}
+            Upgrade to Starter — $19/mo
+          </button>
+        </div>
       )}
 
       {/* Current Plan */}
@@ -248,144 +305,56 @@ export default function BillingSettingsPage() {
         })}
       </div>
 
-      {/* Usage */}
+      {/* Usage — Grouped Layout */}
       {usage && (
-        <div className="card p-5 space-y-4">
+        <div className="card p-5 space-y-5">
           <h3 className="text-sm font-semibold text-white-100">
-            Monthly usage
+            Monthly Usage
           </h3>
 
+          {/* Content Creation */}
           <div className="space-y-3">
+            <h4 className="text-xs font-medium text-white-40 uppercase tracking-wider">Content Creation</h4>
+            <UsageMeter label="Posts" current={usage.usage.posts} limit={usage.limits.posts} />
+            <UsageMeter label="Images" current={usage.usage.images} limit={usage.limits.images} />
+            <UsageMeter label="Videos" current={usage.usage.videos} limit={usage.limits.videos} />
+          </div>
+
+          {/* AI Generation */}
+          <div className="space-y-3 pt-3 border-t border-white-10">
+            <h4 className="text-xs font-medium text-white-40 uppercase tracking-wider">AI Generation</h4>
+            <UsageMeter label="Image generations" current={usage.usage.imageGenerations} limit={usage.limits.imageGenerations} />
+            <UsageMeter label="Video generations" current={usage.usage.videoGenerations} limit={usage.limits.videoGenerations} />
+            <UsageMeter label="Enhancement runs" current={usage.usage.enhancementRuns} limit={usage.limits.enhancementRuns} />
+          </div>
+
+          {/* Storage */}
+          <div className="space-y-3 pt-3 border-t border-white-10">
+            <h4 className="text-xs font-medium text-white-40 uppercase tracking-wider">Storage</h4>
             <UsageMeter
-              label="Posts"
-              current={usage.usage.posts}
-              limit={usage.limits.posts}
+              label="Total storage"
+              current={usage.storage.totalBytes}
+              limit={usage.limits.totalStorageBytes}
+              formatValue={formatBytes}
             />
             <UsageMeter
-              label="Images"
-              current={usage.usage.images}
-              limit={usage.limits.images}
-            />
-            <UsageMeter
-              label="Videos"
-              current={usage.usage.videos}
-              limit={usage.limits.videos}
+              label="Video storage"
+              current={usage.storage.videoBytes}
+              limit={usage.limits.videoStorageBytes}
+              formatValue={formatBytes}
             />
           </div>
 
           <p className="text-[10px] text-white-30">
-            Usage resets on the 1st of each month.
+            Usage counters reset on the 1st of each month. Storage is cumulative.
           </p>
         </div>
       )}
 
-      {/* AI Usage This Month */}
-      {aiUsage && (
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white-100">
-              AI Usage This Month
-            </h3>
-            {totalCostCents > 0 && (
-              <span className="text-xs font-mono text-white-40">
-                ~${(totalCostCents / 100).toFixed(2)} est. cost
-              </span>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            {aiUsage.usage.length > 0 ? (
-              aiUsage.usage.map((entry) => (
-                <div key={entry.actionType} className="flex items-center justify-between">
-                  <span className="text-xs text-white-60">
-                    {ACTION_LABELS[entry.actionType] ?? entry.actionType}
-                  </span>
-                  <span className="text-xs font-mono text-white-40">
-                    {entry.count}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-white-40 italic">No AI usage this month.</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* System Status */}
-      {health && (
-        <div className="card p-5 space-y-4">
-          <h3 className="text-sm font-semibold text-white-100 flex items-center gap-2">
-            <Activity className="w-4 h-4" />
-            System Status
-          </h3>
-
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <StatusDot status={health.services.openai} />
-                <span className="text-xs text-white-60">OpenAI (text generation)</span>
-              </div>
-              <span className="text-[10px] text-white-40 capitalize">{health.services.openai}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <StatusDot status={health.services.fal} />
-                <span className="text-xs text-white-60">Fal (image/video)</span>
-              </div>
-              <span className="text-[10px] text-white-40 capitalize">{health.services.fal}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <StatusDot status={health.services.redis} />
-                <span className="text-xs text-white-60">Redis (queues)</span>
-              </div>
-              <span className="text-[10px] text-white-40 capitalize">{health.services.redis}</span>
-            </div>
-          </div>
-
-          {/* Budget bars */}
-          <div className="space-y-2 pt-2 border-t border-white-10">
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-white-40">OpenAI budget</span>
-                <span className="text-[10px] font-mono text-white-40">{health.budget.openai.percentage}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-white-10 overflow-hidden">
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-all',
-                    health.budget.openai.status === 'exceeded' ? 'bg-accent-red' :
-                    health.budget.openai.status === 'warning' ? 'bg-accent-orange' : 'bg-accent-green-110'
-                  )}
-                  style={{ width: `${Math.min(health.budget.openai.percentage, 100)}%` }}
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-white-40">Fal budget</span>
-                <span className="text-[10px] font-mono text-white-40">{health.budget.fal.percentage}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-white-10 overflow-hidden">
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-all',
-                    health.budget.fal.status === 'exceeded' ? 'bg-accent-red' :
-                    health.budget.fal.status === 'warning' ? 'bg-accent-orange' : 'bg-accent-green-110'
-                  )}
-                  style={{ width: `${Math.min(health.budget.fal.percentage, 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Upgrade prompt */}
-      {isAtPostLimit && (
-        <UpgradePrompt currentTier={tier} limitType="Post" />
-      )}
+      {/* Upgrade prompts — show for any limit at capacity */}
+      {atLimitFields.map((limitType) => (
+        <UpgradePrompt key={limitType} currentTier={tier} limitType={limitType} />
+      ))}
     </div>
   );
 }

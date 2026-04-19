@@ -130,12 +130,9 @@ export function VoiceProfileForm({ clientId }: Props) {
   return (
     <div className="card p-5 space-y-6 max-w-3xl">
       <div>
-        <h2 className="text-lg font-bold text-white-100">Voice & rules</h2>
+        <h2 className="text-lg font-bold text-white-100">Content Strategy</h2>
         <p className="text-sm text-white-40 mt-0.5">
-          Shapes how the AI writes. Version{' '}
-          <span className="text-white-60 font-mono">
-            v{voice?.version ?? 1}
-          </span>
+          Define your brand voice, writing rules, and content themes. These settings shape every post Squadpitch creates.
         </p>
       </div>
 
@@ -327,7 +324,7 @@ export function VoiceProfileForm({ clientId }: Props) {
           ) : (
             <Save className="w-3 h-3" />
           )}
-          Save voice profile
+          Save content strategy
         </button>
       </div>
     </div>

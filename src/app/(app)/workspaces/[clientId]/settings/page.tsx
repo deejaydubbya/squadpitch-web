@@ -67,9 +67,9 @@ export default function SettingsPage() {
     <div className="space-y-6 max-w-3xl">
       <div className="card p-5 space-y-5">
         <div>
-          <h2 className="text-lg font-bold text-white-100">Settings</h2>
+          <h2 className="text-lg font-bold text-white-100">Workspace</h2>
           <p className="text-sm text-white-40 mt-0.5">
-            Rename your workspace or update its logo.
+            Manage your workspace name, logo, and operational status.
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export default function SettingsPage() {
         <div>
           <h3 className="text-sm font-semibold text-white-100">Status</h3>
           <p className="text-xs text-white-40 mt-0.5">
-            Pausing a client blocks all new generation requests.
+            Pausing a workspace stops all content generation and scheduled publishing. Existing drafts are preserved.
           </p>
         </div>
         <button
@@ -155,8 +155,10 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-5 space-y-4 border-accent-red/30">
-        <div>
+        <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-accent-red">Danger zone</h3>
+        </div>
+        <div>
           <p className="text-xs text-white-40 mt-0.5">
             Archiving hides the client from the list. Existing drafts are
             preserved.

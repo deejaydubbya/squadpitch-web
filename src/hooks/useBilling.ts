@@ -27,12 +27,24 @@ export interface UsageData {
     posts: number;
     images: number;
     videos: number;
+    imageGenerations: number;
+    videoGenerations: number;
+    enhancementRuns: number;
+  };
+  storage: {
+    totalBytes: number;
+    videoBytes: number;
   };
   limits: {
-    clients: number;
+    workspaces: number;
     posts: number;
     images: number;
     videos: number;
+    totalStorageBytes: number;
+    videoStorageBytes: number;
+    imageGenerations: number;
+    videoGenerations: number;
+    enhancementRuns: number;
   };
   tier: PlanTier;
 }
@@ -52,9 +64,37 @@ export interface SystemHealth {
 export interface RemainingUsage {
   period: { start: string; end: string };
   tier: PlanTier;
-  remaining: { posts: number; images: number; videos: number };
-  usage: { posts: number; images: number; videos: number };
-  limits: { posts: number; images: number; videos: number };
+  remaining: {
+    posts: number;
+    images: number;
+    videos: number;
+    imageGenerations: number;
+    videoGenerations: number;
+    enhancementRuns: number;
+  };
+  usage: {
+    posts: number;
+    images: number;
+    videos: number;
+    imageGenerations: number;
+    videoGenerations: number;
+    enhancementRuns: number;
+  };
+  storage: {
+    totalBytes: number;
+    videoBytes: number;
+  };
+  limits: {
+    workspaces: number;
+    posts: number;
+    images: number;
+    videos: number;
+    totalStorageBytes: number;
+    videoStorageBytes: number;
+    imageGenerations: number;
+    videoGenerations: number;
+    enhancementRuns: number;
+  };
 }
 
 export interface AiUsageEntry {

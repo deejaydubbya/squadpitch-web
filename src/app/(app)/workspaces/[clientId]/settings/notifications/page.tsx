@@ -179,7 +179,8 @@ export default function NotificationSettingsPage() {
     <div className="space-y-8 max-w-2xl">
       {/* In-app section */}
       <section>
-        <h2 className="text-base font-semibold text-white-100 mb-4">In-app</h2>
+        <h2 className="text-base font-semibold text-white-100 mb-1">In-app</h2>
+        <p className="text-xs text-white-40 mb-4">Notifications that appear in your Squadpitch bell icon and notifications page.</p>
         <div className="space-y-3">
           <button
             onClick={() => setExpanded((s) => ({ ...s, inapp: !s.inapp }))}
@@ -221,7 +222,8 @@ export default function NotificationSettingsPage() {
 
       {/* Email section */}
       <section>
-        <h2 className="text-base font-semibold text-white-100 mb-4">Email</h2>
+        <h2 className="text-base font-semibold text-white-100 mb-1">Email</h2>
+        <p className="text-xs text-white-40 mb-4">Email alerts for publishing events, usage limits, and connection issues.</p>
         <div className="space-y-3">
           <div className="card p-4 flex items-center justify-between">
             <button
@@ -297,7 +299,8 @@ export default function NotificationSettingsPage() {
 
       {/* SMS section */}
       <section>
-        <h2 className="text-base font-semibold text-white-100 mb-4">SMS</h2>
+        <h2 className="text-base font-semibold text-white-100 mb-1">SMS</h2>
+        <p className="text-xs text-white-40 mb-4">SMS is reserved for critical-only events like failed posts and expired connections.</p>
         <div className="card p-4">
           <div className="flex items-center justify-between">
             <button
@@ -382,7 +385,8 @@ export default function NotificationSettingsPage() {
 
       {/* Browser Push section */}
       <section>
-        <h2 className="text-base font-semibold text-white-100 mb-4">Browser Push</h2>
+        <h2 className="text-base font-semibold text-white-100 mb-1">Browser Push</h2>
+        <p className="text-xs text-white-40 mb-4">Real-time browser notifications for time-sensitive events.</p>
         <div className="space-y-3">
           <div className="card p-4">
             <div className="flex items-center justify-between">
@@ -453,7 +457,8 @@ export default function NotificationSettingsPage() {
 
       {/* Weekly Digest section */}
       <section>
-        <h2 className="text-base font-semibold text-white-100 mb-4">Weekly Digest</h2>
+        <h2 className="text-base font-semibold text-white-100 mb-1">Weekly Digest</h2>
+        <p className="text-xs text-white-40 mb-4">A weekly summary of your workspace activity delivered every Monday.</p>
         <div className="card p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -483,8 +488,9 @@ export default function NotificationSettingsPage() {
           Recent notifications
         </h2>
         {!logs || logs.length === 0 ? (
-          <div className="card p-6 text-center text-sm text-white-40">
-            No notifications sent yet.
+          <div className="card p-6 text-center space-y-1">
+            <p className="text-sm text-white-40">No notifications sent yet.</p>
+            <p className="text-xs text-white-30">Notifications will appear here once events like post publishing or connection expiry are triggered.</p>
           </div>
         ) : (
           <div className="space-y-1">

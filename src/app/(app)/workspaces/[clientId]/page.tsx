@@ -36,6 +36,7 @@ import { SetupProgress } from '@/components/studio/SetupProgress';
 import { ListingOpportunitiesWidget } from '@/components/studio/NearbyListingsWidget';
 import { GBPDashboardWidget } from '@/components/studio/GBPDashboardWidget';
 import { SystemStatusCard } from '@/components/studio/SystemStatusCard';
+import { AutopilotStatusCard } from '@/components/studio/AutopilotStatusCard';
 import { OpportunitiesSection } from '@/components/studio/OpportunitiesSection';
 import { ContentActivitySection } from '@/components/studio/ContentActivitySection';
 import type { NextActionItem } from '@/components/studio/OpportunitiesSection';
@@ -305,7 +306,7 @@ export default function OverviewPage() {
       const rec = recommendations?.recommendations.find((r) => r.action === action.action);
       if (rec) handleRecommendationAction(rec);
       else if (action.action === 'toggle_autopilot') {
-        router.push(`${base}/sources`);
+        router.push(`${base}/autopilot`);
       }
     }
   };
@@ -384,6 +385,9 @@ export default function OverviewPage() {
         }
         base={base}
       />
+
+      {/* 5b. Autopilot Status */}
+      <AutopilotStatusCard clientId={clientId} base={base} />
 
       {/* 6. Opportunities — MOST PROMINENT */}
       <OpportunitiesSection

@@ -80,10 +80,13 @@ export function BrandProfileForm({ clientId }: Props) {
   return (
     <div className="card p-5 space-y-5 max-w-3xl">
       <div>
-        <h2 className="text-lg font-bold text-white-100">Brand profile</h2>
+        <h2 className="text-lg font-bold text-white-100">Brand & Audience</h2>
         <p className="text-sm text-white-40 mt-0.5">
           This is the core info about your brand. It shapes every post
           Squadpitch creates.
+        </p>
+        <p className="text-xs text-white-30 mt-2">
+          This information grounds every AI-generated post. The more specific you are, the better the output.
         </p>
       </div>
 

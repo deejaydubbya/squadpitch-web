@@ -182,7 +182,7 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
                       <button
                         onClick={() => updateSettings.mutate({
                           enabled: !apSettings?.enabled,
-                          mode: !apSettings?.enabled ? 'draft_assist' : 'off',
+                          mode: !apSettings?.enabled ? 'draft_only' : 'off',
                         })}
                         disabled={updateSettings.isPending}
                         className={`relative w-9 h-5 rounded-full transition-colors ${

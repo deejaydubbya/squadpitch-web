@@ -333,12 +333,12 @@ interface IntegrationMeta {
   category?: IntegrationCategory;
 }
 
-const CATEGORY_LABELS: Record<IntegrationCategory, string> = {
-  notifications: 'Notifications',
-  publishing: 'Publishing',
-  data_logging: 'Data & Logging',
-  email_marketing: 'Email Marketing',
-  crm_tools: 'CRM Tools',
+const CATEGORY_META: Record<IntegrationCategory, { label: string; description: string }> = {
+  notifications: { label: 'Notifications', description: 'Get alerted in Slack, Discord, or other channels when events happen.' },
+  publishing: { label: 'Publishing', description: 'Push content to WordPress, Webflow, or other CMS platforms.' },
+  data_logging: { label: 'Data & Logging', description: 'Log events to spreadsheets, databases, or knowledge bases.' },
+  email_marketing: { label: 'Email Marketing', description: 'Create draft campaigns in Mailchimp, ConvertKit, and more.' },
+  crm_tools: { label: 'CRM Tools', description: 'Log activity to your CRM for tracking and reporting.' },
 };
 
 const INTEGRATION_META: Record<string, IntegrationMeta> = {
@@ -529,11 +529,13 @@ function GenericIntegrationsSection() {
       {(Object.entries(categories) as [IntegrationCategory, [string, IntegrationMeta][]][]).map(
         ([category, entries]) => {
           if (entries.length === 0) return null;
+          const meta = CATEGORY_META[category];
           return (
             <div key={category} className="mb-5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-white-30 mb-2">
-                {CATEGORY_LABELS[category]}
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white-30 mb-0.5">
+                {meta.label}
               </p>
+              <p className="text-xs text-white-30 mb-2">{meta.description}</p>
               <div className="grid grid-cols-2 gap-3">
                 {entries.map(([type, meta]) => {
                   const Icon = meta.icon;
@@ -630,8 +632,9 @@ function GenericIntegrationsSection() {
           ))
         ) : (
           !adding && (
-            <div className="card p-6 text-center text-sm text-white-40">
-              No integrations yet. Connect a service above to extend what Squadpitch can do.
+            <div className="card p-6 text-center space-y-1">
+              <p className="text-sm text-white-40">No integrations configured yet.</p>
+              <p className="text-xs text-white-30">Select a service above to connect it to your workspace.</p>
             </div>
           )
         )}
@@ -901,6 +904,12 @@ function IntegrationCard({
 export default function IntegrationsPage() {
   return (
     <div className="space-y-8 max-w-2xl">
+      <div>
+        <h2 className="text-lg font-bold text-white-100">Integrations</h2>
+        <p className="text-sm text-white-40 mt-1">
+          Connect third-party services to extend Squadpitch with notifications, publishing, data logging, and more.
+        </p>
+      </div>
       <GenericIntegrationsSection />
       <WebhooksSection />
     </div>

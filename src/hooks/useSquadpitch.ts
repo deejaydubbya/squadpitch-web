@@ -1141,6 +1141,12 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', clientId, 'best-blueprints'] as const,
   autopilot: (clientId: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'autopilot'] as const,
+  autopilotReadiness: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'autopilot-readiness'] as const,
+  autopilotActivity: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'autopilot-activity'] as const,
+  autopilotStatus: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'autopilot-status'] as const,
   dashboardRecommendations: (clientId: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'dashboard-recommendations'] as const,
   dashboardActions: (clientId: string) =>
@@ -2546,16 +2552,52 @@ export function useAutopilotExecute(clientId: string) {
 
 // ── Autopilot Settings ───────────────────────────────────────────────────
 
+export type AutopilotMode = 'off' | 'draft_only' | 'schedule_approved' | 'auto_publish';
+
 export interface AutopilotSettings {
   enabled: boolean;
-  mode: 'off' | 'draft_assist';
+  mode: AutopilotMode;
   preferredChannels: Channel[];
-  maxDraftsPerWeek: number;
-  maxDraftsPerScheduledRun: number;
-  minimumHoursBetweenDrafts: number;
   allowListingPosts: boolean;
   allowTestimonialPosts: boolean;
+  allowMilestonePosts: boolean;
   allowFallbackPosts: boolean;
+  maxDraftsPerWeek: number;
+  maxDraftsPerDay: number;
+  maxDraftsPerScheduledRun: number;
+  minimumHoursBetweenDrafts: number;
+  requireApprovalBeforePublish: boolean;
+  quietHoursStart: number | null;
+  quietHoursEnd: number | null;
+  skipChannelsWithoutMedia: boolean;
+}
+
+export interface AutopilotReadinessCheck {
+  id: string;
+  label: string;
+  met: boolean;
+  fix: string;
+}
+
+export interface AutopilotReadiness {
+  ready: boolean;
+  checks: AutopilotReadinessCheck[];
+  availableModes: AutopilotMode[];
+  connectedChannels: string[];
+  totalDataItems: number;
+}
+
+export interface AutopilotActivityItem {
+  id: string;
+  eventType: 'generated' | 'scheduled' | 'published' | 'skipped' | 'failed';
+  channel: string;
+  status: string;
+  body: string | null;
+  trigger: string | null;
+  reason: string | null;
+  angle: string | null;
+  createdAt: string;
+  publishedAt: string | null;
 }
 
 export function useAutopilotSettings(clientId: string | undefined) {
@@ -2579,8 +2621,49 @@ export function useUpdateAutopilotSettings(clientId: string) {
       ).then((r) => r.settings),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.autopilot(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotStatus(clientId) });
       qc.invalidateQueries({ queryKey: squadpitchKeys.dashboardRecommendations(clientId) });
     },
+  });
+}
+
+export function useAutopilotReadiness(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.autopilotReadiness(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<AutopilotReadiness>(
+        `workspaces/${clientId}/autopilot/readiness`,
+      ),
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useAutopilotActivity(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.autopilotActivity(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<{ activity: AutopilotActivityItem[] }>(
+        `workspaces/${clientId}/autopilot/activity`,
+      ).then((r) => r.activity),
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useAutopilotStatus(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.autopilotStatus(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<{
+        enabled: boolean;
+        mode: AutopilotMode;
+        maxDraftsPerWeek: number;
+        draftsThisWeek: number;
+        lastActionAt: string | null;
+        lastActionType: string | null;
+        lastActionChannel: string | null;
+        coverageGaps: string[];
+      }>(`workspaces/${clientId}/autopilot/status`),
+    enabled: Boolean(clientId),
   });
 }
 

@@ -5,11 +5,11 @@ import { useParams, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 const tabs = [
-  { label: 'General', suffix: '' },
-  { label: 'Brand', suffix: '/brand' },
-  { label: 'Voice', suffix: '/voice' },
-  { label: 'Media', suffix: '/media' },
-  { label: 'Channels', suffix: '/channels' },
+  { label: 'Workspace', suffix: '' },
+  { label: 'Brand & Audience', suffix: '/brand' },
+  { label: 'Content Strategy', suffix: '/voice' },
+  { label: 'Channels & Publishing', suffix: '/channels' },
+  { label: 'Autopilot', suffix: '/autopilot' },
   { label: 'Notifications', suffix: '/notifications' },
   { label: 'Integrations', suffix: '/integrations' },
   { label: 'Billing', suffix: '/billing' },
@@ -24,7 +24,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-white-100">Settings</h1>
-        <p className="text-sm text-white-40 mt-1">Configure your workspace settings.</p>
+        <p className="text-sm text-white-40 mt-1">Manage your workspace configuration, content strategy, and publishing.</p>
       </div>
 
       <div className="flex gap-1 border-b border-white-10">
