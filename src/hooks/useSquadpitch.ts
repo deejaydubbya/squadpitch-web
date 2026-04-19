@@ -256,6 +256,7 @@ export interface AnalyticsPost {
   contentType?: string | null;
   hookType?: string | null;
   sentiment?: string | null;
+  worstReason?: string | null;
 }
 
 export interface PlatformStat {

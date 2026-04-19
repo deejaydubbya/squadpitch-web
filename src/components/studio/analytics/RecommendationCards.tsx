@@ -33,9 +33,20 @@ export function RecommendationCards({ recommendations }: Props) {
               className="rounded-lg border border-white-10 bg-white-5 p-3"
             >
               <div className="flex items-start gap-2">
-                <span className="px-1.5 py-0.5 rounded bg-white-10 text-[10px] text-white-60 font-mono uppercase shrink-0">
-                  {CATEGORY_LABELS[rec.category] || rec.category}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="px-1.5 py-0.5 rounded bg-white-10 text-[10px] text-white-60 font-mono uppercase">
+                    {CATEGORY_LABELS[rec.category] || rec.category}
+                  </span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      rec.confidence === 'high'
+                        ? 'bg-green-500/15 text-green-400'
+                        : 'bg-amber-500/15 text-amber-400'
+                    }`}
+                  >
+                    {rec.confidence === 'high' ? 'High' : 'Medium'}
+                  </span>
+                </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-white-100">
                     {rec.title}

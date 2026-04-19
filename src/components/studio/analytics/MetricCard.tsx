@@ -47,8 +47,14 @@ export function MetricCard({ label, value, helper, tooltip, variant = 'default',
       <p className={`text-2xl font-bold mt-1 ${VALUE_COLORS[variant]}`}>{value}</p>
       <div className="flex items-center gap-1.5 mt-0.5">
         {helper && <p className="text-[11px] text-white-40">{helper}</p>}
-        {sampleSize != null && sampleSize < 10 && (
-          <span className="text-[10px] text-amber-400/80 font-mono">({sampleSize} posts)</span>
+        {sampleSize != null && (
+          <span
+            className={`text-[10px] font-mono ${
+              sampleSize < 10 ? 'text-amber-400/80' : 'text-white-30'
+            }`}
+          >
+            ({sampleSize} posts)
+          </span>
         )}
       </div>
     </div>

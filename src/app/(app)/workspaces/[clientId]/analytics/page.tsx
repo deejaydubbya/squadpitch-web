@@ -232,8 +232,78 @@ function OverviewTab({
   const engRate = eng.engagementRate;
   const engRateIsExtreme = engRate != null && engRate > 0.5; // > 50%
 
+  // Build "Focus This Week" cards
+  const focusCards: { type: 'issue' | 'opportunity' | 'focus'; title: string; description: string }[] = [];
+
+  if (cov.coveragePercent < 50) {
+    focusCards.push({
+      type: 'issue',
+      title: 'Low data coverage',
+      description: `Only ${cov.coveragePercent}% of posts have platform metrics. Connect channels to improve analytics accuracy.`,
+    });
+  }
+
+  const topInsight = data.insights?.[0];
+  if (topInsight) {
+    focusCards.push({
+      type: 'opportunity',
+      title: topInsight.title,
+      description: topInsight.description,
+    });
+  }
+
+  const topRec = data.recommendations?.[0];
+  if (topRec) {
+    focusCards.push({
+      type: 'focus',
+      title: topRec.title,
+      description: topRec.suggestedAction,
+    });
+  }
+
+  const autopilot = data.sections.autopilot;
+  if (autopilot?.hasData && autopilot.scoreDelta != null && autopilot.scoreDelta > 5) {
+    focusCards.push({
+      type: 'opportunity',
+      title: 'Autopilot is outperforming',
+      description: `Autopilot content scores ${autopilot.scoreDelta} points higher than manual posts.`,
+    });
+  }
+
+  const FOCUS_COLORS = {
+    issue: 'border-amber-500/20 bg-amber-500/5',
+    opportunity: 'border-green-500/20 bg-green-500/5',
+    focus: 'border-blue-500/20 bg-blue-500/5',
+  } as const;
+  const FOCUS_LABEL_COLORS = {
+    issue: 'text-amber-400',
+    opportunity: 'text-green-400',
+    focus: 'text-blue-400',
+  } as const;
+
   return (
     <div className="space-y-6">
+      {/* Focus This Week */}
+      {focusCards.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-xs font-semibold text-white-40 uppercase tracking-wider">Focus This Week</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {focusCards.slice(0, 3).map((card) => (
+              <div
+                key={card.title}
+                className={`rounded-lg border p-4 ${FOCUS_COLORS[card.type]}`}
+              >
+                <p className={`text-[10px] font-medium uppercase tracking-wider mb-1 ${FOCUS_LABEL_COLORS[card.type]}`}>
+                  {card.type === 'issue' ? 'Issue' : card.type === 'opportunity' ? 'Opportunity' : 'Focus'}
+                </p>
+                <p className="text-sm font-medium text-white-100">{card.title}</p>
+                <p className="text-xs text-white-60 mt-1 leading-relaxed">{card.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Key metrics row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard
@@ -261,7 +331,7 @@ function OverviewTab({
             eng.hasEngagementData
               ? engRateIsExtreme
                 ? 'High rate — may include repeat engagements'
-                : 'From platform metrics'
+                : `Engagements / impressions across ${data.dataCoverage.withEngagementData} posts`
               : 'No engagement data synced'
           }
           tooltip={
@@ -270,24 +340,36 @@ function OverviewTab({
               : undefined
           }
           variant="blue"
+          sampleSize={eng.hasEngagementData ? data.dataCoverage.withEngagementData : undefined}
         />
       </div>
 
       {/* Quick insights row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="card p-4 flex flex-col justify-center">
-          <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Top Platform by Reach</p>
+          <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Top Platform</p>
           <p className="text-sm font-semibold text-blue-400">
             {capitalize(intel.topPlatform)}
           </p>
-          <p className="text-[10px] text-white-30 mt-0.5">Based on total reach</p>
+          <p className="text-[10px] text-white-30 mt-0.5">By avg composite score</p>
+        </div>
+        <div className="card p-4 flex flex-col justify-center">
+          <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Top by Reach</p>
+          <p className="text-sm font-semibold text-blue-400">
+            {capitalize(
+              [...data.platformBreakdown]
+                .sort((a, b) => (b.totalReach ?? 0) - (a.totalReach ?? 0))[0]
+                ?.channel ?? null,
+            )}
+          </p>
+          <p className="text-[10px] text-white-30 mt-0.5">By total reach</p>
         </div>
         <div className="card p-4 flex flex-col justify-center">
           <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Best Content Type</p>
           <p className="text-sm font-semibold text-blue-400">
             {capitalize(intel.bestContentType)}
           </p>
-          <p className="text-[10px] text-white-30 mt-0.5">By avg engagement score</p>
+          <p className="text-[10px] text-white-30 mt-0.5">By avg composite score</p>
         </div>
         <div className="card p-4 flex flex-col justify-center">
           <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Data Coverage</p>
@@ -354,6 +436,8 @@ function PerformanceTab({
         isEmpty={!dist.hasReachData && dist.publishingTrend.length === 0}
         emptyMessage="No distribution data yet. Connect a platform to start tracking reach and impressions."
         emptyAction={{ label: 'Connect a channel', href: `/workspaces/${clientId}/settings/channels` }}
+        emptyHint="Distribution metrics show how far your content travels — impressions, reach, and posting frequency."
+        emptyPreviewItems={['Impressions', 'Reach', 'Publishing trend']}
       >
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <MetricCard
@@ -361,12 +445,14 @@ function PerformanceTab({
             value={formatNumber(dist.totalImpressions)}
             helper={dist.totalImpressions == null ? 'Connect platform' : 'Total content views'}
             variant="blue"
+            sampleSize={data.dataCoverage.withEngagementData}
           />
           <MetricCard
             label="Reach"
             value={formatNumber(dist.totalReach)}
             helper={dist.totalReach == null ? 'Connect platform' : 'Unique people reached'}
             variant="blue"
+            sampleSize={data.dataCoverage.withEngagementData}
           />
           <MetricCard
             label="Posts Published"
@@ -392,6 +478,8 @@ function PerformanceTab({
         isEmpty={eng.topPosts.length === 0}
         emptyMessage="No engagement data yet. Publish and sync posts to see performance rankings."
         emptyAction={{ label: 'Create content', href: `/workspaces/${clientId}/create` }}
+        emptyHint="Engagement data tracks likes, comments, shares, and saves from your connected platforms."
+        emptyPreviewItems={['Engagement rate', 'Top posts', 'Needs attention']}
       >
         <div className="grid grid-cols-2 gap-3">
           {eng.hasEngagementData ? (
@@ -402,10 +490,11 @@ function PerformanceTab({
                 helper={
                   engRateIsExtreme
                     ? 'High rate — may include repeat engagements'
-                    : 'From platform metrics'
+                    : `Engagements / impressions across ${data.dataCoverage.withEngagementData} posts`
                 }
                 tooltip="Engagement rate = total engagements / impressions. Rates above 100% can occur when engagements (likes, comments, shares, saves) exceed impressions — common with high-save or viral content."
                 variant="blue"
+                sampleSize={data.dataCoverage.withEngagementData}
               />
               <MetricCard
                 label="Observed Performance Score"
@@ -615,6 +704,8 @@ function IntelligenceTab({
         }
         emptyMessage="Not enough data for content intelligence. Keep publishing to unlock AI-powered insights."
         emptyAction={{ label: 'Create content', href: `/workspaces/${clientId}/create` }}
+        emptyHint="Content Intelligence analyzes your posts for patterns in content type, hook style, media use, and sentiment."
+        emptyPreviewItems={['Quality score', 'Insights', 'Recommendations', 'Content types']}
       >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricCard
@@ -636,7 +727,7 @@ function IntelligenceTab({
             <p className="text-sm font-semibold text-purple-400">
               {capitalize(intel.bestContentType)}
             </p>
-            <p className="text-[10px] text-white-30 mt-0.5">By avg engagement score</p>
+            <p className="text-[10px] text-white-30 mt-0.5">By avg composite score</p>
           </div>
           <div className="card p-4 flex flex-col justify-center">
             <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Best Media Type</p>
@@ -704,6 +795,25 @@ function IntelligenceTab({
             variant="purple"
           />
         </div>
+        {autopilot?.scoreDelta != null && (
+          <div
+            className={`flex items-start gap-2 px-4 py-3 rounded-lg border ${
+              autopilot.scoreDelta >= 0
+                ? 'bg-green-500/5 border-green-500/15'
+                : 'bg-amber-500/5 border-amber-500/15'
+            }`}
+          >
+            <Zap className={`w-4 h-4 shrink-0 mt-0.5 ${autopilot.scoreDelta >= 0 ? 'text-green-400' : 'text-amber-400'}`} />
+            <p className={`text-xs ${autopilot.scoreDelta >= 0 ? 'text-green-300/80' : 'text-amber-300/80'}`}>
+              {autopilot.scoreDelta >= 0
+                ? `Autopilot content is scoring ${autopilot.scoreDelta} points higher than manual posts.`
+                : `Manual posts are outperforming Autopilot by ${Math.abs(autopilot.scoreDelta)} points.`}
+              {autopilot.engagementDelta != null && (
+                <> Engagement is {autopilot.engagementDelta >= 0 ? '+' : ''}{(autopilot.engagementDelta * 100).toFixed(1)}% for Autopilot.</>
+              )}
+            </p>
+          </div>
+        )}
         <AutopilotVsManualChart
           avgAutopilotScore={autopilot?.avgAutopilotScore ?? null}
           avgManualScore={autopilot?.avgManualScore ?? null}
@@ -725,6 +835,8 @@ function IntelligenceTab({
         isEmpty={!businessData?.hasData}
         emptyMessage="No business data imported yet. Import listings, reviews, or milestones to see which sources create the best-performing content."
         emptyAction={{ label: 'Import business data', href: `/workspaces/${clientId}/business-data` }}
+        emptyHint="Business data performance shows which imported items (listings, reviews, milestones) generate the best content."
+        emptyPreviewItems={['Data items', 'Usage rate', 'Top performers', 'Freshness']}
       >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricCard

@@ -50,7 +50,7 @@ export function TopPostsList({ title, posts, onPostClick }: Props) {
                 <p className="text-xs text-white-80 line-clamp-2 leading-relaxed">
                   {post.body || '(no body)'}
                 </p>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
                   {channelBadge(post.channel)}
                   {post.contentType && contentTypeBadge(post.contentType)}
                   <ScoreBadge
@@ -63,6 +63,11 @@ export function TopPostsList({ title, posts, onPostClick }: Props) {
                     </span>
                   )}
                 </div>
+                {post.worstReason && (
+                  <p className="text-[10px] text-amber-400/80 mt-1 font-medium">
+                    {post.worstReason}
+                  </p>
+                )}
               </div>
             </div>
           ))}
