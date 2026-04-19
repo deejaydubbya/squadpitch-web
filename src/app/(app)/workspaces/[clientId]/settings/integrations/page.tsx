@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Hash,
   Webhook,
@@ -18,15 +18,7 @@ import {
   FileSpreadsheet,
   Blocks,
   MessageSquare,
-  HardDrive,
-  Cloud,
-  Folder,
-  FileImage,
-  FileVideo,
-  File,
-  Download,
   ExternalLink,
-  Unplug,
   Building2,
   Mail,
   Radio,
@@ -34,7 +26,6 @@ import {
   PenTool,
   ChevronDown,
 } from 'lucide-react';
-import { useParams } from 'next/navigation';
 import {
   useWebhooks,
   useCreateWebhook,
@@ -50,16 +41,11 @@ import {
   useTestIntegration,
   useRetryIntegration,
   useMediaImportConnect,
-  useMediaImportFiles,
-  useMediaImportFile,
-  useMediaImportDisconnect,
   useSheetsSpreadsheets,
   type Integration,
-  type MediaImportFile,
 } from '@/hooks/useIntegrations';
 import { useQueryClient } from '@tanstack/react-query';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { IntegrationsConnectionPanel } from '@/components/studio/IntegrationsConnectionPanel';
 
 const INTEGRATION_EVENTS = [
   { key: 'POST_PUBLISHED', label: 'Post published' },
@@ -336,13 +322,24 @@ function WebhookCard({
 
 // ── Generic Integrations Section ─────────────────────────────────────
 
+type IntegrationCategory = 'notifications' | 'publishing' | 'data_logging' | 'email_marketing' | 'crm_tools';
+
 interface IntegrationMeta {
   label: string;
   icon: typeof Database;
   description: string;
   fields: { key: string; label: string; placeholder: string; type?: string }[];
   oauth?: 'google_drive' | 'dropbox' | 'google_sheets';
+  category?: IntegrationCategory;
 }
+
+const CATEGORY_LABELS: Record<IntegrationCategory, string> = {
+  notifications: 'Notifications',
+  publishing: 'Publishing',
+  data_logging: 'Data & Logging',
+  email_marketing: 'Email Marketing',
+  crm_tools: 'CRM Tools',
+};
 
 const INTEGRATION_META: Record<string, IntegrationMeta> = {
   slack: {
@@ -353,13 +350,7 @@ const INTEGRATION_META: Record<string, IntegrationMeta> = {
       { key: 'webhookUrl', label: 'Webhook URL', placeholder: 'https://hooks.slack.com/services/...' },
       { key: 'channelName', label: 'Channel Name', placeholder: '#general (optional)' },
     ],
-  },
-  google_sheets: {
-    label: 'Google Sheets',
-    icon: FileSpreadsheet,
-    description: 'Append event rows to a spreadsheet',
-    fields: [],
-    oauth: 'google_sheets',
+    category: 'notifications',
   },
   discord: {
     label: 'Discord',
@@ -368,41 +359,7 @@ const INTEGRATION_META: Record<string, IntegrationMeta> = {
     fields: [
       { key: 'webhookUrl', label: 'Webhook URL', placeholder: 'https://discord.com/api/webhooks/...' },
     ],
-  },
-  notion: {
-    label: 'Notion',
-    icon: Database,
-    description: 'Log events to a Notion database',
-    fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'ntn_...', type: 'password' },
-      { key: 'databaseId', label: 'Database ID', placeholder: '8a2b3c4d...' },
-    ],
-  },
-  hubspot: {
-    label: 'HubSpot',
-    icon: Building2,
-    description: 'Log activity to HubSpot CRM',
-    fields: [
-      { key: 'accessToken', label: 'Access Token', placeholder: 'pat-na1-...', type: 'password' },
-    ],
-  },
-  mailchimp: {
-    label: 'Mailchimp',
-    icon: Mail,
-    description: 'Create draft email campaigns',
-    fields: [
-      { key: 'apiKey', label: 'API Key', placeholder: 'xxxxxxxx-us21', type: 'password' },
-      { key: 'serverPrefix', label: 'Server Prefix', placeholder: 'us21' },
-      { key: 'listId', label: 'Audience/List ID', placeholder: 'abc123def4' },
-    ],
-  },
-  convertkit: {
-    label: 'ConvertKit',
-    icon: Radio,
-    description: 'Create draft email broadcasts',
-    fields: [
-      { key: 'apiSecret', label: 'API Secret', placeholder: 'xxxxxxxx...', type: 'password' },
-    ],
+    category: 'notifications',
   },
   wordpress: {
     label: 'WordPress',
@@ -413,6 +370,7 @@ const INTEGRATION_META: Record<string, IntegrationMeta> = {
       { key: 'username', label: 'Username', placeholder: 'admin' },
       { key: 'applicationPassword', label: 'Application Password', placeholder: 'xxxx xxxx xxxx xxxx', type: 'password' },
     ],
+    category: 'publishing',
   },
   webflow: {
     label: 'Webflow',
@@ -422,6 +380,54 @@ const INTEGRATION_META: Record<string, IntegrationMeta> = {
       { key: 'apiToken', label: 'API Token', placeholder: 'xxxxxxxx...', type: 'password' },
       { key: 'collectionId', label: 'Collection ID', placeholder: '6...abc' },
     ],
+    category: 'publishing',
+  },
+  google_sheets: {
+    label: 'Google Sheets',
+    icon: FileSpreadsheet,
+    description: 'Append event rows to a spreadsheet',
+    fields: [],
+    oauth: 'google_sheets',
+    category: 'data_logging',
+  },
+  notion: {
+    label: 'Notion',
+    icon: Database,
+    description: 'Log events to a Notion database',
+    fields: [
+      { key: 'apiKey', label: 'API Key', placeholder: 'ntn_...', type: 'password' },
+      { key: 'databaseId', label: 'Database ID', placeholder: '8a2b3c4d...' },
+    ],
+    category: 'data_logging',
+  },
+  mailchimp: {
+    label: 'Mailchimp',
+    icon: Mail,
+    description: 'Create draft email campaigns',
+    fields: [
+      { key: 'apiKey', label: 'API Key', placeholder: 'xxxxxxxx-us21', type: 'password' },
+      { key: 'serverPrefix', label: 'Server Prefix', placeholder: 'us21' },
+      { key: 'listId', label: 'Audience/List ID', placeholder: 'abc123def4' },
+    ],
+    category: 'email_marketing',
+  },
+  convertkit: {
+    label: 'ConvertKit',
+    icon: Radio,
+    description: 'Create draft email broadcasts',
+    fields: [
+      { key: 'apiSecret', label: 'API Secret', placeholder: 'xxxxxxxx...', type: 'password' },
+    ],
+    category: 'email_marketing',
+  },
+  hubspot: {
+    label: 'HubSpot',
+    icon: Building2,
+    description: 'Log activity to HubSpot CRM',
+    fields: [
+      { key: 'accessToken', label: 'Access Token', placeholder: 'pat-na1-...', type: 'password' },
+    ],
+    category: 'crm_tools',
   },
 };
 
@@ -487,41 +493,78 @@ function GenericIntegrationsSection() {
     setFormConfig({});
   };
 
+  // Filter out cloud storage types from connected integrations list
+  const filteredIntegrations = integrations?.filter(
+    (i) => i.type !== 'google_drive' && i.type !== 'dropbox'
+  );
+
+  // Group INTEGRATION_META entries by category
+  const categories = Object.entries(INTEGRATION_META).reduce<
+    Record<IntegrationCategory, [string, IntegrationMeta][]>
+  >(
+    (acc, entry) => {
+      const cat = entry[1].category ?? 'notifications';
+      acc[cat].push(entry);
+      return acc;
+    },
+    {
+      notifications: [],
+      publishing: [],
+      data_logging: [],
+      email_marketing: [],
+      crm_tools: [],
+    }
+  );
+
   return (
     <section>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <h2 className="text-base font-semibold text-white-100">Integrations</h2>
       </div>
+      <p className="text-sm text-white-40 mb-4">
+        Workflow tools and services that extend Squadpitch. Data sources are managed from the Sources page.
+      </p>
 
-      {/* Type cards for adding */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        {Object.entries(INTEGRATION_META).map(([type, meta]) => {
-          const Icon = meta.icon;
-          const count = integrations?.filter((i) => i.type === type).length ?? 0;
-          // Hide "Add" card for OAuth types that are already connected (only 1 allowed)
-          if (meta.oauth && count > 0) return null;
+      {/* Type cards grouped by category */}
+      {(Object.entries(categories) as [IntegrationCategory, [string, IntegrationMeta][]][]).map(
+        ([category, entries]) => {
+          if (entries.length === 0) return null;
           return (
-            <button
-              key={type}
-              onClick={() => startAdding(type)}
-              disabled={!!meta.oauth && oauthConnect.isPending}
-              className="card p-4 text-left hover:border-accent-green-110/30 transition-colors disabled:opacity-50"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-4.5 h-4.5 text-accent-green-110" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-white-100">{meta.label}</p>
-                  <p className="text-xs text-white-40">
-                    {count > 0 ? `${count} connected` : meta.description}
-                  </p>
-                </div>
+            <div key={category} className="mb-5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white-30 mb-2">
+                {CATEGORY_LABELS[category]}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {entries.map(([type, meta]) => {
+                  const Icon = meta.icon;
+                  const count = filteredIntegrations?.filter((i) => i.type === type).length ?? 0;
+                  if (meta.oauth && count > 0) return null;
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => startAdding(type)}
+                      disabled={!!meta.oauth && oauthConnect.isPending}
+                      className="card p-4 text-left hover:border-accent-green-110/30 transition-colors disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
+                          <Icon className="w-4.5 h-4.5 text-accent-green-110" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white-100">{meta.label}</p>
+                          <p className="text-xs text-white-40">
+                            {count > 0 ? `${count} connected` : meta.description}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </button>
+            </div>
           );
-        })}
-      </div>
+        }
+      )}
 
       {/* Add form (non-OAuth types only) */}
       {adding && INTEGRATION_META[adding] && !INTEGRATION_META[adding].oauth && (
@@ -565,8 +608,8 @@ function GenericIntegrationsSection() {
 
       {/* Integration cards */}
       <div className="space-y-3">
-        {integrations && integrations.length > 0 ? (
-          integrations.map((int) => (
+        {filteredIntegrations && filteredIntegrations.length > 0 ? (
+          filteredIntegrations.map((int) => (
             <IntegrationCard
               key={int.id}
               integration={int}
@@ -852,262 +895,13 @@ function IntegrationCard({
   );
 }
 
-// ── Media Import Section (Drive + Dropbox) ───────────────────────────
-
-const MEDIA_PROVIDERS = [
-  { type: 'google_drive' as const, label: 'Google Drive', icon: HardDrive },
-  { type: 'dropbox' as const, label: 'Dropbox', icon: Cloud },
-];
-
-function MediaImportSection() {
-  const { clientId } = useParams<{ clientId: string }>();
-  const qc = useQueryClient();
-  const { data: integrations, isLoading } = useGenericIntegrations();
-  const connect = useMediaImportConnect();
-  const disconnect = useMediaImportDisconnect();
-  const [browsing, setBrowsing] = useState<string | null>(null);
-
-  // Listen for OAuth popup completion → refresh integrations
-  useEffect(() => {
-    const onMessage = (e: MessageEvent) => {
-      const expectedOrigin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-      if (e.origin !== expectedOrigin && e.origin !== window.location.origin) return;
-      const ch = e.data?.channel?.toUpperCase();
-      if (e.data?.type === 'sp-oauth-complete' && (ch === 'DRIVE' || ch === 'DROPBOX')) {
-        qc.invalidateQueries({ queryKey: ['integrations'] });
-      }
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [qc]);
-
-  if (isLoading) return <LoadingSpinner size="sm" />;
-
-  const driveInt = integrations?.find((i) => i.type === 'google_drive' && i.isActive);
-  const dropboxInt = integrations?.find((i) => i.type === 'dropbox' && i.isActive);
-
-  const handleConnect = (provider: 'google_drive' | 'dropbox') => {
-    connect.mutate(provider, {
-      onSuccess: (data) => {
-        window.open(data.authUrl, 'sp-oauth-popup', 'width=600,height=720');
-      },
-    });
-  };
-
-  return (
-    <section>
-      <h2 className="text-base font-semibold text-white-100 mb-4">Media Import</h2>
-      <p className="text-sm text-white-40 mb-4">
-        Connect cloud storage so Squadpitch can use your existing photos and files in posts.
-      </p>
-
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        {MEDIA_PROVIDERS.map(({ type, label, icon: Icon }) => {
-          const connected = type === 'google_drive' ? driveInt : dropboxInt;
-          return (
-            <div key={type} className="card p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-4.5 h-4.5 text-accent-green-110" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-white-100">{label}</p>
-                  <p className="text-xs text-white-40">
-                    {connected
-                      ? `Connected${(connected.config as { email?: string })?.email ? ` — ${(connected.config as { email?: string }).email}` : ''}`
-                      : 'Not connected'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {connected ? (
-                  <>
-                    <button
-                      onClick={() => setBrowsing(browsing === connected.id ? null : connected.id)}
-                      className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
-                    >
-                      <Folder className="w-3 h-3" />
-                      {browsing === connected.id ? 'Close' : 'Browse files'}
-                    </button>
-                    <button
-                      onClick={() => disconnect.mutate(connected.id)}
-                      className="text-xs text-red-400 hover:underline flex items-center gap-1"
-                    >
-                      <Unplug className="w-3 h-3" />
-                      {disconnect.isPending ? 'Disconnecting...' : 'Disconnect'}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => handleConnect(type)}
-                    className="btn-primary text-xs px-3 py-1 flex items-center gap-1"
-                  >
-                    {connect.isPending ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <ExternalLink className="w-3 h-3" />
-                    )}
-                    Connect
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* File browser */}
-      {browsing && clientId && (
-        <FileBrowser integrationId={browsing} clientId={clientId} />
-      )}
-    </section>
-  );
-}
-
-function FileBrowser({
-  integrationId,
-  clientId,
-}: {
-  integrationId: string;
-  clientId: string;
-}) {
-  const [folderPath, setFolderPath] = useState<{ id?: string; path?: string; name: string }[]>([
-    { name: 'Root' },
-  ]);
-  const current = folderPath[folderPath.length - 1];
-
-  const queryOptions: Record<string, string> = {};
-  if (current.id) queryOptions.folderId = current.id;
-  if (current.path) queryOptions.path = current.path;
-
-  const { data, isLoading } = useMediaImportFiles(integrationId, queryOptions);
-  const importFile = useMediaImportFile();
-
-  const navigateToFolder = useCallback(
-    (file: MediaImportFile) => {
-      setFolderPath((p) => [
-        ...p,
-        { id: file.id, path: file.path, name: file.name },
-      ]);
-    },
-    [],
-  );
-
-  const navigateUp = useCallback(
-    (index: number) => {
-      setFolderPath((p) => p.slice(0, index + 1));
-    },
-    [],
-  );
-
-  const handleImport = (file: MediaImportFile) => {
-    const fileRef = file.path || file.id;
-    importFile.mutate({ integrationId, fileRef, clientId });
-  };
-
-  const getFileIcon = (file: MediaImportFile) => {
-    if (file.isFolder) return Folder;
-    if (file.mimeType?.startsWith('image/')) return FileImage;
-    if (file.mimeType?.startsWith('video/')) return FileVideo;
-    return File;
-  };
-
-  const isImportable = (file: MediaImportFile) => {
-    return (
-      !file.isFolder &&
-      (file.mimeType?.startsWith('image/') || file.mimeType?.startsWith('video/'))
-    );
-  };
-
-  return (
-    <div className="card p-4">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1 mb-3 flex-wrap">
-        {folderPath.map((crumb, i) => (
-          <span key={i} className="flex items-center gap-1">
-            {i > 0 && <span className="text-white-30">/</span>}
-            <button
-              onClick={() => navigateUp(i)}
-              className={`text-xs hover:underline ${
-                i === folderPath.length - 1
-                  ? 'text-white-100 font-medium'
-                  : 'text-accent-green-110'
-              }`}
-            >
-              {crumb.name}
-            </button>
-          </span>
-        ))}
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <LoadingSpinner size="sm" />
-        </div>
-      ) : (
-        <div className="space-y-1 max-h-80 overflow-y-auto">
-          {data?.files && data.files.length > 0 ? (
-            data.files.map((file) => {
-              const Icon = getFileIcon(file);
-              return (
-                <div
-                  key={file.id || file.path}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-white-5 transition-colors"
-                >
-                  <Icon
-                    className={`w-4 h-4 flex-shrink-0 ${
-                      file.isFolder ? 'text-accent-green-110' : 'text-white-40'
-                    }`}
-                  />
-                  {file.isFolder ? (
-                    <button
-                      onClick={() => navigateToFolder(file)}
-                      className="text-sm text-white-100 hover:text-accent-green-110 text-left truncate"
-                    >
-                      {file.name}
-                    </button>
-                  ) : (
-                    <span className="text-sm text-white-100 truncate">{file.name}</span>
-                  )}
-                  <span className="text-xs text-white-30 ml-auto flex-shrink-0">
-                    {file.size ? `${(file.size / 1024).toFixed(0)} KB` : ''}
-                  </span>
-                  {isImportable(file) && (
-                    <button
-                      onClick={() => handleImport(file)}
-                      className="text-xs text-accent-green-110 hover:underline flex items-center gap-1 flex-shrink-0"
-                      disabled={importFile.isPending}
-                    >
-                      {importFile.isPending ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Download className="w-3 h-3" />
-                      )}
-                      Import
-                    </button>
-                  )}
-                </div>
-              );
-            })
-          ) : (
-            <p className="text-sm text-white-40 text-center py-4">No files found.</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Main Page ─────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
-  const { clientId } = useParams<{ clientId: string }>();
-
   return (
     <div className="space-y-8 max-w-2xl">
-      <IntegrationsConnectionPanel clientId={clientId} />
       <GenericIntegrationsSection />
-      <MediaImportSection />
       <WebhooksSection />
     </div>
   );

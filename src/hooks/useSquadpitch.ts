@@ -51,6 +51,11 @@ export interface BrandProfile {
   offers: string | null;
   competitors: string | null;
   examplePosts: Array<{ label?: string; text: string }> | null;
+  city: string | null;
+  state: string | null;
+  marketArea: string | null;
+  primaryZip: string | null;
+  serviceAreas: string[] | null;
   updatedBy: string | null;
   updatedAt: string;
 }
@@ -3163,6 +3168,7 @@ export function usePropertyListingsSearch(clientId: string) {
   });
 }
 
+/** @deprecated Use `useListingOpportunities` instead. */
 export function useNearbyListings(clientId: string, zipCode: string) {
   return useQuery({
     queryKey: squadpitchKeys.nearbyListings(clientId, zipCode),
@@ -3174,6 +3180,30 @@ export function useNearbyListings(clientId: string, zipCode: string) {
     staleTime: 15 * 60_000,          // 15 min — backend caches 1h, no need to refetch often
     gcTime: 30 * 60_000,             // 30 min — keep in memory across navigations
     refetchOnWindowFocus: false,     // Expensive endpoint — only refetch on explicit action
+    select: (data) => data.data,
+  });
+}
+
+export function useListingOpportunities(
+  clientId: string,
+  params: { zipCode?: string; city?: string; state?: string },
+) {
+  const qs = new URLSearchParams();
+  if (params.zipCode) qs.set('zipCode', params.zipCode);
+  if (params.city) qs.set('city', params.city);
+  if (params.state) qs.set('state', params.state);
+  qs.set('limit', '20');
+
+  return useQuery({
+    queryKey: squadpitchKeys.nearbyListings(clientId, qs.toString()),
+    queryFn: () =>
+      apiFetch<PropertyListingsSearchResult>(
+        `workspaces/${clientId}/property-data/listings?${qs.toString()}`
+      ),
+    enabled: Boolean(clientId && (params.zipCode || params.city)),
+    staleTime: 15 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     select: (data) => data.data,
   });
 }

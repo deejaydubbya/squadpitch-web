@@ -142,7 +142,7 @@ export default function SourcesPage() {
               href={`${base}/settings/integrations`}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-white-10 text-white-100 hover:bg-white-5 transition-colors"
             >
-              Manage all integrations
+              Manage workflow integrations
               <ArrowRight className="w-3 h-3" />
             </Link>
           </div>

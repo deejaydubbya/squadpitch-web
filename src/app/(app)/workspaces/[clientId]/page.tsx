@@ -33,7 +33,7 @@ import {
 import { useGenericIntegrations } from '@/hooks/useIntegrations';
 import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
 import { SetupProgress } from '@/components/studio/SetupProgress';
-import { NearbyListingsWidget } from '@/components/studio/NearbyListingsWidget';
+import { ListingOpportunitiesWidget } from '@/components/studio/NearbyListingsWidget';
 import { GBPDashboardWidget } from '@/components/studio/GBPDashboardWidget';
 import { SystemStatusCard } from '@/components/studio/SystemStatusCard';
 import { OpportunitiesSection } from '@/components/studio/OpportunitiesSection';
@@ -369,6 +369,7 @@ export default function OverviewPage() {
 
       {/* 5. System Status — channels + integrations combined */}
       <SystemStatusCard
+        clientId={clientId}
         enabledChannels={enabledChannels}
         connectionStatus={connectionStatus}
         connectedCount={connectedCount}
@@ -405,8 +406,8 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* 8. Nearby Listings (RE only) */}
-      {isRE && <NearbyListingsWidget clientId={clientId} />}
+      {/* 8. Listing Opportunities (RE only) */}
+      {isRE && <ListingOpportunitiesWidget clientId={clientId} />}
 
       {/* 9. Weekly Snapshot */}
       <WeeklySnapshot analytics={analytics} recommendations={recommendations} base={base} />

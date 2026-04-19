@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import {
   Link2,
   MapPin,
@@ -10,7 +9,6 @@ import {
   Cloud,
   FileUp,
   Star,
-  ExternalLink,
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,6 +16,7 @@ import { useIntegrationStatus } from '@/hooks/useSquadpitch';
 import { useListingSources } from '@/hooks/useSquadpitch';
 import { useGenericIntegrations } from '@/hooks/useIntegrations';
 import { ImportDataModal } from './ImportDataModal';
+import { SourceManagementModal } from './SourceManagementModal';
 
 interface Props {
   clientId: string;
@@ -50,15 +49,15 @@ function SourceCard({
   title,
   connected,
   children,
-  settingsHref,
-  settingsLabel,
+  onManage,
+  manageLabel,
 }: {
   icon: React.ElementType;
   title: string;
   connected: boolean;
   children: React.ReactNode;
-  settingsHref?: string;
-  settingsLabel?: string;
+  onManage?: () => void;
+  manageLabel?: string;
 }) {
   return (
     <div className="rounded-lg border border-white-10 bg-white-5 p-4 flex flex-col gap-3">
@@ -79,14 +78,13 @@ function SourceCard({
 
       <div className="text-sm text-white-60 space-y-1.5">{children}</div>
 
-      {settingsHref && (
-        <Link
-          href={settingsHref}
+      {onManage && (
+        <button
+          onClick={onManage}
           className="inline-flex items-center gap-1 text-xs text-accent-green-110 hover:text-accent-green-130 mt-auto"
         >
-          {settingsLabel ?? 'Manage'}
-          <ExternalLink className="w-3 h-3" />
-        </Link>
+          {manageLabel ?? 'Manage'}
+        </button>
       )}
     </div>
   );
@@ -101,8 +99,7 @@ export function ConnectedSourcesOverview({ clientId, isRE }: Props) {
     useGenericIntegrations();
 
   const [showImport, setShowImport] = useState(false);
-
-  const settingsBase = `/workspaces/${clientId}/settings/integrations`;
+  const [managingSource, setManagingSource] = useState<'gbp' | 'crm' | 'listings' | 'cloud' | null>(null);
 
   const gbp = integrationStatus?.gbp;
   const crm = integrationStatus?.crm;
@@ -147,12 +144,12 @@ export function ConnectedSourcesOverview({ clientId, isRE }: Props) {
             listings, contacts, and files all help create better posts and recommendations.
           </p>
           <div className="flex items-center gap-3">
-            <Link
-              href={settingsBase}
+            <button
+              onClick={() => setManagingSource('gbp')}
               className="px-4 py-2 text-sm font-medium rounded-lg bg-accent-green-110 text-black hover:bg-accent-green-130 transition-colors"
             >
-              Set up integrations
-            </Link>
+              Connect a source
+            </button>
             <button
               onClick={() => setShowImport(true)}
               className="px-4 py-2 text-sm font-medium rounded-lg border border-white-10 text-white-100 hover:bg-white-5 transition-colors"
@@ -167,6 +164,12 @@ export function ConnectedSourcesOverview({ clientId, isRE }: Props) {
             onClose={() => setShowImport(false)}
           />
         )}
+        <SourceManagementModal
+          clientId={clientId}
+          source={managingSource}
+          isRE={isRE}
+          onClose={() => setManagingSource(null)}
+        />
       </>
     );
   }
@@ -190,8 +193,8 @@ export function ConnectedSourcesOverview({ clientId, isRE }: Props) {
           icon={MapPin}
           title="Google Business Profile"
           connected={gbpConnected}
-          settingsHref={settingsBase}
-          settingsLabel={gbpConnected ? 'Manage' : 'Connect'}
+          onManage={() => setManagingSource('gbp')}
+          manageLabel={gbpConnected ? 'Manage' : 'Connect'}
         >
           {gbpConnected ? (
             <>
@@ -219,8 +222,8 @@ export function ConnectedSourcesOverview({ clientId, isRE }: Props) {
             icon={Users}
             title="CRM"
             connected={crmConnected}
-            settingsHref={settingsBase}
-            settingsLabel={crmConnected ? 'Manage' : 'Connect'}
+            onManage={() => setManagingSource('crm')}
+            manageLabel={crmConnected ? 'Manage' : 'Connect'}
           >
             {crmConnected ? (
               <>
@@ -248,8 +251,8 @@ export function ConnectedSourcesOverview({ clientId, isRE }: Props) {
             icon={List}
             title="Listing Feeds"
             connected={listingsConnected}
-            settingsHref={settingsBase}
-            settingsLabel={listingsConnected ? 'Manage' : 'Add sources'}
+            onManage={() => setManagingSource('listings')}
+            manageLabel={listingsConnected ? 'Manage' : 'Add sources'}
           >
             {listingsConnected ? (
               <>
@@ -274,8 +277,8 @@ export function ConnectedSourcesOverview({ clientId, isRE }: Props) {
           icon={Cloud}
           title="Cloud Storage"
           connected={cloudConnected}
-          settingsHref={settingsBase}
-          settingsLabel={cloudConnected ? 'Manage' : 'Connect'}
+          onManage={() => setManagingSource('cloud')}
+          manageLabel={cloudConnected ? 'Manage' : 'Connect'}
         >
           {cloudConnected ? (
             <p>
@@ -309,6 +312,13 @@ export function ConnectedSourcesOverview({ clientId, isRE }: Props) {
           onClose={() => setShowImport(false)}
         />
       )}
+
+      <SourceManagementModal
+        clientId={clientId}
+        source={managingSource}
+        isRE={isRE}
+        onClose={() => setManagingSource(null)}
+      />
     </>
   );
 }

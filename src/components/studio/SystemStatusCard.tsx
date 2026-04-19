@@ -1,11 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { Plug, ChevronRight, AlertCircle } from 'lucide-react';
+import { Plug, ChevronRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { getChannelLabel } from '@/lib/channelRegistry';
+import { useGBPSync, useCRMSync } from '@/hooks/useSquadpitch';
 import type { Channel, ChannelSettings } from '@/hooks/useSquadpitch';
 
 interface SystemStatusCardProps {
+  clientId: string;
   enabledChannels: ChannelSettings[];
   connectionStatus: Map<Channel, boolean>;
   connectedCount: number;
@@ -18,6 +21,7 @@ interface SystemStatusCardProps {
 }
 
 export function SystemStatusCard({
+  clientId,
   enabledChannels,
   connectionStatus,
   connectedCount,
@@ -28,21 +32,25 @@ export function SystemStatusCard({
   cloudStorageConnected,
   base,
 }: SystemStatusCardProps) {
+  const gbpSync = useGBPSync(clientId);
+  const crmSync = useCRMSync(clientId);
+
   const hasChannels = enabledChannels.length > 0;
 
   const gbpConnected = integrationStatus?.gbp?.status === 'connected';
   const crmConnected = integrationStatus?.crm?.status === 'connected';
   const listingsConnected = listingSourceCount > 0;
 
-  // Build integration items — same sources shown on Sources/Connections and Settings/Integrations
-  const integrations: { key: string; label: string; connected: boolean; href: string }[] = [
-    { key: 'gbp', label: 'Google Business Profile', connected: gbpConnected, href: `${base}/settings/integrations` },
+  // Build data source items — all link to Sources page now
+  const sourcesHref = `${base}/sources?tab=connections`;
+  const integrations: { key: string; label: string; connected: boolean; href: string; syncable: boolean }[] = [
+    { key: 'gbp', label: 'Google Business Profile', connected: gbpConnected, href: sourcesHref, syncable: true },
   ];
   if (isRE) {
-    integrations.push({ key: 'crm', label: 'CRM', connected: crmConnected, href: `${base}/settings/integrations` });
-    integrations.push({ key: 'listings', label: 'Listing Feeds', connected: listingsConnected, href: `${base}/sources?tab=connections` });
+    integrations.push({ key: 'crm', label: 'CRM', connected: crmConnected, href: sourcesHref, syncable: true });
+    integrations.push({ key: 'listings', label: 'Listing Feeds', connected: listingsConnected, href: sourcesHref, syncable: false });
   }
-  integrations.push({ key: 'cloud', label: 'Cloud Storage', connected: cloudStorageConnected, href: `${base}/settings/integrations` });
+  integrations.push({ key: 'cloud', label: 'Cloud Storage', connected: cloudStorageConnected, href: sourcesHref, syncable: false });
 
   const hasIntegrations = integrations.length > 0;
 
@@ -51,6 +59,17 @@ export function SystemStatusCard({
   const activeIntegrations = integrations.filter((i) => i.connected).length;
   const totalActive = connectedCount + activeIntegrations;
   const totalItems = enabledChannels.length + integrations.length;
+
+  const isSyncing = (key: string) => {
+    if (key === 'gbp') return gbpSync.isPending;
+    if (key === 'crm') return crmSync.isPending;
+    return false;
+  };
+
+  const handleSync = (key: string) => {
+    if (key === 'gbp') gbpSync.mutate();
+    if (key === 'crm') crmSync.mutate();
+  };
 
   return (
     <div className="card p-5 border-white-10">
@@ -98,6 +117,14 @@ export function SystemStatusCard({
                   >
                     {connected ? 'Connected' : 'Not connected'}
                   </span>
+                  {!connected && (
+                    <Link
+                      href={`${base}/settings/channels`}
+                      className="text-[10px] text-accent-green-110 hover:underline ml-1"
+                    >
+                      Connect
+                    </Link>
+                  )}
                 </div>
               );
             })}
@@ -113,15 +140,20 @@ export function SystemStatusCard({
       {/* Data Sources subsection */}
       {hasIntegrations && (
         <div>
-          <div className="mb-1.5">
+          <div className="flex items-center justify-between mb-1.5">
             <p className="text-[10px] text-white-25 uppercase tracking-wider">Data Sources</p>
+            <Link
+              href={sourcesHref}
+              className="text-[11px] text-accent-green-110 hover:underline"
+            >
+              Manage
+            </Link>
           </div>
           <div className="flex flex-wrap gap-2">
             {integrations.map((item) => (
-              <Link
+              <div
                 key={item.key}
-                href={item.href}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 hover:border-white-20 hover:bg-white-10 transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10"
               >
                 <span
                   className={`w-2 h-2 rounded-full flex-shrink-0 ${
@@ -132,7 +164,23 @@ export function SystemStatusCard({
                 <span className={`text-[10px] ${item.connected ? 'text-green-400' : 'text-yellow-400'}`}>
                   {item.connected ? 'Connected' : 'Not connected'}
                 </span>
-              </Link>
+                {item.connected && item.syncable && (
+                  <button
+                    onClick={() => handleSync(item.key)}
+                    disabled={isSyncing(item.key)}
+                    className="p-0.5 text-white-30 hover:text-accent-green-110 transition-colors disabled:opacity-50"
+                    title="Sync now"
+                  >
+                    <RefreshCw className={cn('w-3 h-3', isSyncing(item.key) && 'animate-spin')} />
+                  </button>
+                )}
+                <Link
+                  href={item.href}
+                  className="text-[10px] text-accent-green-110 hover:underline ml-0.5"
+                >
+                  {item.connected ? 'Manage' : 'Connect'}
+                </Link>
+              </div>
             ))}
           </div>
         </div>

@@ -864,7 +864,7 @@ export function OnboardingWizard() {
       return res;
     };
 
-    // Brand profile
+    // Brand profile (include location from agent profile draft if available)
     await checkedFetch(`/api/proxy/workspaces/${clientId}/brand`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -875,6 +875,10 @@ export function OnboardingWizard() {
         website: result.brandData.website || null,
         offers: result.brandData.offers,
         competitors: result.brandData.competitors,
+        city: mergedDraft?.primaryCity || null,
+        state: mergedDraft?.primaryState || null,
+        marketArea: mergedDraft?.serviceAreas?.[0] || mergedDraft?.primaryCity || null,
+        serviceAreas: mergedDraft?.serviceAreas || null,
       }),
     });
 
