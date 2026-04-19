@@ -113,14 +113,8 @@ export function SystemStatusCard({
       {/* Data Sources subsection */}
       {hasIntegrations && (
         <div>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="mb-1.5">
             <p className="text-[10px] text-white-25 uppercase tracking-wider">Data Sources</p>
-            <Link
-              href={`${base}/settings/integrations`}
-              className="text-[11px] text-accent-green-110 hover:underline"
-            >
-              Manage
-            </Link>
           </div>
           <div className="flex flex-wrap gap-2">
             {integrations.map((item) => (
