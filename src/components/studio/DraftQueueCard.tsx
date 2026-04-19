@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -62,6 +62,25 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const [scheduleDate, setScheduleDate] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [generatingMedia, setGeneratingMedia] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clear polling when media arrives or component unmounts
+  useEffect(() => {
+    if (generatingMedia && draft.mediaUrl) {
+      setGeneratingMedia(false);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }
+  }, [generatingMedia, draft.mediaUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const qc = useQueryClient();
   const updateDraft = useUpdateDraft(draft.id);
@@ -80,9 +99,9 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
 
   const isEditable = draft.status === 'DRAFT' || draft.status === 'PENDING_REVIEW';
   const canApprove = isEditable;
-  const canReject = isEditable || draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
-  const canSchedule = (draft.status === 'APPROVED' || draft.status === 'SCHEDULED') && eligibility.canSchedule;
-  const canPublish = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
+  const canReject = isEditable || draft.status === 'APPROVED' || draft.status === 'SCHEDULED' || draft.status === 'FAILED';
+  const canSchedule = (draft.status === 'APPROVED' || draft.status === 'SCHEDULED' || draft.status === 'FAILED') && eligibility.canSchedule;
+  const canPublish = draft.status === 'APPROVED' || draft.status === 'SCHEDULED' || draft.status === 'FAILED';
 
   const anyError =
     (updateDraft.error as Error | null) ||
@@ -210,6 +229,15 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
               </Link>
             </div>
           </div>
+        ) : generatingMedia ? (
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-lg bg-white-10 animate-pulse flex items-center justify-center shrink-0">
+              <Loader2 className="w-5 h-5 text-white-40 animate-spin" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-white-60 animate-pulse">Generating image...</p>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center gap-4">
             {/* Placeholder thumbnail */}
@@ -243,14 +271,22 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
                       },
                       {
                         onSuccess: () => {
+                          setGeneratingMedia(true);
                           qc.invalidateQueries({
                             queryKey: ['squadpitch', 'drafts'],
                           });
+                          // Poll every 3s until mediaUrl appears
+                          if (pollRef.current) clearInterval(pollRef.current);
+                          pollRef.current = setInterval(() => {
+                            qc.invalidateQueries({
+                              queryKey: ['squadpitch', 'drafts'],
+                            });
+                          }, 3000);
                         },
                       }
                     );
                   }}
-                  disabled={generateMedia.isPending}
+                  disabled={generateMedia.isPending || generatingMedia}
                   className="text-xs text-white-40 hover:text-accent-green-110 transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
                   {generateMedia.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
@@ -411,7 +447,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
             <X className="w-3 h-3" /> Reject
           </button>
         )}
-        {(draft.status === 'APPROVED' || draft.status === 'SCHEDULED') && (
+        {(draft.status === 'APPROVED' || draft.status === 'SCHEDULED' || draft.status === 'FAILED') && (
           <button
             onClick={() => {
               if (!canSchedule) return;

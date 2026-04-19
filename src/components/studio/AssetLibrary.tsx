@@ -263,6 +263,7 @@ export function AssetLibrary({ clientId }: Props) {
   };
 
   const [uploadQueue, setUploadQueue] = useState<{ total: number; done: number } | null>(null);
+  const [autoTagNotice, setAutoTagNotice] = useState<string | null>(null);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -288,40 +289,38 @@ export function AssetLibrary({ clientId }: Props) {
             // Fire auto-tag in background — backend saves tags directly
             autoTagAssetFetch(clientId, asset.id).then(() => {
               qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
-            });
+              setAutoTagNotice('Image tagged automatically');
+              setTimeout(() => setAutoTagNotice(null), 3000);
+            }).catch(() => {});
           },
         });
         return;
       }
-      // Multiple files — upload sequentially with progress
+      // Multiple files — close modal immediately, show progress above grid
+      setShowUploadModal(false);
+      setUploadAltText('');
+      setUploadCaption('');
+      setShowUploadMeta(false);
+      setUploadFolderId('');
+      setUploadNewFolderName('');
+      setShowUploadNewFolder(false);
       setUploadQueue({ total: fileList.length, done: 0 });
-      const autoTagPromises: Promise<void>[] = [];
       for (let i = 0; i < fileList.length; i++) {
         const formData = new FormData();
         formData.append('file', fileList[i]);
         try {
           const asset = await uploadAsset.mutateAsync({ formData, assetType: uploadMode, folderId: targetFolderId });
-          // Fire auto-tag in background — each is an independent fetch call
-          // so they don't clobber each other like useMutation does
-          autoTagPromises.push(autoTagAssetFetch(clientId, asset.id));
+          // Invalidate immediately so image appears in grid
+          qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+          // Fire auto-tag in background, invalidate again when done
+          autoTagAssetFetch(clientId, asset.id).then(() => {
+            qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+          }).catch(() => {});
         } catch {
           // Continue uploading remaining files on individual failure
         }
         setUploadQueue((prev) => prev ? { ...prev, done: i + 1 } : null);
       }
-      // Invalidate assets once after all auto-tags complete
-      if (autoTagPromises.length > 0) {
-        Promise.all(autoTagPromises).then(() => {
-          qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
-        });
-      }
-      setUploadAltText('');
-      setUploadCaption('');
-      setShowUploadMeta(false);
-      setShowUploadModal(false);
-      setUploadFolderId('');
-      setUploadNewFolderName('');
-      setShowUploadNewFolder(false);
       setUploadQueue(null);
     },
     [uploadAsset, uploadAltText, uploadCaption, uploadMode, uploadFolderId, clientId, qc]
@@ -661,6 +660,28 @@ export function AssetLibrary({ clientId }: Props) {
           </div>
         )}
         {error && <StatusBanner error={(error as Error).message} />}
+
+        {/* Auto-tag notice */}
+        {autoTagNotice && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20">
+            <Sparkles className="w-3.5 h-3.5 text-accent-green-110 shrink-0" />
+            <span className="text-xs text-accent-green-110">{autoTagNotice}</span>
+          </div>
+        )}
+
+        {/* Upload progress bar (outside modal) */}
+        {uploadQueue && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white-5 border border-white-10">
+            <Loader2 className="w-4 h-4 animate-spin text-accent-green-110 shrink-0" />
+            <span className="text-sm text-white-60">Uploading {uploadQueue.done}/{uploadQueue.total}...</span>
+            <div className="flex-1 h-1.5 rounded-full bg-white-10 overflow-hidden">
+              <div
+                className="h-full bg-accent-green-110 rounded-full transition-all"
+                style={{ width: `${(uploadQueue.done / uploadQueue.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Asset grid */}
         {!isLoading && assets && (

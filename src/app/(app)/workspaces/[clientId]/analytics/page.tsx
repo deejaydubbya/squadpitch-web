@@ -3,9 +3,19 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Wand2, Calendar, Zap } from 'lucide-react';
+import {
+  BarChart3,
+  Wand2,
+  Calendar,
+  Zap,
+  LayoutDashboard,
+  TrendingUp,
+  Lightbulb,
+  Shield,
+  Settings,
+} from 'lucide-react';
 import { useAnalyticsOverview } from '@/hooks/useSquadpitch';
-import type { AnalyticsRange } from '@/hooks/useSquadpitch';
+import type { AnalyticsRange, AnalyticsOverview } from '@/hooks/useSquadpitch';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { RangeSelector } from '@/components/studio/analytics/RangeSelector';
@@ -34,6 +44,8 @@ import { BlueprintPerformanceChart } from '@/components/studio/analytics/Bluepri
 import { TopDataItemsList, UnusedDataItemsList } from '@/components/studio/analytics/TopDataItemsList';
 import { BenchmarkSummary } from '@/components/studio/analytics/BenchmarkSummary';
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
 function formatNumber(n: number | null): string {
   if (n == null) return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -46,14 +58,36 @@ function formatPercent(n: number | null): string {
   return `${(n * 100).toFixed(2)}%`;
 }
 
+function formatEngagementRate(n: number | null): string {
+  if (n == null) return '—';
+  const pct = n * 100;
+  // Cap display at 100% with indicator for extreme values
+  if (pct > 100) return `${pct.toFixed(1)}%`;
+  return `${pct.toFixed(2)}%`;
+}
+
 function capitalize(s: string | null): string {
   if (!s) return '—';
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
+// ── Tab definitions ─────────────────────────────────────────────────────────
+
+type Tab = 'overview' | 'performance' | 'intelligence' | 'health';
+
+const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+  { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { key: 'performance', label: 'Performance', icon: TrendingUp },
+  { key: 'intelligence', label: 'Intelligence', icon: Lightbulb },
+  { key: 'health', label: 'System & Health', icon: Shield },
+];
+
+// ── Main page ───────────────────────────────────────────────────────────────
+
 export default function AnalyticsPage() {
   const params = useParams<{ clientId: string }>();
   const [range, setRange] = useState<AnalyticsRange>('30d');
+  const [tab, setTab] = useState<Tab>('overview');
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const { data, isLoading, error } = useAnalyticsOverview(params.clientId, range);
 
@@ -126,397 +160,42 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Sectioned layout */}
+      {/* Tab navigation */}
       {data && data.dataCoverage.totalPublished > 0 && (
         <>
-          {/* Section 1: Distribution */}
-          <AnalyticsSection
-            title="Distribution"
-            badge="Measured"
-            isEmpty={!data.sections.distribution.hasReachData && data.sections.distribution.publishingTrend.length === 0}
-            emptyMessage="No distribution data yet. Connect a platform to start tracking reach and impressions."
-          >
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <MetricCard
-                label="Impressions"
-                value={formatNumber(data.sections.distribution.totalImpressions)}
-                helper={data.sections.distribution.totalImpressions == null ? 'Connect platform' : 'Total views'}
-                variant="blue"
-              />
-              <MetricCard
-                label="Reach"
-                value={formatNumber(data.sections.distribution.totalReach)}
-                helper={data.sections.distribution.totalReach == null ? 'Connect platform' : 'People reached'}
-                variant="blue"
-              />
-              <MetricCard
-                label="Posts Published"
-                value={data.sections.distribution.postsPublished.toString()}
-                helper="In selected range"
-                variant="blue"
-              />
-            </div>
-            <PublishingTrendChart data={data.sections.distribution.publishingTrend} />
-            {data.sections.distribution.hasReachData && (
-              <PlatformBreakdownChart
-                data={data.sections.distribution.platformReach}
-                metric="totalReach"
-                title="Reach by Platform"
-              />
-            )}
-          </AnalyticsSection>
+          <nav className="flex gap-1 border-b border-white-10 pb-0">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
+                    active
+                      ? 'text-white-100 border-accent-green-110'
+                      : 'text-white-40 border-transparent hover:text-white-60 hover:border-white-20'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
 
-          {/* Section 2: Engagement */}
-          <AnalyticsSection
-            title="Engagement"
-            badge={data.sections.engagement.hasEngagementData ? 'Measured' : 'AI Analysis'}
-            isEmpty={data.sections.engagement.topPosts.length === 0}
-            emptyMessage="No engagement data yet. Publish and sync posts to see performance rankings."
-          >
-            <div className="grid grid-cols-2 gap-3">
-              {data.sections.engagement.hasEngagementData ? (
-                <>
-                  <MetricCard
-                    label="Avg Engagement Rate"
-                    value={formatPercent(data.sections.engagement.engagementRate)}
-                    helper="Platform engagement"
-                    variant="blue"
-                  />
-                  <MetricCard
-                    label="Observed Performance"
-                    value={data.sections.engagement.observedScore != null ? Math.round(data.sections.engagement.observedScore).toString() : '—'}
-                    helper="Platform performance"
-                    variant="blue"
-                  />
-                </>
-              ) : (
-                <>
-                  <MetricCard
-                    label="Quality Score"
-                    value={data.sections.contentIntelligence.qualityScore != null ? Math.round(data.sections.contentIntelligence.qualityScore).toString() : '—'}
-                    helper="AI estimate"
-                    variant="purple"
-                  />
-                  <MetricCard
-                    label="Composite Score"
-                    value={data.sections.contentIntelligence.compositeScore != null ? Math.round(data.sections.contentIntelligence.compositeScore).toString() : '—'}
-                    helper="AI estimate"
-                    variant="purple"
-                  />
-                </>
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <TopPostsList
-                title="Top Posts"
-                posts={data.sections.engagement.topPosts}
-                onPostClick={setSelectedPostId}
-              />
-              <TopPostsList
-                title="Needs Attention"
-                posts={data.sections.engagement.worstPosts}
-                onPostClick={setSelectedPostId}
-              />
-            </div>
-            {data.sections.engagement.hasEngagementData && (
-              <PlatformBreakdownChart
-                data={data.platformBreakdown}
-                metric="avgEngagementRate"
-                title="Engagement by Platform"
-              />
-            )}
-          </AnalyticsSection>
-
-          {/* Section 3: Content Intelligence */}
-          <AnalyticsSection
-            title="Content Intelligence"
-            badge="AI Analysis"
-            isEmpty={
-              (data.sections.contentIntelligence.insights?.length ?? 0) === 0 &&
-              (data.sections.contentIntelligence.recommendations?.length ?? 0) === 0 &&
-              (data.sections.contentIntelligence.contentTypeBreakdown?.length ?? 0) === 0
-            }
-            emptyMessage="Not enough data for content intelligence. Keep publishing to unlock AI-powered insights."
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricCard
-                label="Quality Score"
-                value={data.sections.contentIntelligence.qualityScore != null ? Math.round(data.sections.contentIntelligence.qualityScore).toString() : '—'}
-                helper="Content completeness"
-                variant="purple"
-              />
-              <div className="card p-4 flex flex-col justify-center">
-                <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Top Platform</p>
-                <p className="text-sm font-semibold text-purple-400">
-                  {capitalize(data.sections.contentIntelligence.topPlatform)}
-                </p>
-              </div>
-              <div className="card p-4 flex flex-col justify-center">
-                <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Best Content Type</p>
-                <p className="text-sm font-semibold text-purple-400">
-                  {capitalize(data.sections.contentIntelligence.bestContentType)}
-                </p>
-              </div>
-              <div className="card p-4 flex flex-col justify-center">
-                <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Best Media Type</p>
-                <p className="text-sm font-semibold text-purple-400">
-                  {capitalize(data.sections.contentIntelligence.bestMediaType)}
-                </p>
-              </div>
-            </div>
-            <InsightCards insights={data.sections.contentIntelligence.insights ?? []} />
-            <ContentTypeBreakdownChart data={data.sections.contentIntelligence.contentTypeBreakdown ?? []} />
-            <RecommendationCards recommendations={data.sections.contentIntelligence.recommendations ?? []} />
-          </AnalyticsSection>
-
-          {/* Section 4: Coverage & Trust */}
-          <AnalyticsSection
-            title="Coverage & Trust"
-            badge="Measured"
-            isEmpty={false}
-            emptyMessage=""
-          >
-            <CoverageMeter {...data.sections.coverage} />
-          </AnalyticsSection>
-
-          {/* Section 5: Conversions */}
-          <AnalyticsSection
-            title="Conversions"
-            badge="Measured"
-            isEmpty={!data.sections.conversions?.hasData}
-            emptyMessage="No conversions tracked yet. Create trackable links to start measuring business outcomes."
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricCard
-                label="Total Conversions"
-                value={formatNumber(data.sections.conversions?.totalConversions ?? 0)}
-                helper="All conversion events"
-                variant="blue"
-              />
-              <MetricCard
-                label="Conversion Rate"
-                value={
-                  data.sections.conversions?.conversionRate != null
-                    ? `${data.sections.conversions.conversionRate.toFixed(2)}`
-                    : '—'
-                }
-                helper="Per published post"
-                variant="blue"
-              />
-              <MetricCard
-                label="Active Links"
-                value={(data.sections.conversions?.activeLinks ?? 0).toString()}
-                helper="Trackable links"
-              />
-              <MetricCard
-                label="Link Clicks"
-                value={formatNumber(
-                  data.sections.conversions?.byType?.find((t) => t.type === 'LINK_CLICK')?.count ?? 0,
-                )}
-                helper="Click-throughs"
-                variant="blue"
-              />
-            </div>
-            {(data.sections.conversions?.byType?.length ?? 0) > 0 && (
-              <ConversionsByTypeChart data={data.sections.conversions!.byType} />
-            )}
-            {(data.sections.conversions?.byChannel?.length ?? 0) > 0 && (
-              <ConversionsByChannelChart data={data.sections.conversions!.byChannel} />
-            )}
-            {(data.sections.conversions?.topDrafts?.length ?? 0) > 0 && (
-              <TopConvertingPosts
-                drafts={data.sections.conversions!.topDrafts}
-                onPostClick={setSelectedPostId}
-              />
-            )}
-          </AnalyticsSection>
-
-          {/* Section 6: Campaigns */}
-          <AnalyticsSection
-            title="Campaigns"
-            badge="Measured"
-            isEmpty={!data.sections.campaigns?.hasData}
-            emptyMessage="No campaign data yet. Create a listing campaign or content series to see campaign analytics."
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricCard
-                label="Total Campaigns"
-                value={(data.sections.campaigns?.totalCampaigns ?? 0).toString()}
-                helper="Distinct campaigns"
-                variant="blue"
-              />
-              <MetricCard
-                label="Completed"
-                value={(data.sections.campaigns?.completedCampaigns ?? 0).toString()}
-                helper={
-                  data.sections.campaigns?.avgCompletionRate != null
-                    ? `${Math.round(data.sections.campaigns.avgCompletionRate * 100)}% avg completion`
-                    : 'Completion rate'
-                }
-                variant="blue"
-              />
-              <MetricCard
-                label="Campaign Reach"
-                value={formatNumber(data.sections.campaigns?.totalCampaignReach ?? null)}
-                helper="Total people reached"
-                variant="blue"
-              />
-              <MetricCard
-                label="Avg Campaign Score"
-                value={
-                  data.sections.campaigns?.avgCampaignScore != null
-                    ? Math.round(data.sections.campaigns.avgCampaignScore).toString()
-                    : '—'
-                }
-                helper="Composite score"
-                variant="blue"
-              />
-            </div>
-            {(data.sections.campaigns?.byType?.length ?? 0) > 0 && (
-              <CampaignTypeChart data={data.sections.campaigns!.byType} />
-            )}
-            {(data.sections.campaigns?.byDay?.length ?? 0) > 0 && (
-              <CampaignDayChart data={data.sections.campaigns!.byDay} />
-            )}
-            {((data.sections.campaigns?.topCampaigns?.length ?? 0) > 0 ||
-              (data.sections.campaigns?.worstCampaigns?.length ?? 0) > 0) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <TopCampaignsList
-                  title="Top Campaigns"
-                  campaigns={data.sections.campaigns?.topCampaigns ?? []}
-                />
-                <TopCampaignsList
-                  title="Needs Attention"
-                  campaigns={data.sections.campaigns?.worstCampaigns ?? []}
-                />
-              </div>
-            )}
-          </AnalyticsSection>
-
-          {/* Section 7: Autopilot */}
-          <AnalyticsSection
-            title="Autopilot"
-            badge="AI Analysis"
-            isEmpty={!data.sections.autopilot?.hasData}
-            emptyMessage="No autopilot data yet. Enable Autopilot to start generating content automatically."
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricCard
-                label="Generated"
-                value={(data.sections.autopilot?.totalGenerated ?? 0).toString()}
-                helper="Drafts created"
-                variant="purple"
-              />
-              <MetricCard
-                label="Published"
-                value={(data.sections.autopilot?.totalPublished ?? 0).toString()}
-                helper={
-                  data.sections.autopilot?.publishRate != null
-                    ? `${Math.round(data.sections.autopilot.publishRate * 100)}% publish rate`
-                    : 'Publish rate'
-                }
-                variant="purple"
-              />
-              <MetricCard
-                label="Approval Rate"
-                value={
-                  data.sections.autopilot?.approvalRate != null
-                    ? `${Math.round(data.sections.autopilot.approvalRate * 100)}%`
-                    : '—'
-                }
-                helper={`${data.sections.autopilot?.totalRejected ?? 0} rejected`}
-                variant="purple"
-              />
-              <MetricCard
-                label="Avg Score"
-                value={
-                  data.sections.autopilot?.avgAutopilotScore != null
-                    ? Math.round(data.sections.autopilot.avgAutopilotScore).toString()
-                    : '—'
-                }
-                helper={
-                  data.sections.autopilot?.scoreDelta != null
-                    ? `${data.sections.autopilot.scoreDelta > 0 ? '+' : ''}${data.sections.autopilot.scoreDelta} vs manual`
-                    : 'Composite score'
-                }
-                variant="purple"
-              />
-            </div>
-            <AutopilotVsManualChart
-              avgAutopilotScore={data.sections.autopilot?.avgAutopilotScore ?? null}
-              avgManualScore={data.sections.autopilot?.avgManualScore ?? null}
-              avgAutopilotEngagement={data.sections.autopilot?.avgAutopilotEngagement ?? null}
-              avgManualEngagement={data.sections.autopilot?.avgManualEngagement ?? null}
-            />
-            {(data.sections.autopilot?.byTrigger?.length ?? 0) > 0 && (
-              <AutopilotTriggerChart data={data.sections.autopilot!.byTrigger} />
-            )}
-            {(data.sections.autopilot?.recentActivity?.length ?? 0) > 0 && (
-              <AutopilotActivityList activity={data.sections.autopilot!.recentActivity} />
-            )}
-          </AnalyticsSection>
-
-          {/* Section 8: Business Data */}
-          <AnalyticsSection
-            title="Business Data"
-            badge="AI Analysis"
-            isEmpty={!data.sections.businessData?.hasData}
-            emptyMessage="No business data imported yet. Import data to see which sources create the best-performing content."
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricCard
-                label="Data Items"
-                value={(data.sections.businessData?.totalDataItems ?? 0).toString()}
-                helper={`${data.sections.businessData?.totalUsed ?? 0} used`}
-                variant="blue"
-              />
-              <MetricCard
-                label="Unused"
-                value={(data.sections.businessData?.totalUnused ?? 0).toString()}
-                helper="Never used in content"
-              />
-              <MetricCard
-                label="Drafts Generated"
-                value={(data.sections.businessData?.totalDraftsFromData ?? 0).toString()}
-                helper={`${data.sections.businessData?.totalPublishedFromData ?? 0} published`}
-                variant="blue"
-              />
-              <MetricCard
-                label="Stale"
-                value={(data.sections.businessData?.totalStale ?? 0).toString()}
-                helper="Not used in 30+ days"
-              />
-            </div>
-            {(data.sections.businessData?.byType?.length ?? 0) > 0 && (
-              <DataTypePerformanceChart data={data.sections.businessData!.byType} />
-            )}
-            {(data.sections.businessData?.byBlueprint?.length ?? 0) > 0 && (
-              <BlueprintPerformanceChart data={data.sections.businessData!.byBlueprint} />
-            )}
-            {((data.sections.businessData?.topItems?.length ?? 0) > 0 ||
-              (data.sections.businessData?.underusedItems?.length ?? 0) > 0) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <TopDataItemsList
-                  title="Top Data Items"
-                  items={data.sections.businessData?.topItems ?? []}
-                />
-                <UnusedDataItemsList
-                  title="Underused Data"
-                  items={data.sections.businessData?.underusedItems ?? []}
-                />
-              </div>
-            )}
-          </AnalyticsSection>
-
-          {/* Section 9: Benchmarks */}
-          <AnalyticsSection
-            title="Benchmarks"
-            badge="Measured"
-            isEmpty={!data.sections.benchmarks?.hasData}
-            emptyMessage="Not enough published posts to establish benchmarks. Keep publishing to build your performance baselines."
-          >
-            <BenchmarkSummary benchmarks={data.sections.benchmarks} />
-          </AnalyticsSection>
+          {tab === 'overview' && (
+            <OverviewTab data={data} clientId={params.clientId} onPostClick={setSelectedPostId} />
+          )}
+          {tab === 'performance' && (
+            <PerformanceTab data={data} clientId={params.clientId} onPostClick={setSelectedPostId} />
+          )}
+          {tab === 'intelligence' && (
+            <IntelligenceTab data={data} clientId={params.clientId} />
+          )}
+          {tab === 'health' && (
+            <HealthTab data={data} clientId={params.clientId} />
+          )}
         </>
       )}
 
@@ -527,6 +206,716 @@ export default function AnalyticsPage() {
           onClose={() => setSelectedPostId(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 1: OVERVIEW
+// ═══════════════════════════════════════════════════════════════════════════
+
+function OverviewTab({
+  data,
+  clientId,
+  onPostClick,
+}: {
+  data: AnalyticsOverview;
+  clientId: string;
+  onPostClick: (id: string) => void;
+}) {
+  const dist = data.sections.distribution;
+  const eng = data.sections.engagement;
+  const cov = data.sections.coverage;
+  const intel = data.sections.contentIntelligence;
+
+  // Determine the engagement rate warning
+  const engRate = eng.engagementRate;
+  const engRateIsExtreme = engRate != null && engRate > 0.5; // > 50%
+
+  return (
+    <div className="space-y-6">
+      {/* Key metrics row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard
+          label="Posts Published"
+          value={dist.postsPublished.toString()}
+          helper="In selected range"
+          variant="blue"
+        />
+        <MetricCard
+          label="Total Reach"
+          value={formatNumber(dist.totalReach)}
+          helper={dist.totalReach == null ? 'Connect a platform to track' : 'Unique people reached'}
+          variant="blue"
+        />
+        <MetricCard
+          label="Total Impressions"
+          value={formatNumber(dist.totalImpressions)}
+          helper={dist.totalImpressions == null ? 'Connect a platform to track' : 'Total content views'}
+          variant="blue"
+        />
+        <MetricCard
+          label="Avg Engagement Rate"
+          value={formatEngagementRate(engRate)}
+          helper={
+            eng.hasEngagementData
+              ? engRateIsExtreme
+                ? 'High rate — may include repeat engagements'
+                : 'From platform metrics'
+              : 'No engagement data synced'
+          }
+          tooltip={
+            eng.hasEngagementData
+              ? 'Engagement rate = total engagements / impressions. Rates above 100% can occur when engagements (likes, comments, shares, saves) exceed impressions — common with high-save or viral content.'
+              : undefined
+          }
+          variant="blue"
+        />
+      </div>
+
+      {/* Quick insights row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="card p-4 flex flex-col justify-center">
+          <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Top Platform by Reach</p>
+          <p className="text-sm font-semibold text-blue-400">
+            {capitalize(intel.topPlatform)}
+          </p>
+          <p className="text-[10px] text-white-30 mt-0.5">Based on total reach</p>
+        </div>
+        <div className="card p-4 flex flex-col justify-center">
+          <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Best Content Type</p>
+          <p className="text-sm font-semibold text-blue-400">
+            {capitalize(intel.bestContentType)}
+          </p>
+          <p className="text-[10px] text-white-30 mt-0.5">By avg engagement score</p>
+        </div>
+        <div className="card p-4 flex flex-col justify-center">
+          <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Data Coverage</p>
+          <p className="text-sm font-semibold text-white-100">
+            {cov.coveragePercent}%
+          </p>
+          <p className="text-[10px] text-white-30 mt-0.5">
+            {cov.withEngagementData}/{cov.totalPublished} posts with platform metrics
+          </p>
+        </div>
+      </div>
+
+      {/* Top & worst posts */}
+      {eng.topPosts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <TopPostsList
+            title="Top Posts"
+            posts={eng.topPosts}
+            onPostClick={onPostClick}
+          />
+          <TopPostsList
+            title="Needs Attention"
+            posts={eng.worstPosts}
+            onPostClick={onPostClick}
+          />
+        </div>
+      )}
+
+      {/* Publishing trend */}
+      {dist.publishingTrend.length > 0 && (
+        <PublishingTrendChart data={dist.publishingTrend} />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 2: PERFORMANCE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function PerformanceTab({
+  data,
+  clientId,
+  onPostClick,
+}: {
+  data: AnalyticsOverview;
+  clientId: string;
+  onPostClick: (id: string) => void;
+}) {
+  const dist = data.sections.distribution;
+  const eng = data.sections.engagement;
+  const campaigns = data.sections.campaigns;
+  const conversions = data.sections.conversions;
+
+  const engRate = eng.engagementRate;
+  const engRateIsExtreme = engRate != null && engRate > 0.5;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Distribution ──────────────────────────────────────────────── */}
+      <AnalyticsSection
+        title="Distribution"
+        badge="Measured"
+        isEmpty={!dist.hasReachData && dist.publishingTrend.length === 0}
+        emptyMessage="No distribution data yet. Connect a platform to start tracking reach and impressions."
+        emptyAction={{ label: 'Connect a channel', href: `/workspaces/${clientId}/settings/channels` }}
+      >
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <MetricCard
+            label="Impressions"
+            value={formatNumber(dist.totalImpressions)}
+            helper={dist.totalImpressions == null ? 'Connect platform' : 'Total content views'}
+            variant="blue"
+          />
+          <MetricCard
+            label="Reach"
+            value={formatNumber(dist.totalReach)}
+            helper={dist.totalReach == null ? 'Connect platform' : 'Unique people reached'}
+            variant="blue"
+          />
+          <MetricCard
+            label="Posts Published"
+            value={dist.postsPublished.toString()}
+            helper="In selected range"
+            variant="blue"
+          />
+        </div>
+        <PublishingTrendChart data={dist.publishingTrend} />
+        {dist.hasReachData && (
+          <PlatformBreakdownChart
+            data={dist.platformReach}
+            metric="totalReach"
+            title="Reach by Platform"
+          />
+        )}
+      </AnalyticsSection>
+
+      {/* ── Engagement ────────────────────────────────────────────────── */}
+      <AnalyticsSection
+        title="Engagement"
+        badge={eng.hasEngagementData ? 'Measured' : 'AI Analysis'}
+        isEmpty={eng.topPosts.length === 0}
+        emptyMessage="No engagement data yet. Publish and sync posts to see performance rankings."
+        emptyAction={{ label: 'Create content', href: `/workspaces/${clientId}/create` }}
+      >
+        <div className="grid grid-cols-2 gap-3">
+          {eng.hasEngagementData ? (
+            <>
+              <MetricCard
+                label="Avg Engagement Rate"
+                value={formatEngagementRate(engRate)}
+                helper={
+                  engRateIsExtreme
+                    ? 'High rate — may include repeat engagements'
+                    : 'From platform metrics'
+                }
+                tooltip="Engagement rate = total engagements / impressions. Rates above 100% can occur when engagements (likes, comments, shares, saves) exceed impressions — common with high-save or viral content."
+                variant="blue"
+              />
+              <MetricCard
+                label="Observed Performance Score"
+                value={eng.observedScore != null ? Math.round(eng.observedScore).toString() : '—'}
+                helper="Derived from platform engagement data"
+                tooltip="A composite score (0–100) derived from real engagement metrics like reach, likes, comments, shares, and saves. Higher is better."
+                variant="blue"
+              />
+            </>
+          ) : (
+            <>
+              <MetricCard
+                label="Quality Score (Internal)"
+                value={data.sections.contentIntelligence.qualityScore != null ? Math.round(data.sections.contentIntelligence.qualityScore).toString() : '—'}
+                helper="AI content quality estimate"
+                tooltip="An AI-generated score based on content completeness, structure, and best practices. Not based on real engagement data."
+                variant="purple"
+              />
+              <MetricCard
+                label="Composite Score (Internal)"
+                value={data.sections.contentIntelligence.compositeScore != null ? Math.round(data.sections.contentIntelligence.compositeScore).toString() : '—'}
+                helper="AI overall estimate"
+                tooltip="Blends quality score with any available observed metrics. When no engagement data exists, this is primarily AI-driven."
+                variant="purple"
+              />
+            </>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <TopPostsList
+            title="Top Posts"
+            posts={eng.topPosts}
+            onPostClick={onPostClick}
+          />
+          <TopPostsList
+            title="Needs Attention"
+            posts={eng.worstPosts}
+            onPostClick={onPostClick}
+          />
+        </div>
+        {eng.hasEngagementData && (
+          <PlatformBreakdownChart
+            data={data.platformBreakdown}
+            metric="avgEngagementRate"
+            title="Engagement Rate by Platform"
+          />
+        )}
+      </AnalyticsSection>
+
+      {/* ── Campaign Performance ──────────────────────────────────────── */}
+      <AnalyticsSection
+        title="Campaign Performance"
+        badge={campaigns?.hasData ? 'Measured' : 'Measured'}
+        isEmpty={!campaigns?.hasData}
+        emptyMessage="No campaign data yet. Launch a listing campaign to see coordinated content performance."
+        emptyAction={{ label: 'Launch a campaign', href: `/workspaces/${clientId}/campaigns` }}
+        emptyHint="Campaign analytics track multi-post marketing efforts across platforms — reach, engagement, and completion rates."
+      >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard
+            label="Total Campaigns"
+            value={(campaigns?.totalCampaigns ?? 0).toString()}
+            helper="Distinct campaigns"
+            variant="blue"
+          />
+          <MetricCard
+            label="Completed"
+            value={(campaigns?.completedCampaigns ?? 0).toString()}
+            helper={
+              campaigns?.avgCompletionRate != null
+                ? `${Math.round(campaigns.avgCompletionRate * 100)}% avg completion`
+                : 'Completion rate'
+            }
+            variant="blue"
+          />
+          <MetricCard
+            label="Campaign Reach"
+            value={formatNumber(campaigns?.totalCampaignReach ?? null)}
+            helper="Total people reached via campaigns"
+            variant="blue"
+          />
+          <MetricCard
+            label="Avg Campaign Performance"
+            value={
+              campaigns?.avgCampaignScore != null
+                ? Math.round(campaigns.avgCampaignScore).toString()
+                : '—'
+            }
+            helper="Composite score (0–100)"
+            tooltip="Average composite score across all campaign posts. Combines engagement metrics with content quality assessment."
+            variant="blue"
+          />
+        </div>
+        {(campaigns?.byType?.length ?? 0) > 0 && (
+          <CampaignTypeChart data={campaigns!.byType} />
+        )}
+        {(campaigns?.byDay?.length ?? 0) > 0 && (
+          <CampaignDayChart data={campaigns!.byDay} />
+        )}
+        {((campaigns?.topCampaigns?.length ?? 0) > 0 ||
+          (campaigns?.worstCampaigns?.length ?? 0) > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <TopCampaignsList
+              title="Top Campaigns"
+              campaigns={campaigns?.topCampaigns ?? []}
+            />
+            <TopCampaignsList
+              title="Needs Attention"
+              campaigns={campaigns?.worstCampaigns ?? []}
+            />
+          </div>
+        )}
+      </AnalyticsSection>
+
+      {/* ── Conversions ───────────────────────────────────────────────── */}
+      <AnalyticsSection
+        title="Conversions"
+        badge="Measured"
+        isEmpty={!conversions?.hasData}
+        emptyMessage="No conversions tracked yet."
+        emptyAction={{ label: 'Create a trackable link', href: `/workspaces/${clientId}/links` }}
+        emptyHint="Trackable links let you measure clicks, leads, and business outcomes from your published content."
+      >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard
+            label="Total Conversions"
+            value={formatNumber(conversions?.totalConversions ?? 0)}
+            helper="All conversion events"
+            variant="blue"
+          />
+          <MetricCard
+            label="Conversion Rate"
+            value={
+              conversions?.conversionRate != null
+                ? `${conversions.conversionRate.toFixed(2)}%`
+                : '—'
+            }
+            helper="Per published post"
+            tooltip="Percentage of published posts that generated at least one conversion event."
+            variant="blue"
+          />
+          <MetricCard
+            label="Active Links"
+            value={(conversions?.activeLinks ?? 0).toString()}
+            helper="Trackable links"
+          />
+          <MetricCard
+            label="Link Clicks"
+            value={formatNumber(
+              conversions?.byType?.find((t) => t.type === 'LINK_CLICK')?.count ?? 0,
+            )}
+            helper="Click-throughs"
+            variant="blue"
+          />
+        </div>
+        {(conversions?.byType?.length ?? 0) > 0 && (
+          <ConversionsByTypeChart data={conversions!.byType} />
+        )}
+        {(conversions?.byChannel?.length ?? 0) > 0 && (
+          <ConversionsByChannelChart data={conversions!.byChannel} />
+        )}
+        {(conversions?.topDrafts?.length ?? 0) > 0 && (
+          <TopConvertingPosts
+            drafts={conversions!.topDrafts}
+            onPostClick={onPostClick}
+          />
+        )}
+      </AnalyticsSection>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 3: CONTENT INTELLIGENCE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function IntelligenceTab({
+  data,
+  clientId,
+}: {
+  data: AnalyticsOverview;
+  clientId: string;
+}) {
+  const intel = data.sections.contentIntelligence;
+  const autopilot = data.sections.autopilot;
+  const businessData = data.sections.businessData;
+
+  return (
+    <div className="space-y-6">
+      {/* Notice: AI analysis */}
+      <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-purple-500/5 border border-purple-500/15">
+        <Lightbulb className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-purple-300/80">
+          Content Intelligence uses AI analysis and pattern detection. Metrics labeled &quot;Internal&quot; are not
+          from platform APIs — they&apos;re generated by our scoring engine. Use these for directional guidance, not as exact measurements.
+        </p>
+      </div>
+
+      {/* ── Content Intelligence ──────────────────────────────────────── */}
+      <AnalyticsSection
+        title="Content Analysis"
+        badge="AI Analysis"
+        isEmpty={
+          (intel.insights?.length ?? 0) === 0 &&
+          (intel.recommendations?.length ?? 0) === 0 &&
+          (intel.contentTypeBreakdown?.length ?? 0) === 0
+        }
+        emptyMessage="Not enough data for content intelligence. Keep publishing to unlock AI-powered insights."
+        emptyAction={{ label: 'Create content', href: `/workspaces/${clientId}/create` }}
+      >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard
+            label="Quality Score (Internal)"
+            value={intel.qualityScore != null ? Math.round(intel.qualityScore).toString() : '—'}
+            helper="AI content assessment"
+            tooltip="AI-generated score based on content structure, hooks, CTAs, hashtags, and media usage. Not derived from platform metrics."
+            variant="purple"
+          />
+          <div className="card p-4 flex flex-col justify-center">
+            <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Top Platform by Score</p>
+            <p className="text-sm font-semibold text-purple-400">
+              {capitalize(intel.topPlatform)}
+            </p>
+            <p className="text-[10px] text-white-30 mt-0.5">By avg composite score</p>
+          </div>
+          <div className="card p-4 flex flex-col justify-center">
+            <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Best Content Type</p>
+            <p className="text-sm font-semibold text-purple-400">
+              {capitalize(intel.bestContentType)}
+            </p>
+            <p className="text-[10px] text-white-30 mt-0.5">By avg engagement score</p>
+          </div>
+          <div className="card p-4 flex flex-col justify-center">
+            <p className="text-xs text-white-40 uppercase tracking-wider mb-1.5">Best Media Type</p>
+            <p className="text-sm font-semibold text-purple-400">
+              {capitalize(intel.bestMediaType)}
+            </p>
+            <p className="text-[10px] text-white-30 mt-0.5">By avg performance</p>
+          </div>
+        </div>
+        <InsightCards insights={intel.insights ?? []} />
+        <ContentTypeBreakdownChart data={intel.contentTypeBreakdown ?? []} />
+        <RecommendationCards recommendations={intel.recommendations ?? []} />
+      </AnalyticsSection>
+
+      {/* ── Autopilot ─────────────────────────────────────────────────── */}
+      <AnalyticsSection
+        title="Autopilot Performance"
+        badge="AI Analysis"
+        isEmpty={!autopilot?.hasData}
+        emptyMessage="Enable Autopilot to start generating content automatically. Autopilot creates drafts based on your business data and posting gaps."
+        emptyAction={{ label: 'Configure Autopilot', href: `/workspaces/${clientId}/settings` }}
+        emptyHint="Once enabled, Autopilot will generate content from your listings, reviews, and milestones. You review and approve before anything publishes."
+      >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard
+            label="Generated"
+            value={(autopilot?.totalGenerated ?? 0).toString()}
+            helper="Drafts created by Autopilot"
+            variant="purple"
+          />
+          <MetricCard
+            label="Published"
+            value={(autopilot?.totalPublished ?? 0).toString()}
+            helper={
+              autopilot?.publishRate != null
+                ? `${Math.round(autopilot.publishRate * 100)}% publish rate`
+                : 'Publish rate'
+            }
+            variant="purple"
+          />
+          <MetricCard
+            label="Approval Rate"
+            value={
+              autopilot?.approvalRate != null
+                ? `${Math.round(autopilot.approvalRate * 100)}%`
+                : '—'
+            }
+            helper={`${autopilot?.totalRejected ?? 0} rejected`}
+            tooltip="Percentage of autopilot drafts that were approved (vs rejected). Higher approval rates indicate the AI is generating content that matches your brand voice."
+            variant="purple"
+          />
+          <MetricCard
+            label="Avg Autopilot Score"
+            value={
+              autopilot?.avgAutopilotScore != null
+                ? Math.round(autopilot.avgAutopilotScore).toString()
+                : '—'
+            }
+            helper={
+              autopilot?.scoreDelta != null
+                ? `${autopilot.scoreDelta > 0 ? '+' : ''}${autopilot.scoreDelta} vs manual`
+                : 'Composite score'
+            }
+            tooltip="Average composite score for published autopilot content vs manually created content. Delta shows how autopilot content compares."
+            variant="purple"
+          />
+        </div>
+        <AutopilotVsManualChart
+          avgAutopilotScore={autopilot?.avgAutopilotScore ?? null}
+          avgManualScore={autopilot?.avgManualScore ?? null}
+          avgAutopilotEngagement={autopilot?.avgAutopilotEngagement ?? null}
+          avgManualEngagement={autopilot?.avgManualEngagement ?? null}
+        />
+        {(autopilot?.byTrigger?.length ?? 0) > 0 && (
+          <AutopilotTriggerChart data={autopilot!.byTrigger} />
+        )}
+        {(autopilot?.recentActivity?.length ?? 0) > 0 && (
+          <AutopilotActivityList activity={autopilot!.recentActivity} />
+        )}
+      </AnalyticsSection>
+
+      {/* ── Business Data Performance ─────────────────────────────────── */}
+      <AnalyticsSection
+        title="Business Data Performance"
+        badge="AI Analysis"
+        isEmpty={!businessData?.hasData}
+        emptyMessage="No business data imported yet. Import listings, reviews, or milestones to see which sources create the best-performing content."
+        emptyAction={{ label: 'Import business data', href: `/workspaces/${clientId}/business-data` }}
+      >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard
+            label="Data Items"
+            value={(businessData?.totalDataItems ?? 0).toString()}
+            helper={`${businessData?.totalUsed ?? 0} used in content`}
+            variant="purple"
+          />
+          <MetricCard
+            label="Unused"
+            value={(businessData?.totalUnused ?? 0).toString()}
+            helper="Never used in content"
+          />
+          <MetricCard
+            label="Drafts from Data"
+            value={(businessData?.totalDraftsFromData ?? 0).toString()}
+            helper={`${businessData?.totalPublishedFromData ?? 0} published`}
+            variant="purple"
+          />
+          <MetricCard
+            label="Stale"
+            value={(businessData?.totalStale ?? 0).toString()}
+            helper="Not used in 30+ days"
+          />
+        </div>
+        {(businessData?.byType?.length ?? 0) > 0 && (
+          <DataTypePerformanceChart data={businessData!.byType} />
+        )}
+        {(businessData?.byBlueprint?.length ?? 0) > 0 && (
+          <BlueprintPerformanceChart data={businessData!.byBlueprint} />
+        )}
+        {((businessData?.topItems?.length ?? 0) > 0 ||
+          (businessData?.underusedItems?.length ?? 0) > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <TopDataItemsList
+              title="Top Data Items"
+              items={businessData?.topItems ?? []}
+            />
+            <UnusedDataItemsList
+              title="Underused Data"
+              items={businessData?.underusedItems ?? []}
+            />
+          </div>
+        )}
+      </AnalyticsSection>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 4: SYSTEM & HEALTH
+// ═══════════════════════════════════════════════════════════════════════════
+
+function HealthTab({
+  data,
+  clientId,
+}: {
+  data: AnalyticsOverview;
+  clientId: string;
+}) {
+  const cov = data.sections.coverage;
+  const benchmarks = data.sections.benchmarks;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Coverage & Trust ──────────────────────────────────────────── */}
+      <AnalyticsSection
+        title="Coverage & Trust"
+        badge="Measured"
+        isEmpty={false}
+        emptyMessage=""
+      >
+        <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-blue-500/5 border border-blue-500/15 mb-3">
+          <Shield className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-blue-300/80">
+            This section helps you understand how complete and trustworthy your analytics data is.
+            Higher coverage means more insights are based on real platform metrics rather than AI estimates.
+          </p>
+        </div>
+        <CoverageMeter {...cov} />
+      </AnalyticsSection>
+
+      {/* ── Benchmarks ────────────────────────────────────────────────── */}
+      <AnalyticsSection
+        title="Benchmarks"
+        badge="Derived"
+        isEmpty={!benchmarks?.hasData}
+        emptyMessage="Not enough published posts to establish benchmarks. Keep publishing to build your performance baselines."
+        emptyHint="Benchmarks are calculated from your own historical data — they compare your posts against your average. At least 10 published posts are recommended for meaningful benchmarks."
+      >
+        <BenchmarkSummary benchmarks={benchmarks} />
+      </AnalyticsSection>
+
+      {/* ── Setup status cards ────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+          Setup Status
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <SetupCard
+            title="Channel Connections"
+            description="Connected social channels enable automatic metric syncing and direct publishing."
+            status={
+              (cov.connectionHealth?.length ?? 0) > 0
+                ? `${cov.connectionHealth!.filter((c) => c.status === 'CONNECTED').length} connected`
+                : 'No channels connected'
+            }
+            isSetUp={(cov.connectionHealth?.length ?? 0) > 0}
+            href={`/workspaces/${clientId}/settings/channels`}
+            actionLabel="Manage channels"
+          />
+          <SetupCard
+            title="Autopilot"
+            description="Automatically generates content from your business data, listings, and reviews."
+            status={
+              data.sections.autopilot?.hasData
+                ? `${data.sections.autopilot.totalGenerated} drafts generated`
+                : 'Not configured'
+            }
+            isSetUp={data.sections.autopilot?.hasData ?? false}
+            href={`/workspaces/${clientId}/settings`}
+            actionLabel="Configure"
+          />
+          <SetupCard
+            title="Conversion Tracking"
+            description="Track link clicks, leads, and business outcomes from your content."
+            status={
+              data.sections.conversions?.hasData
+                ? `${data.sections.conversions.totalConversions} conversions`
+                : 'No trackable links'
+            }
+            isSetUp={data.sections.conversions?.hasData ?? false}
+            href={`/workspaces/${clientId}/links`}
+            actionLabel="Create trackable link"
+          />
+          <SetupCard
+            title="Business Data"
+            description="Import listings, reviews, testimonials, and milestones to power data-driven content."
+            status={
+              data.sections.businessData?.hasData
+                ? `${data.sections.businessData.totalDataItems} items imported`
+                : 'No data imported'
+            }
+            isSetUp={data.sections.businessData?.hasData ?? false}
+            href={`/workspaces/${clientId}/business-data`}
+            actionLabel="Import data"
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ── Setup card helper ─────────────────────────────────────────────────────
+
+function SetupCard({
+  title,
+  description,
+  status,
+  isSetUp,
+  href,
+  actionLabel,
+}: {
+  title: string;
+  description: string;
+  status: string;
+  isSetUp: boolean;
+  href: string;
+  actionLabel: string;
+}) {
+  return (
+    <div className="card p-5 space-y-2">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium text-white-100">{title}</h4>
+        <span
+          className={`w-2 h-2 rounded-full ${isSetUp ? 'bg-green-400' : 'bg-white-20'}`}
+        />
+      </div>
+      <p className="text-xs text-white-40">{description}</p>
+      <div className="flex items-center justify-between pt-1">
+        <span className={`text-xs font-mono ${isSetUp ? 'text-green-400' : 'text-white-30'}`}>
+          {status}
+        </span>
+        <Link
+          href={href}
+          className="text-xs text-white-40 hover:text-accent-green-110 transition-colors flex items-center gap-1"
+        >
+          <Settings className="w-3 h-3" />
+          {actionLabel}
+        </Link>
+      </div>
     </div>
   );
 }

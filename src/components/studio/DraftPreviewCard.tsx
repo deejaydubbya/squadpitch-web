@@ -80,11 +80,6 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
               {charCount}/{maxChars}
             </span>
           )}
-          {draft.modelUsed && (
-            <span className="text-xs text-white-40 font-mono">
-              {draft.modelUsed}
-            </span>
-          )}
         </span>
       </div>
 
