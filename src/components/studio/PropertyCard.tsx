@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Home, Archive, ArrowRight, ImageIcon } from 'lucide-react';
+import { Home, Archive, ArrowRight, ImageIcon, Camera, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceDataItem } from '@/hooks/useSquadpitch';
 
@@ -24,12 +24,15 @@ interface Props {
   item: WorkspaceDataItem;
   clientId: string;
   onArchive: (id: string) => void;
+  onClick?: () => void;
 }
 
-export function PropertyCard({ item, clientId, onArchive }: Props) {
+export function PropertyCard({ item, clientId, onArchive, onClick }: Props) {
   const router = useRouter();
   const d = item.dataJson as Record<string, unknown>;
   const imageUrl = d.imageUrl as string | undefined;
+  const images = (d.images as string[] | undefined) ?? [];
+  const photoCount = images.length + (imageUrl && !images.includes(imageUrl) ? 1 : 0);
 
   // Address
   const street = d.street as string | undefined;
@@ -44,26 +47,44 @@ export function PropertyCard({ item, clientId, onArchive }: Props) {
   // Price
   const price = typeof d.price === 'number' ? d.price : null;
 
-  // Specs
+  // Specs — use bedrooms/bathrooms (ingestion pipeline field names)
+  const beds = d.bedrooms ?? d.beds;
+  const baths = d.bathrooms ?? d.baths;
   const specs = [
-    d.beds != null ? `${d.beds} bd` : null,
-    d.baths != null ? `${d.baths} ba` : null,
+    beds != null ? `${beds} bd` : null,
+    baths != null ? `${baths} ba` : null,
     d.sqft != null ? `${Number(d.sqft).toLocaleString()} sqft` : null,
   ]
     .filter(Boolean)
     .join(' \u00b7 ');
+
+  // Property type + year built
+  const propertyType = d.propertyType as string | undefined;
+  const yearBuilt = d.yearBuilt as string | number | undefined;
 
   // Status
   const status = (d.status as string) ?? '';
   const statusLabel = status.replace(/_/g, ' ');
   const statusClass = STATUS_COLORS[status] ?? 'bg-white/10 text-white-40';
 
-  const handleCreateCampaign = () => {
+  const handleCreateCampaign = (e: React.MouseEvent) => {
+    e.stopPropagation();
     router.push(`/workspaces/${clientId}/listing-campaign?listingId=${item.id}`);
   };
 
+  const handleArchive = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onArchive(item.id);
+  };
+
   return (
-    <div className="rounded-xl border border-white-10 bg-white-5 p-4 flex flex-col gap-2.5">
+    <div
+      onClick={onClick}
+      className={cn(
+        'rounded-xl border border-white-10 bg-white-5 p-4 flex flex-col gap-2.5 transition-colors',
+        onClick && 'cursor-pointer hover:border-white-20 hover:bg-white/[0.06]'
+      )}
+    >
       {/* Image or placeholder */}
       {imageUrl ? (
         <div className="relative w-full h-32 rounded-lg overflow-hidden bg-white/[0.02]">
@@ -72,10 +93,16 @@ export function PropertyCard({ item, clientId, onArchive }: Props) {
             alt={address}
             className="w-full h-full object-cover"
           />
+          {photoCount > 1 && (
+            <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[10px] font-semibold text-white">
+              <Camera className="w-3 h-3" /> {photoCount}
+            </span>
+          )}
         </div>
       ) : (
-        <div className="flex items-center justify-center w-full h-32 rounded-lg bg-white/[0.02]">
-          <ImageIcon className="w-8 h-8 text-white-20" />
+        <div className="flex flex-col items-center justify-center w-full h-32 rounded-lg bg-white/[0.02] gap-1.5">
+          <Camera className="w-6 h-6 text-white-20" />
+          <span className="text-[10px] text-white-30 font-medium">Add photos</span>
         </div>
       )}
 
@@ -106,6 +133,19 @@ export function PropertyCard({ item, clientId, onArchive }: Props) {
       {/* Specs */}
       {specs && <p className="text-xs text-white-40">{specs}</p>}
 
+      {/* Property type + year built */}
+      {(propertyType || yearBuilt) && (
+        <div className="flex items-center gap-2 text-[11px] text-white-30">
+          {propertyType && <span>{propertyType}</span>}
+          {propertyType && yearBuilt && <span>·</span>}
+          {yearBuilt && (
+            <span className="flex items-center gap-0.5">
+              <Calendar className="w-3 h-3" /> {yearBuilt}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-2 mt-auto pt-1">
         <button
@@ -115,7 +155,7 @@ export function PropertyCard({ item, clientId, onArchive }: Props) {
           Create Campaign <ArrowRight className="w-3 h-3" />
         </button>
         <button
-          onClick={() => onArchive(item.id)}
+          onClick={handleArchive}
           className="ml-auto p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors"
           title="Archive"
         >

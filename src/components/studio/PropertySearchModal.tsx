@@ -327,7 +327,7 @@ export function PropertySearchModal({ clientId, onSelect, onClose }: Props) {
               <select
                 value={propertyType}
                 onChange={(e) => setPropertyType(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 appearance-none"
+                className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 appearance-none [&>option]:bg-sp-bg [&>option]:text-white-100"
               >
                 <option value="">Any</option>
                 {PROPERTY_TYPE_OPTIONS.map((o) => (

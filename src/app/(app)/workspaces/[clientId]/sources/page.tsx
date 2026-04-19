@@ -43,17 +43,12 @@ export default function SourcesPage() {
   ];
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
+    <div className="space-y-4">
+      {/* Header + Tabs */}
       <div>
         <h1 className="text-xl font-bold text-white-100">Sources</h1>
-        <p className="text-sm text-white-40 mt-1">
-          Everything Squadpitch uses to create intelligent content — your
-          business knowledge, media, and connected systems
-        </p>
       </div>
 
-      {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-white-10">
         {tabs.map((t) => (
           <button
@@ -71,86 +66,45 @@ export default function SourcesPage() {
         ))}
       </div>
 
-      {/* Contextual action bar */}
-      {tab === 'knowledge' && (
-        <div className="flex items-center justify-between rounded-lg border border-white-10 bg-white-5 px-4 py-3">
-          <p className="text-sm text-white-40">
-            {isRE
-              ? 'Testimonials, listings data, stats, and other content Squadpitch uses to write posts'
-              : 'Business info, testimonials, stats, and other knowledge Squadpitch uses to write posts'}
-          </p>
-          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-            <Link
-              href={`${base}/create`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent-green-110 text-black hover:bg-accent-green-130 transition-colors"
-            >
-              <Wand2 className="w-3 h-3" />
-              Create quick post
-            </Link>
-            <Link
-              href={`${base}/campaigns`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-white-10 text-white-100 hover:bg-white-5 transition-colors"
-            >
-              <Megaphone className="w-3 h-3" />
-              Create campaign
-            </Link>
-          </div>
-        </div>
-      )}
-
+      {/* Compact action bars for non-knowledge tabs */}
       {tab === 'properties' && (
-        <div className="flex items-center justify-between rounded-lg border border-white-10 bg-white-5 px-4 py-3">
-          <p className="text-sm text-white-40">
-            Saved properties for listing campaigns — import from search, URL, or CSV
-          </p>
-          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-            <Link
-              href={`${base}/listing-campaign`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent-green-110 text-black hover:bg-accent-green-130 transition-colors"
-            >
-              <Megaphone className="w-3 h-3" />
-              Create Campaign
-            </Link>
-          </div>
+        <div className="flex items-center justify-end gap-2">
+          <Link
+            href={`${base}/listing-campaign`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent-green-110 text-black hover:bg-accent-green-130 transition-colors"
+          >
+            <Megaphone className="w-3 h-3" />
+            Create Campaign
+          </Link>
         </div>
       )}
 
       {tab === 'media' && (
-        <div className="flex items-center justify-between rounded-lg border border-white-10 bg-white-5 px-4 py-3">
-          <p className="text-sm text-white-40">
-            Images, videos, and other media assets for your posts and campaigns
-          </p>
-          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-            <Link
-              href={`${base}/create`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent-green-110 text-black hover:bg-accent-green-130 transition-colors"
-            >
-              <Wand2 className="w-3 h-3" />
-              Use in a quick post
-            </Link>
-          </div>
+        <div className="flex items-center justify-end gap-2">
+          <Link
+            href={`${base}/create`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent-green-110 text-black hover:bg-accent-green-130 transition-colors"
+          >
+            <Wand2 className="w-3 h-3" />
+            Use in a quick post
+          </Link>
         </div>
       )}
 
       {tab === 'connections' && (
-        <div className="flex items-center justify-between rounded-lg border border-white-10 bg-white-5 px-4 py-3">
-          <p className="text-sm text-white-40">
-            Connected systems that make Squadpitch smarter — the more you connect, the better your recommendations
-          </p>
-          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-            <Link
-              href={`${base}/settings/integrations`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-white-10 text-white-100 hover:bg-white-5 transition-colors"
-            >
-              Manage workflow integrations
-              <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
+        <div className="flex items-center justify-end gap-2">
+          <Link
+            href={`${base}/settings/integrations`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-white-10 text-white-100 hover:bg-white-5 transition-colors"
+          >
+            Manage workflow integrations
+            <ArrowRight className="w-3 h-3" />
+          </Link>
         </div>
       )}
 
       {/* Tab content */}
-      {tab === 'knowledge' && <BusinessDataManager clientId={clientId} hideHeader />}
+      {tab === 'knowledge' && <BusinessDataManager clientId={clientId} />}
       {tab === 'properties' && <PropertyLibrary clientId={clientId} />}
       {tab === 'media' && <AssetLibrary clientId={clientId} />}
       {tab === 'connections' && (

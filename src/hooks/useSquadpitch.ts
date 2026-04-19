@@ -1429,6 +1429,21 @@ export function useDeleteAsset(clientId: string) {
   });
 }
 
+export function useUploadAssetFromUrl(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ url, folderId }: { url: string; folderId?: string }) =>
+      apiFetch<MediaAsset>(`workspaces/${clientId}/assets/upload-from-url`, {
+        method: 'POST',
+        body: JSON.stringify({ url, folderId }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.folders(clientId) });
+    },
+  });
+}
+
 // ── Folder hooks ────────────────────────────────────────────────────────
 
 export function useFolders(clientId: string) {

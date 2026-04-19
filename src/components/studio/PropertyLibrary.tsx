@@ -3,8 +3,9 @@
 import { useState, useMemo } from 'react';
 import { Search, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useProperties, useArchiveDataItem } from '@/hooks/useSquadpitch';
+import { useProperties, useArchiveDataItem, type WorkspaceDataItem } from '@/hooks/useSquadpitch';
 import { PropertyCard } from '@/components/studio/PropertyCard';
+import { PropertyDetailDrawer } from '@/components/studio/PropertyDetailDrawer';
 
 const STATUS_FILTERS = ['All', 'Active', 'Pending', 'Sold'] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -18,6 +19,7 @@ export function PropertyLibrary({ clientId }: Props) {
   const archive = useArchiveDataItem(clientId);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  const [selectedItem, setSelectedItem] = useState<WorkspaceDataItem | null>(null);
 
   const filtered = useMemo(() => {
     if (!properties) return [];
@@ -125,9 +127,20 @@ export function PropertyLibrary({ clientId }: Props) {
               item={item}
               clientId={clientId}
               onArchive={(id) => archive.mutate(id)}
+              onClick={() => setSelectedItem(item)}
             />
           ))}
         </div>
+      )}
+
+      {/* Detail drawer */}
+      {selectedItem && (
+        <PropertyDetailDrawer
+          item={selectedItem}
+          clientId={clientId}
+          isOpen={!!selectedItem}
+          onClose={() => setSelectedItem(null)}
+        />
       )}
     </div>
   );

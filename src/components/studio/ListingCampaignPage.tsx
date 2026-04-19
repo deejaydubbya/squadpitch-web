@@ -35,6 +35,8 @@ import {
   CheckSquare,
   AlertTriangle,
   Search,
+  ImageIcon,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -268,6 +270,7 @@ interface PropertyForm {
   listingStatus: string;
   lotSize: string;
   listedDate: string;
+  listingUrl: string;
 }
 
 const EMPTY_FORM: PropertyForm = {
@@ -292,7 +295,28 @@ const EMPTY_FORM: PropertyForm = {
   listingStatus: '',
   lotSize: '',
   listedDate: '',
+  listingUrl: '',
 };
+
+// ── Listing portal URL builders ──────────────────────────────────────────
+
+function buildListingSearchUrls(form: { address: string; city: string; state: string; zip: string }) {
+  const { address, city, state, zip } = form;
+  if (!address && !city) return { zillow: null, realtor: null, redfin: null };
+
+  const zillowSlug = [address, city, state, zip].filter(Boolean).join('-').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+  const zillow = zillowSlug ? `https://www.zillow.com/homes/${zillowSlug}_rb/` : null;
+
+  const realtorSlug = address
+    ? `${address.replace(/\s+/g, '_')}_${city}_${state}_${zip}`.replace(/[^a-zA-Z0-9_]/g, '')
+    : null;
+  const realtor = realtorSlug ? `https://www.realtor.com/realestateandhomes-detail/${realtorSlug}` : null;
+
+  const encoded = encodeURIComponent([address, city, state, zip].filter(Boolean).join(', '));
+  const redfin = encoded ? `https://www.redfin.com/search#combined=${encoded}` : null;
+
+  return { zillow, realtor, redfin };
+}
 
 const PROPERTY_TYPES = [
   'Single Family',
@@ -631,6 +655,7 @@ export function ListingCampaignPage({ clientId }: Props) {
         listingStatus: 'listingStatus',
         lotSize: 'lotSize',
         listedDate: 'listedDate',
+        listingUrl: 'listingUrl',
       };
       for (const [src, dst] of Object.entries(map)) {
         const val = flat[src];
@@ -2443,6 +2468,54 @@ export function ListingCampaignPage({ clientId }: Props) {
             <p>Use <span className="font-semibold text-white-80">Manual crop</span> above to select photos from your screenshot, or add media from your library.</p>
           </div>
         )}
+        {/* Find listing photos links */}
+        {!extractImage.isPending && (form.address || form.city) && (() => {
+          const { zillow, realtor, redfin } = buildListingSearchUrls(form);
+          return (
+            <div className="mb-4 px-4 py-3 rounded-lg bg-white-5 border border-white-10 space-y-2">
+              <p className="text-xs font-semibold text-white-60 uppercase tracking-wider">Find listing photos</p>
+              <p className="text-xs text-white-40">Open the listing page to grab property photos, then upload them here.</p>
+              <div className="flex flex-wrap gap-2">
+                {form.listingUrl && (
+                  <a href={form.listingUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-xs text-accent-green-110 hover:bg-accent-green-110/20 transition-colors font-medium">
+                    <ExternalLink className="w-3 h-3" /> Original listing
+                  </a>
+                )}
+                {zillow && (
+                  <a href={zillow} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white-5 text-xs text-white-60 hover:bg-white-10 hover:text-white-100 transition-colors font-medium border border-white-10">
+                    <ExternalLink className="w-3 h-3" /> Search Zillow
+                  </a>
+                )}
+                {realtor && (
+                  <a href={realtor} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white-5 text-xs text-white-60 hover:bg-white-10 hover:text-white-100 transition-colors font-medium border border-white-10">
+                    <ExternalLink className="w-3 h-3" /> Search Realtor.com
+                  </a>
+                )}
+                {redfin && (
+                  <a href={redfin} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white-5 text-xs text-white-60 hover:bg-white-10 hover:text-white-100 transition-colors font-medium border border-white-10">
+                    <ExternalLink className="w-3 h-3" /> Search Redfin
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+        {/* Skeleton placeholders when no images */}
+        {candidateImages.length === 0 && !extractImage.isPending && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl overflow-hidden border-2 border-dashed border-white-10">
+                <div className="aspect-square bg-white/[0.02] flex items-center justify-center">
+                  <ImageIcon className="w-8 h-8 text-white-10" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {splitNotice && (
           <div className="mb-4 px-4 py-2 rounded-lg bg-white-5 border border-white-10 text-white-60 text-xs">
             {splitNotice}
@@ -3013,7 +3086,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             <select
               value={form.propertyType}
               onChange={(e) => updateField('propertyType', e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+              className="w-full px-4 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 [&>option]:bg-sp-bg [&>option]:text-white-100"
             >
               {PROPERTY_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>

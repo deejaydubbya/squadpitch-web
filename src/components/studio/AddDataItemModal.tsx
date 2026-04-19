@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Loader2, ImageIcon, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Loader2, ImageIcon, Trash2, Upload, FolderOpen, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useClient,
   useCreateDataItem,
   useUpdateDataItem,
   useBusinessDataLabels,
+  useAssets,
+  useUploadAsset,
   type WorkspaceDataItem,
   type DataItemType,
+  type MediaAsset,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
 
@@ -139,6 +142,8 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
   const bdLabels = useBusinessDataLabels(clientId);
   const create = useCreateDataItem(clientId);
   const update = useUpdateDataItem(clientId);
+  const uploadAsset = useUploadAsset(clientId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [type, setType] = useState<DataItemType>(editItem?.type ?? (isRE ? 'CUSTOM' : 'TESTIMONIAL'));
   const [title, setTitle] = useState(editItem?.title ?? '');
@@ -146,10 +151,23 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
   const [dataJson, setDataJson] = useState<Record<string, string>>(
     (editItem?.dataJson as Record<string, string>) ?? {}
   );
-  const [imageUrl, setImageUrl] = useState(
-    (editItem?.dataJson as Record<string, unknown>)?.imageUrl as string ?? ''
-  );
-  const [imageError, setImageError] = useState(false);
+
+  // Image state — supports multiple images
+  const editDataJson = editItem?.dataJson as Record<string, unknown> | undefined;
+  const initImages = (() => {
+    const urls: string[] = [];
+    const arr = editDataJson?.images;
+    if (Array.isArray(arr)) urls.push(...(arr as string[]));
+    const hero = editDataJson?.imageUrl as string | undefined;
+    if (hero && !urls.includes(hero)) urls.unshift(hero);
+    return urls;
+  })();
+  const [images, setImages] = useState<string[]>(initImages);
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [showLibraryPicker, setShowLibraryPicker] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
   const [tags, setTags] = useState(editItem?.tags.join(', ') ?? '');
   const [priority, setPriority] = useState(editItem?.priority ?? 0);
   const [expiresAt, setExpiresAt] = useState(
@@ -164,6 +182,47 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
     setDataJson((prev) => ({ ...prev, [key]: value }));
   };
 
+  const addImageUrl = () => {
+    const url = imageUrlInput.trim();
+    if (url && !images.includes(url)) {
+      setImages((prev) => [...prev, url]);
+      setImageUrlInput('');
+      setShowUrlInput(false);
+    }
+  };
+
+  const removeImage = (url: string) => {
+    setImages((prev) => prev.filter((u) => u !== url));
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const fd = new FormData();
+        fd.append('file', files[i]);
+        try {
+          const asset = await uploadAsset.mutateAsync({ formData: fd, assetType: 'image' });
+          if (asset.url) {
+            setImages((prev) => [...prev, asset.url!]);
+          }
+        } catch {
+          // skip failed
+        }
+      }
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const pickFromLibrary = (asset: MediaAsset) => {
+    if (asset.url && !images.includes(asset.url)) {
+      setImages((prev) => [...prev, asset.url!]);
+    }
+  };
+
   const fields = (isRE && type === 'CUSTOM') ? RE_LISTING_FIELDS : (TYPE_FIELDS[type] ?? []);
   const isPending = create.isPending || update.isPending;
   const error = create.error || update.error;
@@ -174,10 +233,12 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
       .map((t) => t.trim())
       .filter(Boolean);
     const finalDataJson = { ...dataJson };
-    if (imageUrl.trim()) {
-      finalDataJson.imageUrl = imageUrl.trim();
+    if (images.length > 0) {
+      finalDataJson.imageUrl = images[0];
+      (finalDataJson as Record<string, unknown>).images = images;
     } else {
       delete finalDataJson.imageUrl;
+      delete (finalDataJson as Record<string, unknown>).images;
     }
     const body = {
       type,
@@ -270,49 +331,95 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
             />
           </div>
 
-          {/* Image */}
+          {/* Images */}
           <div>
             <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
-              Image URL
+              Images {images.length > 0 && `(${images.length})`}
             </label>
-            {imageUrl && !imageError ? (
-              <div className="flex items-start gap-3 mb-2">
-                <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white-5 border border-white-10">
-                  <img
-                    src={imageUrl}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                    onError={() => setImageError(true)}
-                  />
-                </div>
+
+            {/* Image thumbnails */}
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {images.map((url, i) => (
+                  <div key={url} className="relative group w-16 h-16 rounded-lg overflow-hidden bg-white-5 border border-white-10">
+                    <img src={url} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
+                    {i === 0 && (
+                      <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded bg-yellow-500/80 text-[8px] font-bold text-black">
+                        Hero
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeImage(url)}
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add image actions */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-xs text-white-60 hover:bg-white-10 hover:text-white-100 transition-colors disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                Upload
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLibraryPicker(!showLibraryPicker)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-xs text-white-60 hover:bg-white-10 hover:text-white-100 transition-colors"
+              >
+                <FolderOpen className="w-3 h-3" /> From library
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUrlInput(!showUrlInput)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-xs text-white-60 hover:bg-white-10 hover:text-white-100 transition-colors"
+              >
+                <Plus className="w-3 h-3" /> Paste URL
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files)}
+              />
+            </div>
+
+            {/* URL input */}
+            {showUrlInput && (
+              <div className="flex gap-2 mb-2">
+                <input
+                  value={imageUrlInput}
+                  onChange={(e) => setImageUrlInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addImageUrl()}
+                  placeholder="https://example.com/image.jpg"
+                  className="flex-1 px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+                />
                 <button
                   type="button"
-                  onClick={() => { setImageUrl(''); setImageError(false); }}
-                  className="p-1.5 rounded-lg text-white-40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  title="Remove image"
+                  onClick={addImageUrl}
+                  disabled={!imageUrlInput.trim()}
+                  className="px-3 py-2 rounded-lg bg-accent-green-110 text-sp-surface text-xs font-medium hover:bg-accent-green-120 transition-colors disabled:opacity-50"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  Add
                 </button>
               </div>
-            ) : imageUrl && imageError ? (
-              <div className="flex items-center gap-2 mb-2 text-xs text-red-400">
-                <ImageIcon className="w-4 h-4" />
-                Image failed to load
-                <button
-                  type="button"
-                  onClick={() => { setImageUrl(''); setImageError(false); }}
-                  className="ml-auto text-white-40 hover:text-red-400"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : null}
-            <input
-              value={imageUrl}
-              onChange={(e) => { setImageUrl(e.target.value); setImageError(false); }}
-              placeholder="https://example.com/image.jpg"
-              className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
-            />
+            )}
+
+            {/* Mini library picker */}
+            {showLibraryPicker && (
+              <MiniMediaPicker clientId={clientId} onPick={pickFromLibrary} existingUrls={images} />
+            )}
           </div>
 
           {/* Type-specific fields */}
@@ -413,6 +520,60 @@ export function AddDataItemModal({ clientId, editItem, onClose }: Props) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Mini Media Library Picker ────────────────────────────────────────────
+
+function MiniMediaPicker({
+  clientId,
+  onPick,
+  existingUrls,
+}: {
+  clientId: string;
+  onPick: (asset: MediaAsset) => void;
+  existingUrls: string[];
+}) {
+  const { data: assets, isLoading } = useAssets(clientId, { status: 'READY' });
+  const imageAssets = assets?.filter((a) => a.assetType === 'image' && a.url) ?? [];
+
+  return (
+    <div className="rounded-lg border border-white-10 bg-white/[0.02] p-2 max-h-48 overflow-y-auto">
+      {isLoading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="w-4 h-4 text-white-20 animate-spin" />
+        </div>
+      ) : imageAssets.length === 0 ? (
+        <p className="text-xs text-white-30 text-center py-3">No images in your library yet.</p>
+      ) : (
+        <div className="grid grid-cols-5 gap-1.5">
+          {imageAssets.slice(0, 30).map((asset) => {
+            const alreadyAdded = existingUrls.includes(asset.url!);
+            return (
+              <button
+                key={asset.id}
+                type="button"
+                disabled={alreadyAdded}
+                onClick={() => onPick(asset)}
+                className={cn(
+                  'relative rounded-md overflow-hidden aspect-square border transition-colors',
+                  alreadyAdded
+                    ? 'border-accent-green-110/40 opacity-50 cursor-not-allowed'
+                    : 'border-white-10 hover:border-accent-green-110 cursor-pointer'
+                )}
+              >
+                <img src={asset.thumbnailUrl ?? asset.url!} alt="" className="w-full h-full object-cover" />
+                {alreadyAdded && (
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <ImageIcon className="w-3 h-3 text-accent-green-110" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

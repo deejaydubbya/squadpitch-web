@@ -12,7 +12,8 @@ import {
   AlertCircle,
   Lightbulb,
   Clock,
-  ArrowRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -79,10 +80,9 @@ const RE_SECTION_ORDER: DataItemType[] = [
 
 interface Props {
   clientId: string;
-  hideHeader?: boolean;
 }
 
-export function BusinessDataManager({ clientId, hideHeader }: Props) {
+export function BusinessDataManager({ clientId }: Props) {
   const { data: client } = useClient(clientId);
   const isRE = client?.industryKey === 'real_estate';
   const bdLabels = useBusinessDataLabels(clientId);
@@ -91,6 +91,7 @@ export function BusinessDataManager({ clientId, hideHeader }: Props) {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showTopPerforming, setShowTopPerforming] = useState(false);
+  const [suggestionsCollapsed, setSuggestionsCollapsed] = useState(true);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -152,6 +153,8 @@ export function BusinessDataManager({ clientId, hideHeader }: Props) {
     [items, selectedIds]
   );
 
+  const suggestions = suggestionsData?.suggestions?.slice(0, 3) ?? [];
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -171,70 +174,135 @@ export function BusinessDataManager({ clientId, hideHeader }: Props) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className={cn('flex items-start justify-between gap-4', hideHeader && 'justify-end')}>
-        {!hideHeader && (
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-white-100">
-              {isRE ? 'Content Assets' : 'Knowledge'}
-            </h1>
-            <p className="text-white-40 mt-1 text-sm">
-              {isRE
-                ? 'Your properties, testimonials, and market data power your marketing campaigns.'
-                : `Add your testimonials, stats, and ${bdLabels.itemPlural.toLowerCase()} so Squadpitch can create smarter posts.`}
-            </p>
+    <div className="space-y-4">
+      {/* Sticky toolbar */}
+      <div className="sticky top-0 z-20 bg-sp-bg border-b border-white-10 -mx-1 px-1 pb-3 pt-1">
+        {/* Row 1: Search + perf badge + status + actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-[280px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white-30" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Search ${bdLabels.itemPlural.toLowerCase()}...`}
+              className="w-full pl-10 pr-4 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+            />
           </div>
-        )}
-        <div className="flex items-center gap-2 flex-shrink-0">
+
+          {/* Performance badge or bulk actions */}
+          {selectedItems.length > 0 ? (
+            <>
+              <button
+                onClick={toggleSelectAll}
+                className="px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+              >
+                {selectedIds.size === items?.length ? 'Deselect All' : 'Select All'}
+              </button>
+              <button
+                onClick={() => setShowBulkGenerate(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors"
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+                Create Posts ({selectedItems.length})
+              </button>
+            </>
+          ) : (
+            <>
+              {perfSummary && (
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-xs text-white-60">
+                  <TrendingUp className="w-3.5 h-3.5 text-green-400" />
+                  <span className="text-green-400 font-semibold">{perfSummary.highPerf}</span>
+                  <span>high-perf</span>
+                  {perfSummary.untested > 0 && (
+                    <>
+                      <span className="text-white-20">·</span>
+                      <span className="text-white-40 font-semibold">{perfSummary.untested}</span>
+                      <span>untested</span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {items && items.length > 0 && (
+                <button
+                  onClick={toggleSelectAll}
+                  className="px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+                >
+                  Select All
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Status toggle */}
+          <div className="flex rounded-lg bg-white-5 border border-white-10 p-0.5 ml-auto">
+            <button
+              onClick={() => setStatusFilter('ACTIVE')}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                statusFilter === 'ACTIVE'
+                  ? 'bg-white-10 text-white-100'
+                  : 'text-white-40 hover:text-white-60'
+              )}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setStatusFilter('ARCHIVED')}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                statusFilter === 'ARCHIVED'
+                  ? 'bg-white-10 text-white-100'
+                  : 'text-white-40 hover:text-white-60'
+              )}
+            >
+              Archived
+            </button>
+          </div>
+
+          {/* Action buttons */}
           <button
             onClick={() => setShowAutopilot(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors"
+            title="Autopilot"
           >
-            <Zap className="w-4 h-4" />
-            Autopilot
+            <Zap className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Autopilot</span>
           </button>
           <button
             onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors"
+            title={isRE ? 'Import' : 'Import Data'}
           >
-            <Download className="w-4 h-4" />
-            {isRE ? 'Import' : 'Import Data'}
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">{isRE ? 'Import' : 'Import'}</span>
           </button>
           {isRE && (
             <Link
               href={`/workspaces/${clientId}/listing-campaign`}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              New Campaign
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Campaign</span>
             </Link>
           )}
           <button
             onClick={() => setShowAddModal(true)}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors whitespace-nowrap',
-              isRE
-                ? 'bg-white-10 text-white-60 hover:bg-white-20'
-                : 'bg-accent-green-110 text-sp-surface hover:bg-accent-green-120'
-            )}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-green-110 text-sp-surface text-xs font-semibold hover:bg-accent-green-120 transition-colors"
           >
-            <Plus className="w-4 h-4" />
-            {isRE ? 'Add Other' : `Add ${bdLabels.itemSingular}`}
+            <Plus className="w-3.5 h-3.5" />
+            Add Item
           </button>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Type pills */}
-        <div className="flex flex-wrap gap-1.5">
+        {/* Row 2: Type filter pills + Top Performing */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-2">
           {(isRE ? RE_TYPE_FILTERS : TYPE_FILTERS).map((t) => (
             <button
               key={t.value}
               onClick={() => setTypeFilter(t.value)}
               className={cn(
-                'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                'px-3 py-1 rounded-full text-xs font-medium transition-colors',
                 typeFilter === t.value
                   ? 'bg-accent-green-110 text-sp-surface'
                   : 'bg-white-10 text-white-60 hover:bg-white-20'
@@ -246,7 +314,7 @@ export function BusinessDataManager({ clientId, hideHeader }: Props) {
           <button
             onClick={() => setShowTopPerforming(!showTopPerforming)}
             className={cn(
-              'flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+              'flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors',
               showTopPerforming
                 ? 'bg-green-500/20 text-green-400'
                 : 'bg-white-10 text-white-60 hover:bg-white-20'
@@ -256,133 +324,76 @@ export function BusinessDataManager({ clientId, hideHeader }: Props) {
             Top Performing
           </button>
         </div>
-
-        {/* Status toggle */}
-        <div className="flex rounded-lg bg-white-5 border border-white-10 p-0.5 ml-auto">
-          <button
-            onClick={() => setStatusFilter('ACTIVE')}
-            className={cn(
-              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-              statusFilter === 'ACTIVE'
-                ? 'bg-white-10 text-white-100'
-                : 'text-white-40 hover:text-white-60'
-            )}
-          >
-            Active
-          </button>
-          <button
-            onClick={() => setStatusFilter('ARCHIVED')}
-            className={cn(
-              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-              statusFilter === 'ARCHIVED'
-                ? 'bg-white-10 text-white-100'
-                : 'text-white-40 hover:text-white-60'
-            )}
-          >
-            Archived
-          </button>
-        </div>
       </div>
 
-      {/* Performance summary */}
-      {perfSummary && (
-        <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-white-5 border border-white-10 text-xs text-white-60">
-          <TrendingUp className="w-4 h-4 text-green-400 flex-shrink-0" />
-          <span>
-            <span className="text-green-400 font-semibold">{perfSummary.highPerf}</span> high-performing
-            {perfSummary.highPerf === 1 ? ' item' : ' items'}
-            {perfSummary.untested > 0 && (
-              <>, <span className="text-white-40 font-semibold">{perfSummary.untested}</span> untested</>
-            )}
-          </span>
+      {/* Collapsible suggestions strip */}
+      {suggestions.length > 0 && (
+        <div>
+          <button
+            onClick={() => setSuggestionsCollapsed(!suggestionsCollapsed)}
+            className="flex items-center gap-2 w-full px-4 py-2 rounded-lg bg-white-5 border border-white-10 text-xs text-white-60 hover:bg-white-10 transition-colors"
+          >
+            <Lightbulb className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />
+            <span className="font-semibold text-white-100">{suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''}</span>
+            <span className="text-white-40 truncate">&mdash; {suggestions[0].title}</span>
+            <span className="ml-auto flex-shrink-0">
+              {suggestionsCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+            </span>
+          </button>
+
+          {!suggestionsCollapsed && (
+            <div className="space-y-2 mt-2">
+              {suggestions.map((s) => {
+                const icon =
+                  s.type === 'unused_data' ? AlertCircle :
+                  s.type === 'new_data' ? Lightbulb :
+                  s.type === 'stale_data' ? Clock :
+                  s.type === 'missing_types' ? Plus :
+                  Lightbulb;
+                const Icon = icon;
+                const color =
+                  s.type === 'unused_data' ? 'text-orange-400 bg-orange-500/10 border-orange-500/20' :
+                  s.type === 'new_data' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' :
+                  s.type === 'stale_data' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' :
+                  s.type === 'missing_types' ? 'text-purple-400 bg-purple-500/10 border-purple-500/20' :
+                  'text-white-60 bg-white-5 border-white-10';
+                return (
+                  <div
+                    key={s.id}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-2.5 rounded-lg border text-xs',
+                      color,
+                    )}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-semibold">{s.title}</span>
+                      <span className="text-white-40 ml-1.5">{s.description}</span>
+                    </div>
+                    {s.action === 'generate_from_unused' || s.action === 'generate_from_new' || s.action === 'generate_from_stale' ? (
+                      <button
+                        onClick={() => setShowAutopilot(true)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors flex-shrink-0"
+                      >
+                        <Wand2 className="w-3 h-3" />
+                        Generate
+                      </button>
+                    ) : s.action === 'add_data' ? (
+                      <button
+                        onClick={() => setShowAddModal(true)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors flex-shrink-0"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
-
-      {/* Smart suggestions */}
-      {suggestionsData?.suggestions && suggestionsData.suggestions.length > 0 && (
-        <div className="space-y-2">
-          {suggestionsData.suggestions.slice(0, 3).map((s) => {
-            const icon =
-              s.type === 'unused_data' ? AlertCircle :
-              s.type === 'new_data' ? Lightbulb :
-              s.type === 'stale_data' ? Clock :
-              s.type === 'missing_types' ? Plus :
-              Lightbulb;
-            const Icon = icon;
-            const color =
-              s.type === 'unused_data' ? 'text-orange-400 bg-orange-500/10 border-orange-500/20' :
-              s.type === 'new_data' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' :
-              s.type === 'stale_data' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' :
-              s.type === 'missing_types' ? 'text-purple-400 bg-purple-500/10 border-purple-500/20' :
-              'text-white-60 bg-white-5 border-white-10';
-            const [bgColor, textColor, borderColor] = color.split(' ');
-            return (
-              <div
-                key={s.id}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-2.5 rounded-lg border text-xs',
-                  color,
-                )}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <span className="font-semibold">{s.title}</span>
-                  <span className="text-white-40 ml-1.5">{s.description}</span>
-                </div>
-                {s.action === 'generate_from_unused' || s.action === 'generate_from_new' || s.action === 'generate_from_stale' ? (
-                  <button
-                    onClick={() => setShowAutopilot(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors flex-shrink-0"
-                  >
-                    <Wand2 className="w-3 h-3" />
-                    Generate
-                  </button>
-                ) : s.action === 'add_data' ? (
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors flex-shrink-0"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Search + bulk actions */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white-30" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${bdLabels.itemPlural.toLowerCase()}...`}
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
-          />
-        </div>
-
-        {items && items.length > 0 && (
-          <button
-            onClick={toggleSelectAll}
-            className="px-3 py-2.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
-          >
-            {selectedIds.size === items.length ? 'Deselect All' : 'Select All'}
-          </button>
-        )}
-
-        {selectedItems.length > 0 && (
-          <button
-            onClick={() => setShowBulkGenerate(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors"
-          >
-            <Wand2 className="w-3.5 h-3.5" />
-            Create Posts ({selectedItems.length})
-          </button>
-        )}
-      </div>
 
       {/* Item grid */}
       {isLoading ? (

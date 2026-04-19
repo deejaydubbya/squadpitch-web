@@ -117,9 +117,8 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const [seriesTemplate, setSeriesTemplate] = useState<string>('tips_series');
   const [seriesParts, setSeriesParts] = useState(3);
 
-  // Business data state
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showBusinessData, setShowBusinessData] = useState(false);
+  // Settings panel state (merged Advanced + Business Data)
+  const [showSettings, setShowSettings] = useState(false);
   const [selectedDataItem, setSelectedDataItem] = useState<WorkspaceDataItem | null>(null);
   const [selectedBlueprint, setSelectedBlueprint] = useState<ContentBlueprint | null>(null);
   const [dataSearch, setDataSearch] = useState('');
@@ -306,7 +305,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
       const item = dataItems.find((d) => d.id === rec.dataItemId);
       if (item) {
         setSelectedDataItem(item);
-        setShowBusinessData(true);
+        setShowSettings(true);
       }
     }
   };
@@ -328,19 +327,14 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const quotaColor = postsRemaining === null ? '' : postsRemaining <= 0 ? 'text-accent-red' : postsRemaining <= 5 ? 'text-accent-orange' : 'text-white-40';
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white-100">
-          Quick Post
-        </h1>
-        <p className="text-white-40 mt-2">
-          Create a single post in seconds. Describe your idea and we'll handle the rest.
-        </p>
-      </div>
+    <div className="max-w-2xl mx-auto space-y-5">
+      <h1 className="text-2xl font-bold text-white-100">
+        Quick Post
+      </h1>
 
       <ServiceAlert />
 
-      {/* ── Campaign hint — subtle nudge toward Listing Campaign ──── */}
+      {/* ── Campaign hint — compact single-line nudge ──── */}
       {campaignHint && !guidance.trim() && (
         <Link
           href={(() => {
@@ -352,62 +346,42 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             const qs = params.toString();
             return `/workspaces/${clientId}/listing-campaign${qs ? `?${qs}` : ''}`;
           })()}
-          className="block p-3 rounded-xl bg-accent-green-110/5 border border-accent-green-110/15 hover:border-accent-green-110/30 transition-all"
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-green-110/5 border border-accent-green-110/15 hover:border-accent-green-110/30 transition-all"
         >
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-accent-green-110 shrink-0" />
-            <span className="text-xs font-medium text-accent-green-110">{campaignHint.title}</span>
-            <span className="ml-auto text-[10px] text-accent-green-110/60">Create campaign →</span>
-          </div>
-          {campaignHint.reasons.length > 0 && (
-            <p className="text-[11px] text-white-40 mt-1 ml-5.5">{campaignHint.reasons[0]}</p>
-          )}
+          <Sparkles className="w-3.5 h-3.5 text-accent-green-110 shrink-0" />
+          <span className="text-xs font-medium text-accent-green-110 truncate">{campaignHint.title}</span>
+          <span className="ml-auto text-[10px] text-accent-green-110/60 shrink-0">Campaign →</span>
         </Link>
       )}
 
-      {/* ── Recommended for you ─────────────────────────────────────── */}
-      {recommendedPosts.length > 0 && !guidance.trim() && (
-        <div className="space-y-3">
+      {/* ── Smart Start strip — recommendations + quick chips in one row ── */}
+      {!guidance.trim() && (recommendedPosts.length > 0 || QUICK_CHIPS.length > 0) && (
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-accent-green-110" />
-            <h2 className="text-sm font-semibold text-white-60 uppercase tracking-wider">
-              Recommended for you
-            </h2>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-green-110/10 text-accent-green-110">
-              AI Suggested
-            </span>
+            <Sparkles className="w-3.5 h-3.5 text-accent-green-110" />
+            <span className="text-xs font-medium text-white-40">Start with an idea</span>
           </div>
-          <div className="grid grid-cols-1 gap-2">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             {recommendedPosts.map((rec) => (
               <button
                 key={rec.id}
                 type="button"
                 onClick={() => handleRecommendedClick(rec)}
-                className="w-full text-left p-4 rounded-xl bg-gradient-to-r from-accent-green-110/5 to-transparent border border-accent-green-110/15 hover:border-accent-green-110/30 hover:bg-accent-green-110/8 transition-all group"
+                title={rec.description}
+                className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-accent-green-110/10 border border-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/20 hover:border-accent-green-110/30 transition-all flex items-center gap-1.5"
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-white-100 group-hover:text-white transition-colors">
-                    {rec.title}
-                  </span>
-                  {rec.badge && (
-                    <span className="px-1.5 py-0.5 rounded-full bg-accent-green-110/10 text-accent-green-110 text-[10px] font-medium">
-                      {rec.badge}
-                    </span>
-                  )}
-                  {rec.dataItemId && (
-                    <span className="px-1.5 py-0.5 rounded-full bg-white-10 text-white-40 text-[10px] font-medium flex items-center gap-0.5">
-                      <Database className="w-2.5 h-2.5" />
-                      Linked data
-                    </span>
-                  )}
-                  <span className="ml-auto text-xs text-accent-green-110 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                    Use this idea →
-                  </span>
-                </div>
-                <p className="text-xs text-white-40">{rec.description}</p>
-                {rec.reason && (
-                  <p className="text-[10px] text-white-25 mt-1 italic">{rec.reason}</p>
-                )}
+                {rec.dataItemId && <Database className="w-3 h-3" />}
+                {rec.title}
+              </button>
+            ))}
+            {QUICK_CHIPS.map((chip) => (
+              <button
+                key={chip.label}
+                type="button"
+                onClick={() => handleChipClick(chip)}
+                className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-white-5 border border-white-10 text-white-60 hover:bg-white-10 hover:text-white-100 hover:border-white-20 transition-all"
+              >
+                {chip.label}
               </button>
             ))}
           </div>
@@ -425,22 +399,6 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           maxLength={4000}
           className="w-full px-4 py-3.5 rounded-xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 resize-none placeholder:text-white-30"
         />
-
-        {/* Quick start chips */}
-        {!guidance.trim() && (
-          <div className="flex flex-wrap gap-2">
-            {QUICK_CHIPS.map((chip) => (
-              <button
-                key={chip.label}
-                type="button"
-                onClick={() => handleChipClick(chip)}
-                className="px-3 py-1.5 rounded-full text-xs font-medium bg-white-5 border border-white-10 text-white-60 hover:bg-white-10 hover:text-white-100 hover:border-white-20 transition-all"
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Platform — primary selection */}
         <div>
@@ -506,28 +464,28 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           )}
         </div>
 
-        {/* Advanced options — Content Type, Goal, Business Data */}
+        {/* Post Settings — merged Content Type, Goal, Business Data */}
         <div className="border border-white-10 rounded-xl overflow-hidden">
           <button
             type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
+            onClick={() => setShowSettings((v) => !v)}
             className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-white-40 hover:bg-white-5 transition-colors"
           >
             <Layers className="w-4 h-4" />
-            Advanced options
+            Post settings
             {(contentType || goal !== 'Growth' || selectedDataItem) && (
               <span className="px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-[10px] font-medium">
                 Customized
               </span>
             )}
-            {showAdvanced ? (
+            {showSettings ? (
               <ChevronDown className="w-3.5 h-3.5 ml-auto" />
             ) : (
               <ChevronRight className="w-3.5 h-3.5 ml-auto" />
             )}
           </button>
 
-          {showAdvanced && (
+          {showSettings && (
             <div className="px-4 pb-4 space-y-5 border-t border-white-10 pt-4">
               {/* Content Type */}
               <div>
@@ -580,138 +538,121 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
                   ))}
                 </div>
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* Business Data Section */}
-        <div className="border border-white-10 rounded-xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowBusinessData((v) => !v)}
-            className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-white-60 hover:bg-white-5 transition-colors"
-          >
-            <Database className="w-4 h-4" />
-            Use my sources
-            <span className="text-[10px] text-white-30">(listings, testimonials, stats, etc.)</span>
-            {selectedDataItem && (
-              <span className="ml-1 px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-[10px] font-semibold">
-                {selectedDataItem.title}
-              </span>
-            )}
-            {showBusinessData ? (
-              <ChevronDown className="w-3.5 h-3.5 ml-auto" />
-            ) : (
-              <ChevronRight className="w-3.5 h-3.5 ml-auto" />
-            )}
-          </button>
+              <div className="border-t border-white-10" />
 
-          {showBusinessData && (
-            <div className="px-4 pb-4 space-y-3 border-t border-white-10">
-              {/* Data item search + select */}
-              <div className="mt-3">
-                <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
-                  {bdLabels.itemSingular}
-                </label>
-                {selectedDataItem ? (
-                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white-5 border border-accent-green-110/30">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-white-40 uppercase">
-                        {selectedDataItem.type.replace(/_/g, ' ')}
-                      </p>
-                      <p className="text-sm font-medium text-white-100 truncate">
-                        {selectedDataItem.title}
-                      </p>
+              {/* Use my sources */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Database className="w-3.5 h-3.5 text-white-40" />
+                  <span className="text-xs font-medium text-white-40 uppercase tracking-wider">Use my sources</span>
+                </div>
+
+                {/* Data item search + select */}
+                <div>
+                  <label className="block text-xs font-medium text-white-40 mb-1.5">
+                    {bdLabels.itemSingular}
+                  </label>
+                  {selectedDataItem ? (
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white-5 border border-accent-green-110/30">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-white-40 uppercase">
+                          {selectedDataItem.type.replace(/_/g, ' ')}
+                        </p>
+                        <p className="text-sm font-medium text-white-100 truncate">
+                          {selectedDataItem.title}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedDataItem(null);
+                          setSelectedBlueprint(null);
+                        }}
+                        className="p-1 rounded text-white-40 hover:text-white-100"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        setSelectedDataItem(null);
-                        setSelectedBlueprint(null);
-                      }}
-                      className="p-1 rounded text-white-40 hover:text-white-100"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <input
-                      value={dataSearch}
-                      onChange={(e) => setDataSearch(e.target.value)}
-                      placeholder={`Search ${bdLabels.itemPlural.toLowerCase()}...`}
-                      className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
-                    />
-                    {dataItems && dataItems.length > 0 && (
-                      <div className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
-                        {dataItems.map((item) => (
+                  ) : (
+                    <>
+                      <input
+                        value={dataSearch}
+                        onChange={(e) => setDataSearch(e.target.value)}
+                        placeholder={`Search ${bdLabels.itemPlural.toLowerCase()}...`}
+                        className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+                      />
+                      {dataItems && dataItems.length > 0 && (
+                        <div className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
+                          {dataItems.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDataItem(item);
+                                setDataSearch('');
+                              }}
+                              className="w-full text-left p-2 rounded-lg bg-white-5 hover:bg-white-10 transition-colors"
+                            >
+                              <span className="text-[10px] text-white-40 uppercase">
+                                {item.type.replace(/_/g, ' ')}
+                              </span>
+                              <p className="text-xs font-medium text-white-100 truncate">
+                                {item.title}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Blueprint picker */}
+                {selectedDataItem && (
+                  <div>
+                    <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+                      Content Angle
+                    </label>
+                    {blueprints && blueprints.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {blueprints.map((bp) => (
                           <button
-                            key={item.id}
+                            key={bp.id}
                             type="button"
-                            onClick={() => {
-                              setSelectedDataItem(item);
-                              setDataSearch('');
-                            }}
-                            className="w-full text-left p-2 rounded-lg bg-white-5 hover:bg-white-10 transition-colors"
+                            onClick={() =>
+                              setSelectedBlueprint(
+                                selectedBlueprint?.id === bp.id ? null : bp
+                              )
+                            }
+                            className={cn(
+                              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                              selectedBlueprint?.id === bp.id
+                                ? 'bg-accent-green-110 text-sp-surface'
+                                : 'bg-white-10 text-white-60 hover:bg-white-20'
+                            )}
                           >
-                            <span className="text-[10px] text-white-40 uppercase">
-                              {item.type.replace(/_/g, ' ')}
-                            </span>
-                            <p className="text-xs font-medium text-white-100 truncate">
-                              {item.title}
-                            </p>
+                            {bp.name}
                           </button>
                         ))}
                       </div>
+                    ) : (
+                      <p className="text-xs text-white-40 italic">
+                        No angles available for this type.
+                      </p>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
-
-              {/* Blueprint picker */}
-              {selectedDataItem && (
-                <div>
-                  <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
-                    Content Angle
-                  </label>
-                  {blueprints && blueprints.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {blueprints.map((bp) => (
-                        <button
-                          key={bp.id}
-                          type="button"
-                          onClick={() =>
-                            setSelectedBlueprint(
-                              selectedBlueprint?.id === bp.id ? null : bp
-                            )
-                          }
-                          className={cn(
-                            'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
-                            selectedBlueprint?.id === bp.id
-                              ? 'bg-accent-green-110 text-sp-surface'
-                              : 'bg-white-10 text-white-60 hover:bg-white-20'
-                          )}
-                        >
-                          {bp.name}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-white-40 italic">
-                      No angles available for this type.
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </div>
 
-        {/* Inspiration — moved above generate button */}
-        <div className="card p-4 space-y-3">
+        {/* Inspiration — compact inline */}
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Lightbulb className="w-4 h-4 text-yellow-400" />
-              <h3 className="text-sm font-semibold text-white-60">Need inspiration?</h3>
+              <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="text-sm text-white-40">Need inspiration?</span>
             </div>
             <button
               onClick={() =>
@@ -756,6 +697,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           )}
         </div>
 
+        {/* Error/warning banners — above CTA */}
         {atPostLimit && (
           <UpgradePrompt currentTier={usage!.tier} limitType="Post" />
         )}
@@ -793,11 +735,12 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           return null;
         })()}
 
-        <div className="flex items-center justify-between">
+        {/* Generate CTA — full-width with inline quota */}
+        <div className="relative">
           <button
             onClick={handleGenerate}
             disabled={!canGenerate}
-            className="flex-1 py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {generate.isPending ? (
               <>
@@ -812,25 +755,23 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             )}
           </button>
           {postsRemaining !== null && (
-            <span className={cn('text-xs font-mono ml-3 whitespace-nowrap', quotaColor)}>
-              {Math.max(0, postsRemaining)}/{usage!.limits.posts} posts left
+            <span className={cn('absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono', quotaColor)}>
+              {Math.max(0, postsRemaining)}/{usage!.limits.posts}
             </span>
           )}
         </div>
 
-        <p className="text-center text-xs text-white-30">
+        <p className="text-center text-[11px] text-white-25">
           Ctrl+Enter to generate
         </p>
 
-        {/* Series Builder */}
-        <div className="border-t border-white-10 pt-4 mt-2">
+        {/* Series Builder — ghost button toggle */}
+        <div>
           <button
             onClick={() => setShowSeries((v) => !v)}
-            className="flex items-center gap-2 text-xs text-white-40 hover:text-white-60 transition-colors"
+            className="w-full py-2.5 rounded-xl border border-white-10 text-white-40 text-sm font-medium hover:bg-white-5 hover:text-white-60 transition-colors"
           >
-            <Layers className="w-3.5 h-3.5" />
-            {showSeries ? 'Hide series builder' : 'Or create a quick series (2-7 related posts)'}
-            <ChevronDown className={cn('w-3 h-3 transition-transform', showSeries && 'rotate-180')} />
+            {showSeries ? 'Hide series builder' : 'Or create a multi-post series'}
           </button>
 
           {showSeries && (

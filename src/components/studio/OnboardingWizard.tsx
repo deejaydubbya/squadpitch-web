@@ -778,6 +778,83 @@ export function OnboardingWizard() {
         setStages((prev) => ({ ...prev, importing: 'skipped' }));
       }
 
+      // Background: upload extracted external images to Cloudinary
+      if (result.dataItems && result.dataItems.length > 0) {
+        const imageUrls = new Set<string>();
+        for (const item of result.dataItems) {
+          const imgUrl = (item.dataJson as Record<string, unknown>)?.imageUrl;
+          if (typeof imgUrl === 'string' && imgUrl.startsWith('http') && !imgUrl.includes('cloudinary')) {
+            imageUrls.add(imgUrl);
+          }
+        }
+        if (imageUrls.size > 0) {
+          // Fire-and-forget — don't block user
+          (async () => {
+            try {
+              // Create onboarding folder
+              const folderName = `Onboarding — ${brandName}`;
+              let folderId: string | undefined;
+              try {
+                const folderRes = await apiFetch<{ id: string }>(`workspaces/${client.id}/folders`, {
+                  method: 'POST',
+                  body: JSON.stringify({ name: folderName }),
+                });
+                folderId = folderRes.id;
+              } catch {
+                // folder may already exist
+              }
+
+              const urlMap = new Map<string, string>();
+              for (const url of Array.from(imageUrls)) {
+                try {
+                  const asset = await apiFetch<{ id: string; url: string }>(
+                    `workspaces/${client.id}/assets/upload-from-url`,
+                    {
+                      method: 'POST',
+                      body: JSON.stringify({ url, folderId }),
+                    }
+                  );
+                  if (asset.url) {
+                    urlMap.set(url, asset.url);
+                    // Auto-tag fire-and-forget
+                    apiFetch(`workspaces/${client.id}/assets/${asset.id}/auto-tag`, {
+                      method: 'POST',
+                      body: JSON.stringify({}),
+                    }).catch(() => {});
+                  }
+                } catch {
+                  // Skip failed uploads
+                }
+              }
+
+              // Update data items with Cloudinary URLs
+              if (urlMap.size > 0) {
+                try {
+                  const itemsRes = await apiFetch<{ dataItems: Array<{ id: string; dataJson: Record<string, unknown> }> }>(
+                    `workspaces/${client.id}/business-data?limit=50`,
+                  );
+                  for (const item of (itemsRes.dataItems ?? [])) {
+                    const origUrl = item.dataJson?.imageUrl;
+                    if (typeof origUrl === 'string' && urlMap.has(origUrl)) {
+                      await apiFetch(`business-data/${item.id}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                          dataJson: { ...item.dataJson, imageUrl: urlMap.get(origUrl) },
+                        }),
+                      }).catch(() => {});
+                    }
+                  }
+                } catch {
+                  // Non-critical
+                }
+              }
+            } catch {
+              console.error('[onboarding] Background image upload failed');
+            }
+          })();
+        }
+      }
+
       // Stage 4: Generate 3 posts — use core templates + imported data items
       setStage('generating', 'active');
       const channels = result.suggestedChannels.length > 0
