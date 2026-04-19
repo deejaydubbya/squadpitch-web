@@ -577,7 +577,7 @@ export function ListingCampaignPage({ clientId }: Props) {
         const d = listing.dataJson as Record<string, unknown>;
         const imgs = Array.isArray(d.images) ? (d.images as string[]) : d.imageUrl ? [d.imageUrl as string] : [];
         if (imgs.length > 0) loadListingImages(imgs);
-        setStep('form');
+        setStep('images');
       }
     }
 

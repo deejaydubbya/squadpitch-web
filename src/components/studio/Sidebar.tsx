@@ -74,7 +74,7 @@ export function Sidebar({ client }: Props) {
   };
 
   return (
-    <aside className="w-64 flex-shrink-0 border-r border-white-10 bg-sp-bg flex flex-col min-h-screen sticky top-0">
+    <aside className="w-64 flex-shrink-0 border-r border-white-10 bg-sp-bg flex flex-col h-screen">
       {/* Client header */}
       <Link
         href="/workspaces"
@@ -97,7 +97,7 @@ export function Sidebar({ client }: Props) {
       </Link>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
         {navItems.map((item) => {
           const active = isActive(item.href, item.exact, item.activeAlso);
           return (

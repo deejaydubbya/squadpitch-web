@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Search, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useProperties, useArchiveDataItem, type WorkspaceDataItem } from '@/hooks/useSquadpitch';
+import { useProperties, useArchiveDataItem } from '@/hooks/useSquadpitch';
 import { PropertyCard } from '@/components/studio/PropertyCard';
 import { PropertyDetailDrawer } from '@/components/studio/PropertyDetailDrawer';
 
@@ -19,7 +19,8 @@ export function PropertyLibrary({ clientId }: Props) {
   const archive = useArchiveDataItem(clientId);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
-  const [selectedItem, setSelectedItem] = useState<WorkspaceDataItem | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const selectedItem = properties?.find((p) => p.id === selectedItemId) ?? null;
 
   const filtered = useMemo(() => {
     if (!properties) return [];
@@ -127,7 +128,7 @@ export function PropertyLibrary({ clientId }: Props) {
               item={item}
               clientId={clientId}
               onArchive={(id) => archive.mutate(id)}
-              onClick={() => setSelectedItem(item)}
+              onClick={() => setSelectedItemId(item.id)}
             />
           ))}
         </div>
@@ -139,7 +140,7 @@ export function PropertyLibrary({ clientId }: Props) {
           item={selectedItem}
           clientId={clientId}
           isOpen={!!selectedItem}
-          onClose={() => setSelectedItem(null)}
+          onClose={() => setSelectedItemId(null)}
         />
       )}
     </div>
