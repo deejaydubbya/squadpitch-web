@@ -73,6 +73,11 @@ const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
   price_drop: 'Price Drop',
   just_sold: 'Just Sold',
   listing_spotlight: 'Listing Spotlight',
+  general_promotion: 'General Promotion',
+  // Automotive
+  just_arrived: 'Just Arrived',
+  featured_vehicle: 'Featured Vehicle',
+  financing_offer: 'Financing Offer',
 };
 
 // ── Campaign Group Component ──

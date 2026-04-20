@@ -16,6 +16,11 @@ const TYPE_LABELS: Record<string, string> = {
   price_drop: 'Price Drop',
   just_sold: 'Just Sold',
   series: 'Content Series',
+  // Automotive
+  just_arrived: 'Just Arrived',
+  featured_vehicle: 'Featured Vehicle',
+  financing_offer: 'Financing Offer',
+  general_promotion: 'General Promotion',
 };
 
 interface Props {

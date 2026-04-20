@@ -10,6 +10,7 @@ import {
 } from '@/hooks/useSquadpitch';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
+import { listAdapterKeys, getAdapter } from '@/lib/assistant/adapterRegistry';
 
 export default function SettingsPage() {
   const params = useParams<{ clientId: string }>();
@@ -22,19 +23,26 @@ export default function SettingsPage() {
 
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [industryKey, setIndustryKey] = useState('real_estate');
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
+
+  const availableIndustries = listAdapterKeys().map((key) => ({
+    key,
+    label: getAdapter(key).label,
+  }));
 
   useEffect(() => {
     if (client) {
       setName(client.name);
       setLogoUrl(client.logoUrl ?? '');
+      setIndustryKey(client.industryKey ?? 'real_estate');
     }
   }, [client]);
 
   const handleSave = () => {
     update.mutate(
-      { name: name.trim(), logoUrl: logoUrl.trim() || null },
+      { name: name.trim(), logoUrl: logoUrl.trim() || null, industryKey },
       { onSuccess: () => setSavedAt(Date.now()) }
     );
   };
@@ -108,6 +116,26 @@ export default function SettingsPage() {
             placeholder="https://…"
             className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 font-mono"
           />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+            Industry
+          </label>
+          <select
+            value={industryKey}
+            onChange={(e) => setIndustryKey(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+          >
+            {availableIndustries.map((ind) => (
+              <option key={ind.key} value={ind.key}>
+                {ind.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-white-30 mt-1">
+            Controls campaign types, terminology, and intelligence rules used by the assistant.
+          </p>
         </div>
 
         {update.error && (

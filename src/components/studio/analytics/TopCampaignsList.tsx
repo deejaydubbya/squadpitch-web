@@ -9,6 +9,11 @@ const TYPE_LABELS: Record<string, string> = {
   price_drop: 'Price Drop',
   just_sold: 'Just Sold',
   series: 'Content Series',
+  // Automotive
+  just_arrived: 'Just Arrived',
+  featured_vehicle: 'Featured Vehicle',
+  financing_offer: 'Financing Offer',
+  general_promotion: 'General Promotion',
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -17,6 +22,11 @@ const TYPE_COLORS: Record<string, string> = {
   price_drop: 'bg-orange-900/30 text-orange-400',
   just_sold: 'bg-green-900/30 text-green-400',
   series: 'bg-amber-900/30 text-amber-400',
+  // Automotive
+  just_arrived: 'bg-blue-900/30 text-blue-400',
+  featured_vehicle: 'bg-teal-900/30 text-teal-400',
+  financing_offer: 'bg-amber-900/30 text-amber-400',
+  general_promotion: 'bg-slate-900/30 text-slate-400',
 };
 
 interface Props {
