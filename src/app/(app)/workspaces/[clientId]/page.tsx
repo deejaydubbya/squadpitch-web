@@ -37,6 +37,7 @@ import { ListingOpportunitiesWidget } from '@/components/studio/NearbyListingsWi
 import { GBPDashboardWidget } from '@/components/studio/GBPDashboardWidget';
 import { SystemStatusCard } from '@/components/studio/SystemStatusCard';
 import { AutopilotStatusCard } from '@/components/studio/AutopilotStatusCard';
+import { AutopilotCampaignsSection } from '@/components/studio/AutopilotCampaignsSection';
 import { OpportunitiesSection } from '@/components/studio/OpportunitiesSection';
 import { ContentActivitySection } from '@/components/studio/ContentActivitySection';
 import type { NextActionItem } from '@/components/studio/OpportunitiesSection';
@@ -388,6 +389,9 @@ export default function OverviewPage() {
 
       {/* 5b. Autopilot Status */}
       <AutopilotStatusCard clientId={clientId} base={base} />
+
+      {/* 5c. Autopilot Campaign Recommendations */}
+      {isRE && <AutopilotCampaignsSection clientId={clientId} />}
 
       {/* 6. Opportunities — MOST PROMINENT */}
       <OpportunitiesSection

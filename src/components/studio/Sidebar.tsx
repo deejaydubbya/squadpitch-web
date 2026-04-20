@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  Wand2,
+  Sparkles,
   BarChart3,
   Settings,
   Megaphone,
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
+import { useAutopilotCampaignStats } from '@/hooks/useSquadpitch';
 import { useUsage } from '@/hooks/useBilling';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { NotificationBell } from './NotificationBell';
@@ -36,6 +37,8 @@ export function Sidebar({ client }: Props) {
   const isSettingsRoute = pathname.startsWith(`${base}/settings`);
   const [settingsOpen, setSettingsOpen] = useState(isSettingsRoute);
   const { data: usage } = useUsage();
+  const { data: campaignStats } = useAutopilotCampaignStats(client.id);
+  const autopilotBadgeCount = (campaignStats?.pendingCount ?? 0) + (campaignStats?.readyCount ?? 0);
 
   const statusClass =
     client.status === 'ACTIVE'
@@ -50,7 +53,7 @@ export function Sidebar({ client }: Props) {
     { href: base, icon: LayoutDashboard, label: 'Home', exact: true },
     { href: `${base}/planner`, icon: FileText, label: 'Content' },
     { href: `${base}/campaigns`, icon: Megaphone, label: 'Campaigns', activeAlso: [`${base}/listing-campaign`] },
-    { href: `${base}/create`, icon: Wand2, label: 'Quick Post', primary: true },
+    { href: `${base}/compose`, icon: Sparkles, label: 'Create Content', primary: true },
     { href: `${base}/sources`, icon: Database, label: 'Sources' },
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics' },
     { href: `${base}/autopilot`, icon: Zap, label: 'Autopilot' },
@@ -114,7 +117,12 @@ export function Sidebar({ client }: Props) {
                 )}
               >
                 <item.icon className={cn('w-4.5 h-4.5', item.primary && !active ? 'text-green-400' : '')} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.label === 'Autopilot' && autopilotBadgeCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-green-500/20 text-green-400">
+                    {autopilotBadgeCount}
+                  </span>
+                )}
               </Link>
               {/* Listing Campaign sub-item for RE workspaces */}
               {item.label === 'Campaigns' && isRE && (

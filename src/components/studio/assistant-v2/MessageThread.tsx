@@ -1,0 +1,157 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
+import type { ChatMessage, CardType } from '@/lib/assistant/conversation/types';
+import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
+import { ModeCard } from './cards/ModeCard';
+import { CampaignTypeCard } from './cards/CampaignTypeCard';
+import { PropertySelectCard } from './cards/PropertySelectCard';
+import { ChannelSelectCard } from './cards/ChannelSelectCard';
+import { MediaSelectCard } from './cards/MediaSelectCard';
+import { ScheduleReviewCard } from './cards/ScheduleReviewCard';
+import { GenerationCard } from './cards/GenerationCard';
+import { CampaignReviewCard } from './cards/CampaignReviewCard';
+
+interface Props {
+  messages: ChatMessage[];
+  session: AssistantSessionState;
+  clientId: string;
+  onCardSelection: (action: AssistantAction, confirmationText: string) => void;
+}
+
+export function MessageThread({ messages, session, clientId, onCardSelection }: Props) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
+      {messages.map((msg) => (
+        <MessageBubble
+          key={msg.id}
+          message={msg}
+          session={session}
+          clientId={clientId}
+          onCardSelection={onCardSelection}
+        />
+      ))}
+      <div ref={bottomRef} />
+    </div>
+  );
+}
+
+// ── Message Bubble ───────────────────────────────────────────────────────
+
+function MessageBubble({
+  message,
+  session,
+  clientId,
+  onCardSelection,
+}: {
+  message: ChatMessage;
+  session: AssistantSessionState;
+  clientId: string;
+  onCardSelection: (action: AssistantAction, confirmationText: string) => void;
+}) {
+  const isUser = message.type === 'user_text';
+  const isConfirmation = message.type === 'confirmation';
+  const isSystemUpdate = message.type === 'system_update';
+  const isInteractive = message.type === 'interactive_prompt';
+  const isResolved = message.status === 'resolved';
+  const isInvalidated = message.status === 'invalidated';
+
+  // Confirmation messages — compact inline pill
+  if (isConfirmation) {
+    return (
+      <div className="flex justify-center">
+        <div className="text-xs text-accent-green-110 bg-accent-green-110/10 border border-accent-green-110/20 rounded-full px-3 py-1">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
+  // System updates — subtle centered
+  if (isSystemUpdate) {
+    return (
+      <div className="flex justify-center">
+        <div className="text-[11px] text-white-30 bg-white-5 rounded-full px-3 py-1">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
+      <div
+        className={cn(
+          'max-w-[85%] rounded-xl px-4 py-2.5',
+          isUser
+            ? 'bg-accent-green-110/15 text-white-100'
+            : 'bg-white-5 text-white-100',
+          isInteractive && isResolved && 'opacity-60',
+          isInvalidated && 'opacity-40'
+        )}
+      >
+        {/* Text content */}
+        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+
+        {/* Embedded card (only for active interactive prompts) */}
+        {isInteractive && message.status === 'active' && message.cardType && (
+          <div className="mt-3">
+            <CardRenderer
+              cardType={message.cardType}
+              session={session}
+              clientId={clientId}
+              onSelection={onCardSelection}
+            />
+          </div>
+        )}
+
+        {/* Collapsed card indicator */}
+        {isInteractive && isResolved && message.cardType && (
+          <div className="mt-1 text-[11px] text-white-30 italic">Selection confirmed</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Card Router ──────────────────────────────────────────────────────────
+
+function CardRenderer({
+  cardType,
+  session,
+  clientId,
+  onSelection,
+}: {
+  cardType: CardType;
+  session: AssistantSessionState;
+  clientId: string;
+  onSelection: (action: AssistantAction, confirmationText: string) => void;
+}) {
+  switch (cardType) {
+    case 'mode_select':
+      return <ModeCard onSelection={onSelection} />;
+    case 'campaign_type':
+      return <CampaignTypeCard session={session} onSelection={onSelection} />;
+    case 'property_select':
+      return <PropertySelectCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'channel_select':
+      return <ChannelSelectCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'media_select':
+      return <MediaSelectCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'schedule_review':
+      return <ScheduleReviewCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'generation':
+      return <GenerationCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'campaign_review':
+      return <CampaignReviewCard session={session} clientId={clientId} onSelection={onSelection} />;
+    default:
+      return null;
+  }
+}

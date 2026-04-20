@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Zap, ChevronRight, AlertTriangle } from 'lucide-react';
-import { useAutopilotStatus, useAutopilotReadiness } from '@/hooks/useSquadpitch';
+import { Zap, ChevronRight, AlertTriangle, Megaphone } from 'lucide-react';
+import { useAutopilotStatus, useAutopilotReadiness, useAutopilotCampaignStats } from '@/hooks/useSquadpitch';
 import { cn } from '@/lib/utils';
 
 const MODE_LABELS: Record<string, string> = {
@@ -32,6 +32,8 @@ interface Props {
 export function AutopilotStatusCard({ clientId, base }: Props) {
   const { data: status } = useAutopilotStatus(clientId);
   const { data: readiness } = useAutopilotReadiness(clientId);
+  const { data: campaignStats } = useAutopilotCampaignStats(clientId);
+  const campaignsReady = (campaignStats?.pendingCount ?? 0) + (campaignStats?.readyCount ?? 0);
 
   if (!status) return null;
 
@@ -84,6 +86,19 @@ export function AutopilotStatusCard({ clientId, base }: Props) {
           </p>
         </div>
       </div>
+
+      {campaignsReady > 0 && (
+        <Link
+          href={`${base}/autopilot`}
+          className="flex items-center gap-2 px-3 py-2 mb-3 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20 hover:border-accent-green-110/30 transition-colors"
+        >
+          <Megaphone className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
+          <p className="text-xs text-accent-green-110 font-medium">
+            {campaignsReady} campaign{campaignsReady > 1 ? 's' : ''} ready for review
+          </p>
+          <ChevronRight className="w-3 h-3 text-accent-green-110/60 ml-auto" />
+        </Link>
+      )}
 
       {hasIssue && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">

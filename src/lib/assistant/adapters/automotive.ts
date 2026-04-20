@@ -354,7 +354,7 @@ export const automotiveAdapter: IndustryAdapter = {
       },
     },
     quickPostRequiresItem: false,
-    campaignRequiresMedia: false,
+    campaignRequiresMedia: true,
   },
 
   campaignTypes: [

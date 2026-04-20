@@ -899,6 +899,72 @@ export interface AutopilotExecuteResult {
   scheduled: number;
 }
 
+// ── Autopilot Campaign Types ────────────────────────────────────────
+
+export type AutopilotTriggerType =
+  | 'new_listing'
+  | 'price_drop'
+  | 'open_house_added'
+  | 'open_house_updated'
+  | 'status_changed';
+
+export type AutopilotCampaignStatus =
+  | 'pending'
+  | 'generating'
+  | 'ready'
+  | 'approved'
+  | 'dismissed'
+  | 'expired'
+  | 'converted'
+  | 'launched';
+
+export interface AutopilotCampaignRecommendation {
+  id: string;
+  clientId: string;
+  status: AutopilotCampaignStatus;
+
+  // Trigger
+  triggerType: AutopilotTriggerType;
+  triggerReason: string;
+  triggeredAt: string;
+
+  // Property
+  listingDataItemId: string;
+  propertyTitle: string;
+  propertyAddress: string | null;
+  propertyData: Record<string, unknown>;
+  propertyImageUrl: string | null;
+
+  // Campaign recommendation
+  suggestedCampaignType: string;
+  confidence: 'high' | 'medium' | 'low';
+  suggestedChannels: Channel[];
+
+  // Generated content (populated when status='ready')
+  generatedCampaign: ListingCampaignResult | null;
+  postCount: number | null;
+
+  // Links to resulting campaign after approval
+  approvedCampaignId: string | null;
+
+  createdAt: string;
+  expiresAt: string | null;
+}
+
+export interface AutopilotCampaignStatsResponse {
+  pendingCount: number;
+  readyCount: number;
+  approvedThisWeek: number;
+  dismissedThisWeek: number;
+  convertedThisWeek: number;
+}
+
+export interface AutopilotCampaignRecommendationsResponse {
+  recommendations: AutopilotCampaignRecommendation[];
+  pendingCount: number;
+  readyCount: number;
+}
+
 // ── Planner Suggestion Types ─────────────────────────────────────────
 
 export interface PlannerSuggestion {
@@ -1153,6 +1219,12 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', clientId, 'dashboard-actions'] as const,
   nearbyListings: (clientId: string, zipCode: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'nearby-listings', zipCode] as const,
+  autopilotCampaigns: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'autopilot-campaigns'] as const,
+  autopilotCampaignStats: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'autopilot-campaign-stats'] as const,
+  contentPreferences: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'content-preferences'] as const,
 };
 
 // ── Clients ──────────────────────────────────────────────────────────────
@@ -2667,6 +2739,152 @@ export function useAutopilotStatus(clientId: string | undefined) {
   });
 }
 
+// ── Autopilot Campaign Recommendations ─────────────────────────────────
+
+export function useAutopilotCampaignRecommendations(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.autopilotCampaigns(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<AutopilotCampaignRecommendationsResponse>(
+        `workspaces/${clientId}/autopilot/campaign-recommendations`,
+      ),
+    enabled: Boolean(clientId),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useAutopilotCampaignStats(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.autopilotCampaignStats(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<AutopilotCampaignStatsResponse>(
+        `workspaces/${clientId}/autopilot/campaign-stats`,
+      ),
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useGenerateAutopilotCampaign(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (recommendationId: string) =>
+      apiFetch<AutopilotCampaignRecommendation>(
+        `workspaces/${clientId}/autopilot/campaign-recommendations/${recommendationId}/generate`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaigns(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaignStats(clientId) });
+    },
+  });
+}
+
+export function useApproveAutopilotCampaign(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { recommendationId: string; addToPlanner: boolean }) =>
+      apiFetch<{ success: boolean }>(
+        `workspaces/${clientId}/autopilot/campaign-recommendations/${input.recommendationId}/approve`,
+        { method: 'POST', body: JSON.stringify({ addToPlanner: input.addToPlanner }) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaigns(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaignStats(clientId) });
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
+    },
+  });
+}
+
+export function useDismissAutopilotCampaign(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { recommendationId: string; reason?: string }) =>
+      apiFetch<{ success: boolean }>(
+        `workspaces/${clientId}/autopilot/campaign-recommendations/${input.recommendationId}/dismiss`,
+        { method: 'POST', body: JSON.stringify({ reason: input.reason }) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaigns(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaignStats(clientId) });
+    },
+  });
+}
+
+export function useConvertAutopilotCampaign(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (recommendationId: string) =>
+      apiFetch<{ success: boolean }>(
+        `workspaces/${clientId}/autopilot/campaign-recommendations/${recommendationId}/convert`,
+        { method: 'POST' },
+      ).catch(() => ({ success: false })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaigns(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaignStats(clientId) });
+    },
+  });
+}
+
+// ── Content Preferences ──────────────────────────────────────────────────
+
+export type PreferredTone = 'professional' | 'casual' | 'witty' | 'inspirational' | 'urgent' | 'luxury';
+export type PreferredCtaStyle = 'direct' | 'soft' | 'question' | 'urgency' | 'none';
+export type PreferredCadence = 'aggressive' | 'balanced' | 'luxury';
+export type MediaOrderPreference = 'exterior_first' | 'hero_first' | 'ai_recommended' | 'manual';
+
+export interface ContentPreferences {
+  clientId: string;
+
+  // Channel defaults
+  preferredChannels: Channel[];
+  defaultQuickPostChannel: Channel | null;
+
+  // Voice/tone
+  preferredTone: PreferredTone | null;
+  preferredCtaStyle: PreferredCtaStyle | null;
+
+  // Campaign defaults
+  preferredCampaignCadence: PreferredCadence | null;
+  defaultCampaignType: string | null;
+
+  // Media
+  mediaOrderPreference: MediaOrderPreference | null;
+
+  // Workflow
+  alwaysRequireReview: boolean;
+  autoGenerateMedia: boolean;
+
+  // Content bucket default
+  defaultContentBucket: string | null;
+
+  updatedAt: string;
+}
+
+export function useContentPreferences(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.contentPreferences(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<{ preferences: ContentPreferences }>(
+        `workspaces/${clientId}/content-preferences`,
+      ).then((r) => r.preferences),
+    enabled: Boolean(clientId),
+  });
+}
+
+export function useUpdateContentPreferences(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<Omit<ContentPreferences, 'clientId' | 'updatedAt'>>) =>
+      apiFetch<{ preferences: ContentPreferences }>(
+        `workspaces/${clientId}/content-preferences`,
+        { method: 'PUT', body: JSON.stringify(body) },
+      ).then((r) => r.preferences),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.contentPreferences(clientId) });
+    },
+  });
+}
+
 // ── Listing Feed ─────────────────────────────────────────────────────────
 
 export function useRefreshListingFeed(clientId: string) {
@@ -4073,6 +4291,7 @@ export function useGenerateListingCampaign(clientId: string) {
       campaignType?: CampaignType;
       imageContext?: CampaignImageContext[];
       slots?: Array<{ label: string; channel: string; campaignDay: number; slotType?: string; angle?: string }>;
+      preferencesContext?: string;
     }) =>
       apiFetch<ListingCampaignResult>(
         `workspaces/${clientId}/listing-campaign/generate`,

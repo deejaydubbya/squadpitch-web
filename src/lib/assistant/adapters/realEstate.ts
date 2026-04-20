@@ -418,7 +418,7 @@ export const realEstateAdapter: IndustryAdapter = {
       },
     },
     quickPostRequiresItem: false,
-    campaignRequiresMedia: false,
+    campaignRequiresMedia: true,
   },
 
   campaignTypes: [

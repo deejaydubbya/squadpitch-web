@@ -29,6 +29,7 @@ export const INITIAL_SESSION: AssistantSessionState = {
   slots: [],
 
   selectedMediaIds: [],
+  mediaAcknowledged: false,
 
   quickPostChannel: null,
   quickPostGuidance: null,

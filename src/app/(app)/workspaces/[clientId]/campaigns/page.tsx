@@ -3,8 +3,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Megaphone, Plus } from 'lucide-react';
-import { useDrafts, useClient } from '@/hooks/useSquadpitch';
+import { Megaphone, Plus, Zap } from 'lucide-react';
+import { useDrafts, useClient, useAutopilotCampaignStats } from '@/hooks/useSquadpitch';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { CampaignSection } from '@/components/studio/CampaignSection';
 import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
@@ -15,8 +15,10 @@ export default function CampaignsPage() {
   const { data: client } = useClient(clientId);
   const { data: allDrafts, isLoading } = useDrafts({ clientId, limit: 200 });
 
+  const { data: campaignStats } = useAutopilotCampaignStats(clientId);
   const isRE = client?.industryKey === 'real_estate';
   const base = `/workspaces/${clientId}`;
+  const autopilotActionableCount = (campaignStats?.pendingCount ?? 0) + (campaignStats?.readyCount ?? 0);
 
   const { campaignGroups } = useMemo(() => {
     if (!allDrafts) return { campaignGroups: [], standaloneDrafts: [] };
@@ -72,6 +74,20 @@ export default function CampaignsPage() {
           </Link>
         </div>
       </div>
+
+      {/* Autopilot campaign recommendations banner */}
+      {autopilotActionableCount > 0 && (
+        <Link
+          href={`${base}/autopilot`}
+          className="flex items-center gap-2 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 hover:border-yellow-500/30 transition-colors"
+        >
+          <Zap className="w-4 h-4 text-yellow-400" />
+          <span className="text-sm text-yellow-400 font-medium">
+            Autopilot has {autopilotActionableCount} campaign recommendation{autopilotActionableCount > 1 ? 's' : ''} ready for review
+          </span>
+          <span className="ml-auto text-xs text-yellow-400/70 font-medium">Review →</span>
+        </Link>
+      )}
 
       {/* Loading */}
       {isLoading && (

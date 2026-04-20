@@ -74,6 +74,7 @@ export interface AssistantSessionState {
 
   // Media
   selectedMediaIds: string[];
+  mediaAcknowledged: boolean;
 
   // Quick post
   quickPostChannel: Channel | null;
@@ -116,6 +117,7 @@ export type AssistantAction =
   | { type: 'SET_SCHEDULE_MODE'; payload: ScheduleMode }
   | { type: 'SET_SLOTS'; payload: ScheduleSlot[] }
   | { type: 'SET_MEDIA'; payload: string[] }
+  | { type: 'SET_MEDIA_ACKNOWLEDGED' }
   | { type: 'SET_QUICK_POST_CHANNEL'; payload: Channel }
   | { type: 'SET_QUICK_POST_GUIDANCE'; payload: string }
   | { type: 'SET_QUICK_POST_KIND'; payload: DraftKind }

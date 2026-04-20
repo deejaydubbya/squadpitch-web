@@ -46,6 +46,8 @@ import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistr
 import { DraftPreviewCard } from './DraftPreviewCard';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { MediaLightbox } from './MediaLightbox';
+import { InlineActionsMenu } from './InlineActionsMenu';
+import { DraftOptimizations } from './OptimizationSuggestions';
 
 interface Props {
   draft: Draft;
@@ -393,6 +395,8 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
           Regenerate
         </button>
 
+        <InlineActionsMenu draft={draft} />
+
         <button
           onClick={() => {
             if (confirm('Delete this draft?')) deleteDraft.mutate(draft.id);
@@ -509,6 +513,13 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
               )}
             </p>
           ))}
+        </div>
+      )}
+
+      {/* Draft-level optimization suggestions (standalone drafts only) */}
+      {!draft.campaignId && expanded && draft.status !== 'PUBLISHED' && draft.status !== 'REJECTED' && (
+        <div className="px-5 pb-1">
+          <DraftOptimizations draft={draft} />
         </div>
       )}
 

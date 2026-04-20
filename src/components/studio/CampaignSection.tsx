@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Draft } from '@/hooks/useSquadpitch';
+import { CampaignOptimizations } from './OptimizationSuggestions';
 import {
   CAMPAIGN_TYPE_LABELS,
   CHANNEL_LABELS,
@@ -203,6 +204,14 @@ export function CampaignSection({
               Review, edit, reschedule, or publish your posts below
             </p>
           )}
+
+          {/* Optimization suggestions for this campaign */}
+          <CampaignOptimizations
+            drafts={campaignDrafts}
+            campaignId={campaignId}
+            campaignType={campaignMeta.type}
+            clientId={clientId}
+          />
 
           {dayGroups.map(([day, drafts]) => {
             const representativeDate = drafts.find((d) => d.scheduledFor)?.scheduledFor;
