@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth0 } from '@/lib/auth0';
 
-const PUBLIC_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/terms', '/privacy'];
+const PUBLIC_PATHS = ['/'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
