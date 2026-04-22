@@ -1,5 +1,6 @@
 export * from './types';
 export { resolveNextPrompts, isReadyToGenerate, getStateSummary, getCompletionStatus, getNextStep } from './stateResolver';
+export type { SummaryItem } from './stateResolver';
 export { parseUserInput } from './inputParser';
 export { mapSessionToCampaignInput, mapSessionToQuickPostInput, validateSessionForGeneration } from './sessionToGeneration';
 export {

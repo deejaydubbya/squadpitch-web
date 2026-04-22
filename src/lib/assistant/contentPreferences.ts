@@ -162,9 +162,9 @@ export const CTA_STYLE_OPTIONS: Array<{ value: string; label: string; descriptio
 ];
 
 export const CADENCE_OPTIONS: Array<{ value: PreferredCadence; label: string; description: string }> = [
-  { value: 'aggressive', label: 'Aggressive', description: 'Front-loaded, 4-5 posts in 3-4 days' },
-  { value: 'balanced', label: 'Balanced', description: 'Even pacing, 5 posts over 7 days' },
-  { value: 'luxury', label: 'Luxury', description: 'Slow build, 5 posts over 10 days' },
+  { value: 'aggressive', label: 'Fast', description: 'Front-loaded posts for maximum early impact' },
+  { value: 'balanced', label: 'Standard', description: 'Even pacing over about a week' },
+  { value: 'luxury', label: 'Extended', description: 'Slow build over 10+ days for sustained storytelling' },
 ];
 
 export const MEDIA_ORDER_OPTIONS: Array<{ value: MediaOrderPreference; label: string; description: string }> = [

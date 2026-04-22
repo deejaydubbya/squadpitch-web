@@ -8,6 +8,11 @@ import type {
   PrioritizeMediaInput,
   ScheduleRecommendation,
 } from './campaignIntelligence.types';
+import type {
+  CampaignStrategyKey,
+  CampaignCadenceKey,
+  StrategyResolution,
+} from './campaignStrategy.types';
 
 // ── Supporting Types ────────────────────────────────────────────────────
 
@@ -53,6 +58,8 @@ export interface ScheduleStrategy {
   slotPurposeHints: Record<string, string>;
   slotMediaHints: Record<string, string>;
   selectPreset: (campaignType: string, itemData: Record<string, unknown>) => { presetKey: string; reason: string };
+  /** Resolve the full strategy + cadence + phases from campaign type and item data */
+  resolveStrategy?: (campaignType: string, itemData: Record<string, unknown>) => StrategyResolution;
 }
 
 export interface ValidationResult {

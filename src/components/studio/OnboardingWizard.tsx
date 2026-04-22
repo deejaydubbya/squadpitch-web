@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useQueryClient } from '@tanstack/react-query';
@@ -17,10 +17,6 @@ import {
   Upload,
   FileText,
   X,
-  Instagram,
-  Linkedin,
-  Music2,
-  Youtube,
   Pencil,
   Database,
   SlidersHorizontal,
@@ -58,7 +54,6 @@ import {
   type Draft,
   type OnboardingAnalyzeResult,
   type OnboardingDataItem,
-  type OAuthStartResponse,
   type IndustryProfile,
   type OnboardingBrandData,
   type AgentProfileDraft,
@@ -68,6 +63,9 @@ import { StatusBanner } from '@/components/common/StatusBanner';
 import { OnboardingPostCard } from '@/components/studio/OnboardingPostCard';
 import { RealEstateSourceCard } from '@/components/studio/RealEstateSourceCard';
 import { AgentProfileConfirmation } from '@/components/studio/AgentProfileConfirmation';
+import { OnboardingChannelConnect } from '@/components/studio/onboarding/OnboardingChannelConnect';
+import { OnboardingTechStack } from '@/components/studio/onboarding/OnboardingTechStack';
+import { buildOnboardingGenerationPlan } from '@/lib/assistant/onboardingPlanner';
 
 function slugify(value: string) {
   return value
@@ -207,13 +205,6 @@ const INDUSTRY_PREVIEW_CONTENT: Record<string, { title: string; snippet: string;
 
 const DEFAULT_PREVIEW_CONTENT = INDUSTRY_PREVIEW_CONTENT.small_business;
 
-const CONNECT_CHANNELS: { id: Channel; label: string; icon: typeof Instagram }[] = [
-  { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram },
-  { id: 'LINKEDIN', label: 'LinkedIn', icon: Linkedin },
-  { id: 'TIKTOK', label: 'TikTok', icon: Music2 },
-  { id: 'YOUTUBE', label: 'YouTube', icon: Youtube },
-];
-
 type SetupStage = 'uploading' | 'analyzing' | 'extracting' | 'extractingData' | 'importing' | 'workspace' | 'generating';
 
 type StageStatus = 'pending' | 'active' | 'done';
@@ -335,7 +326,7 @@ async function consumeAnalyzeStream(
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(0);
 
   // Industry profiles
   const { data: industries = [] } = useIndustries();
@@ -406,6 +397,9 @@ export function OnboardingWizard() {
   const [generatingMore, setGeneratingMore] = useState(false);
   const [templateLabels, setTemplateLabels] = useState<string[]>([]);
 
+  // Connected channels from Step 2
+  const [connectedChannelsList, setConnectedChannelsList] = useState<Channel[]>([]);
+
   // Track if setup is running to prevent double-click
   const setupRunning = useRef(false);
   const importedDataItemIds = useRef<string[]>([]);
@@ -414,45 +408,6 @@ export function OnboardingWizard() {
   const queryClient = useQueryClient();
   const connections = useChannelConnections(createdClientId ?? undefined);
   const hasConnectedChannel = (connections.data ?? []).some((c) => c.status === 'CONNECTED');
-  const [showConnectPrompt, setShowConnectPrompt] = useState(false);
-  const oauthPopupRef = useRef<Window | null>(null);
-
-  // Listen for OAuth completion from popup
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'sp-oauth-complete' && createdClientId) {
-        queryClient.invalidateQueries({ queryKey: squadpitchKeys.connections(createdClientId) });
-        setShowConnectPrompt(false);
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [createdClientId, queryClient]);
-
-  const handleConnectChannel = useCallback(async (channel: Channel) => {
-    if (!createdClientId) return;
-
-    if (oauthPopupRef.current && !oauthPopupRef.current.closed) {
-      oauthPopupRef.current.focus();
-      return;
-    }
-
-    const popup = window.open('about:blank', 'sp-oauth-popup', 'width=600,height=720');
-    if (!popup) return;
-    oauthPopupRef.current = popup;
-
-    try {
-      const data = await apiFetch<OAuthStartResponse>(
-        `workspaces/${createdClientId}/connections/${channel}/oauth/start`,
-        { method: 'POST' },
-      );
-      if (popup.closed) { oauthPopupRef.current = null; return; }
-      popup.location.href = data.authUrl;
-    } catch {
-      popup.close();
-      oauthPopupRef.current = null;
-    }
-  }, [createdClientId]);
 
   // Mutations
   const uploadDocuments = useOnboardingUploadDocuments();
@@ -855,76 +810,7 @@ export function OnboardingWizard() {
         }
       }
 
-      // Stage 4: Generate 3 posts — use core templates + imported data items
-      setStage('generating', 'active');
-      const channels = result.suggestedChannels.length > 0
-        ? result.suggestedChannels
-        : ['INSTAGRAM' as Channel];
-
-      const coreTemplates = result.coreTemplates ?? [];
-      const angles = result.starterAngles ?? [];
-      const defaultGuidance = `Create a specific, ready-to-publish social media post for ${brandName}. Use concrete details — real numbers, specific benefits, and direct language. Reference their ${result.brandData.industry || 'business'} expertise. No vague or generic statements.`;
-
-      // Build business context snippet to enrich every generation call
-      const bd = result.brandData;
-      const bizContext = [
-        bd.name && `Business: ${bd.name}.`,
-        bd.offers && `Offerings: ${bd.offers}.`,
-        bd.audience && `Audience: ${bd.audience}.`,
-        bd.description && `About: ${bd.description}.`,
-      ].filter(Boolean).join(' ');
-
-      // Fetch imported data items so posts are based on real business data
-      let importedItems: { id: string }[] = [];
-      try {
-        const itemsRes = await apiFetch<{ dataItems: { id: string }[] }>(
-          `workspaces/${client.id}/business-data?limit=10`,
-        );
-        importedItems = itemsRes.dataItems ?? [];
-        importedDataItemIds.current = importedItems.map((item) => item.id);
-      } catch {
-        // No data items available — fall back to guidance-only
-      }
-
-      for (let i = 0; i < 3; i++) {
-        const template = coreTemplates[i];
-        const channel = channels[i % channels.length];
-        const dataItemId = importedItems[i]?.id;
-        const baseGuidance = template?.guidance || angles[i] || defaultGuidance;
-        const guidance = bizContext ? `${baseGuidance} ${bizContext}` : baseGuidance;
-        try {
-          const draft = await generate.mutateAsync({
-            clientId: client.id,
-            kind: 'POST',
-            channel,
-            guidance,
-            ...(template ? { templateType: template.type } : {}),
-            ...(dataItemId ? { dataItemId } : {}),
-          });
-          setGeneratedDrafts((prev) => [...prev, draft]);
-          setTemplateLabels((prev) => [...prev, template?.title || '']);
-          setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
-
-          // Fire-and-forget image generation — always generate AI images during onboarding
-          // (scraped website images are often low-quality thumbnails/logos)
-          if (draft.imageGuidance) {
-            apiFetch('assets/generate', {
-              method: 'POST',
-              body: JSON.stringify({
-                clientId: client.id,
-                guidance: draft.imageGuidance,
-                draftId: draft.id,
-                channel,
-              }),
-            }).catch(() => {}); // don't block onboarding flow
-          }
-        } catch {
-          // Continue generating remaining posts if one fails
-        }
-      }
-      setStage('generating', 'done');
-
-      // DON'T auto-advance — let user review results and click Continue
+      // Generation deferred to Step 4 — setup is complete after workspace + import
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed. Please try again.');
       setupRunning.current = false;
@@ -1131,8 +1017,93 @@ export function OnboardingWizard() {
     stages.extracting === 'done' &&
     (stages.extractingData === 'done' || stages.extractingData === 'skipped') &&
     (stages.importing === 'done' || stages.importing === 'skipped') &&
-    stages.workspace === 'done' &&
-    stages.generating === 'done';
+    stages.workspace === 'done';
+
+  // ── Step 4 auto-generation: runs planner then generates posts ────
+
+  const generationRunning = useRef(false);
+
+  useEffect(() => {
+    if (step !== 4 || !createdClientId || !analyzeResult || generatedDrafts.length > 0 || generationRunning.current) return;
+    generationRunning.current = true;
+    setStage('generating', 'active');
+
+    (async () => {
+      try {
+        const bd = analyzeResult.brandData;
+        const brandName = bd.name || 'Your Brand';
+        const bizContext = [
+          bd.name && `Business: ${bd.name}.`,
+          bd.offers && `Offerings: ${bd.offers}.`,
+          bd.audience && `Audience: ${bd.audience}.`,
+          bd.description && `About: ${bd.description}.`,
+        ].filter(Boolean).join(' ');
+
+        // Fetch latest data items
+        let dataItems: { id: string; dataJson: Record<string, unknown> }[] = [];
+        try {
+          const itemsRes = await apiFetch<{ dataItems: { id: string; dataJson: Record<string, unknown> }[] }>(
+            `workspaces/${createdClientId}/business-data?limit=10`,
+          );
+          dataItems = itemsRes.dataItems ?? [];
+          importedDataItemIds.current = dataItems.map((item) => item.id);
+        } catch {
+          // No data items — planner will use fallback templates
+        }
+
+        // Run planner
+        const slots = buildOnboardingGenerationPlan({
+          coreTemplates: (analyzeResult.coreTemplates ?? []) as { type: string; title: string; guidance: string; conditions?: { hasData?: boolean; requiredDataType?: string } }[],
+          starterAngles: analyzeResult.starterAngles ?? [],
+          dataItems,
+          connectedChannels: connectedChannelsList,
+          industryKey: selectedIndustry ?? '',
+          brandContext: bizContext,
+        });
+
+        // Generate each slot (exclude YouTube — requires video, too expensive for onboarding)
+        const nonVideoChannels = connectedChannelsList.filter((ch) => ch !== 'YOUTUBE');
+        const fallbackChannel = nonVideoChannels[0] ?? analyzeResult.suggestedChannels.find((ch) => ch !== 'YOUTUBE') ?? ('INSTAGRAM' as Channel);
+        for (const slot of slots) {
+          const channel = slot.channel ?? fallbackChannel;
+          try {
+            const draft = await generate.mutateAsync({
+              clientId: createdClientId,
+              kind: 'POST',
+              channel,
+              guidance: slot.guidance,
+              ...(slot.templateType ? { templateType: slot.templateType } : {}),
+              ...(slot.dataItemId ? { dataItemId: slot.dataItemId } : {}),
+            });
+            setGeneratedDrafts((prev) => [...prev, draft]);
+            setTemplateLabels((prev) => [...prev, slot.title]);
+            setStages((prev) => ({ ...prev, postsGenerated: prev.postsGenerated + 1 }));
+
+            // Fire-and-forget image generation
+            if (draft.imageGuidance) {
+              apiFetch('assets/generate', {
+                method: 'POST',
+                body: JSON.stringify({
+                  clientId: createdClientId,
+                  guidance: draft.imageGuidance,
+                  draftId: draft.id,
+                  channel,
+                }),
+              }).catch(() => {});
+            }
+          } catch {
+            // Continue generating remaining posts if one fails
+          }
+        }
+        setStage('generating', 'done');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Generation failed.');
+      } finally {
+        generationRunning.current = false;
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, createdClientId]);
 
   // ── Step 1: Business Input ──────────────────────────────────────────
 
@@ -1497,9 +1468,47 @@ export function OnboardingWizard() {
     );
   }
 
-  // ── Step 3: Content Preview ───────────────────────────────────────
+  // ── Step 2: Channel Connection ──────────────────────────────────────
 
   if (step === 2) {
+    const channelRecs = analyzeResult
+      ? (() => {
+          const industryProfile = industries.find((p) => p.key === selectedIndustry);
+          return industryProfile?.content.channelRecommendations ?? null;
+        })()
+      : null;
+
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] py-8">
+        <OnboardingChannelConnect
+          clientId={createdClientId!}
+          industryKey={selectedIndustry ?? ''}
+          channelRecommendations={channelRecs}
+          onContinue={(channels) => {
+            setConnectedChannelsList(channels);
+            setStep(3);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ── Step 3: Tech Stack / Data Sources ─────────────────────────────
+
+  if (step === 3) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] py-8">
+        <OnboardingTechStack
+          clientId={createdClientId!}
+          onContinue={() => setStep(4)}
+        />
+      </div>
+    );
+  }
+
+  // ── Step 4: Generate & Review ─────────────────────────────────────
+
+  if (step === 4) {
     return (
       <div className="flex flex-col items-center min-h-[60vh] max-w-5xl mx-auto">
         {/* Success overlay */}
@@ -1520,21 +1529,37 @@ export function OnboardingWizard() {
         {/* ── Level 1: Wow moment headline ── */}
         <div className="text-center space-y-3 pt-4 pb-2">
           <Image src="/icon-192.png" alt="Squadpitch" width={40} height={40} className="mx-auto" />
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-semibold animate-in fade-in duration-500">
-            <CheckCircle2 className="w-4 h-4" />
-            {analyzeResult?.brandData.name
-              ? `Created for ${analyzeResult.brandData.name}`
-              : 'Created for your business'}
-          </div>
+          {stages.generating === 'done' ? (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-sm font-semibold animate-in fade-in duration-500">
+              <CheckCircle2 className="w-4 h-4" />
+              {analyzeResult?.brandData.name
+                ? `Created for ${analyzeResult.brandData.name}`
+                : 'Created for your business'}
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white-10 text-white-60 text-sm font-medium animate-pulse">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Generating your content...
+            </div>
+          )}
           <h2 className="text-3xl sm:text-4xl font-bold text-white">
-            Your marketing system is ready
+            {stages.generating === 'done' ? 'Your marketing system is ready' : 'Creating your content'}
           </h2>
           <p className="text-base text-white-60 max-w-lg mx-auto">
-            {analyzeResult?.brandData.name
-              ? `Based on ${analyzeResult.brandData.name}'s profile${analyzeResult.brandData.industry ? ` and ${analyzeResult.brandData.industry.toLowerCase()} expertise` : ''}, here are posts you can publish today.`
-              : 'Based on your business details, here are posts you can publish today.'}
+            {stages.generating !== 'done'
+              ? `Writing ${stages.postsGenerated > 0 ? `${stages.postsGenerated} of 3` : ''} personalized posts based on your business data...`
+              : analyzeResult?.brandData.name
+                ? `Based on ${analyzeResult.brandData.name}'s profile${analyzeResult.brandData.industry ? ` and ${analyzeResult.brandData.industry.toLowerCase()} expertise` : ''}, here are posts you can publish today.`
+                : 'Based on your business details, here are posts you can publish today.'}
           </p>
         </div>
+
+        {/* No channels info banner */}
+        {connectedChannelsList.length === 0 && stages.generating === 'done' && generatedDrafts.length > 0 && (
+          <div className="w-full px-4 py-3 rounded-xl bg-white-5 border border-white-10 text-center text-sm text-white-50">
+            These posts were created as content ideas. Connect a channel to publish them.
+          </div>
+        )}
 
         {/* ── Channel filter tabs ── */}
         {generatedDrafts.length > 0 && (() => {
@@ -1597,8 +1622,8 @@ export function OnboardingWizard() {
           );
         })()}
 
-        {/* ── Level 2: Post cards (the hero) ── */}
-        {generatedDrafts.length > 0 ? (() => {
+        {/* ── Level 2: Post cards + skeleton placeholders (single grid) ── */}
+        {(() => {
           const shortenTitle = (t: string) =>
             t.replace(/^(Post|Share|Promote|Announce|Feature|Showcase|List|Create|Highlight)\s+(a |an |the |Your |Today's )?/i, '')
              .replace(/\s+Post$/i, '')
@@ -1606,6 +1631,23 @@ export function OnboardingWizard() {
           const filteredDrafts = channelFilter
             ? generatedDrafts.filter((d) => d.channel === channelFilter)
             : generatedDrafts;
+          const remainingSkeletons = stages.generating !== 'done'
+            ? Math.max(0, 3 - generatedDrafts.length)
+            : 0;
+
+          if (filteredDrafts.length === 0 && remainingSkeletons === 0 && stages.generating === 'done') {
+            return (
+              <div className="p-8 rounded-2xl bg-sp-card border border-white-15 text-center w-full mt-6 space-y-3">
+                <p className="text-base font-semibold text-white">
+                  We created starter content — customize anytime
+                </p>
+                <p className="text-sm text-white-60">
+                  Head to your dashboard to create and schedule posts.
+                </p>
+              </div>
+            );
+          }
+
           return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full pt-4 pb-2">
               {filteredDrafts.map((draft, i) => {
@@ -1629,26 +1671,32 @@ export function OnboardingWizard() {
                       industryKey={selectedIndustry ?? undefined}
                       postIndex={originalIndex}
                       channelConnected={hasConnectedChannel}
-                      onConnectChannel={() => setShowConnectPrompt(true)}
                     />
                   </div>
                 );
               })}
+              {Array.from({ length: remainingSkeletons }).map((_, i) => (
+                <div key={`skeleton-${i}`} className="rounded-2xl border border-white-15 overflow-hidden bg-sp-card animate-pulse">
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full bg-white-10" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3.5 w-28 bg-white-10 rounded" />
+                      <div className="h-2.5 w-16 bg-white-10/60 rounded" />
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 space-y-2.5 border-t border-white-15">
+                    <div className="h-3 w-full bg-white-10 rounded" />
+                    <div className="h-3 w-5/6 bg-white-10 rounded" />
+                    <div className="h-3 w-2/3 bg-white-10 rounded" />
+                  </div>
+                </div>
+              ))}
             </div>
           );
-        })() : (
-          <div className="p-8 rounded-2xl bg-sp-card border border-white-15 text-center w-full mt-6 space-y-3">
-            <p className="text-base font-semibold text-white">
-              We created starter content — customize anytime
-            </p>
-            <p className="text-sm text-white-60">
-              Head to your dashboard to create and schedule posts.
-            </p>
-          </div>
-        )}
+        })()}
 
         {/* Generate More Content — lazy load additional posts */}
-        {generatedDrafts.length > 0 && generatedDrafts.length < 10 && (
+        {stages.generating === 'done' && generatedDrafts.length > 0 && generatedDrafts.length < 10 && (
           <button
             onClick={handleGenerateMore}
             disabled={generatingMore}
@@ -1684,17 +1732,6 @@ export function OnboardingWizard() {
             </p>
 
             <div className="flex items-center justify-center gap-4">
-              {!hasConnectedChannel && (
-                <>
-                  <button
-                    onClick={() => setShowConnectPrompt(true)}
-                    className="text-xs text-accent-green-110/70 hover:text-accent-green-110 transition-colors"
-                  >
-                    Connect a channel first
-                  </button>
-                  <span className="text-white-15">·</span>
-                </>
-              )}
               <button
                 onClick={() => setStep(0)}
                 className="text-xs text-white-30 hover:text-white-50 transition-colors"
@@ -1706,35 +1743,6 @@ export function OnboardingWizard() {
         )}
 
         {bulkError && <div className="w-full pt-2"><StatusBanner error={bulkError} /></div>}
-
-        {/* Connect prompt — shown when no channel connected and user tries to schedule */}
-        {showConnectPrompt && !hasConnectedChannel && (
-          <div className="w-full p-5 rounded-2xl bg-sp-card border border-accent-green-110/30 space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="text-center space-y-1.5">
-              <p className="text-base font-semibold text-white">
-                Connect a platform to publish
-              </p>
-              <p className="text-sm text-white-70">
-                Choose where you want to publish. You can add more later.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {CONNECT_CHANNELS.map((ch) => (
-                <button
-                  key={ch.id}
-                  onClick={() => handleConnectChannel(ch.id)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 hover:border-accent-green-110/50 hover:bg-white-10 transition-colors text-sm text-white"
-                >
-                  <ch.icon className="w-4 h-4 text-white-60" />
-                  {ch.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-white-40 text-center">
-              A secure popup will open to authorize your account
-            </p>
-          </div>
-        )}
 
         {/* ── Level 4: Brand context (de-emphasized) ── */}
         {analyzeResult && (
@@ -1785,13 +1793,11 @@ export function OnboardingWizard() {
               : 'Building your content system'}
           </h2>
           <p className="text-sm text-white-60 mt-1">
-            {stages.generating === 'done'
-              ? 'Everything\u2019s ready \u2014 let\u2019s review your content'
-              : stages.generating === 'active'
-                ? 'Almost there \u2014 creating your first posts'
-                : (analyzeResult?.brandData ?? earlyBrandData)
-                  ? 'Setting up your workspace...'
-                  : 'Analyzing your business \u2014 this takes about a minute'}
+            {allDone
+              ? 'Everything\u2019s ready \u2014 let\u2019s connect your channels'
+              : (analyzeResult?.brandData ?? earlyBrandData)
+                ? 'Setting up your workspace...'
+                : 'Analyzing your business \u2014 this takes about a minute'}
           </p>
         </div>
 
@@ -1849,12 +1855,6 @@ export function OnboardingWizard() {
             status={stages.workspace}
             activeLabel={industrySteps.prepare}
             doneLabel="Workspace created"
-          />
-          <StageRow
-            status={stages.generating}
-            activeLabel={industrySteps.generate}
-            doneLabel={`${stages.postsGenerated} post${stages.postsGenerated !== 1 ? 's' : ''} ready to review`}
-            activeHint={stages.postsGenerated > 0 ? `${stages.postsGenerated} of 3 done` : 'Writing content tailored to your brand'}
           />
         </div>
 
@@ -2025,7 +2025,7 @@ export function OnboardingWizard() {
             onClick={() => setStep(2)}
             className="w-full px-6 py-4 rounded-2xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors mt-4 shadow-glow-green animate-in fade-in slide-in-from-bottom-2 duration-300"
           >
-            Review Your Posts
+            Connect Your Channels
             <ArrowRight className="w-5 h-5" />
           </button>
         )}
@@ -2130,80 +2130,13 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Generated posts — progressive reveal with skeletons */}
-        <div className="flex items-center gap-2 py-2">
-          <Sparkles className="w-4 h-4 text-white-50" />
-          <p className="text-xs text-white-60">
-            {generatedDrafts.length === 3
-              ? 'All posts created'
-              : stages.generating === 'active'
-                ? `Creating your posts... (${generatedDrafts.length}/3)`
-                : stages.generating === 'pending'
-                  ? 'Your posts will appear here'
-                  : `${generatedDrafts.length} post${generatedDrafts.length !== 1 ? 's' : ''} created`}
-          </p>
-        </div>
-
-        {/* Real cards */}
-        {generatedDrafts.map((draft, i) => {
-          const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', bg: 'from-white-5' };
-          const brandInfo = analyzeResult?.brandData ?? earlyBrandData;
-          const previewBrandName = brandInfo?.name || 'Brand';
-          const previewLogoUrl = brandInfo?.logoUrl;
-          const brandInitial = previewBrandName[0]?.toUpperCase() || '?';
-          return (
-            <div
-              key={draft.id}
-              className="rounded-2xl border border-white-15 overflow-hidden bg-sp-card animate-in fade-in slide-in-from-bottom-2 duration-300"
-              style={{ animationDelay: `${i * 100}ms` }}
-            >
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="w-8 h-8 rounded-full bg-accent-green-110/20 flex items-center justify-center text-xs font-bold text-accent-green-110 flex-shrink-0 overflow-hidden">
-                  {previewLogoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={previewLogoUrl} alt={previewBrandName} className="w-full h-full object-cover" />
-                  ) : brandInitial}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">
-                    {previewBrandName}
-                  </p>
-                  <p className="text-xs text-white-60">
-                    {ALL_CHANNELS.find((c) => c.id === draft.channel)?.label || draft.channel}
-                  </p>
-                </div>
-              </div>
-              <div className="px-4 py-3 border-t border-white-15">
-                <p className="text-sm text-white-90 whitespace-pre-wrap leading-relaxed line-clamp-5">
-                  {draft.body}
-                </p>
-                {draft.hashtags && draft.hashtags.length > 0 && (
-                  <p className="text-sm text-accent-green-110/80 mt-2">
-                    {draft.hashtags.slice(0, 5).map(t => `#${t}`).join(' ')}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Skeleton placeholders */}
-        {Array.from({ length: Math.max(0, 3 - generatedDrafts.length) }).map((_, i) => (
-          <div key={`skeleton-${i}`} className="rounded-2xl border border-white-15 overflow-hidden bg-sp-card animate-pulse">
-            <div className="flex items-center gap-3 px-4 py-3">
-              <div className="w-8 h-8 rounded-full bg-white-10" />
-              <div className="flex-1 space-y-1.5">
-                <div className="h-3.5 w-28 bg-white-10 rounded" />
-                <div className="h-2.5 w-16 bg-white-10/60 rounded" />
-              </div>
-            </div>
-            <div className="px-4 py-3 space-y-2.5 border-t border-white-15">
-              <div className="h-3 w-full bg-white-10 rounded" />
-              <div className="h-3 w-5/6 bg-white-10 rounded" />
-              <div className="h-3 w-2/3 bg-white-10 rounded" />
-            </div>
+        {/* Next steps hint */}
+        {allDone && (
+          <div className="p-4 rounded-2xl bg-accent-green-110/5 border border-accent-green-110/20 text-center space-y-2 animate-in fade-in duration-300">
+            <p className="text-sm font-medium text-accent-green-110">Ready to continue</p>
+            <p className="text-xs text-white-50">Connect your channels next, then we&apos;ll generate personalized content.</p>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

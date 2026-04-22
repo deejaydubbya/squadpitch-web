@@ -1,72 +1,201 @@
-import type { AssistantSessionState } from '../types';
+import type { AssistantSessionState, FieldStatus } from '../types';
 import type { ResolvedPrompt, CardType, Step } from './types';
 import { getAdapterSafe } from '../adapterRegistry';
+
+// ── Field Definition ────────────────────────────────────────────────
+
+interface FieldDef {
+  field: string;
+  cardType: CardType;
+  priority: number;
+  /** Label shown in sidebar */
+  label: string | ((s: AssistantSessionState) => string);
+  /** Display value for sidebar — returns null if field is empty */
+  displayValue: (s: AssistantSessionState) => string | null;
+  /** Whether the field has a value (regardless of source/status) */
+  isComplete: (s: AssistantSessionState) => boolean;
+  /** Whether this field is relevant in the current flow path (default: always) */
+  isRelevant?: (s: AssistantSessionState) => boolean;
+}
+
+/** Exported summary item type for consumers (SummaryPanel, etc.) */
+export interface SummaryItem {
+  field: string;
+  label: string;
+  value: string | null;
+  status: FieldStatus;
+}
 
 /**
  * Priority-ordered field requirements for campaign mode.
  * Lower priority number = ask first.
  */
-const CAMPAIGN_FIELDS: Array<{
-  field: string;
-  cardType: CardType;
-  priority: number;
-  isComplete: (s: AssistantSessionState) => boolean;
-}> = [
+const CAMPAIGN_FIELDS: FieldDef[] = [
   {
     field: 'mode',
     cardType: 'mode_select',
     priority: 0,
+    label: 'Mode',
+    displayValue: (s) => s.mode === 'campaign' ? 'Listing Campaign' : s.mode === 'quick_post' ? 'Quick Post' : null,
     isComplete: (s) => s.mode !== null,
   },
   {
     field: 'selectedPropertyId',
     cardType: 'property_select',
     priority: 10,
+    label: (s) => {
+      const t = getAdapterSafe(s.industryKey).terminology;
+      return t.itemSingular.charAt(0).toUpperCase() + t.itemSingular.slice(1);
+    },
+    displayValue: (s) => {
+      if (!s.propertyData) return null;
+      const d = s.propertyData;
+      return (d.address as string)
+        || (d.title as string)
+        || (d.name as string)
+        || (d.streetAddress as string)
+        || ((() => {
+          const street = d.street as string | undefined;
+          const city = d.city as string | undefined;
+          if (street && city) return `${street}, ${city}`;
+          return street || city || null;
+        })())
+        || 'Selected';
+    },
     isComplete: (s) => s.selectedPropertyId !== null,
   },
   {
     field: 'campaignType',
     cardType: 'campaign_type',
     priority: 20,
+    label: 'Campaign Type',
+    displayValue: (s) => {
+      if (!s.campaignType) return null;
+      const adapter = getAdapterSafe(s.industryKey);
+      return adapter.campaignTypes.find((ct) => ct.value === s.campaignType)?.label ?? s.campaignType;
+    },
     isComplete: (s) => s.campaignType !== null,
   },
   {
     field: 'channels',
     cardType: 'channel_select',
     priority: 30,
+    label: 'Channels',
+    displayValue: (s) => s.channels.length > 0 ? s.channels.join(', ') : null,
     isComplete: (s) => s.channels.length > 0,
   },
   {
     field: 'selectedMediaIds',
     cardType: 'media_select',
     priority: 40,
+    label: 'Media',
+    displayValue: (s) => {
+      if (s.selectedMediaIds.length > 0) {
+        const realCount = s.selectedMediaIds.filter(
+          (id) => !id.startsWith('property_img_') && !id.startsWith('item_img_')
+        ).length;
+        const syntheticCount = s.selectedMediaIds.length - realCount;
+        const parts: string[] = [];
+        if (realCount > 0) parts.push(`${realCount} library`);
+        if (syntheticCount > 0) parts.push(`${syntheticCount} property`);
+        const heroSuffix = s.heroImageId ? ' (hero set)' : '';
+        return `${s.selectedMediaIds.length} selected${heroSuffix}`;
+      }
+      if (s.mediaAcknowledged) return 'Skipped';
+      return null;
+    },
     isComplete: (s) => s.selectedMediaIds.length > 0 || s.mediaAcknowledged === true,
   },
   {
     field: 'slots',
     cardType: 'schedule_review',
     priority: 50,
+    label: 'Schedule',
+    displayValue: (s) => s.slots.length > 0 ? `${s.slots.length} posts` : null,
     isComplete: (s) => s.slots.length > 0,
   },
 ];
 
-const QUICK_POST_FIELDS: Array<{
-  field: string;
-  cardType: CardType;
-  priority: number;
-  isComplete: (s: AssistantSessionState) => boolean;
-}> = [
+const QUICK_POST_FIELDS: FieldDef[] = [
   {
     field: 'mode',
     cardType: 'mode_select',
     priority: 0,
+    label: 'Mode',
+    displayValue: (s) => s.mode === 'campaign' ? 'Listing Campaign' : s.mode === 'quick_post' ? 'Quick Post' : null,
     isComplete: (s) => s.mode !== null,
+  },
+  {
+    field: 'quickPostSource',
+    cardType: 'quick_post_source',
+    priority: 5,
+    label: 'Source',
+    displayValue: (s) => s.quickPostSource === 'data' ? 'Use my data' : s.quickPostSource === 'idea' ? 'Start from an idea' : null,
+    isComplete: (s) => s.quickPostSource !== null,
+  },
+  {
+    field: 'quickPostDataItemId',
+    cardType: 'quick_post_data',
+    priority: 10,
+    label: 'Data Source',
+    displayValue: (s) => s.quickPostDataItemTitle || (s.quickPostDataItemId ? 'Selected' : null),
+    // Skipped if idea path — only required when source === 'data'
+    isComplete: (s) => s.quickPostSource !== 'data' || s.quickPostDataItemId !== null,
+    isRelevant: (s) => s.quickPostSource === 'data',
+  },
+  {
+    field: 'quickPostGuidance',
+    cardType: 'quick_post_guidance',
+    priority: 15,
+    label: 'Topic',
+    displayValue: (s) => {
+      if (!s.quickPostGuidance) return null;
+      return s.quickPostGuidance.length > 40 ? s.quickPostGuidance.slice(0, 40) + '...' : s.quickPostGuidance;
+    },
+    // Skipped if data path — auto-filled when data item is selected
+    isComplete: (s) => s.quickPostSource !== 'idea' || !!s.quickPostGuidance,
+    isRelevant: (s) => s.quickPostSource === 'idea',
+  },
+  {
+    field: 'quickPostContentType',
+    cardType: 'quick_post_content_type',
+    priority: 20,
+    label: 'Content Type',
+    displayValue: (s) => s.quickPostContentType
+      ? s.quickPostContentType.charAt(0).toUpperCase() + s.quickPostContentType.slice(1).replace(/_/g, ' ')
+      : null,
+    isComplete: (s) => s.quickPostContentType !== null,
   },
   {
     field: 'quickPostChannel',
     cardType: 'channel_select',
-    priority: 20,
+    priority: 30,
+    label: 'Channel',
+    displayValue: (s) => s.quickPostChannel,
     isComplete: (s) => s.quickPostChannel !== null,
+  },
+  {
+    field: 'selectedMediaIds',
+    cardType: 'media_select',
+    priority: 35,
+    label: 'Media',
+    displayValue: (s) => {
+      if (s.selectedMediaIds.length > 0) {
+        const heroSuffix = s.heroImageId ? ' (hero set)' : '';
+        return `${s.selectedMediaIds.length} selected${heroSuffix}`;
+      }
+      if (s.mediaAcknowledged) return 'Skipped';
+      return null;
+    },
+    isComplete: (s) => s.selectedMediaIds.length > 0 || s.mediaAcknowledged === true,
+  },
+  {
+    field: 'quickPostGoal',
+    cardType: 'quick_post_goal',
+    priority: 40,
+    label: 'Goal',
+    displayValue: (s) => s.quickPostGoal,
+    isComplete: (s) => s.quickPostGoal !== null,
   },
 ];
 
@@ -89,6 +218,8 @@ export function resolveNextPrompts(session: AssistantSessionState): ResolvedProm
   const missing: ResolvedPrompt[] = [];
 
   for (const f of fields) {
+    // Skip fields irrelevant to the current flow path
+    if (f.isRelevant && !f.isRelevant(session)) continue;
     if (!f.isComplete(session)) {
       missing.push({
         field: f.field,
@@ -131,88 +262,36 @@ export function getCompletionStatus(session: AssistantSessionState): Record<stri
 }
 
 /**
- * Returns a summary of confirmed vs missing fields for the summary panel.
+ * Data-driven summary derived from session state + fieldMeta.
+ * Campaign: shows all fields. Quick post: progressive disclosure.
+ * The sidebar is never a fixed list — it reflects current truth.
  */
-export function getStateSummary(session: AssistantSessionState): Array<{
-  field: string;
-  label: string;
-  value: string | null;
-  confirmed: boolean;
-}> {
+export function getStateSummary(session: AssistantSessionState): SummaryItem[] {
   if (!session.mode) return [];
 
-  const adapter = getAdapterSafe(session.industryKey);
-  const t = adapter.terminology;
+  const fields = session.mode === 'campaign' ? CAMPAIGN_FIELDS : QUICK_POST_FIELDS;
+  const items: SummaryItem[] = [];
+  let nextMissingShown = false;
 
-  const items: Array<{ field: string; label: string; value: string | null; confirmed: boolean }> = [];
+  for (const f of fields) {
+    // Skip fields irrelevant to the current flow path
+    if (f.isRelevant && !f.isRelevant(session)) continue;
 
-  items.push({
-    field: 'mode',
-    label: 'Mode',
-    value: session.mode === 'campaign' ? 'Campaign' : 'Quick Post',
-    confirmed: true,
-  });
+    const complete = f.isComplete(session);
+    const value = f.displayValue(session);
+    const meta = session.fieldMeta[f.field];
+    const label = typeof f.label === 'function' ? f.label(session) : f.label;
 
-  if (session.mode === 'campaign') {
-    items.push({
-      field: 'selectedPropertyId',
-      label: t.itemSingular.charAt(0).toUpperCase() + t.itemSingular.slice(1),
-      value: session.propertyData
-        ? (session.propertyData.address as string) || (session.propertyData.title as string) || 'Selected'
-        : null,
-      confirmed: session.selectedPropertyId !== null,
-    });
+    // Status priority: explicit fieldMeta > derived from completion
+    const status: FieldStatus = meta?.status ?? (complete ? 'confirmed' : 'missing');
 
-    items.push({
-      field: 'campaignType',
-      label: 'Campaign Type',
-      value: session.campaignType
-        ? adapter.campaignTypes.find((ct) => ct.value === session.campaignType)?.label ?? session.campaignType
-        : null,
-      confirmed: session.campaignType !== null,
-    });
+    // Quick post progressive disclosure: show confirmed + first missing only
+    if (session.mode === 'quick_post' && status === 'missing') {
+      if (nextMissingShown) continue;
+      nextMissingShown = true;
+    }
 
-    items.push({
-      field: 'channels',
-      label: 'Channels',
-      value: session.channels.length > 0 ? session.channels.join(', ') : null,
-      confirmed: session.channels.length > 0,
-    });
-
-    const hasPropertyImages = session.propertyData
-      && (Array.isArray(session.propertyData.images) || typeof session.propertyData.imageUrl === 'string');
-    items.push({
-      field: 'selectedMediaIds',
-      label: 'Images',
-      value: session.selectedMediaIds.length > 0
-        ? `${session.selectedMediaIds.length} selected`
-        : session.mediaAcknowledged
-          ? (hasPropertyImages ? 'Property photos' : 'Skipped')
-          : null,
-      confirmed: session.selectedMediaIds.length > 0 || session.mediaAcknowledged,
-    });
-
-    items.push({
-      field: 'slots',
-      label: 'Schedule',
-      value: session.slots.length > 0 ? `${session.slots.length} posts` : null,
-      confirmed: session.slots.length > 0,
-    });
-  } else {
-    const kindLabels: Record<string, string> = { POST: 'Post', CAPTION: 'Caption', VIDEO_SCRIPT: 'Video Script' };
-    items.push({
-      field: 'quickPostKind',
-      label: 'Content Type',
-      value: kindLabels[session.quickPostKind] ?? session.quickPostKind,
-      confirmed: true, // always has a default
-    });
-
-    items.push({
-      field: 'quickPostChannel',
-      label: 'Channel',
-      value: session.quickPostChannel,
-      confirmed: session.quickPostChannel !== null,
-    });
+    items.push({ field: f.field, label, value, status });
   }
 
   return items;
@@ -228,8 +307,15 @@ const STEP_MESSAGES: Record<string, (session: AssistantSessionState) => string> 
   },
   campaignType: () => "What type of campaign should we create?",
   channels: () => "Which channels do you want to post on?",
+  quickPostSource: () => "Do you want to use your data or start from an idea?",
+  quickPostDataItemId: () => "Which data item should we base this post on?",
   quickPostChannel: () => "Which channel is this post for?",
-  selectedMediaIds: () => "Which images should we use? Select from your property photos or media library.",
+  quickPostGuidance: () => "What do you want to post about?",
+  quickPostContentType: () => "What type of content is this?",
+  quickPostGoal: () => "What's the goal of this post?",
+  selectedMediaIds: (s) => s.mode === 'quick_post'
+    ? "Add images or videos to your post, or skip to continue."
+    : "Select media for your campaign — choose from property photos or your media library.",
   slots: () => "Review and confirm the posting schedule.",
 };
 

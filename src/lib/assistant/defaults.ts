@@ -27,15 +27,25 @@ export const INITIAL_SESSION: AssistantSessionState = {
   channels: [],
   scheduleMode: 'ai_proposed',
   slots: [],
+  campaignStartDate: null,
 
   selectedMediaIds: [],
   mediaAcknowledged: false,
+  heroImageId: null,
 
+  quickPostSource: null,
   quickPostChannel: null,
   quickPostGuidance: null,
   quickPostKind: 'POST',
+  quickPostGoal: null,
+  quickPostContentType: null,
+  quickPostDataItemId: null,
+  quickPostDataItemTitle: null,
+  quickPostBlueprintId: null,
 
   generationResult: null,
+
+  fieldMeta: {},
 
   memory: INITIAL_MEMORY,
 };

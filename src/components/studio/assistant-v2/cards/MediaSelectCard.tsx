@@ -1,33 +1,75 @@
 'use client';
 
-import { useMemo, useState, useRef, useCallback } from 'react';
-import { ImageIcon, Upload, Building2, FolderOpen } from 'lucide-react';
+import { useMemo, useState, useCallback } from 'react';
+import { ImageIcon, Film, Image as ImageLucide, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAssets, useUploadAsset, useChannelSettings, type Channel, type MediaAsset } from '@/hooks/useSquadpitch';
+import { useAssets, useChannelSettings, useMediaProfile, type Channel, type MediaAsset } from '@/hooks/useSquadpitch';
 import { useCampaignIntelligence } from '@/hooks/useCampaignIntelligence';
+import { CHANNEL_REGISTRY } from '@/lib/channelRegistry';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
+import { ImagePreviewModal } from './ImagePreviewModal';
+import type { SelectableImage, TabId } from './media/types';
+import { SelectionStrip } from './media/SelectionStrip';
+import { MediaTabContext } from './media/MediaTabContext';
+import { MediaTabRecent } from './media/MediaTabRecent';
+import { MediaTabLibrary } from './media/MediaTabLibrary';
+import { MediaTabUpload } from './media/MediaTabUpload';
+import { MediaTabGenerate } from './media/MediaTabGenerate';
 
 interface Props {
   session: AssistantSessionState;
   clientId: string;
-  onSelection: (action: AssistantAction, confirmationText: string) => void;
+  onSelection: (action: AssistantAction | AssistantAction[], confirmationText: string) => void;
 }
 
-type MediaSource = 'property' | 'library' | 'upload';
+interface TabDef {
+  id: TabId;
+  label: string;
+}
 
-interface SelectableImage {
-  id: string;
-  url: string;
-  thumbnailUrl?: string | null;
-  source: MediaSource;
-  label?: string;
+function resolveTabs(session: AssistantSessionState, showGenerate: boolean): TabDef[] {
+  const tabs: TabDef[] = [];
+
+  // Context tab — only when there's relevant context
+  const hasPropertyContext = session.mode === 'campaign' && !!session.propertyData;
+  const hasDataItemContext = session.quickPostSource === 'data' && !!session.quickPostDataItemId;
+
+  if (hasPropertyContext) {
+    tabs.push({ id: 'context', label: 'Property Photos' });
+  } else if (hasDataItemContext) {
+    tabs.push({ id: 'context', label: 'Item Media' });
+  }
+
+  tabs.push({ id: 'recent', label: 'Recent' });
+  tabs.push({ id: 'library', label: 'Library' });
+  tabs.push({ id: 'upload', label: 'Upload & Import' });
+  if (showGenerate) {
+    tabs.push({ id: 'generate', label: 'Generate' });
+  }
+
+  return tabs;
+}
+
+function resolveDefaultTab(tabs: TabDef[]): TabId {
+  return tabs[0]?.id ?? 'recent';
 }
 
 export function MediaSelectCard({ session, clientId, onSelection }: Props) {
-  const { data: assets, isLoading } = useAssets(clientId, { status: 'READY', assetType: 'image' });
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video'>('all');
+  const { data: assets, isLoading } = useAssets(clientId, { status: 'READY' });
   const { data: channelSettings } = useChannelSettings(clientId);
-  const uploadAsset = useUploadAsset(clientId);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { data: mediaProfile } = useMediaProfile(clientId);
+
+  // Derive active channel for capability checks
+  const activeChannel: Channel | null = session.quickPostChannel ?? null;
+  const channelCap = activeChannel ? CHANNEL_REGISTRY[activeChannel] : null;
+  const channelRequiresVideo = channelCap?.requiresVideo ?? false;
+
+  // Effective media type filter — locked to 'video' when channel requires it
+  const effectiveMediaTypeFilter = channelRequiresVideo ? 'video' : mediaTypeFilter;
+
+  // AI generation availability
+  const aiImageAvailable = mediaProfile?.mode === 'BRAND_ASSETS_PLUS_AI' || mediaProfile?.mode === 'AI_CHARACTER';
 
   const connectedChannels: Channel[] = useMemo(() => {
     if (!channelSettings) return [];
@@ -36,157 +78,168 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
 
   const { mediaRec } = useCampaignIntelligence(session, connectedChannels, assets);
 
-  // Extract property images from session.propertyData
-  const propertyImages: SelectableImage[] = useMemo(() => {
-    if (!session.propertyData) return [];
-    const data = session.propertyData;
-    const urls: string[] = Array.isArray(data.images)
-      ? (data.images as string[])
-      : typeof data.imageUrl === 'string'
-        ? [data.imageUrl]
-        : [];
-    return urls.map((url, i) => ({
-      id: `property_img_${i}`,
-      url,
-      thumbnailUrl: url,
-      source: 'property' as MediaSource,
-      label: i === 0 ? 'Hero' : undefined,
-    }));
-  }, [session.propertyData]);
+  // Build priority score map from intelligence
+  const priorityScoreMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (mediaRec?.prioritized) {
+      for (const item of mediaRec.prioritized) {
+        map.set(item.id, item.score);
+      }
+    }
+    return map;
+  }, [mediaRec]);
 
-  // Build library images (sorted by intelligence recommendation)
-  const libraryImages: SelectableImage[] = useMemo(() => {
-    if (!assets) return [];
-    const sorted = mediaRec
-      ? [...assets].sort((a, b) => {
-          const priorityMap = new Map(mediaRec.prioritized.map((p, i) => [p.id, i]));
-          return (priorityMap.get(a.id) ?? Infinity) - (priorityMap.get(b.id) ?? Infinity);
-        })
-      : assets;
-    return sorted.map((asset) => ({
-      id: asset.id,
-      url: asset.url || '',
-      thumbnailUrl: asset.thumbnailUrl || asset.url,
-      source: 'library' as MediaSource,
-      label: mediaRec?.heroImageId === asset.id ? 'Recommended' : undefined,
-    }));
-  }, [assets, mediaRec]);
-
-  // Uploaded images during this session (tracked locally)
-  const [uploadedImages, setUploadedImages] = useState<SelectableImage[]>([]);
-  const [uploading, setUploading] = useState(false);
-
-  // Combined selectable images: property first (recommended), then library
-  const allImages = useMemo(() => {
-    return [...propertyImages, ...uploadedImages, ...libraryImages];
-  }, [propertyImages, uploadedImages, libraryImages]);
+  // Tab resolution
+  const tabs = useMemo(() => resolveTabs(session, aiImageAvailable), [session, aiImageAvailable]);
+  const [activeTab, setActiveTab] = useState<TabId>(() => resolveDefaultTab(tabs));
 
   // Selection state
   const [selected, setSelected] = useState<Set<string>>(() => new Set(session.selectedMediaIds));
+  const [heroId, setHeroId] = useState<string | null>(session.heroImageId);
+  const [previewImage, setPreviewImage] = useState<SelectableImage | null>(null);
 
-  // Auto-select property images on first render if available and nothing previously selected
-  const [autoSelected, setAutoSelected] = useState(false);
-  if (!autoSelected && propertyImages.length > 0 && selected.size === 0) {
-    setAutoSelected(true);
-    setSelected(new Set(propertyImages.map((p) => p.id)));
-  }
+  // Image registry — deduped from all tabs
+  const [imageRegistry, setImageRegistry] = useState<Map<string, SelectableImage>>(new Map());
+  const allImages = useMemo(() => Array.from(imageRegistry.values()), [imageRegistry]);
 
-  const toggle = (id: string) => {
+  const handleImagesAvailable = useCallback((images: SelectableImage[]) => {
+    setImageRegistry((prev) => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const img of images) {
+        if (!next.has(img.id)) {
+          next.set(img.id, img);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
+  // Auto-select context images on first render only — skip if user already went through media step
+  const [autoSelected, setAutoSelected] = useState(
+    () => session.mediaAcknowledged || session.selectedMediaIds.length > 0
+  );
+  const handleContextImagesAvailable = useCallback((images: SelectableImage[]) => {
+    handleImagesAvailable(images);
+    if (!autoSelected && images.length > 0 && selected.size === 0) {
+      setAutoSelected(true);
+      setSelected(new Set(images.map((img) => img.id)));
+    }
+  }, [handleImagesAvailable, autoSelected, selected.size]);
+
+  // Selection actions
+  const toggle = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const selectAll = (source: MediaSource) => {
-    const ids = allImages.filter((img) => img.source === source).map((img) => img.id);
+  const toggleHero = useCallback((id: string) => {
+    setHeroId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const handleSelectAll = useCallback((ids: string[]) => {
     setSelected((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.add(id));
       return next;
     });
-  };
+  }, []);
 
-  // Upload handler
-  const handleUpload = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setUploading(true);
+  const handleClearIds = useCallback((ids: string[]) => {
+    const idSet = new Set(ids);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      idSet.forEach((id) => next.delete(id));
+      return next;
+    });
+  }, []);
 
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue;
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const result = await uploadAsset.mutateAsync({ formData, assetType: 'image' });
-        const newImage: SelectableImage = {
-          id: (result as MediaAsset).id,
-          url: (result as MediaAsset).url || URL.createObjectURL(file),
-          thumbnailUrl: (result as MediaAsset).thumbnailUrl || URL.createObjectURL(file),
-          source: 'upload',
-          label: file.name,
-        };
-        setUploadedImages((prev) => [...prev, newImage]);
-        setSelected((prev) => {
-          const next = new Set(prev);
-          next.add(newImage.id);
-          return next;
-        });
-      } catch {
-        // Silently skip failed uploads
-      }
-    }
-    setUploading(false);
-  }, [uploadAsset]);
+  const handleRemove = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
-  // Build confirmation text with source breakdown
+  // Upload handler — auto-selects uploaded images
+  const handleImageUploaded = useCallback((image: SelectableImage) => {
+    setImageRegistry((prev) => {
+      const next = new Map(prev);
+      next.set(image.id, image);
+      return next;
+    });
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.add(image.id);
+      return next;
+    });
+  }, []);
+
+  // Build confirmation text with source + type breakdown
   const buildConfirmationText = (): string => {
-    const selectedImages = allImages.filter((img) => selected.has(img.id));
-    const bySource = { property: 0, library: 0, upload: 0 };
-    for (const img of selectedImages) bySource[img.source]++;
+    const selectedMedia = allImages.filter((img) => selected.has(img.id));
+    const bySource: Record<string, number> = {};
+    let imageCount = 0;
+    let videoCount = 0;
+    for (const img of selectedMedia) {
+      bySource[img.source] = (bySource[img.source] ?? 0) + 1;
+      if (img.assetType === 'video') videoCount++;
+      else imageCount++;
+    }
 
-    const total = selectedImages.length;
-    if (total === 0) return 'No images selected';
+    const total = selectedMedia.length;
+    if (total === 0) return 'No media selected';
+
+    const typeParts: string[] = [];
+    if (imageCount > 0) typeParts.push(`${imageCount} image${imageCount !== 1 ? 's' : ''}`);
+    if (videoCount > 0) typeParts.push(`${videoCount} video${videoCount !== 1 ? 's' : ''}`);
 
     const parts: string[] = [];
-    if (bySource.property > 0) parts.push(`${bySource.property} property`);
-    if (bySource.library > 0) parts.push(`${bySource.library} media library`);
-    if (bySource.upload > 0) parts.push(`${bySource.upload} uploaded`);
+    if (bySource.property) parts.push(`${bySource.property} property`);
+    if (bySource.item) parts.push(`${bySource.item} data item`);
+    if (bySource.library) parts.push(`${bySource.library} media library`);
+    if (bySource.recent) parts.push(`${bySource.recent} recent`);
+    if (bySource.upload) parts.push(`${bySource.upload} uploaded`);
 
-    return `${total} image${total !== 1 ? 's' : ''} selected (${parts.join(', ')})`;
+    const heroSuffix = heroId ? ' \u00b7 hero set' : '';
+    return `${typeParts.join(', ')} selected (${parts.join(', ')})${heroSuffix}`;
   };
 
   const confirm = () => {
-    // Only pass real asset IDs to session state (not synthetic property_img_* IDs)
-    // Property images are already available via session.propertyData.images for generation
-    const realAssetIds = Array.from(selected).filter((id) => !id.startsWith('property_img_'));
-    const hasPropertySelection = Array.from(selected).some((id) => id.startsWith('property_img_'));
+    // Batch all actions into a single call so handleCardSelection advances only once
+    const actions: AssistantAction[] = [];
 
-    if (realAssetIds.length > 0) {
-      onSelection(
-        { type: 'SET_MEDIA', payload: realAssetIds },
-        buildConfirmationText()
-      );
-    } else if (hasPropertySelection) {
-      // User selected only property images — mark as acknowledged (property images
-      // are included in generation via propertyData.images, not mediaAssetIds)
-      onSelection(
-        { type: 'SET_MEDIA_ACKNOWLEDGED' },
-        buildConfirmationText()
-      );
-    } else {
-      onSelection(
-        { type: 'SET_MEDIA', payload: [] },
-        'No images selected'
-      );
+    // Hero image if changed
+    if (heroId !== session.heroImageId) {
+      actions.push({ type: 'SET_HERO_IMAGE', payload: heroId });
     }
+
+    // Store ALL selected IDs (including synthetic property_img_*/item_img_*).
+    // Synthetic IDs are filtered at API boundaries (save, generation) not here.
+    const allSelectedIds = Array.from(selected);
+    if (allSelectedIds.length > 0) {
+      actions.push({ type: 'SET_MEDIA', payload: allSelectedIds });
+    } else {
+      actions.push({ type: 'SET_MEDIA', payload: [] });
+    }
+
+    const text = allSelectedIds.length > 0
+      ? buildConfirmationText()
+      : 'No media selected';
+
+    onSelection(actions, text);
   };
 
   const skip = () => {
     onSelection(
       { type: 'SET_MEDIA_ACKNOWLEDGED' },
-      'Skipped — AI will generate without specific images'
+      'Skipped \u2014 AI will generate without specific images'
     );
   };
 
@@ -198,95 +251,143 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
     );
   }
 
-  const hasPropertyImages = propertyImages.length > 0;
-  const hasLibraryImages = libraryImages.length > 0;
-  const hasAnyImages = allImages.length > 0;
+  const hasContextTab = tabs.some((t) => t.id === 'context');
 
   return (
     <div className="space-y-3">
-      {/* Property Images Section */}
-      {hasPropertyImages && (
-        <div>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Building2 className="w-3 h-3 text-accent-green-110" />
-            <span className="text-[10px] font-medium text-white-60 uppercase tracking-wider">Property Photos</span>
-            <button
-              onClick={() => selectAll('property')}
-              className="ml-auto text-[10px] text-accent-green-110 hover:underline"
-            >
-              Select all
-            </button>
-          </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {propertyImages.slice(0, 8).map((img) => (
-              <ImageTile
-                key={img.id}
-                image={img}
-                isSelected={selected.has(img.id)}
-                onToggle={toggle}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Selection strip */}
+      <SelectionStrip
+        allImages={allImages}
+        selected={selected}
+        heroId={heroId}
+        onRemove={handleRemove}
+        onToggleHero={toggleHero}
+      />
 
-      {/* Media Library Section */}
-      {hasLibraryImages && (
-        <div>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <FolderOpen className="w-3 h-3 text-white-40" />
-            <span className="text-[10px] font-medium text-white-60 uppercase tracking-wider">Media Library</span>
-            {libraryImages.length > 0 && (
-              <button
-                onClick={() => selectAll('library')}
-                className="ml-auto text-[10px] text-accent-green-110 hover:underline"
-              >
-                Select all
-              </button>
+      {/* Tab bar */}
+      <div className="flex gap-1 overflow-x-auto pb-0.5">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              'px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-colors',
+              activeTab === tab.id
+                ? 'bg-accent-green-110 text-sp-bg'
+                : 'bg-white-5 text-white-40 hover:bg-white-10 hover:text-white-60'
             )}
-          </div>
-          <div className="grid grid-cols-4 gap-1.5 max-h-[140px] overflow-y-auto">
-            {libraryImages.slice(0, 12).map((img) => (
-              <ImageTile
-                key={img.id}
-                image={img}
-                isSelected={selected.has(img.id)}
-                onToggle={toggle}
-              />
-            ))}
-          </div>
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Media type filter pills — hidden when channel locks to video */}
+      {channelRequiresVideo ? (
+        <div className="flex items-center gap-1.5">
+          <Film className="w-3 h-3 text-white-40" />
+          <span className="text-[9px] text-white-40">
+            {channelCap?.label ?? 'Channel'} requires video
+          </span>
+        </div>
+      ) : (
+        <div className="flex gap-1">
+          {(['all', 'image', 'video'] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setMediaTypeFilter(filter)}
+              className={cn(
+                'px-2 py-0.5 rounded-full text-[9px] font-medium whitespace-nowrap transition-colors flex items-center gap-1',
+                effectiveMediaTypeFilter === filter
+                  ? 'bg-white-10 text-white-80'
+                  : 'text-white-30 hover:text-white-50'
+              )}
+            >
+              {filter === 'all' && <LayoutGrid className="w-2.5 h-2.5" />}
+              {filter === 'image' && <ImageLucide className="w-2.5 h-2.5" />}
+              {filter === 'video' && <Film className="w-2.5 h-2.5" />}
+              {filter === 'all' ? 'All' : filter === 'image' ? 'Images' : 'Videos'}
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Uploaded Images */}
-      {uploadedImages.length > 0 && (
-        <div>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Upload className="w-3 h-3 text-white-40" />
-            <span className="text-[10px] font-medium text-white-60 uppercase tracking-wider">Uploaded</span>
-          </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {uploadedImages.map((img) => (
-              <ImageTile
-                key={img.id}
-                image={img}
-                isSelected={selected.has(img.id)}
-                onToggle={toggle}
-              />
-            ))}
-          </div>
-        </div>
+      {/* Tab content */}
+      {activeTab === 'context' && hasContextTab && (
+        <MediaTabContext
+          session={session}
+          clientId={clientId}
+          selected={selected}
+          heroId={heroId}
+          onToggle={toggle}
+          onToggleHero={toggleHero}
+          onPreview={setPreviewImage}
+          priorityScoreMap={priorityScoreMap}
+          mediaTypeFilter={effectiveMediaTypeFilter}
+          onSelectAll={handleSelectAll}
+          onClearIds={handleClearIds}
+          onImagesAvailable={handleContextImagesAvailable}
+        />
       )}
 
-      {/* Empty state */}
-      {!hasAnyImages && (
+      {activeTab === 'recent' && (
+        <MediaTabRecent
+          clientId={clientId}
+          selected={selected}
+          heroId={heroId}
+          onToggle={toggle}
+          onToggleHero={toggleHero}
+          onPreview={setPreviewImage}
+          priorityScoreMap={priorityScoreMap}
+          mediaTypeFilter={effectiveMediaTypeFilter}
+          onImagesAvailable={handleImagesAvailable}
+        />
+      )}
+
+      {activeTab === 'library' && (
+        <MediaTabLibrary
+          clientId={clientId}
+          selected={selected}
+          heroId={heroId}
+          onToggle={toggle}
+          onToggleHero={toggleHero}
+          onPreview={setPreviewImage}
+          priorityScoreMap={priorityScoreMap}
+          mediaTypeFilter={effectiveMediaTypeFilter}
+          mediaRec={mediaRec}
+          onImagesAvailable={handleImagesAvailable}
+        />
+      )}
+
+      {activeTab === 'upload' && (
+        <MediaTabUpload
+          clientId={clientId}
+          onImageUploaded={handleImageUploaded}
+        />
+      )}
+
+      {activeTab === 'generate' && aiImageAvailable && (
+        <MediaTabGenerate
+          clientId={clientId}
+          session={session}
+          selected={selected}
+          onToggle={toggle}
+          onImagesAvailable={handleImagesAvailable}
+          onImageUploaded={handleImageUploaded}
+          channelRequiresVideo={channelRequiresVideo}
+          activeChannel={activeChannel}
+        />
+      )}
+
+      {/* Empty state — only show if no media at all across tabs */}
+      {allImages.length === 0 && activeTab !== 'upload' && activeTab !== 'generate' && (
         <div className="flex flex-col items-center py-4 text-center">
           <ImageIcon className="w-5 h-5 text-white-30 mb-2" />
-          <p className="text-xs text-white-40">No images available. Upload some or skip to generate without media.</p>
+          <p className="text-xs text-white-40">No media available. Upload some or skip to generate without media.</p>
         </div>
       )}
 
-      {/* Upload + Actions */}
+      {/* Confirm / Skip buttons */}
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={confirm}
@@ -298,16 +399,7 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
               : 'bg-white-10 text-white-40 cursor-not-allowed'
           )}
         >
-          {selected.size > 0 ? `Confirm (${selected.size})` : 'Select images'}
-        </button>
-
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="px-3 py-1.5 rounded-lg text-xs font-medium text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors flex items-center gap-1"
-        >
-          <Upload className="w-3 h-3" />
-          {uploading ? 'Uploading...' : 'Upload'}
+          {selected.size > 0 ? `Confirm (${selected.size})` : 'Select media'}
         </button>
 
         <button
@@ -316,15 +408,6 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
         >
           Skip
         </button>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => handleUpload(e.target.files)}
-        />
       </div>
 
       {/* Selection summary */}
@@ -333,52 +416,16 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
           {buildConfirmationText()}
         </p>
       )}
+
+      {/* Preview Modal */}
+      {previewImage && (
+        <ImagePreviewModal
+          image={previewImage}
+          isHero={heroId === previewImage.id}
+          onHeroToggle={() => toggleHero(previewImage.id)}
+          onClose={() => setPreviewImage(null)}
+        />
+      )}
     </div>
-  );
-}
-
-// ── Image Tile Sub-Component ──────────────────────────────────────────────
-
-function ImageTile({
-  image,
-  isSelected,
-  onToggle,
-}: {
-  image: SelectableImage;
-  isSelected: boolean;
-  onToggle: (id: string) => void;
-}) {
-  return (
-    <button
-      onClick={() => onToggle(image.id)}
-      className={cn(
-        'relative aspect-square rounded-lg border overflow-hidden transition-colors',
-        isSelected
-          ? 'border-accent-green-110 ring-2 ring-accent-green-110/40'
-          : 'border-white-10 hover:border-white-20'
-      )}
-    >
-      {image.thumbnailUrl || image.url ? (
-        <img src={image.thumbnailUrl || image.url} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full bg-white-5 flex items-center justify-center">
-          <ImageIcon className="w-4 h-4 text-white-20" />
-        </div>
-      )}
-      {image.label && (
-        <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded bg-black/70 text-white text-[8px] font-medium">
-          {image.label}
-        </span>
-      )}
-      {isSelected && (
-        <div className="absolute inset-0 bg-accent-green-110/20 flex items-center justify-center">
-          <div className="w-5 h-5 rounded-full bg-accent-green-110 flex items-center justify-center">
-            <svg className="w-3 h-3 text-sp-bg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-        </div>
-      )}
-    </button>
   );
 }

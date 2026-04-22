@@ -24,6 +24,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   initialArea: { zipCode?: string; city?: string; state?: string };
+  onAreaChange?: (area: { zipCode?: string; city?: string; state?: string }) => void;
 }
 
 type SortMode = 'relevance' | 'price_asc' | 'price_desc' | 'newest';
@@ -213,7 +214,7 @@ function DrawerListingCard({
 
 // ── Drawer ───────────────────────────────────────────────────────────────
 
-export function ListingOpportunitiesDrawer({ clientId, isOpen, onClose, initialArea }: Props) {
+export function ListingOpportunitiesDrawer({ clientId, isOpen, onClose, initialArea, onAreaChange }: Props) {
   const [zipCode, setZipCode] = useState(initialArea.zipCode ?? '');
   const [city, setCity] = useState(initialArea.city ?? '');
   const [state, setState] = useState(initialArea.state ?? '');
@@ -297,15 +298,19 @@ export function ListingOpportunitiesDrawer({ clientId, isOpen, onClose, initialA
       setCity('');
       setState('');
       setShowAreaEdit(false);
-      upsertBrand.mutate({ primaryZip: trimmed });
+      upsertBrand.mutate({ primaryZip: trimmed, city: null, state: null });
+      onAreaChange?.({ zipCode: trimmed });
     } else {
       const match = trimmed.match(/^(.+?),\s*([A-Za-z]{2})$/);
       if (match) {
-        setCity(match[1].trim());
-        setState(match[2].toUpperCase());
+        const newCity = match[1].trim();
+        const newState = match[2].toUpperCase();
+        setCity(newCity);
+        setState(newState);
         setZipCode('');
         setShowAreaEdit(false);
-        upsertBrand.mutate({ city: match[1].trim(), state: match[2].toUpperCase() });
+        upsertBrand.mutate({ city: newCity, state: newState, primaryZip: null });
+        onAreaChange?.({ city: newCity, state: newState });
       }
     }
   };

@@ -158,6 +158,7 @@ export interface Draft {
   scoredHooks: ScoredHook[] | null;
   altText: string | null;
   imageGuidance: string | null;
+  videoGuidance: string | null;
   warnings: string[];
   sourceMeta?: {
     source?: string;
@@ -1843,6 +1844,12 @@ export function useDisconnectChannel(clientId: string) {
 
 // ── Media Assets ────────────────────────────────────────────────────────
 
+export interface AssetsPage {
+  assets: MediaAsset[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
 export function useAssets(clientId: string, filters: AssetFilters = {}, poll = false) {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
@@ -1853,8 +1860,24 @@ export function useAssets(clientId: string, filters: AssetFilters = {}, poll = f
 
   return useQuery({
     queryKey: squadpitchKeys.assets(clientId, filters as Record<string, unknown>),
-    queryFn: () => apiFetch<{ assets: MediaAsset[] }>(path),
+    queryFn: () => apiFetch<AssetsPage>(path),
     select: (data) => data.assets,
+    refetchInterval: poll ? 3000 : false,
+  });
+}
+
+/** Like useAssets but returns full pagination metadata */
+export function useAssetsPaginated(clientId: string, filters: AssetFilters = {}, poll = false) {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
+  });
+  const qs = query.toString();
+  const path = `workspaces/${clientId}/assets${qs ? `?${qs}` : ''}`;
+
+  return useQuery({
+    queryKey: squadpitchKeys.assets(clientId, filters as Record<string, unknown>),
+    queryFn: () => apiFetch<AssetsPage>(path),
     refetchInterval: poll ? 3000 : false,
   });
 }
@@ -2084,6 +2107,9 @@ export interface GenerateVideoInput {
   guidance: string;
   draftId?: string;
   channel?: Channel;
+  preset?: string;
+  duration?: string;
+  aspectRatio?: string;
 }
 
 export function useGenerateVideo(clientId: string) {
@@ -3203,7 +3229,7 @@ export interface OnboardingAnalyzeResult {
   images: string[];
   dataItems: OnboardingDataItem[];
   starterAngles?: string[];
-  coreTemplates?: { type: string; title: string; guidance: string }[];
+  coreTemplates?: { type: string; title: string; guidance: string; conditions?: { hasData?: boolean; requiredDataType?: string; noPublished?: boolean } }[];
 }
 
 export interface IndustryOnboarding {
@@ -4289,6 +4315,7 @@ export function useGenerateListingCampaign(clientId: string) {
     mutationFn: (payload: {
       propertyData: Record<string, unknown>;
       campaignType?: CampaignType;
+      dataItemId?: string;
       imageContext?: CampaignImageContext[];
       slots?: Array<{ label: string; channel: string; campaignDay: number; slotType?: string; angle?: string }>;
       preferencesContext?: string;

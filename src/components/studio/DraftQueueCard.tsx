@@ -46,6 +46,7 @@ import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistr
 import { DraftPreviewCard } from './DraftPreviewCard';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { MediaLightbox } from './MediaLightbox';
+import { MediaSwapModal } from './MediaSwapModal';
 import { InlineActionsMenu } from './InlineActionsMenu';
 import { DraftOptimizations } from './OptimizationSuggestions';
 
@@ -64,6 +65,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const [scheduleDate, setScheduleDate] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [showMediaSwap, setShowMediaSwap] = useState(false);
   const [generatingMedia, setGeneratingMedia] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -223,12 +225,12 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
                 </button>
                 <MediaSourceLabel draft={draft} />
               </div>
-              <Link
-                href={`/workspaces/${draft.clientId}/assets`}
+              <button
+                onClick={() => setShowMediaSwap(true)}
                 className="text-[10px] text-accent-green-110 hover:underline shrink-0"
               >
                 Change
-              </Link>
+              </button>
             </div>
           </div>
         ) : generatingMedia ? (
@@ -253,12 +255,12 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
                   : 'No image assigned'}
               </p>
               <div className="flex items-center gap-3">
-                <Link
-                  href={`/workspaces/${draft.clientId}/assets?draftId=${draft.id}`}
+                <button
+                  onClick={() => setShowMediaSwap(true)}
                   className="text-xs text-white-40 hover:text-accent-green-110 transition-colors"
                 >
                   Choose from library
-                </Link>
+                </button>
                 <button
                   onClick={() => {
                     generateMedia.mutate(
@@ -667,6 +669,13 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
           onClose={() => setLightboxOpen(false)}
         />
       )}
+
+      <MediaSwapModal
+        clientId={draft.clientId}
+        draftId={draft.id}
+        open={showMediaSwap}
+        onClose={() => setShowMediaSwap(false)}
+      />
     </div>
   );
 }

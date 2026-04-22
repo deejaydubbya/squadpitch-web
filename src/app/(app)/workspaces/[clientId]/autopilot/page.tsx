@@ -7,6 +7,7 @@ import {
   Zap,
   CheckCircle2,
   XCircle,
+  Circle,
   AlertTriangle,
   Clock,
   Shield,
@@ -75,6 +76,13 @@ const TRIGGER_LABELS: Record<string, string> = {
   channel_gap: 'Channel Gap',
 };
 
+/** Maps readiness check IDs to settings page paths (relative to workspace base) */
+const CHECK_FIX_LINKS: Record<string, string> = {
+  channels: 'settings/channels',
+  data: 'sources',
+  brand: 'settings/brand',
+};
+
 function formatDate(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -89,7 +97,7 @@ export default function AutopilotPage() {
   const [activeTab, setActiveTab] = useState<AutopilotTab>('inbox');
 
   const { data: settings, isLoading: settingsLoading } = useAutopilotSettings(clientId);
-  const { data: readiness } = useAutopilotReadiness(clientId);
+  const { data: readiness, isLoading: readinessLoading, error: readinessError } = useAutopilotReadiness(clientId);
   const { data: activity } = useAutopilotActivity(clientId);
   const { data: status } = useAutopilotStatus(clientId);
   const { data: campaignData } = useAutopilotCampaignRecommendations(clientId);
@@ -181,6 +189,96 @@ export default function AutopilotPage() {
       {/* ── Settings Tab ──────────────────────────────────────────────── */}
       {activeTab === 'settings' && (
         <>
+          {/* ── Readiness Checklist (always visible) ─────────────────── */}
+          {readinessLoading ? (
+            <div className="card p-5 border-white-10">
+              <div className="h-4 w-32 bg-white-10 rounded animate-pulse" />
+              <div className="mt-3 space-y-2">
+                <div className="h-4 w-full bg-white-10 rounded animate-pulse" />
+                <div className="h-4 w-3/4 bg-white-10 rounded animate-pulse" />
+                <div className="h-4 w-5/6 bg-white-10 rounded animate-pulse" />
+              </div>
+            </div>
+          ) : readiness ? (
+            <div className={cn(
+              'card p-5',
+              readiness.ready ? 'border-green-500/20' : 'border-yellow-500/20',
+            )}>
+              <div className="flex items-center gap-2 mb-4">
+                {readiness.ready ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                )}
+                <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+                  {readiness.ready ? 'Setup Complete' : 'Setup Required'}
+                </h2>
+              </div>
+              <div className="space-y-3">
+                {readiness.checks.map((check) => {
+                  const fixLink = CHECK_FIX_LINKS[check.id];
+                  return (
+                    <div key={check.id} className="flex items-start gap-3">
+                      {check.met ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className={cn('text-sm', check.met ? 'text-white-60' : 'text-white-100')}>
+                          {check.label}
+                        </p>
+                        {!check.met && (
+                          <p className="text-xs text-white-40 mt-0.5">
+                            {fixLink ? (
+                              <Link href={`${base}/${fixLink}`} className="text-accent-green-110 hover:underline">
+                                {check.fix}
+                              </Link>
+                            ) : (
+                              check.fix
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="card p-5 border-red-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <XCircle className="w-4 h-4 text-red-400" />
+                <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+                  Setup Check Unavailable
+                </h2>
+              </div>
+              <p className="text-xs text-white-40 mb-3">
+                Could not load readiness status. Please verify the following are set up:
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Circle className="w-3.5 h-3.5 text-white-20" />
+                  <Link href={`${base}/settings/channels`} className="text-sm text-accent-green-110 hover:underline">
+                    At least 1 connected channel
+                  </Link>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Circle className="w-3.5 h-3.5 text-white-20" />
+                  <Link href={`${base}/sources`} className="text-sm text-accent-green-110 hover:underline">
+                    Business data available
+                  </Link>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Circle className="w-3.5 h-3.5 text-white-20" />
+                  <Link href={`${base}/settings/brand`} className="text-sm text-accent-green-110 hover:underline">
+                    Brand profile configured
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Mode Selector ─────────────────────────────────────────── */}
           <div className="card p-5 border-white-10">
             <div className="flex items-center gap-2 mb-4">
@@ -195,6 +293,7 @@ export default function AutopilotPage() {
                 const isActive = currentMode === mode;
                 const isAvailable = readiness?.availableModes?.includes(mode) ?? mode === 'off';
                 const isDisabled = !isAvailable && mode !== 'off';
+                const failingChecks = readiness?.checks.filter((c) => !c.met) ?? [];
 
                 return (
                   <button
@@ -216,7 +315,12 @@ export default function AutopilotPage() {
                     <p className="text-xs text-white-40 mt-1 leading-relaxed">
                       {cfg.description}
                     </p>
-                    {isDisabled && (
+                    {isDisabled && failingChecks.length > 0 && (
+                      <p className="text-[10px] text-orange-400 mt-2">
+                        Missing: {failingChecks.map((c) => c.label).join(', ')}
+                      </p>
+                    )}
+                    {isDisabled && failingChecks.length === 0 && (
                       <p className="text-[10px] text-orange-400 mt-2">
                         Complete setup to unlock
                       </p>
@@ -226,37 +330,6 @@ export default function AutopilotPage() {
               })}
             </div>
           </div>
-
-          {/* ── Readiness Checklist ────────────────────────────────────── */}
-          {readiness && !readiness.ready && (
-            <div className="card p-5 border-white-10">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle className="w-4 h-4 text-yellow-400" />
-                <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-                  Setup Required
-                </h2>
-              </div>
-              <div className="space-y-3">
-                {readiness.checks.map((check) => (
-                  <div key={check.id} className="flex items-start gap-3">
-                    {check.met ? (
-                      <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className={cn('text-sm', check.met ? 'text-white-60' : 'text-white-100')}>
-                        {check.label}
-                      </p>
-                      {!check.met && (
-                        <p className="text-xs text-white-40 mt-0.5">{check.fix}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* ── Channel Permissions ────────────────────────────────────── */}
           {readiness && readiness.connectedChannels.length > 0 && settings && (

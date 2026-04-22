@@ -32,6 +32,7 @@ export interface ClassifyResult {
 async function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('classifier image load failed'));
     img.src = src;

@@ -134,6 +134,36 @@ export function buildNextPromptMessage(
         'campaign_review'
       );
 
+    case 'quick_post_source':
+      return buildInteractivePrompt(
+        'Do you want to use your data or start from an idea?',
+        'quick_post_source'
+      );
+
+    case 'quick_post_data':
+      return buildInteractivePrompt(
+        'Which data item should we base this post on? Search and select below.',
+        'quick_post_data'
+      );
+
+    case 'quick_post_guidance':
+      return buildInteractivePrompt(
+        'What do you want to post about? Pick a recommendation, use a quick angle, or describe your idea.',
+        'quick_post_guidance'
+      );
+
+    case 'quick_post_content_type':
+      return buildInteractivePrompt(
+        'What type of content is this?',
+        'quick_post_content_type'
+      );
+
+    case 'quick_post_goal':
+      return buildInteractivePrompt(
+        "What's the goal of this post?",
+        'quick_post_goal'
+      );
+
     default:
       return buildAssistantText(`What would you like to do next?`);
   }

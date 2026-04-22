@@ -22,7 +22,13 @@ export type CardType =
   | 'media_select'
   | 'schedule_review'
   | 'generation'
-  | 'campaign_review';
+  | 'campaign_review'
+  | 'quick_post_config'
+  | 'quick_post_source'
+  | 'quick_post_data'
+  | 'quick_post_guidance'
+  | 'quick_post_content_type'
+  | 'quick_post_goal';
 
 // ── Message Types (discriminated union) ──────────────────────────────────
 
@@ -75,6 +81,16 @@ export interface ParseResult {
   ambiguities: string[];
   /** Field the user wants to revise (no new value extracted — re-show card) */
   revisionTarget?: string;
+  /** Field name to jump to (show that card) */
+  navigationTarget?: string;
+  /** Field to skip (null = current step) */
+  skipTarget?: string | null;
+  /** Contextual action inferred from freeform text on the current step */
+  contextualAction?: {
+    type: 'media_acknowledge' | 'schedule_preset';
+    label: string;
+    presetKey?: string;
+  };
 }
 
 // ── State Resolution ─────────────────────────────────────────────────────

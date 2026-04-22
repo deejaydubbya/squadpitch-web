@@ -315,8 +315,8 @@ export function ListingOpportunitiesWidget({ clientId }: { clientId: string }) {
       setCity('');
       setState('');
       setShowSetup(false);
-      // Persist to brand profile
-      upsertBrand.mutate({ primaryZip: trimmed });
+      // Persist to brand profile (clear city/state to avoid stale data)
+      upsertBrand.mutate({ primaryZip: trimmed, city: null, state: null });
       return;
     }
 
@@ -330,8 +330,8 @@ export function ListingOpportunitiesWidget({ clientId }: { clientId: string }) {
       setZipCode('');
       setShowSetup(false);
       localStorage.removeItem(storageKey(clientId));
-      // Persist to brand profile
-      upsertBrand.mutate({ city: newCity, state: newState });
+      // Persist to brand profile (clear primaryZip to avoid stale data)
+      upsertBrand.mutate({ city: newCity, state: newState, primaryZip: null });
       return;
     }
   };
@@ -339,6 +339,24 @@ export function ListingOpportunitiesWidget({ clientId }: { clientId: string }) {
   const handleChangeArea = () => {
     setShowSetup(true);
     setInputValue(areaLabel);
+  };
+
+  // Called by the drawer when user changes area there
+  const handleAreaChanged = (area: { zipCode?: string; city?: string; state?: string }) => {
+    if (area.zipCode) {
+      setZipCode(area.zipCode);
+      setCity('');
+      setState('');
+      setInputValue(area.zipCode);
+      localStorage.setItem(storageKey(clientId), area.zipCode);
+    } else if (area.city && area.state) {
+      setCity(area.city);
+      setState(area.state);
+      setZipCode('');
+      setInputValue(`${area.city}, ${area.state}`);
+      localStorage.removeItem(storageKey(clientId));
+    }
+    setShowSetup(false);
   };
 
   // Setup state — no area or user clicked "Change area"
@@ -482,6 +500,7 @@ export function ListingOpportunitiesWidget({ clientId }: { clientId: string }) {
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         initialArea={{ zipCode: zipCode || undefined, city: city || undefined, state: state || undefined }}
+        onAreaChange={handleAreaChanged}
       />
     </>
   );

@@ -28,6 +28,7 @@ const RESOLUTION_BASELINE = 1_000_000; // 1MP ≈ 1000×1000
 async function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('image load failed'));
     img.src = dataUrl;

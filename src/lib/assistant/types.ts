@@ -47,6 +47,32 @@ export interface WorkflowStep {
   required: (keyof AssistantSessionState)[];
 }
 
+// ── Field Metadata ──────────────────────────────────────────────────
+
+/**
+ * Status lifecycle for each tracked field in the session.
+ * - missing: no value set yet
+ * - inferred: value was auto-detected from freeform text or intelligence
+ * - confirmed: value was explicitly chosen by user via card or confirmed inference
+ * - needs_review: value exists but upstream dependency changed — user should re-check
+ * - invalidated: value was cleared due to upstream change
+ */
+export type FieldStatus = 'missing' | 'inferred' | 'confirmed' | 'needs_review' | 'invalidated';
+
+/**
+ * Per-field metadata. Stored in `fieldMeta` map on session state.
+ * The value itself stays in the flat session fields — this is purely metadata.
+ */
+export interface FieldMeta {
+  status: FieldStatus;
+  /** Where this value came from */
+  source: 'user_card' | 'user_text' | 'auto' | 'intelligence' | 'default';
+  /** Confidence 0-1 (only meaningful for inferred) */
+  confidence: number;
+  /** Timestamp of last change */
+  updatedAt: number;
+}
+
 // ── Session State ────────────────────────────────────────────────────────
 
 export interface ScheduleSlot {
@@ -71,18 +97,29 @@ export interface AssistantSessionState {
   channels: Channel[];
   scheduleMode: ScheduleMode;
   slots: ScheduleSlot[];
+  campaignStartDate: string | null; // ISO date string (YYYY-MM-DD)
 
   // Media
   selectedMediaIds: string[];
   mediaAcknowledged: boolean;
+  heroImageId: string | null;
 
   // Quick post
+  quickPostSource: 'data' | 'idea' | null;
   quickPostChannel: Channel | null;
   quickPostGuidance: string | null;
   quickPostKind: DraftKind;
+  quickPostGoal: 'Growth' | 'Engagement' | 'Sales' | null;
+  quickPostContentType: string | null;
+  quickPostDataItemId: string | null;
+  quickPostDataItemTitle: string | null;
+  quickPostBlueprintId: string | null;
 
   // Generation result (stored for contract building)
   generationResult: Draft | ListingCampaignResult | null;
+
+  // Per-field metadata (status, source, confidence)
+  fieldMeta: Partial<Record<string, FieldMeta>>;
 
   // Session memory (survives resets)
   memory: SessionMemory;
@@ -116,11 +153,18 @@ export type AssistantAction =
   | { type: 'SET_CHANNELS'; payload: Channel[]; source?: 'user' | 'auto' }
   | { type: 'SET_SCHEDULE_MODE'; payload: ScheduleMode }
   | { type: 'SET_SLOTS'; payload: ScheduleSlot[] }
+  | { type: 'SET_CAMPAIGN_START_DATE'; payload: string | null }
   | { type: 'SET_MEDIA'; payload: string[] }
   | { type: 'SET_MEDIA_ACKNOWLEDGED' }
+  | { type: 'SET_HERO_IMAGE'; payload: string | null }
+  | { type: 'SET_QUICK_POST_SOURCE'; payload: 'data' | 'idea' }
   | { type: 'SET_QUICK_POST_CHANNEL'; payload: Channel }
   | { type: 'SET_QUICK_POST_GUIDANCE'; payload: string }
   | { type: 'SET_QUICK_POST_KIND'; payload: DraftKind }
+  | { type: 'SET_QUICK_POST_GOAL'; payload: 'Growth' | 'Engagement' | 'Sales' }
+  | { type: 'SET_QUICK_POST_CONTENT_TYPE'; payload: string }
+  | { type: 'SET_QUICK_POST_DATA_ITEM'; payload: { id: string; title: string } | null }
+  | { type: 'SET_QUICK_POST_BLUEPRINT'; payload: string | null }
   | { type: 'SET_GENERATION_RESULT'; payload: Draft | ListingCampaignResult | null }
   | { type: 'SET_PREFERRED_PRESET'; payload: string }
   | { type: 'RESET' };

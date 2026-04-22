@@ -2,6 +2,7 @@ import type { AssistantAction, AssistantSessionState } from '../types';
 import type { Channel, DraftKind } from '@/hooks/useSquadpitch';
 import type { ParseResult } from './types';
 import { getAdapterSafe } from '../adapterRegistry';
+import { resolveNextPrompts } from './stateResolver';
 
 // ── Pattern Matchers ─────────────────────────────────────────────────────
 
@@ -32,9 +33,9 @@ const TONE_PATTERNS: Array<{ pattern: RegExp; tone: string; confidence: number }
 
 const SCHEDULE_PATTERNS: Array<{ pattern: RegExp; hint: string; presetKey: string; confidence: number }> = [
   { pattern: /\b(recommend|suggested|use\s*recommend|use\s*suggested)\b/i, hint: 'recommended', presetKey: 'balanced', confidence: 0.95 },
-  { pattern: /\b(aggressive|fast|rapid|quick cadence|daily)\b/i, hint: 'aggressive', presetKey: 'aggressive', confidence: 0.8 },
-  { pattern: /\b(balanced|standard|normal|default)\b/i, hint: 'balanced', presetKey: 'balanced', confidence: 0.75 },
-  { pattern: /\b(luxury|slow|spread\s*out|storytelling|drip)\b/i, hint: 'luxury', presetKey: 'luxury', confidence: 0.8 },
+  { pattern: /\b(aggressive|fast|rapid|quick cadence|daily|front[- ]?load)\b/i, hint: 'fast', presetKey: 'aggressive', confidence: 0.8 },
+  { pattern: /\b(balanced|standard|normal|default|even|steady)\b/i, hint: 'standard', presetKey: 'balanced', confidence: 0.75 },
+  { pattern: /\b(luxury|slow|spread\s*out|storytelling|drip|extended|sustained)\b/i, hint: 'extended', presetKey: 'luxury', confidence: 0.8 },
   { pattern: /\b(\d+)\s*(?:day|post)/i, hint: 'custom', presetKey: 'balanced', confidence: 0.5 },
 ];
 
@@ -42,6 +43,79 @@ const KIND_PATTERNS: Array<{ pattern: RegExp; kind: string; confidence: number }
   { pattern: /\b(caption|write\s*a?\s*caption)s?\b/i, kind: 'CAPTION', confidence: 0.9 },
   { pattern: /\b(video\s*script|script|reel\s*script)s?\b/i, kind: 'VIDEO_SCRIPT', confidence: 0.9 },
   { pattern: /\b(post|social\s*post)s?\b/i, kind: 'POST', confidence: 0.7 },
+];
+
+// ── Step Navigation Patterns ─────────────────────────────────────────────
+
+const STEP_NAVIGATION_PATTERNS: Array<{ pattern: RegExp; field: string }> = [
+  // Media / images
+  { pattern: /\b(choose|pick|select|show)\s*(the\s*)?(image|photo|picture|media)/i, field: 'selectedMediaIds' },
+  { pattern: /\b(let me|i want to)\s*(choose|pick|select)\s*(image|photo|media)/i, field: 'selectedMediaIds' },
+  { pattern: /\b(go to|jump to|skip to|take me to)\s*(image|photo|media)/i, field: 'selectedMediaIds' },
+  // Channels
+  { pattern: /\b(what|which)\s*(channel|platform)/i, field: 'channels' },
+  { pattern: /\b(choose|pick|select|show|go to|jump to)\s*(the\s*)?(channel|platform)/i, field: 'channels' },
+  // Property
+  { pattern: /\b(choose|pick|select|show|go to|jump to)\s*(the\s*)?(property|listing)/i, field: 'selectedPropertyId' },
+  // Schedule
+  { pattern: /\b(choose|pick|select|show|go to|jump to)\s*(the\s*)?(schedule|timing|cadence)/i, field: 'slots' },
+  // Campaign type
+  { pattern: /\b(choose|pick|select|show|go to|jump to)\s*(the\s*)?(campaign\s*type|type)/i, field: 'campaignType' },
+];
+
+// ── Skip Patterns ────────────────────────────────────────────────────────
+
+const SKIP_PATTERNS: Array<{ pattern: RegExp; field: string | null }> = [
+  { pattern: /\b(skip|no)\s*(image|photo|picture|media)/i, field: 'selectedMediaIds' },
+  { pattern: /\b(don'?t\s*need|no\s*need\s*for)\s*(image|photo|media)/i, field: 'selectedMediaIds' },
+  { pattern: /\bskip\s*(this|current)?\s*(step)?\s*$/i, field: null },
+  { pattern: /\b(no\s*thanks|pass|move on|next\s*step)\b/i, field: null },
+];
+
+// ── Contextual Media Patterns (when current step is selectedMediaIds) ────
+
+const CONTEXTUAL_MEDIA_PATTERNS: Array<{ pattern: RegExp; intent: string; label: string }> = [
+  { pattern: /\b(all|every|use\s*all)\b.*\b(image|photo|picture|media)?\b/i, intent: 'select_all', label: 'Using all available images' },
+  { pattern: /\b(all\s*of\s*(them|the|those))/i, intent: 'select_all', label: 'Using all available images' },
+  { pattern: /\b(only\s*)?(exterior|outside|front|curb)/i, intent: 'select_property', label: 'Using exterior/property photos' },
+  { pattern: /\b(only\s*)?(interior|inside|indoor)/i, intent: 'select_property', label: 'Using interior photos' },
+  { pattern: /\b(property|listing)\s*(photo|image|picture)/i, intent: 'select_property', label: 'Using property photos' },
+  { pattern: /\buse\s*(the\s*)?(property|listing)\s*(photo|image|picture)/i, intent: 'select_property', label: 'Using property photos' },
+];
+
+// ── Contextual Schedule Patterns (when current step is slots) ────────────
+
+const CONTEXTUAL_SCHEDULE_PATTERNS: Array<{ pattern: RegExp; presetKey: string; label: string }> = [
+  { pattern: /\b(best|recommend|suggested|your\s*(pick|recommendation)|you\s*(choose|decide|pick))/i, presetKey: 'balanced', label: 'Using recommended schedule' },
+  { pattern: /\b(default|standard|normal|balanced|even|steady)\b/i, presetKey: 'balanced', label: 'Using standard cadence' },
+  { pattern: /\b(aggressive|fast|rapid|daily|front[- ]?load)\b/i, presetKey: 'aggressive', label: 'Using fast cadence' },
+  { pattern: /\b(slow|luxury|spread|drip|extended|sustained)\b/i, presetKey: 'luxury', label: 'Using extended cadence' },
+];
+
+// ── Quick Post Source Patterns ────────────────────────────────────────────
+
+const QP_SOURCE_PATTERNS: Array<{ pattern: RegExp; source: 'data' | 'idea'; confidence: number }> = [
+  { pattern: /\b(use\s*(my)?\s*data|from\s*(my)?\s*data|data\s*item)\b/i, source: 'data', confidence: 0.95 },
+  { pattern: /\b(start\s*from\s*(an?\s*)?idea|from\s*scratch|my\s*(own\s*)?idea|write\s*(my\s*)?own)\b/i, source: 'idea', confidence: 0.95 },
+  { pattern: /\b(idea|brainstorm|freeform)\b/i, source: 'idea', confidence: 0.7 },
+];
+
+// ── Quick Post Content Type Patterns ─────────────────────────────────────
+
+const QP_CONTENT_TYPE_PATTERNS: Array<{ pattern: RegExp; contentType: string; confidence: number }> = [
+  { pattern: /\b(listing|just\s*listed|open\s*house|price\s*(drop|reduc))\b/i, contentType: 'listing', confidence: 0.85 },
+  { pattern: /\b(testimonial|review|client\s*story)\b/i, contentType: 'testimonial', confidence: 0.9 },
+  { pattern: /\b(educational|tip|how\s*to|guide)\b/i, contentType: 'educational', confidence: 0.85 },
+  { pattern: /\b(market\s*update|market\s*report)\b/i, contentType: 'market_update', confidence: 0.9 },
+  { pattern: /\b(personal|story|behind\s*the\s*scenes)\b/i, contentType: 'personal', confidence: 0.8 },
+];
+
+// ── Quick Post Goal Patterns ─────────────────────────────────────────────
+
+const QP_GOAL_PATTERNS: Array<{ pattern: RegExp; goal: 'Growth' | 'Engagement' | 'Sales'; confidence: number }> = [
+  { pattern: /\b(growth|grow|followers?|reach|awareness)\b/i, goal: 'Growth', confidence: 0.85 },
+  { pattern: /\b(engage|engagement|comments?|likes?|interaction)\b/i, goal: 'Engagement', confidence: 0.85 },
+  { pattern: /\b(sales?|convert|leads?|sell|revenue)\b/i, goal: 'Sales', confidence: 0.85 },
 ];
 
 // ── Main Parser ──────────────────────────────────────────────────────────
@@ -155,6 +229,53 @@ export function parseUserInput(
     }
   }
 
+  // ── Detect quick post source ──
+  if (effectiveMode === 'quick_post' && (!session.quickPostSource || isRevision)) {
+    for (const { pattern, source, confidence: conf } of QP_SOURCE_PATTERNS) {
+      if (pattern.test(text)) {
+        actions.push({ type: 'SET_QUICK_POST_SOURCE', payload: source });
+        detectedFields.push(`source: ${source === 'data' ? 'Use my data' : 'Start from an idea'}`);
+        confidence['quickPostSource'] = conf;
+        break;
+      }
+    }
+  }
+
+  // ── Detect quick post content type ──
+  if (effectiveMode === 'quick_post' && !session.quickPostContentType) {
+    for (const { pattern, contentType, confidence: conf } of QP_CONTENT_TYPE_PATTERNS) {
+      if (pattern.test(text)) {
+        actions.push({ type: 'SET_QUICK_POST_CONTENT_TYPE', payload: contentType });
+        detectedFields.push(`contentType: ${contentType}`);
+        confidence['quickPostContentType'] = conf;
+        break;
+      }
+    }
+  }
+
+  // ── Detect quick post goal ──
+  if (effectiveMode === 'quick_post' && !session.quickPostGoal) {
+    for (const { pattern, goal, confidence: conf } of QP_GOAL_PATTERNS) {
+      if (pattern.test(text)) {
+        actions.push({ type: 'SET_QUICK_POST_GOAL', payload: goal });
+        detectedFields.push(`goal: ${goal}`);
+        confidence['quickPostGoal'] = conf;
+        break;
+      }
+    }
+  }
+
+  // ── Detect quick post guidance from freeform ──
+  if (effectiveMode === 'quick_post' && !session.quickPostGuidance && text.length > 10) {
+    // If no explicit guidance action yet, use the full text as guidance
+    const hasGuidanceAction = actions.some((a) => a.type === 'SET_QUICK_POST_GUIDANCE');
+    if (!hasGuidanceAction) {
+      actions.push({ type: 'SET_QUICK_POST_GUIDANCE', payload: text.trim() });
+      detectedFields.push(`guidance: "${text.trim().length > 40 ? text.trim().slice(0, 40) + '...' : text.trim()}"`);
+      confidence['quickPostGuidance'] = 0.7;
+    }
+  }
+
   // ── Detect tone ──
   const detectedTones: Array<{ tone: string; conf: number }> = [];
   for (const { pattern, tone, confidence: conf } of TONE_PATTERNS) {
@@ -211,6 +332,50 @@ export function parseUserInput(
     revisionTarget = detectRevisionTarget(text, session);
   }
 
+  // ── Detect skip ──
+  let skipTarget: string | null | undefined;
+  for (const { pattern, field } of SKIP_PATTERNS) {
+    if (pattern.test(text)) {
+      skipTarget = field;
+      break;
+    }
+  }
+
+  // ── Detect navigation (only if no actions extracted and no revision target) ──
+  let navigationTarget: string | undefined;
+  if (actions.length === 0 && !revisionTarget && skipTarget === undefined) {
+    for (const { pattern, field } of STEP_NAVIGATION_PATTERNS) {
+      if (pattern.test(text)) {
+        navigationTarget = field;
+        break;
+      }
+    }
+  }
+
+  // ── Detect contextual action (only if no actions extracted) ──
+  let contextualAction: ParseResult['contextualAction'];
+  if (actions.length === 0 && !revisionTarget && !navigationTarget && skipTarget === undefined) {
+    const currentStep = resolveNextPrompts(session)[0]?.field;
+
+    if (currentStep === 'selectedMediaIds') {
+      for (const { pattern, label } of CONTEXTUAL_MEDIA_PATTERNS) {
+        if (pattern.test(text)) {
+          contextualAction = { type: 'media_acknowledge', label };
+          break;
+        }
+      }
+    }
+
+    if (currentStep === 'slots') {
+      for (const { pattern, presetKey, label } of CONTEXTUAL_SCHEDULE_PATTERNS) {
+        if (pattern.test(text)) {
+          contextualAction = { type: 'schedule_preset', label, presetKey };
+          break;
+        }
+      }
+    }
+  }
+
   return {
     actions,
     detectedFields,
@@ -218,6 +383,9 @@ export function parseUserInput(
     confidence,
     ambiguities,
     revisionTarget,
+    navigationTarget,
+    skipTarget,
+    contextualAction,
   };
 }
 
@@ -225,6 +393,28 @@ export function parseUserInput(
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Normalize common street suffix abbreviations so "drive" matches "dr", etc. */
+const STREET_SUFFIX_MAP: Record<string, string> = {
+  dr: 'drive', drive: 'drive',
+  st: 'street', street: 'street',
+  ave: 'avenue', avenue: 'avenue',
+  blvd: 'boulevard', boulevard: 'boulevard',
+  ct: 'court', court: 'court',
+  cir: 'circle', circle: 'circle',
+  ln: 'lane', lane: 'lane',
+  pl: 'place', place: 'place',
+  rd: 'road', road: 'road',
+  way: 'way',
+  pkwy: 'parkway', parkway: 'parkway',
+  trl: 'trail', trail: 'trail',
+  ter: 'terrace', terrace: 'terrace',
+  hwy: 'highway', highway: 'highway',
+};
+
+function normalizeStreetSuffix(word: string): string {
+  return STREET_SUFFIX_MAP[word] ?? word;
 }
 
 function inferredModeFromActions(actions: AssistantAction[]): 'campaign' | 'quick_post' | null {
@@ -244,6 +434,11 @@ const REVISION_FIELD_PATTERNS: Array<{ pattern: RegExp; field: string }> = [
   { pattern: /\b(media|image|photo|picture|asset)s?\b/i, field: 'selectedMediaIds' },
   { pattern: /\b(schedule|timing|cadence|calendar|days?)s?\b/i, field: 'slots' },
   { pattern: /\b(mode|format)s?\b/i, field: 'mode' },
+  { pattern: /\b(source|path|approach)\b/i, field: 'quickPostSource' },
+  { pattern: /\b(data\s*item|data\s*source)\b/i, field: 'quickPostDataItemId' },
+  { pattern: /\b(guidance|topic|prompt|idea)s?\b/i, field: 'quickPostGuidance' },
+  { pattern: /\b(content\s*type|type\s*of\s*content)s?\b/i, field: 'quickPostContentType' },
+  { pattern: /\b(goal|objective|purpose)s?\b/i, field: 'quickPostGoal' },
 ];
 
 function detectRevisionTarget(text: string, session: AssistantSessionState): string | undefined {
@@ -266,6 +461,12 @@ function isFieldSet(field: string, session: AssistantSessionState): boolean {
     case 'channels': return session.channels.length > 0;
     case 'selectedMediaIds': return session.selectedMediaIds.length > 0;
     case 'slots': return session.slots.length > 0;
+    case 'quickPostSource': return session.quickPostSource !== null;
+    case 'quickPostDataItemId': return session.quickPostDataItemId !== null;
+    case 'quickPostGuidance': return !!session.quickPostGuidance;
+    case 'quickPostContentType': return session.quickPostContentType !== null;
+    case 'quickPostGoal': return session.quickPostGoal !== null;
+    case 'quickPostChannel': return session.quickPostChannel !== null;
     default: return false;
   }
 }
@@ -310,7 +511,7 @@ export function resolvePropertyFromText(
     .trim();
 
   // Try to extract address-like fragment: number + street words (stop at common non-address words)
-  const addressMatch = cleaned.match(/(\d+\s+[A-Za-z][A-Za-z\s.]*?)(?:\s*(?:,|$|\b(?:for|and|with|on|to)\b))/i)
+  const addressMatch = cleaned.match(/(\d+\s+[A-Za-z][A-Za-z\s.]*?)(?:\s*(?:,|$|\b(?:for|and|with|on|to|as|like|just|via|using|through)\b))/i)
     || cleaned.match(/(\d+\s+[A-Za-z][A-Za-z\s.]+)/);
   const fragment = (addressMatch ? addressMatch[1] : cleaned).trim().toLowerCase();
 
@@ -329,16 +530,20 @@ export function resolvePropertyFromText(
     const normalizedAddr = address.replace(/[,.\s]+/g, ' ').trim();
     const normalizedFrag = fragment.replace(/[,.\s]+/g, ' ').trim();
 
+    // Suffix-normalized versions for fuzzy comparison
+    const suffixNormAddr = normalizedAddr.split(/\s+/).map((w) => normalizeStreetSuffix(w)).join(' ');
+    const suffixNormFrag = normalizedFrag.split(/\s+/).map((w) => normalizeStreetSuffix(w)).join(' ');
+
     // 1. Exact match (after normalization)
-    if (normalizedAddr === normalizedFrag) {
+    if (normalizedAddr === normalizedFrag || suffixNormAddr === suffixNormFrag) {
       score = 1.0;
     }
-    // 2. Address starts with fragment
-    else if (normalizedAddr.startsWith(normalizedFrag)) {
+    // 2. Address starts with fragment (with suffix normalization)
+    else if (normalizedAddr.startsWith(normalizedFrag) || suffixNormAddr.startsWith(suffixNormFrag)) {
       score = 0.95;
     }
     // 3. Fragment is contained in address
-    else if (normalizedAddr.includes(normalizedFrag)) {
+    else if (normalizedAddr.includes(normalizedFrag) || suffixNormAddr.includes(suffixNormFrag)) {
       score = 0.85;
     }
     // 4. Street-number + street-name match
@@ -346,10 +551,15 @@ export function resolvePropertyFromText(
       const fragNumMatch = normalizedFrag.match(/^(\d+)\s+(.+)/);
       const addrNumMatch = normalizedAddr.match(/^(\d+)\s+(.+)/);
       if (fragNumMatch && addrNumMatch && fragNumMatch[1] === addrNumMatch[1]) {
-        // Same street number — check street name overlap
+        // Same street number — check street name overlap with suffix normalization
         const fragStreet = fragNumMatch[2].split(/\s+/);
-        const addrStreet = addrNumMatch[2];
-        const streetMatched = fragStreet.filter((w) => w.length > 1 && addrStreet.includes(w));
+        const addrStreetWords = addrNumMatch[2].split(/\s+/).map((w) => normalizeStreetSuffix(w));
+        const addrStreetJoined = addrStreetWords.join(' ');
+        const streetMatched = fragStreet.filter((w) => {
+          if (w.length <= 1) return false;
+          const norm = normalizeStreetSuffix(w);
+          return addrStreetJoined.includes(norm) || addrStreetWords.some((aw) => aw === norm);
+        });
         if (streetMatched.length === fragStreet.length) {
           score = 0.9; // all street words match
         } else if (streetMatched.length >= 1 && streetMatched.length / fragStreet.length >= 0.5) {

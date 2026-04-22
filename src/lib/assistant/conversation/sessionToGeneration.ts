@@ -1,5 +1,7 @@
 import type { AssistantSessionState } from '../types';
-import type { CampaignType, DraftKind, Channel } from '@/hooks/useSquadpitch';
+import type { CampaignType, DraftKind, Channel, CampaignImageContext } from '@/hooks/useSquadpitch';
+import { CAMPAIGN_PHASES } from '../campaignStrategy';
+import type { CampaignPhaseKey } from '../campaignStrategy.types';
 
 /**
  * Maps session state → campaign generation API input.
@@ -9,14 +11,23 @@ import type { CampaignType, DraftKind, Channel } from '@/hooks/useSquadpitch';
 export interface CampaignGenerationInput {
   propertyData: Record<string, unknown>;
   campaignType?: CampaignType;
+  dataItemId?: string;
   slots: Array<{
     label: string;
     channel: string;
     campaignDay: number;
     slotType?: string;
     angle?: string;
+    /** Phase key from the strategy architecture (e.g. 'announcement', 'feature') */
+    phase?: string;
+    /** Phase objective guidance for generation */
+    phaseObjective?: string;
   }>;
   preferencesContext?: string;
+  /** Strategy context for generation — included when strategy architecture is active */
+  strategyContext?: string;
+  /** Image context for the AI to assign imageHint to posts */
+  imageContext?: CampaignImageContext[];
 }
 
 /**
@@ -28,6 +39,7 @@ export interface QuickPostGenerationInput {
   channel: Channel;
   guidance: string;
   dataItemId?: string;
+  blueprintId?: string;
 }
 
 /**
@@ -42,17 +54,35 @@ export function mapSessionToCampaignInput(
   if (!session.campaignType) return null;
   if (session.slots.length === 0) return null;
 
+  // Build imageContext from property photos for AI imageHint assignment
+  const images = session.propertyData.images as Array<{ url?: string; label?: string; description?: string }> | undefined;
+  const imageContext: CampaignImageContext[] | undefined =
+    Array.isArray(images) && images.length > 0
+      ? images.slice(0, 8).map((img, i) => ({
+          label: img.label || `photo_${i + 1}`,
+          description: img.description || '',
+        }))
+      : undefined;
+
   return {
     propertyData: session.propertyData,
     campaignType: session.campaignType as CampaignType,
-    slots: session.slots.map((s) => ({
-      label: s.label ?? '',
-      channel: s.channel,
-      campaignDay: s.campaignDay,
-      slotType: s.slotType,
-      angle: s.angle,
-    })),
+    dataItemId: session.selectedPropertyId ?? undefined,
+    slots: session.slots.map((s) => {
+      const phaseKey = s.angle as CampaignPhaseKey | undefined;
+      const phaseDef = phaseKey && CAMPAIGN_PHASES[phaseKey] ? CAMPAIGN_PHASES[phaseKey] : null;
+      return {
+        label: s.label ?? '',
+        channel: s.channel,
+        campaignDay: s.campaignDay,
+        slotType: s.slotType,
+        angle: s.angle,
+        phase: phaseKey,
+        phaseObjective: phaseDef?.objective,
+      };
+    }),
     preferencesContext: preferencesContext ?? undefined,
+    imageContext,
   };
 }
 
@@ -68,6 +98,8 @@ export function mapSessionToQuickPostInput(
   if (!session.quickPostChannel) return null;
 
   const parts: string[] = [];
+  if (session.quickPostGoal) parts.push(`[Goal: ${session.quickPostGoal}]`);
+  if (session.quickPostContentType) parts.push(`[Type: ${session.quickPostContentType}]`);
   if (session.propertyData) {
     const address = session.propertyData.address as string | undefined;
     if (address) parts.push(`Property: ${address}`);
@@ -79,8 +111,9 @@ export function mapSessionToQuickPostInput(
     clientId,
     kind: session.quickPostKind as DraftKind,
     channel: session.quickPostChannel as Channel,
-    guidance: parts.length > 0 ? parts.join('\n') : 'Create an engaging post',
-    dataItemId: session.selectedPropertyId ?? undefined,
+    guidance: parts.length > 0 ? parts.join(' ') : 'Create an engaging post',
+    dataItemId: session.quickPostDataItemId ?? session.selectedPropertyId ?? undefined,
+    blueprintId: session.quickPostBlueprintId ?? undefined,
   };
 }
 

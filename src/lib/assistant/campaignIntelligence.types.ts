@@ -1,6 +1,7 @@
 import type { Channel } from '@/hooks/useSquadpitch';
 import type { AssistantCampaignType } from './types';
 import type { CampaignSlotConfig } from './schedulePresets';
+import type { CampaignStrategyKey, CampaignCadenceKey, CampaignPhaseKey } from './campaignStrategy.types';
 
 // ── Confidence Level ────────────────────────────────────────────────────
 
@@ -41,6 +42,16 @@ export interface ScheduleRecommendation {
   preset: string;
   slots: CampaignSlotConfig[];
   cadenceReason: string;
+  /** Strategy key (new architecture). Null for legacy preset-only path. */
+  strategy?: CampaignStrategyKey;
+  /** Cadence key (new architecture). Null for legacy preset-only path. */
+  cadence?: CampaignCadenceKey;
+  /** Phases used in this schedule (new architecture). */
+  phases?: CampaignPhaseKey[];
+  /** Human-readable strategy explanation */
+  strategyReason?: string;
+  /** Full user-facing explanation */
+  strategyExplanation?: string;
 }
 
 // ── Function Input Types ────────────────────────────────────────────────

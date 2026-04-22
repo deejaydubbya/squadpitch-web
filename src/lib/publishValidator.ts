@@ -3,11 +3,27 @@ import { CHANNEL_REGISTRY, getChannelLabel } from './channelRegistry';
 
 export type ReadinessLevel = 'ready' | 'warning' | 'blocked';
 
+export type PublishIssueCode =
+  | 'NOT_CONNECTED'
+  | 'NEEDS_MEDIA'
+  | 'NEEDS_VIDEO'
+  | 'CAPTION_TOO_LONG'
+  | 'VIDEO_DURATION_TOO_SHORT'
+  | 'VIDEO_DURATION_TOO_LONG'
+  | 'VIDEO_ASPECT_MISMATCH'
+  | 'MISSING_THUMBNAIL';
+
 export interface PublishIssue {
   level: ReadinessLevel;
-  code: 'NOT_CONNECTED' | 'NEEDS_MEDIA' | 'NEEDS_VIDEO' | 'CAPTION_TOO_LONG';
+  code: PublishIssueCode;
   message: string;
   action?: { label: string; href: string };
+}
+
+export interface VideoMeta {
+  durationSec?: number | null;
+  aspectRatio?: string | null;
+  thumbnailUrl?: string | null;
 }
 
 export interface PublishEligibility {
@@ -27,6 +43,7 @@ export function validatePublishEligibility(
   draft: Draft,
   connectionStatusMap: Map<Channel, boolean>,
   clientId: string,
+  videoMeta?: VideoMeta,
 ): PublishEligibility {
   const issues: PublishIssue[] = [];
   const cap = CHANNEL_REGISTRY[draft.channel];
@@ -67,6 +84,27 @@ export function validatePublishEligibility(
         message: `Caption exceeds ${label}'s ${cap.maxCaptionLength} character limit.`,
       });
     }
+
+    // Video-specific duration checks
+    if (draft.mediaType === 'video' && videoMeta && cap.videoDurationLimits) {
+      const dur = videoMeta.durationSec;
+      if (dur != null) {
+        if (dur < cap.videoDurationLimits.minSec) {
+          issues.push({
+            level: 'warning',
+            code: 'VIDEO_DURATION_TOO_SHORT',
+            message: `Video is ${dur}s — ${label} recommends at least ${cap.videoDurationLimits.minSec}s.`,
+          });
+        }
+        if (dur > cap.videoDurationLimits.maxSec) {
+          issues.push({
+            level: 'blocked',
+            code: 'VIDEO_DURATION_TOO_LONG',
+            message: `Video is ${dur}s — ${label} allows up to ${cap.videoDurationLimits.maxSec}s.`,
+          });
+        }
+      }
+    }
   }
 
   let level: ReadinessLevel = 'ready';
@@ -74,10 +112,14 @@ export function validatePublishEligibility(
     level = worstLevel(level, issue.level);
   }
 
+  const hasBlockingIssue = issues.some(
+    (i) => i.level === 'blocked' && i.code !== 'NOT_CONNECTED'
+  );
+
   return {
     level,
     issues,
-    canPublish: level !== 'blocked' || (issues.every((i) => i.code !== 'NEEDS_VIDEO') && isConnected),
+    canPublish: !hasBlockingIssue && isConnected,
     canSchedule: isConnected,
   };
 }

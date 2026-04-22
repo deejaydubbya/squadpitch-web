@@ -1,4 +1,6 @@
 import type { Channel } from '@/hooks/useSquadpitch';
+import type { CampaignPhaseKey, CampaignCadenceKey } from './campaignStrategy.types';
+import { CAMPAIGN_PHASES, CAMPAIGN_CADENCES } from './campaignStrategy';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -8,6 +10,8 @@ export interface CampaignSlotConfig {
   channel: string;
   campaignDay: number;
   purpose?: string;
+  /** Campaign phase this slot represents (new strategy architecture) */
+  phase?: CampaignPhaseKey;
 }
 
 export interface SequencePreset {
@@ -96,5 +100,39 @@ export function buildSlotsForChannels(
     // Round-robin fallback to an available channel
     const fallback = availableChannels[i % availableChannels.length];
     return { ...slot, channel: fallback };
+  });
+}
+
+// ── Strategy-Driven Slot Generation ──────────────────────────────────────
+
+/**
+ * Build campaign slots from a strategy's phase sequence + cadence timing.
+ * This is the new phase-driven alternative to the fixed presets above.
+ *
+ * Each phase becomes a slot, cadence determines the day spacing,
+ * and channels are assigned via round-robin from available channels.
+ */
+export function buildSlotsFromStrategy(
+  phases: CampaignPhaseKey[],
+  cadenceKey: CampaignCadenceKey,
+  availableChannels: Channel[],
+): CampaignSlotConfig[] {
+  const cadence = CAMPAIGN_CADENCES[cadenceKey];
+  const days = cadence.computeDays(phases.length);
+
+  return phases.map((phaseKey, i) => {
+    const phase = CAMPAIGN_PHASES[phaseKey];
+    const channel = availableChannels.length > 0
+      ? availableChannels[i % availableChannels.length]
+      : 'INSTAGRAM'; // fallback
+
+    return {
+      id: `slot-${i + 1}`,
+      label: phase.label,
+      channel,
+      campaignDay: days[i],
+      purpose: phase.objective,
+      phase: phaseKey,
+    };
   });
 }

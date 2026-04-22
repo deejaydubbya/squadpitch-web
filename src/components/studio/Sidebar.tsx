@@ -8,7 +8,6 @@ import {
   Sparkles,
   BarChart3,
   Settings,
-  Megaphone,
   FileText,
   ChevronDown,
   ChevronRight,
@@ -16,7 +15,6 @@ import {
   Briefcase,
   Activity,
   Database,
-  Home,
   Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -47,16 +45,13 @@ export function Sidebar({ client }: Props) {
         ? 'bg-yellow-500/20 text-yellow-400'
         : 'bg-white-10 text-white-60';
 
-  const isRE = client.industryKey === 'real_estate';
-
   const navItems = [
     { href: base, icon: LayoutDashboard, label: 'Home', exact: true },
-    { href: `${base}/planner`, icon: FileText, label: 'Content' },
-    { href: `${base}/campaigns`, icon: Megaphone, label: 'Campaigns', activeAlso: [`${base}/listing-campaign`] },
+    { href: `${base}/autopilot`, icon: Zap, label: 'Autopilot' },
     { href: `${base}/compose`, icon: Sparkles, label: 'Create Content', primary: true },
+    { href: `${base}/planner`, icon: FileText, label: 'Content' },
     { href: `${base}/sources`, icon: Database, label: 'Sources' },
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics' },
-    { href: `${base}/autopilot`, icon: Zap, label: 'Autopilot' },
   ];
 
   const settingsItems = [
@@ -69,11 +64,9 @@ export function Sidebar({ client }: Props) {
     { href: `${base}/settings/billing`, label: 'Billing' },
   ];
 
-  const isActive = (href: string, exact?: boolean, activeAlso?: string[]) => {
+  const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href;
-    if (pathname.startsWith(href)) return true;
-    if (activeAlso?.some((p) => pathname.startsWith(p))) return true;
-    return false;
+    return pathname.startsWith(href);
   };
 
   return (
@@ -102,7 +95,7 @@ export function Sidebar({ client }: Props) {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-hide py-4 px-3 space-y-1">
         {navItems.map((item) => {
-          const active = isActive(item.href, item.exact, item.activeAlso);
+          const active = isActive(item.href, item.exact);
           return (
             <div key={item.href}>
               <Link
@@ -124,21 +117,6 @@ export function Sidebar({ client }: Props) {
                   </span>
                 )}
               </Link>
-              {/* Listing Campaign sub-item for RE workspaces */}
-              {item.label === 'Campaigns' && isRE && (
-                <Link
-                  href={`${base}/listing-campaign`}
-                  className={cn(
-                    'flex items-center gap-3 ml-4 pl-4 border-l border-white-10 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                    pathname.startsWith(`${base}/listing-campaign`)
-                      ? 'text-accent-green-110 bg-accent-green-110/10'
-                      : 'text-white-40 hover:text-white-100 hover:bg-white-5'
-                  )}
-                >
-                  <Home className="w-3.5 h-3.5" />
-                  Listing Campaign
-                </Link>
-              )}
             </div>
           );
         })}

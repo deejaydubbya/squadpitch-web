@@ -9,6 +9,7 @@ import {
   ImageOff,
   Paperclip,
   Film,
+  Play,
   Video,
   Eye,
   Search,
@@ -28,7 +29,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import {
-  useAssets,
+  useAssetsPaginated,
   useUploadAsset,
   useDeleteAsset,
   useGenerateMedia,
@@ -168,8 +169,13 @@ export function AssetLibrary({ clientId }: Props) {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const filters = useMemo(() => {
-    const f: Record<string, string> = {};
+  // ── Pagination ──────────────────────────────────────────────────
+  const PAGE_SIZE = 48;
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [accumulatedAssets, setAccumulatedAssets] = useState<MediaAsset[]>([]);
+
+  const baseFilters = useMemo(() => {
+    const f: Record<string, string> = { limit: String(PAGE_SIZE) };
     if (sourceFilter !== 'ALL') f.source = sourceFilter;
     if (statusFilter !== 'ALL') f.status = statusFilter;
     if (typeFilter !== 'ALL') f.assetType = typeFilter;
@@ -180,14 +186,48 @@ export function AssetLibrary({ clientId }: Props) {
     return f;
   }, [sourceFilter, statusFilter, typeFilter, tagFilter, debouncedSearch, activeFolderId]);
 
+  // Reset pagination when base filters change
+  useEffect(() => {
+    setCursor(undefined);
+    setAccumulatedAssets([]);
+  }, [baseFilters]);
+
+  const filters = useMemo(() => {
+    if (cursor) return { ...baseFilters, cursor };
+    return baseFilters;
+  }, [baseFilters, cursor]);
+
   // ── Data ──────────────────────────────────────────────────────────
   const [poll, setPoll] = useState(false);
 
   const {
-    data: assets,
+    data: page,
     isLoading,
+    isFetching,
     error,
-  } = useAssets(clientId, filters, poll);
+  } = useAssetsPaginated(clientId, filters, poll);
+
+  // Accumulate pages
+  useEffect(() => {
+    if (page?.assets) {
+      setAccumulatedAssets((prev) => {
+        if (!cursor) return page.assets; // First page — replace
+        // Append, deduping by id
+        const existingIds = new Set(prev.map((a) => a.id));
+        const newAssets = page.assets.filter((a) => !existingIds.has(a.id));
+        return [...prev, ...newAssets];
+      });
+    }
+  }, [page, cursor]);
+
+  const assets = accumulatedAssets;
+  const hasMore = page?.hasMore ?? false;
+
+  const handleLoadMore = () => {
+    if (page?.nextCursor) {
+      setCursor(page.nextCursor);
+    }
+  };
 
   // Enable polling when any asset is in-progress
   const hasInProgress = useMemo(
@@ -716,29 +756,51 @@ export function AssetLibrary({ clientId }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {assets.map((asset) => (
-                  <AssetCard
-                    key={asset.id}
-                    asset={asset}
-                    folders={folders ?? []}
-                    tagDefaults={tagDefaults ?? []}
-                    onPreview={() => setPreviewAsset(asset)}
-                    onAttach={() => setAttachAssetId(asset.id)}
-                    onDownload={() => handleDownloadAsset(asset)}
-                    isConfirmingDelete={deletingAssetId === asset.id}
-                    onDeleteClick={() => setDeletingAssetId(asset.id)}
-                    onDeleteConfirm={() => handleDelete(asset.id)}
-                    onDeleteCancel={() => setDeletingAssetId(null)}
-                    isDeleting={deleteAsset.isPending}
-                    onMoveToFolder={(folderId) => moveAssetToFolder.mutate({ assetId: asset.id, folderId })}
-                    onUpdateTags={(tags) => updateAssetTags.mutate({ assetId: asset.id, tags })}
-                    onAutoTag={() => {
-                      autoTagAsset.mutate(asset.id);
-                    }}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {assets.map((asset) => (
+                    <AssetCard
+                      key={asset.id}
+                      asset={asset}
+                      folders={folders ?? []}
+                      tagDefaults={tagDefaults ?? []}
+                      onPreview={() => setPreviewAsset(asset)}
+                      onAttach={() => setAttachAssetId(asset.id)}
+                      onDownload={() => handleDownloadAsset(asset)}
+                      isConfirmingDelete={deletingAssetId === asset.id}
+                      onDeleteClick={() => setDeletingAssetId(asset.id)}
+                      onDeleteConfirm={() => handleDelete(asset.id)}
+                      onDeleteCancel={() => setDeletingAssetId(null)}
+                      isDeleting={deleteAsset.isPending}
+                      onMoveToFolder={(folderId) => moveAssetToFolder.mutate({ assetId: asset.id, folderId })}
+                      onUpdateTags={(tags) => updateAssetTags.mutate({ assetId: asset.id, tags })}
+                      onAutoTag={() => {
+                        autoTagAsset.mutate(asset.id);
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Load More */}
+                {hasMore && (
+                  <div className="flex justify-center pt-4">
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={isFetching}
+                      className="px-4 py-2 rounded-lg bg-white-10 text-white-60 text-sm font-medium hover:bg-white-20 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                    >
+                      {isFetching ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        'Load More'
+                      )}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -1289,6 +1351,15 @@ function AssetCard({
             ) : (
               <ImageOff className="w-8 h-8 text-white-20" />
             )}
+          </div>
+        )}
+
+        {/* Play icon overlay for video */}
+        {asset.assetType === 'video' && asset.status === 'READY' && (asset.thumbnailUrl || asset.url) && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center">
+              <Play className="w-5 h-5 text-white-100 ml-0.5" />
+            </div>
           </div>
         )}
 

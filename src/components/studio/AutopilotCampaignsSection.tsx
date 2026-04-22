@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Megaphone } from 'lucide-react';
+import { Megaphone, Zap, ArrowRight, TrendingDown, Home, CalendarCheck } from 'lucide-react';
 import {
   useAutopilotCampaignRecommendations,
   useGenerateAutopilotCampaign,
@@ -121,10 +121,8 @@ export function AutopilotCampaignsSection({ clientId }: AutopilotCampaignsSectio
     );
   }
 
-  // Error state
-  if (isError) {
-    return null;
-  }
+  // Error state — treat as empty inbox (endpoint may not exist yet)
+  // Fall through to render the empty state UI below
 
   const FILTER_TABS: { key: FilterTab; label: string; count?: number }[] = [
     { key: 'needs_review', label: 'Needs Review', count: needsReviewCount > 0 ? needsReviewCount : undefined },
@@ -190,8 +188,38 @@ export function AutopilotCampaignsSection({ clientId }: AutopilotCampaignsSectio
             />
           ))}
         </div>
+      ) : recommendations.length === 0 && activeFilter === 'needs_review' ? (
+        /* First-time / fully empty inbox — explain what autopilot does */
+        <div className="py-6 space-y-5">
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-accent-green-110/10 mx-auto">
+              <Zap className="w-5 h-5 text-accent-green-110" />
+            </div>
+            <p className="text-sm font-semibold text-white-80">Your autopilot inbox is empty</p>
+            <p className="text-xs text-white-40 max-w-sm mx-auto leading-relaxed">
+              When autopilot detects changes in your property data, it will create campaign recommendations here for your review. Nothing publishes without your approval.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { icon: Home, label: 'New listing', desc: 'Just-listed campaign' },
+              { icon: TrendingDown, label: 'Price drop', desc: 'Price reduction push' },
+              { icon: CalendarCheck, label: 'Open house', desc: 'Event promotion' },
+            ].map((item) => (
+              <div key={item.label} className="flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl bg-white-5 border border-white-5">
+                <item.icon className="w-4 h-4 text-white-30" />
+                <p className="text-[11px] font-medium text-white-60">{item.label}</p>
+                <p className="text-[10px] text-white-30">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-center gap-1.5 text-xs text-white-30">
+            <ArrowRight className="w-3 h-3" />
+            <span>Import properties or connect a listing feed to get started</span>
+          </div>
+        </div>
       ) : (
-        <p className="text-sm text-white-40 py-4 text-center">
+        <p className="text-sm text-white-40 py-6 text-center">
           {emptyMessage}
         </p>
       )}

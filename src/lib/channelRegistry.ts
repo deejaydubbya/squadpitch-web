@@ -1,5 +1,11 @@
 import type { Channel } from '@/hooks/useSquadpitch';
 
+export interface VideoDurationLimits {
+  minSec: number;
+  maxSec: number;
+  recommendedSec: number;
+}
+
 export interface ChannelCapability {
   channel: Channel;
   label: string;
@@ -7,6 +13,9 @@ export interface ChannelCapability {
   requiresConnection: boolean;
   requiresMedia: boolean;
   requiresVideo: boolean;
+  prefersVideo: boolean;
+  preferredVideoAspectRatio?: string;
+  videoDurationLimits?: VideoDurationLimits;
   supportsTextOnly: boolean;
   maxCaptionLength: number | null;
 }
@@ -18,6 +27,9 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: true,
     requiresVideo: false,
+    prefersVideo: false,
+    preferredVideoAspectRatio: '9:16',
+    videoDurationLimits: { minSec: 3, maxSec: 90, recommendedSec: 10 },
     supportsTextOnly: false,
     maxCaptionLength: 2200,
   },
@@ -27,6 +39,9 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: true,
     requiresVideo: false,
+    prefersVideo: true,
+    preferredVideoAspectRatio: '9:16',
+    videoDurationLimits: { minSec: 3, maxSec: 180, recommendedSec: 10 },
     supportsTextOnly: false,
     maxCaptionLength: 2200,
   },
@@ -36,6 +51,9 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: true,
     requiresVideo: true,
+    prefersVideo: true,
+    preferredVideoAspectRatio: '16:9',
+    videoDurationLimits: { minSec: 5, maxSec: 600, recommendedSec: 10 },
     supportsTextOnly: false,
     maxCaptionLength: 5000,
   },
@@ -45,6 +63,9 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: false,
     requiresVideo: false,
+    prefersVideo: false,
+    preferredVideoAspectRatio: '16:9',
+    videoDurationLimits: { minSec: 1, maxSec: 140, recommendedSec: 10 },
     supportsTextOnly: true,
     maxCaptionLength: 280,
   },
@@ -54,6 +75,9 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: false,
     requiresVideo: false,
+    prefersVideo: false,
+    preferredVideoAspectRatio: '16:9',
+    videoDurationLimits: { minSec: 3, maxSec: 600, recommendedSec: 10 },
     supportsTextOnly: true,
     maxCaptionLength: 3000,
   },
@@ -63,6 +87,9 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: false,
     requiresVideo: false,
+    prefersVideo: false,
+    preferredVideoAspectRatio: '16:9',
+    videoDurationLimits: { minSec: 1, maxSec: 240, recommendedSec: 10 },
     supportsTextOnly: true,
     maxCaptionLength: 63206,
   },
@@ -73,6 +100,7 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: true,
     requiresVideo: false,
+    prefersVideo: false,
     supportsTextOnly: false,
     maxCaptionLength: 500,
   },
@@ -83,6 +111,7 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: false,
     requiresVideo: false,
+    prefersVideo: false,
     supportsTextOnly: true,
     maxCaptionLength: 500,
   },
@@ -93,6 +122,7 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     requiresConnection: true,
     requiresMedia: false,
     requiresVideo: false,
+    prefersVideo: false,
     supportsTextOnly: true,
     maxCaptionLength: 40000,
   },
@@ -108,4 +138,16 @@ export function getChannelRequirementHint(channel: Channel): string | null {
   if (cap.requiresVideo) return 'Requires video';
   if (cap.requiresMedia) return 'Requires image or video';
   return null;
+}
+
+export function getVideoRequirementHint(channel: Channel): string | null {
+  const cap = CHANNEL_REGISTRY[channel];
+  if (!cap) return null;
+  if (cap.requiresVideo) return `${cap.label} requires video`;
+  if (cap.prefersVideo) return `${cap.label} works best with video`;
+  return null;
+}
+
+export function getPreferredAspectRatio(channel: Channel): string {
+  return CHANNEL_REGISTRY[channel]?.preferredVideoAspectRatio ?? '16:9';
 }

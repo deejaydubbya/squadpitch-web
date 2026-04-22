@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -18,6 +18,7 @@ import {
   ExternalLink,
   AlertTriangle,
   RefreshCw,
+  MapPin,
 } from 'lucide-react';
 import {
   useTechStack,
@@ -25,15 +26,19 @@ import {
   useSyncIntegration,
   isSyncable,
   squadpitchKeys,
+  useGBPConnect,
+  useGBPCallback,
+  useGBPSetLocation,
   type TechStackViewItem,
   type ManualSetupField,
   type Channel,
+  type GBPCallbackResult,
 } from '@/hooks/useSquadpitch';
 import { useOAuthPopup } from '@/hooks/useOAuthPopup';
 
 // ── Group config ──────────────────────────────────────────────────────
 
-const GROUP_META = [
+export const GROUP_META = [
   {
     key: 'importData' as const,
     label: 'Import Your Data',
@@ -67,7 +72,7 @@ const BADGE_STYLES: Record<TechStackViewItem['statusBadge'], string> = {
   'Manage': 'bg-accent-green-110/10 text-accent-green-110',
 };
 
-function StatusBadge({ badge }: { badge: TechStackViewItem['statusBadge'] }) {
+export function StatusBadge({ badge }: { badge: TechStackViewItem['statusBadge'] }) {
   return (
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${BADGE_STYLES[badge]}`}
@@ -147,7 +152,7 @@ const MANAGED_ROUTES: Record<string, string> = {
 
 // ── Manual setup card (config-driven) ────────────────────────────────
 
-function ManualSetupCard({
+export function ManualSetupCard({
   item,
   clientId,
 }: {
@@ -373,7 +378,7 @@ function ManualSetupCard({
 
 // ── Managed card (redirects to another page) ────────────────────────
 
-function ManagedCard({
+export function ManagedCard({
   item,
   clientId,
 }: {
@@ -425,7 +430,7 @@ function ManagedCard({
 
 // ── Integration card (OAuth without channelRef, e.g. GBP) ────────────
 
-function IntegrationCard({
+export function IntegrationCard({
   item,
   clientId,
 }: {
@@ -436,7 +441,81 @@ function IntegrationCard({
   const hasError = item.connectionStatus === 'error';
   const canSync = isConnected && isSyncable(item.providerKey);
   const sync = useSyncIntegration(clientId);
+  const qc = useQueryClient();
   const [syncFlash, setSyncFlash] = useState<'success' | 'error' | null>(null);
+
+  // GBP inline OAuth flow
+  const gbpConnect = useGBPConnect(clientId);
+  const gbpCallback = useGBPCallback(clientId);
+  const gbpSetLocation = useGBPSetLocation(clientId);
+  const [callbackResult, setCallbackResult] = useState<GBPCallbackResult | null>(null);
+
+  const isGBP = item.providerKey === 'google_business_profile';
+  const isConnecting = gbpConnect.isPending || gbpCallback.isPending;
+
+  // Listen for GBP OAuth popup completion
+  const handleMessage = useCallback(
+    (event: MessageEvent) => {
+      if (event.data?.type === 'sp-gbp-oauth-complete') {
+        const { code, state } = event.data;
+        gbpCallback.mutate(
+          { code, state },
+          {
+            onSuccess: (result) => {
+              if (result.needsLocationSelection) {
+                setCallbackResult(result);
+              } else {
+                qc.invalidateQueries({ queryKey: ['workspace-tech-stack', clientId] });
+                qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+              }
+            },
+          }
+        );
+      }
+    },
+    [gbpCallback, clientId, qc]
+  );
+
+  useEffect(() => {
+    if (!isGBP || isConnected) return;
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isGBP, isConnected, handleMessage]);
+
+  const handleConnect = () => {
+    if (!isGBP) return;
+    gbpConnect.mutate(undefined, {
+      onSuccess: (data) => {
+        const w = 600;
+        const h = 720;
+        const left = window.screenX + (window.innerWidth - w) / 2;
+        const top = window.screenY + (window.innerHeight - h) / 2;
+        window.open(
+          data.authUrl,
+          'gbp-oauth',
+          `width=${w},height=${h},left=${left},top=${top}`
+        );
+      },
+    });
+  };
+
+  const handleSelectLocation = (loc: { name: string; title: string }) => {
+    if (!callbackResult?.accounts?.[0]) return;
+    gbpSetLocation.mutate(
+      {
+        accountId: callbackResult.accounts[0].name,
+        locationId: loc.name,
+        locationName: loc.title,
+      },
+      {
+        onSuccess: () => {
+          setCallbackResult(null);
+          qc.invalidateQueries({ queryKey: ['workspace-tech-stack', clientId] });
+          qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+        },
+      }
+    );
+  };
 
   const meta = item.metadataJson as Record<string, unknown> | null;
   const lastSyncedAt = meta?.lastSyncedAt;
@@ -471,6 +550,19 @@ function IntegrationCard({
         </div>
         {isConnected ? (
           <StatusBadge badge="Connected" />
+        ) : isConnecting ? (
+          <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-white-10 text-white-60">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Connecting…
+          </span>
+        ) : isGBP ? (
+          <button
+            onClick={handleConnect}
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20 transition-colors"
+          >
+            <LinkIcon className="w-3 h-3" />
+            Connect
+          </button>
         ) : (
           <Link
             href={`/workspaces/${clientId}/settings/integrations`}
@@ -485,6 +577,26 @@ function IntegrationCard({
       {/* Description */}
       {item.description && (
         <p className="text-xs text-white-40">{item.description}</p>
+      )}
+
+      {/* Location selection (GBP OAuth multi-location) */}
+      {callbackResult?.needsLocationSelection && callbackResult.locations && (
+        <div className="space-y-2 pt-1">
+          <p className="text-xs font-medium text-white-80">Select a location:</p>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {callbackResult.locations.map((loc: { name: string; title: string }) => (
+              <button
+                key={loc.name}
+                onClick={() => handleSelectLocation(loc)}
+                disabled={gbpSetLocation.isPending}
+                className="w-full text-left px-3 py-2 rounded-lg text-xs text-white-80 bg-white-5 hover:bg-white-10 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                <MapPin className="w-3 h-3 shrink-0 text-white-40" />
+                {loc.title}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Connected metadata */}
@@ -545,7 +657,7 @@ function IntegrationCard({
 
 // ── Generic card ─────────────────────────────────────────────────────
 
-function TechStackCard({ item }: { item: TechStackViewItem }) {
+export function TechStackCard({ item }: { item: TechStackViewItem }) {
   return (
     <div className={`${cardClass(item)} space-y-2`}>
       <div className="flex items-center justify-between gap-2">
@@ -561,7 +673,7 @@ function TechStackCard({ item }: { item: TechStackViewItem }) {
 
 // ── Channel-mapped card ──────────────────────────────────────────────
 
-function ChannelCard({
+export function ChannelCard({
   item,
   clientId,
 }: {
@@ -633,7 +745,7 @@ function ChannelCard({
 
 // ── Group ─────────────────────────────────────────────────────────────
 
-function TechStackGroup({
+export function TechStackGroup({
   label,
   icon: Icon,
   color,

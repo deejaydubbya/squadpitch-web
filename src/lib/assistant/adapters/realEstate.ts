@@ -13,6 +13,8 @@ import {
   SLOT_MEDIA_HINTS,
 } from '../schedulePresets';
 import type { IndustryAdapter, TriggerConfig } from '../industryAdapter';
+import type { StrategyResolution, CampaignStrategyKey, CampaignCadenceKey } from '../campaignStrategy.types';
+import { CAMPAIGN_STRATEGIES, CAMPAIGN_CADENCES } from '../campaignStrategy';
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -184,8 +186,8 @@ function prioritizeMedia(
     ].join(' ');
 
     const hasExterior = /exterior|front|hero/.test(searchable);
-    const hasInterior = /kitchen|living|interior/.test(searchable);
-    const hasLifestyle = /backyard|neighborhood|lifestyle/.test(searchable);
+    const hasInterior = /kitchen|living|interior|basement|bathroom|bedroom|dining/.test(searchable);
+    const hasLifestyle = /backyard|neighborhood|lifestyle|pool|patio|garden/.test(searchable);
 
     if (hasExterior) {
       score += 30;
@@ -346,6 +348,87 @@ function mapTriggerToCampaignType(
   }
 }
 
+// ── Strategy Resolution ─────────────────────────────────────────────────
+
+function resolveStrategy(
+  campaignType: string,
+  itemData: Record<string, unknown>,
+): StrategyResolution {
+  const price = itemData.price as number | undefined;
+  const daysOnMarket = itemData.daysOnMarket as number | undefined;
+  const isLuxury = typeof price === 'number' && price >= 750000;
+
+  let strategyKey: CampaignStrategyKey;
+  let cadenceKey: CampaignCadenceKey;
+  let strategyReason: string;
+  let cadenceReason: string;
+
+  switch (campaignType) {
+    case 'just_listed':
+      if (isLuxury) {
+        strategyKey = 'luxury_showcase';
+        cadenceKey = 'extended';
+        strategyReason = 'Luxury listing — storytelling approach builds exclusivity and perceived value';
+        cadenceReason = 'Extended cadence lets the narrative breathe and build anticipation';
+      } else {
+        strategyKey = 'new_listing_launch';
+        cadenceKey = 'fast';
+        strategyReason = 'New listing — maximize launch momentum while the listing is fresh';
+        cadenceReason = 'Fast cadence capitalizes on the excitement of a new listing';
+      }
+      break;
+
+    case 'open_house':
+      strategyKey = 'open_house_push';
+      cadenceKey = 'fast';
+      strategyReason = 'Open house — concentrated campaign drives event attendance';
+      cadenceReason = 'Fast cadence builds urgency leading up to the event';
+      break;
+
+    case 'price_drop':
+      strategyKey = 'price_drop_push';
+      cadenceKey = 'fast';
+      strategyReason = 'Price reduction — capture buyer urgency before the window closes';
+      cadenceReason = 'Fast cadence capitalizes on the time-sensitive nature of a price drop';
+      break;
+
+    case 'general_promotion':
+      if (typeof daysOnMarket === 'number' && daysOnMarket > 30) {
+        strategyKey = 'stale_listing_revival';
+        cadenceKey = 'standard';
+        strategyReason = `${daysOnMarket} days on market — fresh angles and repositioning can reignite buyer interest`;
+        cadenceReason = 'Standard cadence provides steady momentum without appearing desperate';
+      } else if (isLuxury) {
+        strategyKey = 'luxury_showcase';
+        cadenceKey = 'extended';
+        strategyReason = 'Luxury listing — slow-build approach suits high-value properties';
+        cadenceReason = 'Extended cadence builds exclusivity and emotional connection';
+      } else {
+        strategyKey = 'evergreen_promotion';
+        cadenceKey = 'standard';
+        strategyReason = 'General promotion — balanced multi-touch strategy for broad appeal';
+        cadenceReason = 'Standard cadence suits a general promotional campaign';
+      }
+      break;
+
+    default:
+      strategyKey = 'evergreen_promotion';
+      cadenceKey = 'standard';
+      strategyReason = 'Default strategy — well-rounded multi-touch campaign';
+      cadenceReason = 'Standard cadence suits most campaign scenarios';
+  }
+
+  const strategy = CAMPAIGN_STRATEGIES[strategyKey];
+
+  return {
+    strategy: strategyKey,
+    cadence: cadenceKey,
+    phases: strategy.defaultPhases,
+    strategyReason,
+    cadenceReason,
+  };
+}
+
 // ── Prompt Context ──────────────────────────────────────────────────────
 
 function buildPromptContext(itemData: Record<string, unknown>): string | null {
@@ -444,6 +527,7 @@ export const realEstateAdapter: IndustryAdapter = {
     slotPurposeHints: SLOT_PURPOSE_HINTS,
     slotMediaHints: SLOT_MEDIA_HINTS,
     selectPreset,
+    resolveStrategy,
   },
 
   supportedTriggers: ['new_listing', 'price_drop', 'open_house_added', 'open_house_updated', 'status_changed'],

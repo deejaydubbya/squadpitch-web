@@ -12,20 +12,35 @@ import { MediaSelectCard } from './cards/MediaSelectCard';
 import { ScheduleReviewCard } from './cards/ScheduleReviewCard';
 import { GenerationCard } from './cards/GenerationCard';
 import { CampaignReviewCard } from './cards/CampaignReviewCard';
+import { QuickPostConfigCard } from './cards/QuickPostConfigCard';
+import { QuickPostSourceCard } from './cards/QuickPostSourceCard';
+import { QuickPostDataCard } from './cards/QuickPostDataCard';
+import { QuickPostGuidanceCard } from './cards/QuickPostGuidanceCard';
+import { QuickPostContentTypeCard } from './cards/QuickPostContentTypeCard';
+import { QuickPostGoalCard } from './cards/QuickPostGoalCard';
 
 interface Props {
   messages: ChatMessage[];
   session: AssistantSessionState;
   clientId: string;
-  onCardSelection: (action: AssistantAction, confirmationText: string) => void;
+  onCardSelection: (action: AssistantAction | AssistantAction[], confirmationText: string) => void;
 }
 
 export function MessageThread({ messages, session, clientId, onCardSelection }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Derive a key from message count + last message id so we scroll on any new message
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : '';
+
   useEffect(() => {
+    // Immediate scroll
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+    // Delayed scroll to catch card renders that expand content
+    const timer = setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [messages.length, lastMessageId]);
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
@@ -54,7 +69,7 @@ function MessageBubble({
   message: ChatMessage;
   session: AssistantSessionState;
   clientId: string;
-  onCardSelection: (action: AssistantAction, confirmationText: string) => void;
+  onCardSelection: (action: AssistantAction | AssistantAction[], confirmationText: string) => void;
 }) {
   const isUser = message.type === 'user_text';
   const isConfirmation = message.type === 'confirmation';
@@ -132,7 +147,7 @@ function CardRenderer({
   cardType: CardType;
   session: AssistantSessionState;
   clientId: string;
-  onSelection: (action: AssistantAction, confirmationText: string) => void;
+  onSelection: (action: AssistantAction | AssistantAction[], confirmationText: string) => void;
 }) {
   switch (cardType) {
     case 'mode_select':
@@ -151,6 +166,18 @@ function CardRenderer({
       return <GenerationCard session={session} clientId={clientId} onSelection={onSelection} />;
     case 'campaign_review':
       return <CampaignReviewCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'quick_post_config':
+      return <QuickPostConfigCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'quick_post_source':
+      return <QuickPostSourceCard onSelection={onSelection} />;
+    case 'quick_post_data':
+      return <QuickPostDataCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'quick_post_guidance':
+      return <QuickPostGuidanceCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'quick_post_content_type':
+      return <QuickPostContentTypeCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'quick_post_goal':
+      return <QuickPostGoalCard session={session} clientId={clientId} onSelection={onSelection} />;
     default:
       return null;
   }
