@@ -16,6 +16,7 @@ import {
   Activity,
   Database,
   Zap,
+  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
@@ -23,6 +24,7 @@ import { useAutopilotCampaignStats } from '@/hooks/useSquadpitch';
 import { useUsage } from '@/hooks/useBilling';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { NotificationBell } from './NotificationBell';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 interface Props {
   client: Client;
@@ -37,6 +39,7 @@ export function Sidebar({ client }: Props) {
   const { data: usage } = useUsage();
   const { data: campaignStats } = useAutopilotCampaignStats(client.id);
   const autopilotBadgeCount = (campaignStats?.pendingCount ?? 0) + (campaignStats?.readyCount ?? 0);
+  const { isInternalUser } = useCurrentUser();
 
   const statusClass =
     client.status === 'ACTIVE'
@@ -201,6 +204,15 @@ export function Sidebar({ client }: Props) {
           <div className="px-3 py-2">
             <PlanBadge tier={usage.tier} />
           </div>
+        )}
+        {isInternalUser && (
+          <Link
+            href="/admin"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
+          >
+            <Shield className="w-4 h-4" />
+            Admin Console
+          </Link>
         )}
         <Link
           href="/workspaces"

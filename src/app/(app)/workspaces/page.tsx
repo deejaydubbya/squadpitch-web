@@ -14,7 +14,7 @@ export default function WorkspacesPage() {
   const { data: clients, isLoading, error } = useClients();
   const router = useRouter();
 
-  // Redirect brand-new users to the onboarding wizard
+  // Redirect brand-new users to onboarding
   useEffect(() => {
     if (!isLoading && clients && clients.length === 0) {
       router.replace('/onboarding');

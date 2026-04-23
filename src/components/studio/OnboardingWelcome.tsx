@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import {
   X,
@@ -10,6 +11,7 @@ import {
   Sparkles,
   Globe,
   MessageSquare,
+  Check,
 } from 'lucide-react';
 import {
   useClientAnalytics,
@@ -18,6 +20,19 @@ import {
   useClient,
   useDashboardRecommendations,
 } from '@/hooks/useSquadpitch';
+import type { SourceEntry } from '@/lib/onboarding/types';
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  website: 'Website',
+  description: 'Description',
+  documents: 'Documents',
+  photos: 'Photos',
+  listing_link: 'Listing link',
+  feed_link: 'Feed link',
+  zillow: 'Zillow profile',
+  license: 'License lookup',
+  crm: 'CRM import',
+};
 
 interface OnboardingWelcomeProps {
   clientId: string;
@@ -29,6 +44,16 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
   const { data: analytics } = useClientAnalytics(clientId);
   const { data: channels } = useChannelSettings(clientId);
   const { data: recommendations } = useDashboardRecommendations(clientId);
+
+  // Read persisted source entries from onboarding
+  const sourceEntries = useMemo<SourceEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(`sp_onboarding_sources_${clientId}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }, [clientId]);
 
   const base = `/workspaces/${clientId}`;
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
@@ -98,6 +123,30 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
 
       {/* ── Supporting info ──────────────────────────────────── */}
       <div className="px-6 pb-6 pt-2 border-t border-white-10">
+        {/* Sources summary */}
+        {sourceEntries.length > 0 && (
+          <div className="rounded-xl bg-white-5 p-4 space-y-2 mt-4 mb-3">
+            <div className="flex items-center gap-2">
+              <Database className="w-3.5 h-3.5 text-purple-400" />
+              <span className="text-[11px] font-semibold text-white-60 uppercase tracking-wider">
+                Sources used
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {sourceEntries.map((entry) => (
+                <span
+                  key={entry.id}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white-5 text-[11px] text-white-60"
+                >
+                  <Check className="w-2.5 h-2.5 text-accent-green-110" />
+                  {SOURCE_TYPE_LABELS[entry.sourceType] ?? entry.sourceType}
+                  <span className="text-white-30 truncate max-w-[120px]">{entry.label}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
           {/* AI Strategy */}
           {hasStrategy && (
