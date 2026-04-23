@@ -809,10 +809,15 @@ export function useOnboardingEngine() {
 
         if (session.analyzeResult.dataItems.length > 0) {
           try {
+            const sourceType = session.starterMethod === 'description' ? 'TEXT' : 'URL';
             await fetch(`/api/proxy/workspaces/${client.id}/data-import/confirm`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ items: session.analyzeResult.dataItems }),
+              body: JSON.stringify({
+                items: session.analyzeResult.dataItems,
+                sourceType,
+                sourceUrl: session.primaryInput && sourceType === 'URL' ? session.primaryInput : undefined,
+              }),
             });
           } catch {
             // Non-critical
