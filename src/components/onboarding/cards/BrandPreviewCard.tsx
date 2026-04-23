@@ -111,8 +111,8 @@ export function BrandPreviewCard({ analyzeResult, starterMethod, onConfirm, isCr
 
       {/* Voice preview */}
       {analyzeResult.voiceData && (
-        <div className="p-2 bg-white-5 rounded-lg">
-          <p className="text-[11px] text-white-40 mb-1">Voice tone</p>
+        <div className="p-2.5 rounded-lg border border-white-10 bg-white-5">
+          <p className="text-[11px] text-white-40 mb-0.5">Voice tone</p>
           <p className="text-xs text-white-70">{analyzeResult.voiceData.tone}</p>
         </div>
       )}
@@ -140,7 +140,7 @@ export function BrandPreviewCard({ analyzeResult, starterMethod, onConfirm, isCr
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="p-2 bg-white-5/50 rounded">
+    <div className="p-2.5 rounded-lg border border-white-10 bg-white-5">
       <p className="text-[11px] text-white-40 mb-0.5">{label}</p>
       <p className="text-white-70 line-clamp-3">{value}</p>
     </div>

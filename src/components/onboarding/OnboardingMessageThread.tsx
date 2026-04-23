@@ -50,7 +50,7 @@ export function OnboardingMessageThread({ engine }: Props) {
   }, [conversation.messages.length, lastMessageId]);
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
+    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-3 scrollbar-dark">
       {conversation.messages.map((msg) => (
         <MessageBubble key={msg.id} message={msg} engine={engine} />
       ))}
@@ -92,14 +92,14 @@ function MessageBubble({ message, engine }: { message: OnboardingChatMessage; en
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'max-w-[85%] rounded-xl px-4 py-2.5',
+          'max-w-[85%] min-w-0 rounded-xl px-4 py-2.5',
           isUser
             ? 'bg-accent-green-110/15 text-white-100'
             : 'bg-white-5 text-white-100',
           isInteractive && isResolved && 'opacity-60',
         )}
       >
-        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
 
         {isInteractive && message.status === 'active' && message.cardType && (
           <div className="mt-3">
