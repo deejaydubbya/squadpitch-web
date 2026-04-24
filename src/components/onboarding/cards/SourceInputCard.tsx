@@ -11,10 +11,11 @@ interface Props {
   industryKey: string | null;
   starterMethod: StarterMethod | null;
   onSubmit: (input: string) => void;
+  onSubmitFiles?: (files: File[]) => void;
   payload?: Record<string, unknown>;
 }
 
-export function SourceInputCard({ industryKey, starterMethod, onSubmit, payload }: Props) {
+export function SourceInputCard({ industryKey, starterMethod, onSubmit, onSubmitFiles, payload }: Props) {
   const [value, setValue] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -48,9 +49,11 @@ export function SourceInputCard({ industryKey, starterMethod, onSubmit, payload 
     if (!isValid || submitting) return;
     setSubmitting(true);
     if (inputType === 'file') {
-      // Submit file names as a summary string for now
-      const names = files.map((f) => f.name).join(', ');
-      onSubmit(names);
+      if (onSubmitFiles) {
+        onSubmitFiles(files);
+      } else {
+        onSubmit(files.map((f) => f.name).join(', '));
+      }
     } else {
       onSubmit(value.trim());
     }

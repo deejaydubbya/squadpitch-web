@@ -88,30 +88,36 @@ function MessageBubble({ message, engine }: { message: OnboardingChatMessage; en
     );
   }
 
+  // content_preview should persist even after resolution
+  const persistCard = message.cardType === 'content_preview';
+  const showCard = isInteractive && message.cardType && (message.status === 'active' || persistCard);
+  const showResolved = isInteractive && isResolved && message.cardType && !persistCard;
+
   return (
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'max-w-[85%] min-w-0 rounded-xl px-4 py-2.5',
+          'min-w-0 rounded-xl px-4 py-2.5',
+          persistCard && showCard ? 'max-w-full' : 'max-w-[85%]',
           isUser
             ? 'bg-accent-green-110/15 text-white-100'
             : 'bg-white-5 text-white-100',
-          isInteractive && isResolved && 'opacity-60',
+          isInteractive && isResolved && !persistCard && 'opacity-60',
         )}
       >
         <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
 
-        {isInteractive && message.status === 'active' && message.cardType && (
+        {showCard && (
           <div className="mt-3">
             <CardRouter
-              cardType={message.cardType}
+              cardType={message.cardType!}
               engine={engine}
               payload={message.payload}
             />
           </div>
         )}
 
-        {isInteractive && isResolved && message.cardType && (
+        {showResolved && (
           <div className="mt-1 text-[11px] text-white-30 italic">Selection confirmed</div>
         )}
       </div>
@@ -146,6 +152,7 @@ function CardRouter({
           industryKey={engine.session.industryKey}
           starterMethod={engine.session.starterMethod}
           onSubmit={engine.submitInput}
+          onSubmitFiles={engine.submitFiles}
           payload={payload}
         />
       );

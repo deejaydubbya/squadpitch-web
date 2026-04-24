@@ -1043,6 +1043,44 @@ export function useOnboardingEngine() {
     });
   }
 
+  const submitFiles = useCallback(async (files: File[]) => {
+    const clientId = session.createdClientId;
+    if (!clientId || files.length === 0) return;
+
+    addMessage(buildUserText(`${files.length} photo${files.length > 1 ? 's' : ''} selected`));
+    addMessage(buildSystemUpdate('Uploading photos...'));
+
+    let uploaded = 0;
+    for (const file of files) {
+      try {
+        const params = new URLSearchParams();
+        params.set('filename', file.name);
+        const res = await fetch(
+          `/api/proxy/workspaces/${clientId}/assets/upload?${params}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file,
+          },
+        );
+        if (res.ok) uploaded++;
+      } catch {
+        // Skip individual failures
+      }
+    }
+
+    if (uploaded > 0) {
+      // Determine enrichment key from file types
+      const isPhotos = files.some((f) => f.type.startsWith('image/'));
+      const enrichKey = isPhotos ? 'add_photos' : 'documents';
+      const label = isPhotos ? 'photo' : 'file';
+      addMessage(buildConfirmation(`${uploaded} ${label}${uploaded > 1 ? 's' : ''} uploaded`));
+      markEnrichmentDone(enrichKey);
+    } else {
+      addMessage(buildSystemUpdate('Failed to upload files. Please try again.'));
+    }
+  }, [session.createdClientId, addMessage, markEnrichmentDone]);
+
   return {
     session,
     conversation,
@@ -1052,6 +1090,7 @@ export function useOnboardingEngine() {
     selectIndustry,
     selectStarter,
     submitInput,
+    submitFiles,
     confirmBrand,
     generatePreviews,
     handleEnrichment,
