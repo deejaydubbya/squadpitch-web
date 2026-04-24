@@ -1227,38 +1227,59 @@ export function useOnboardingEngine() {
             dataJson: d.dataJson,
           }));
 
-      // Find the primary data item (property/listing) for image selection.
-      // Also check uploaded assets in the media library as a fallback.
+      // Fetch uploaded media assets (with IDs) for linking to drafts
       const primaryDataItem = plannerDataItems[0] ?? null;
-      let propertyImages: string[] = [];
-      if (primaryDataItem) {
-        const hero = primaryDataItem.dataJson?.imageUrl as string | undefined;
-        const gallery = (primaryDataItem.dataJson?.images as string[] | undefined) ?? [];
-        propertyImages = [hero, ...gallery].filter((u): u is string => !!u);
-      }
-      // Fallback: if data item has no images, use uploaded assets from media library
-      if (propertyImages.length === 0) {
-        try {
-          const assetsRes = await fetch(`/api/proxy/workspaces/${clientId}/assets?limit=50&status=READY&assetType=image`);
-          if (assetsRes.ok) {
-            const assetsData = await assetsRes.json();
-            const assets = assetsData.assets ?? [];
-            propertyImages = assets.map((a: { url: string }) => a.url).filter(Boolean);
-          }
-        } catch { /* non-critical */ }
-      }
-      console.log('[generatePreviews] propertyImages:', propertyImages.length, 'primary dataItem:', !!primaryDataItem);
+      let mediaAssets: { id: string; url: string }[] = [];
+      try {
+        const assetsRes = await fetch(`/api/proxy/workspaces/${clientId}/assets?limit=100&status=READY&assetType=image`);
+        if (assetsRes.ok) {
+          const assetsData = await assetsRes.json();
+          mediaAssets = (assetsData.assets ?? [])
+            .filter((a: { id: string; url: string }) => a.id && a.url);
+        }
+      } catch { /* non-critical */ }
 
-      // Smart image selection: spread different images across posts
-      // Real estate listing convention: image 0 = exterior/hero,
-      // early images = main living areas, mid images = bedrooms/baths
-      const pickImageForSlot = (index: number): string | undefined => {
-        if (propertyImages.length === 0) return undefined;
-        if (index === 0) return propertyImages[0]; // exterior/hero
-        if (propertyImages.length <= 1) return propertyImages[0];
-        // Spread evenly through gallery for variety
-        const offset = Math.floor((propertyImages.length * index) / 3);
-        return propertyImages[Math.min(offset, propertyImages.length - 1)];
+      // Build URL→assetId map for matching data item images to assets
+      const urlToAssetId = new Map<string, string>();
+      for (const a of mediaAssets) urlToAssetId.set(a.url, a.id);
+
+      // Identify the hero/exterior image (first in data item gallery)
+      let heroUrl: string | undefined;
+      if (primaryDataItem) {
+        heroUrl = primaryDataItem.dataJson?.imageUrl as string | undefined;
+      }
+      // Fall back to first media asset
+      if (!heroUrl && mediaAssets.length > 0) heroUrl = mediaAssets[0].url;
+
+      console.log('[generatePreviews] mediaAssets:', mediaAssets.length,
+        'heroUrl:', heroUrl ? 'set' : 'none', 'primary dataItem:', !!primaryDataItem);
+
+      // Pick assets for a given slot: hero as primary, then spread
+      // interior shots for variety. Returns up to `count` asset IDs.
+      const pickAssetsForSlot = (slotIndex: number, count: number): { id: string; url: string }[] => {
+        if (mediaAssets.length === 0) return [];
+        const picked: { id: string; url: string }[] = [];
+        const usedIds = new Set<string>();
+
+        // 1. Always start with the hero/exterior as primary
+        const heroAsset = heroUrl ? mediaAssets.find((a) => a.url === heroUrl) : mediaAssets[0];
+        if (heroAsset) {
+          picked.push(heroAsset);
+          usedIds.add(heroAsset.id);
+        }
+
+        // 2. Add varied interior shots — offset by slot index for variety
+        // Skip the hero image; spread through remaining gallery
+        const others = mediaAssets.filter((a) => !usedIds.has(a.id));
+        if (others.length > 0) {
+          const startOffset = slotIndex * Math.max(1, Math.floor(others.length / 6));
+          for (let j = 0; picked.length < count && j < others.length; j++) {
+            const idx = (startOffset + j) % others.length;
+            picked.push(others[idx]);
+          }
+        }
+
+        return picked;
       };
 
       const plan = buildOnboardingGenerationPlan({
@@ -1293,26 +1314,43 @@ export function useOnboardingEngine() {
             dataItemId: slot.dataItemId ?? undefined,
           });
 
-          // Attach a varied image to each post — spread different
-          // property photos across posts for visual variety
-          const desiredImage = pickImageForSlot(i);
-          console.log(`[generatePreviews] slot ${i}: draft.mediaUrl=${draft.mediaUrl ? 'set' : 'null'}, desiredImage=${desiredImage ? 'set' : 'none'}`);
-          if (desiredImage && draft.mediaUrl !== desiredImage) {
+          // Attach multiple images to each post:
+          // - Primary (mediaUrl) = exterior/hero for all posts
+          // - Link 3+ assets for carousel via DraftAsset join table
+          const slotAssets = pickAssetsForSlot(i, Math.min(5, mediaAssets.length));
+          const primaryImage = slotAssets[0]?.url;
+          console.log(`[generatePreviews] slot ${i}: ${slotAssets.length} assets picked, primary=${primaryImage ? 'set' : 'none'}`);
+
+          // Set exterior/hero as primary mediaUrl
+          if (primaryImage && draft.mediaUrl !== primaryImage) {
             try {
               const patchRes = await fetch(`/api/proxy/drafts/${draft.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mediaUrl: desiredImage }),
+                body: JSON.stringify({ mediaUrl: primaryImage }),
               });
-              console.log(`[generatePreviews] PATCH slot ${i}: status=${patchRes.status}`);
               if (patchRes.ok) {
-                draft.mediaUrl = desiredImage;
+                draft.mediaUrl = primaryImage;
                 draft.mediaType = 'image';
               }
-            } catch (patchErr) {
-              console.error(`[generatePreviews] PATCH slot ${i} error:`, patchErr);
-            }
+            } catch { /* non-critical */ }
           }
+
+          // Link all selected assets to draft (multi-image carousel)
+          for (let ai = 0; ai < slotAssets.length; ai++) {
+            try {
+              await fetch(`/api/proxy/assets/${slotAssets[ai].id}/link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  draftId: draft.id,
+                  ...(ai === 0 ? { role: 'primary' } : {}),
+                  orderIndex: ai,
+                }),
+              });
+            } catch { /* non-critical */ }
+          }
+          console.log(`[generatePreviews] slot ${i}: linked ${slotAssets.length} assets`);
 
           drafts.push(draft);
           dispatchSession({ type: 'ADD_PREVIEW_DRAFT', draft });

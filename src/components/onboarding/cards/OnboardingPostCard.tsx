@@ -12,6 +12,8 @@ import {
   Heart,
   MessageCircle,
   Share2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -76,7 +78,7 @@ interface OnboardingPostCardProps {
 }
 
 export function OnboardingPostCard({
-  draft,
+  draft: draftProp,
   clientId,
   brandName,
   logoUrl,
@@ -89,6 +91,10 @@ export function OnboardingPostCard({
   channelConnected,
   onConnectChannel,
 }: OnboardingPostCardProps) {
+  // Local draft state — optimistically updated after mutations so UI stays in sync
+  const [localDraft, setLocalDraft] = useState(draftProp);
+  const draft = localDraft;
+
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(draft.body);
   const [showSchedule, setShowSchedule] = useState(false);
@@ -104,37 +110,44 @@ export function OnboardingPostCard({
   const generate = useGenerateContent();
   const qc = useQueryClient();
 
+  const [carouselIndex, setCarouselIndex] = useState(0);
+
   const { data: draftAssets } = useQuery({
     queryKey: ['draft-assets', draft.id],
     queryFn: () =>
       apiFetch<{ assets: MediaAsset[] }>(
-        `workspaces/${clientId}/assets?draftId=${draft.id}&limit=1`,
+        `workspaces/${clientId}/assets?draftId=${draft.id}&limit=10`,
       ),
     select: (d) => d.assets,
     refetchInterval: (query) => {
       const raw = query.state.data as { assets: MediaAsset[] } | undefined;
       const assets = raw?.assets;
       if (!assets || assets.length === 0) return 3000;
-      if (assets[0].status === 'READY' || assets[0].status === 'FAILED') return false;
+      if (assets.every((a) => a.status === 'READY' || a.status === 'FAILED')) return false;
       return 3000;
     },
   });
 
-  const asset = draftAssets?.[0] ?? null;
-  // Prefer AI-generated image over scraped draft.mediaUrl (scraped images are often low-quality)
-  const imageUrl = (asset?.status === 'READY' ? asset.url : null) ?? draft.mediaUrl;
+  const readyAssets = (draftAssets ?? []).filter((a) => a.status === 'READY' && a.url);
+  const hasMultipleImages = readyAssets.length > 1;
+  // Primary image: first ready asset or draft.mediaUrl
+  const imageUrl = readyAssets[carouselIndex]?.url ?? readyAssets[0]?.url ?? draft.mediaUrl;
+  const isLoading = draftAssets && draftAssets.length > 0 && readyAssets.length === 0
+    && draftAssets.some((a) => a.status !== 'FAILED');
 
   const isApproved = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
   const isScheduled = draft.status === 'SCHEDULED';
 
   const handleSaveEdit = async () => {
     await updateDraft.mutateAsync({ body: editBody });
+    setLocalDraft((d) => ({ ...d, body: editBody }));
     setEditing(false);
   };
 
   const handleApprove = async () => {
     if (!isApproved) {
       await approveDraft.mutateAsync();
+      setLocalDraft((d) => ({ ...d, status: 'APPROVED' }));
     }
   };
 
@@ -142,7 +155,9 @@ export function OnboardingPostCard({
     if (!isApproved) {
       await approveDraft.mutateAsync();
     }
-    await scheduleDraft.mutateAsync(new Date(scheduleDate).toISOString());
+    const iso = new Date(scheduleDate).toISOString();
+    await scheduleDraft.mutateAsync(iso);
+    setLocalDraft((d) => ({ ...d, status: 'SCHEDULED', scheduledFor: iso }));
     setShowSchedule(false);
   };
 
@@ -156,6 +171,8 @@ export function OnboardingPostCard({
         guidance: draft.generationGuidance || `Create an engaging ${draft.channel} post.`,
       });
       await deleteDraft.mutateAsync(draft.id);
+      setLocalDraft(newDraft);
+      setEditBody(newDraft.body);
       onRegenerated(newDraft);
 
       if (newDraft.imageGuidance) {
@@ -248,15 +265,54 @@ export function OnboardingPostCard({
         </div>
       </div>
 
-      {/* Image */}
+      {/* Image / Carousel */}
       {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageUrl}
-          alt={draft.altText ?? 'Generated image'}
-          className="w-full aspect-[4/3] object-cover"
-        />
-      ) : asset && asset.status !== 'FAILED' ? (
+        <div className="relative group">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt={draft.altText ?? 'Generated image'}
+            className="w-full aspect-[4/3] object-cover"
+          />
+          {/* Carousel navigation arrows */}
+          {hasMultipleImages && (
+            <>
+              <button
+                onClick={() => setCarouselIndex((prev) => (prev - 1 + readyAssets.length) % readyAssets.length)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setCarouselIndex((prev) => (prev + 1) % readyAssets.length)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                aria-label="Next image"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              {/* Carousel dots */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {readyAssets.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCarouselIndex(idx)}
+                    className={cn(
+                      'w-1.5 h-1.5 rounded-full transition-all cursor-pointer',
+                      idx === carouselIndex ? 'bg-white w-3' : 'bg-white/50',
+                    )}
+                    aria-label={`Image ${idx + 1}`}
+                  />
+                ))}
+              </div>
+              {/* Image counter */}
+              <div className="absolute top-2 right-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full">
+                {carouselIndex + 1}/{readyAssets.length}
+              </div>
+            </>
+          )}
+        </div>
+      ) : isLoading ? (
         <div className="w-full aspect-[4/3] bg-white-5 animate-pulse flex items-center justify-center">
           <Loader2 className="w-5 h-5 text-white-30 animate-spin" />
         </div>
