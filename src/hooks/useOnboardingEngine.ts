@@ -46,8 +46,10 @@ import {
   mergeDrafts,
   slugify,
   normalizeUrl,
+  isUrl,
 } from '@/lib/onboarding/helpers';
 import { buildOnboardingGenerationPlan } from '@/lib/assistant/onboardingPlanner';
+import type { BrandOverrides } from '@/components/onboarding/cards/BrandPreviewCard';
 import { FALLBACK_SOURCE_PROMPT } from '@/lib/onboarding/configs/fallback';
 
 // ── Initial states ───────────────────────────────────────────────────────
@@ -101,6 +103,13 @@ function sessionReducer(state: OnboardingSessionState, action: OnboardingAction)
       return { ...state, createdClientId: action.clientId };
     case 'ADD_PREVIEW_DRAFT':
       return { ...state, previewDrafts: [...state.previewDrafts, action.draft] };
+    case 'REPLACE_PREVIEW_DRAFT':
+      return {
+        ...state,
+        previewDrafts: state.previewDrafts.map((d) =>
+          d.id === action.oldId ? action.draft : d,
+        ),
+      };
     case 'SET_PREVIEW_DRAFTS':
       return { ...state, previewDrafts: action.drafts };
     case 'ADD_SOURCE':
@@ -165,6 +174,13 @@ function conversationReducer(state: ConversationState, action: ConversationActio
       const activeCardId = action.message.status === 'active' ? action.message.id : null;
       return { messages: [...messages, action.message], activeCardId };
     }
+    case 'UPDATE_MESSAGE':
+      return {
+        ...state,
+        messages: state.messages.map((m) =>
+          m.id === action.id ? { ...m, content: action.content } : m,
+        ),
+      };
     case 'RESOLVE_ACTIVE':
       return {
         ...state,
@@ -193,13 +209,21 @@ export function useOnboardingEngine() {
 
   // Track analysis progress for the UI
   const analysisProgressRef = useRef<AnalysisProgress>({
-    stage: 'crawling',
+    stage: 'connecting',
+    rootUrl: null,
     crawledPages: [],
+    failedPages: [],
+    totalExpected: 0,
     crawlDone: false,
+    imagesFound: 0,
     brandData: null,
     dataItems: [],
     dataCount: 0,
     errorMessage: null,
+    errorCode: null,
+    imagesDownloaded: 0,
+    imagesDownloadTotal: 0,
+    imagesFailed: 0,
   });
 
   const busyRef = useRef(false);
@@ -212,6 +236,10 @@ export function useOnboardingEngine() {
 
   const addMessage = useCallback((msg: OnboardingChatMessage) => {
     dispatchConversation({ type: 'ADD_MESSAGE', message: msg });
+  }, []);
+
+  const updateMessage = useCallback((id: string, content: string) => {
+    dispatchConversation({ type: 'UPDATE_MESSAGE', id, content });
   }, []);
 
   const advanceToNextStep = useCallback(() => {
@@ -340,6 +368,7 @@ export function useOnboardingEngine() {
           name: workspaceName,
           slug: slugify(workspaceName),
           industryKey: session.industryKey ?? undefined,
+          status: 'DRAFT',
         });
         dispatchSession({ type: 'SET_CREATED_CLIENT', clientId: client.id });
         dispatchSession({ type: 'CONFIRM_BRAND' });
@@ -500,6 +529,7 @@ export function useOnboardingEngine() {
       addMessage(buildInteractivePrompt(
         "Upload your listing photos and I'll analyze them.",
         'source_input',
+        { inputMode: 'file', accept: 'image/*' },
       ));
     }
   }, [addMessage]);
@@ -537,6 +567,68 @@ export function useOnboardingEngine() {
     dispatchSession({ type: 'SET_PRIMARY_INPUT', input: description });
     addMessage(buildUserText(description));
 
+    // Build a synthetic analyzeResult so generatePreviews has listing-aware
+    // templates and data items instead of falling back to generic content.
+    const listingTitle = formData.address || 'Property Listing';
+    const syntheticResult: OnboardingAnalyzeResult = {
+      brandData: {
+        name: listingTitle,
+        description,
+        industry: 'Real Estate',
+        audience: 'Home buyers and investors',
+        offers: formData.propertyType ? `${formData.propertyType} properties` : 'Residential properties',
+        competitors: '',
+      },
+      voiceData: {
+        tone: 'Professional and inviting',
+        doRules: [],
+        dontRules: [],
+        contentBuckets: [],
+      },
+      suggestedGoal: 'Generate listing content',
+      suggestedChannels: ['INSTAGRAM'],
+      images: [],
+      dataItems: [{
+        type: 'PROPERTY',
+        title: listingTitle,
+        summary: description,
+        dataJson: {
+          type: 'listing',
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          price: formData.price ? Number(formData.price.replace(/[^0-9.]/g, '')) || undefined : undefined,
+          propertyType: formData.propertyType,
+          beds: formData.beds ? Number(formData.beds) || undefined : undefined,
+          baths: formData.baths ? Number(formData.baths) || undefined : undefined,
+          sqft: formData.sqft ? Number(formData.sqft.replace(/[^0-9]/g, '')) || undefined : undefined,
+          description: formData.description,
+          features: formData.features,
+        },
+        tags: ['listing'],
+        priority: 1,
+      }],
+      coreTemplates: [
+        {
+          type: 'listing_post',
+          title: 'Just Listed Announcement',
+          guidance: `Create a compelling "Just Listed" announcement post for this property: ${description}. Highlight the best features — location, price, size, unique selling points. Make it exciting and urgent.`,
+          conditions: { hasData: true, requiredDataType: 'listing' },
+        },
+        {
+          type: 'neighborhood_highlight',
+          title: 'Neighborhood & Lifestyle',
+          guidance: `Create a post showcasing the neighborhood and lifestyle around this property: ${description}. Focus on nearby amenities, schools, parks, dining, commute, and what makes the area desirable. Do NOT repeat pricing or bedroom/bath counts — paint a picture of life in this neighborhood.`,
+        },
+        {
+          type: 'buyer_tip',
+          title: 'Buyer Advice',
+          guidance: `Write a helpful post with practical advice for buyers interested in properties like this: ${description}. Topics could include financing tips, what to look for during a showing, how to stand out in a competitive market, or first-time buyer guidance. Do NOT repeat the listing details — focus on being a helpful expert resource.`,
+        },
+      ],
+    };
+    dispatchSession({ type: 'SET_ANALYZE_RESULT', result: syntheticResult });
+
     // For manual form, skip analysis — create workspace directly
     try {
       addMessage(buildSystemUpdate('Setting up your workspace...'));
@@ -545,6 +637,7 @@ export function useOnboardingEngine() {
         name: workspaceName,
         slug: slugify(workspaceName),
         industryKey: session.industryKey ?? undefined,
+        status: 'DRAFT',
       });
       dispatchSession({ type: 'SET_CREATED_CLIENT', clientId: client.id });
       dispatchSession({ type: 'CONFIRM_BRAND' });
@@ -561,25 +654,25 @@ export function useOnboardingEngine() {
         // Non-critical
       }
 
-      // Generate preview content
-      setGenerationProgress({ current: 0, total: 1 });
+      // Save listing as a data item in the workspace
       try {
-        const draft = await generateContent.mutateAsync({
-          clientId: client.id,
-          kind: 'POST',
-          channel: 'INSTAGRAM',
-          guidance: `Create an engaging new listing announcement post for: ${description}`,
+        await fetch(`/api/proxy/workspaces/${client.id}/data-import/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: syntheticResult.dataItems,
+            sourceType: 'TEXT',
+          }),
         });
-        dispatchSession({ type: 'ADD_PREVIEW_DRAFT', draft });
-        setGenerationProgress({ current: 1, total: 1 });
       } catch {
         // Non-critical
       }
-      setGenerationProgress(null);
 
+      // Offer photo upload before generating content — images will be
+      // attached to generated posts if uploaded first.
       addMessage(buildInteractivePrompt(
-        "Here's what I created! What do you think?",
-        'content_preview',
+        "Got it! Want to add listing photos? They'll be used in your posts.",
+        'listing_photo_offer',
         { clientId: client.id },
       ));
       dispatchSession({ type: 'SET_PHASE', phase: 'value_delivery' });
@@ -590,7 +683,57 @@ export function useOnboardingEngine() {
     } finally {
       busyRef.current = false;
     }
-  }, [session, addMessage, createClient, generateContent]);
+  }, [session, addMessage, createClient]);
+
+  // -- Listing photo offer -------------------------------------------------
+  const proceedToContentPreview = useCallback(() => {
+    const clientId = session.createdClientId;
+    addMessage(buildInteractivePrompt(
+      "Here's what I created! Approve, edit, or regenerate any post.",
+      'content_preview',
+      clientId ? { clientId } : undefined,
+    ));
+  }, [session.createdClientId, addMessage]);
+
+  const uploadListingPhotos = useCallback(async (
+    files: File[],
+    onProgress?: (p: { uploaded: number; total: number; currentName: string }) => void,
+  ) => {
+    const clientId = session.createdClientId;
+    if (!clientId || files.length === 0) return;
+
+    let uploaded = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      onProgress?.({ uploaded, total: files.length, currentName: file.name });
+      try {
+        const params = new URLSearchParams();
+        params.set('filename', file.name);
+        const res = await fetch(
+          `/api/proxy/workspaces/${clientId}/assets/upload?${params}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file,
+          },
+        );
+        if (res.ok) uploaded++;
+      } catch {
+        // Skip individual failures
+      }
+    }
+    onProgress?.({ uploaded, total: files.length, currentName: '' });
+
+    if (uploaded > 0) {
+      addMessage(buildConfirmation(`${uploaded} photo${uploaded > 1 ? 's' : ''} uploaded`));
+    }
+    proceedToContentPreview();
+  }, [session.createdClientId, addMessage, proceedToContentPreview]);
+
+  const skipListingPhotos = useCallback(() => {
+    addMessage(buildConfirmation('Skipped'));
+    proceedToContentPreview();
+  }, [addMessage, proceedToContentPreview]);
 
   const saveREAgentProfile = useCallback(async (data: REAgentProfileData) => {
     if (!session.createdClientId) return;
@@ -668,10 +811,11 @@ export function useOnboardingEngine() {
     busyRef.current = true;
 
     const config = getOnboardingConfig(session.industryKey);
-    const starterMethod = session.starterMethod ?? session.fallbackSourceMethod;
-    const starter = config.starters.find((s) => s.method === starterMethod);
-    const inputType = starter?.inputType === 'url' ? 'url' : 'text';
-    const normalizedInput = inputType === 'url' ? normalizeUrl(input) : input;
+    // Detect input type from the content itself, not the original starter method.
+    // This prevents sending a description as 'url' during enrichment.
+    const looksLikeUrl = isUrl(input);
+    const inputType = looksLikeUrl ? 'url' : 'text';
+    const normalizedInput = looksLikeUrl ? normalizeUrl(input) : input;
 
     dispatchSession({ type: 'SET_PRIMARY_INPUT', input: normalizedInput });
     addMessage(buildUserText(input));
@@ -695,33 +839,72 @@ export function useOnboardingEngine() {
     addMessage(buildInteractivePrompt(config.analysisMessage, 'analysis_progress'));
 
     analysisProgressRef.current = {
-      stage: 'crawling',
+      stage: 'connecting',
+      rootUrl: null,
       crawledPages: [],
+      failedPages: [],
+      totalExpected: 0,
       crawlDone: false,
+      imagesFound: 0,
       brandData: null,
       dataItems: [],
       dataCount: 0,
       errorMessage: null,
+      errorCode: null,
+      imagesDownloaded: 0,
+      imagesDownloadTotal: 0,
+      imagesFailed: 0,
     };
 
     try {
       const result = await consumeAnalyzeStream(
         {
           input: normalizedInput,
-          inputType: starterMethod === 'zillow' ? 'url' : inputType,
+          inputType,
           industryKey: session.industryKey ?? undefined,
         },
         {
+          onCrawlStart: (url) => {
+            analysisProgressRef.current = {
+              ...analysisProgressRef.current,
+              rootUrl: url,
+              stage: 'crawling',
+            };
+          },
+          onCrawlDiscovered: (totalExpected) => {
+            analysisProgressRef.current = {
+              ...analysisProgressRef.current,
+              totalExpected,
+            };
+          },
           onCrawlPage: (page) => {
             analysisProgressRef.current = {
               ...analysisProgressRef.current,
               crawledPages: [...analysisProgressRef.current.crawledPages, page],
             };
           },
+          onCrawlPageError: (err) => {
+            analysisProgressRef.current = {
+              ...analysisProgressRef.current,
+              failedPages: [...analysisProgressRef.current.failedPages, err],
+            };
+          },
           onCrawlDone: () => {
             analysisProgressRef.current = {
               ...analysisProgressRef.current,
               crawlDone: true,
+              stage: 'extracting_brand',
+            };
+          },
+          onImagesFound: (count) => {
+            analysisProgressRef.current = {
+              ...analysisProgressRef.current,
+              imagesFound: count,
+            };
+          },
+          onExtractStart: () => {
+            analysisProgressRef.current = {
+              ...analysisProgressRef.current,
               stage: 'extracting_brand',
             };
           },
@@ -747,11 +930,12 @@ export function useOnboardingEngine() {
               stage: 'done',
             };
           },
-          onError: (message) => {
+          onError: (message, code) => {
             analysisProgressRef.current = {
               ...analysisProgressRef.current,
               stage: 'error',
               errorMessage: message,
+              errorCode: code ?? null,
             };
           },
         },
@@ -767,34 +951,122 @@ export function useOnboardingEngine() {
             extractedFields: Object.keys(result.brandData ?? {}),
           },
         });
-        addMessage(buildInteractivePrompt(
-          "Here's what I found. Does this look right?",
-          'brand_preview',
-        ));
+
+        // If workspace already exists (enrichment flow), save data directly
+        // and return to enrichment menu instead of showing brand_preview again.
+        if (session.createdClientId) {
+          try {
+            const merged = mergeDrafts([...session.sources]);
+            await saveProfiles(session.createdClientId, result, merged);
+
+            if (result.dataItems.length > 0) {
+              const importSourceType = inputType === 'text' ? 'TEXT' : 'URL';
+              await fetch(`/api/proxy/workspaces/${session.createdClientId}/data-import/confirm`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  items: result.dataItems,
+                  sourceType: importSourceType,
+                  sourceUrl: normalizedInput && importSourceType === 'URL' ? normalizedInput : undefined,
+                }),
+              }).catch(() => {});
+            }
+          } catch {
+            // Non-critical
+          }
+
+          dispatchSession({ type: 'MARK_ENRICHMENT_COMPLETED', key: 'additional_urls' });
+          addMessage(buildConfirmation('New source analyzed & saved'));
+
+          const config = getOnboardingConfig(session.industryKey);
+          const remaining = config.enrichmentCards.filter(
+            (c) =>
+              c.hideIfStarterMethod !== session.starterMethod &&
+              !session.enrichmentsCompleted.includes(c.key) &&
+              c.key !== 'additional_urls',
+          );
+          if (remaining.length > 0) {
+            addMessage(buildInteractivePrompt(
+              'Anything else you\'d like to add?',
+              'enrichment_menu',
+            ));
+            dispatchSession({ type: 'SET_PHASE', phase: 'enrichment' });
+          } else {
+            addMessage(buildCompletionPrompt());
+            dispatchSession({ type: 'SET_PHASE', phase: 'completion' });
+          }
+        } else {
+          addMessage(buildInteractivePrompt(
+            "Here's what I found. Does this look right?",
+            'brand_preview',
+          ));
+        }
       } else {
         dispatchSession({ type: 'UPDATE_SOURCE_ENTRY', id: entryId, updates: { status: 'failed' } });
         dispatchSession({ type: 'SET_ERROR', error: 'Analysis failed. Please try again.' });
         addMessage(buildSystemUpdate('Analysis failed. Please try again.'));
+
+        // Recover: let the user retry or continue
+        if (session.createdClientId) {
+          addMessage(buildInteractivePrompt(
+            'Want to try something else?',
+            'enrichment_menu',
+          ));
+          dispatchSession({ type: 'SET_PHASE', phase: 'enrichment' });
+        } else {
+          addMessage(buildInteractivePrompt(
+            'Try again or use a different method.',
+            'source_input',
+          ));
+          dispatchSession({ type: 'SET_PHASE', phase: 'quick_start' });
+        }
       }
     } catch (err) {
       dispatchSession({ type: 'UPDATE_SOURCE_ENTRY', id: entryId, updates: { status: 'failed' } });
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
       dispatchSession({ type: 'SET_ERROR', error: msg });
       addMessage(buildSystemUpdate(msg));
+
+      // Recover: let the user retry or continue
+      if (session.createdClientId) {
+        addMessage(buildInteractivePrompt(
+          'Want to try something else?',
+          'enrichment_menu',
+        ));
+        dispatchSession({ type: 'SET_PHASE', phase: 'enrichment' });
+      } else {
+        addMessage(buildInteractivePrompt(
+          'Try again or use a different method.',
+          'source_input',
+        ));
+        dispatchSession({ type: 'SET_PHASE', phase: 'quick_start' });
+      }
     } finally {
       busyRef.current = false;
     }
-  }, [session.industryKey, session.starterMethod, session.fallbackSourceMethod, addMessage]);
+  }, [session, addMessage]);
 
-  const confirmBrand = useCallback(async (nameOverride?: string) => {
+  const confirmBrand = useCallback(async (overrides?: BrandOverrides) => {
     if (busyRef.current) return;
     busyRef.current = true;
 
+    const nameOverride = overrides?.name;
     if (nameOverride) {
       dispatchSession({ type: 'SET_BRAND_NAME_OVERRIDE', name: nameOverride });
     }
     dispatchSession({ type: 'CONFIRM_BRAND' });
     addMessage(buildConfirmation('Brand confirmed'));
+
+    // Apply field overrides to the analyzeResult before saving
+    if (session.analyzeResult && overrides) {
+      const bd = session.analyzeResult.brandData;
+      if (overrides.description !== undefined) bd.description = overrides.description;
+      if (overrides.audience !== undefined) bd.audience = overrides.audience;
+      if (overrides.offers !== undefined) bd.offers = overrides.offers;
+      if (overrides.voiceTone !== undefined && session.analyzeResult.voiceData) {
+        session.analyzeResult.voiceData.tone = overrides.voiceTone;
+      }
+    }
 
     const brandName = nameOverride
       ?? session.analyzeResult?.brandData.name
@@ -807,32 +1079,122 @@ export function useOnboardingEngine() {
         slug: slugify(brandName),
         logoUrl: session.analyzeResult?.brandData.logoUrl ?? null,
         industryKey: session.industryKey ?? undefined,
+        status: 'DRAFT',
       });
       dispatchSession({ type: 'SET_CREATED_CLIENT', clientId: client.id });
 
       if (session.analyzeResult) {
+        console.log('[confirmBrand] analyzeResult dataItems:', session.analyzeResult.dataItems?.length ?? 0,
+          'images:', session.analyzeResult.images?.length ?? 0);
+
         const merged = mergeDrafts(session.sources);
         await saveProfiles(client.id, session.analyzeResult, merged);
         dispatchSession({ type: 'SET_PROFILES_SAVED' });
 
-        if (session.analyzeResult.dataItems.length > 0) {
+        // Collect all unique image URLs from data items + top-level images
+        const imageUrls = new Set<string>();
+        for (const di of session.analyzeResult.dataItems ?? []) {
+          const heroUrl = di.dataJson?.imageUrl as string | undefined;
+          if (heroUrl) imageUrls.add(heroUrl);
+          const gallery = di.dataJson?.images as string[] | undefined;
+          if (Array.isArray(gallery)) {
+            for (const u of gallery) { if (u) imageUrls.add(u); }
+          }
+        }
+        for (const img of session.analyzeResult.images ?? []) {
+          if (img) imageUrls.add(img);
+        }
+
+        // Upload images to media library and build source→cloudinary URL map
+        const urlMap = new Map<string, string>(); // sourceUrl → cloudinaryUrl
+        if (imageUrls.size > 0) {
+          const total = imageUrls.size;
+          const progressMsg = buildSystemUpdate(`Downloading images: 0/${total}`);
+          const progressId = progressMsg.id;
+          addMessage(progressMsg);
+
+          let downloaded = 0;
+          let failed = 0;
+          const urls = Array.from(imageUrls);
+
+          for (let i = 0; i < urls.length; i += 5) {
+            const batch = urls.slice(i, i + 5);
+            const results = await Promise.allSettled(
+              batch.map(async (sourceUrl) => {
+                const resp = await fetch(`/api/proxy/workspaces/${client.id}/assets/upload-from-url`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ url: sourceUrl, onboarding: true }),
+                });
+                if (!resp.ok) throw new Error(`${resp.status}`);
+                const asset = await resp.json();
+                return { sourceUrl, cloudinaryUrl: asset.url as string };
+              }),
+            );
+            for (const r of results) {
+              if (r.status === 'fulfilled') {
+                downloaded++;
+                urlMap.set(r.value.sourceUrl, r.value.cloudinaryUrl);
+              } else {
+                failed++;
+              }
+            }
+            updateMessage(progressId, `Downloading images: ${downloaded}/${total}`);
+          }
+
+          updateMessage(
+            progressId,
+            failed > 0
+              ? `Downloaded ${downloaded} of ${total} images (${failed} failed).`
+              : `Downloaded ${downloaded} image${downloaded !== 1 ? 's' : ''}.`,
+          );
+        }
+
+        // Replace source image URLs with cloudinary URLs in data items
+        // Also truncate fields to match schema limits (title ≤ 200, summary ≤ 2000)
+        const updatedItems = session.analyzeResult.dataItems.map((di) => {
+          const dj = { ...di.dataJson };
+          if (typeof dj.imageUrl === 'string' && urlMap.has(dj.imageUrl)) {
+            dj.imageUrl = urlMap.get(dj.imageUrl);
+          }
+          if (Array.isArray(dj.images)) {
+            dj.images = (dj.images as string[]).map((u) => urlMap.get(u) ?? u);
+          }
+          return {
+            ...di,
+            title: (di.title || 'Untitled').slice(0, 200),
+            summary: di.summary ? di.summary.slice(0, 2000) : null,
+            dataJson: dj,
+          };
+        });
+
+        // Save data items (properties) with uploaded image URLs
+        if (updatedItems.length > 0) {
           try {
             const sourceType = session.starterMethod === 'description' ? 'TEXT' : 'URL';
-            await fetch(`/api/proxy/workspaces/${client.id}/data-import/confirm`, {
+            const confirmRes = await fetch(`/api/proxy/workspaces/${client.id}/data-import/confirm`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                items: session.analyzeResult.dataItems,
+                items: updatedItems,
                 sourceType,
                 sourceUrl: session.primaryInput && sourceType === 'URL' ? session.primaryInput : undefined,
               }),
             });
-          } catch {
-            // Non-critical
+            if (!confirmRes.ok) {
+              const errData = await confirmRes.json().catch(() => ({}));
+              console.error('[confirmBrand] data-import/confirm failed:', confirmRes.status, errData);
+              addMessage(buildSystemUpdate('Warning: failed to save property data.'));
+            }
+          } catch (err) {
+            console.error('[confirmBrand] data-import/confirm error:', err);
           }
+        } else {
+          console.warn('[confirmBrand] No data items to save');
         }
       }
 
+      // Show content preview AFTER images are downloaded and data items saved
       const config = getOnboardingConfig(session.industryKey);
       addMessage(buildInteractivePrompt(config.valueMessage, 'content_preview', { clientId: client.id }));
     } catch (err) {
@@ -842,7 +1204,7 @@ export function useOnboardingEngine() {
     } finally {
       busyRef.current = false;
     }
-  }, [session, addMessage, createClient]);
+  }, [session, addMessage, updateMessage, createClient]);
 
   const generatePreviews = useCallback(async () => {
     if (busyRef.current || !session.createdClientId) return;
@@ -852,22 +1214,69 @@ export function useOnboardingEngine() {
       const result = session.analyzeResult;
       const clientId = session.createdClientId;
 
+      // Fetch saved data items from API to get real DB IDs
+      let savedDataItems: { id: string; type: string; title: string; dataJson: Record<string, unknown> }[] = [];
+      try {
+        const diRes = await fetch(`/api/proxy/workspaces/${clientId}/business-data?limit=50`);
+        if (diRes.ok) {
+          const diData = await diRes.json();
+          savedDataItems = diData.dataItems ?? [];
+        }
+      } catch {
+        // Fall back to analyzeResult data items without real IDs
+      }
+
+      // Use saved items (with real IDs) if available, fall back to analyzeResult
+      const plannerDataItems = savedDataItems.length > 0
+        ? savedDataItems.map((d) => ({ id: d.id, dataJson: d.dataJson }))
+        : (result?.dataItems ?? []).map((d) => ({
+            id: `${d.type}_${d.title}`,
+            dataJson: d.dataJson,
+          }));
+
+      // Find the primary data item (property/listing) for image selection
+      const primaryDataItem = plannerDataItems[0] ?? null;
+      const propertyImages = primaryDataItem
+        ? [
+            primaryDataItem.dataJson?.imageUrl as string | undefined,
+            ...((primaryDataItem.dataJson?.images as string[] | undefined) ?? []),
+          ].filter((u): u is string => !!u)
+        : [];
+
+      // Smart image selection: spread different images across posts
+      // Real estate listing convention: image 0 = exterior/hero,
+      // early images = main living areas, mid images = bedrooms/baths
+      const pickImageForSlot = (index: number): string | undefined => {
+        if (propertyImages.length === 0) return undefined;
+        if (index === 0) return propertyImages[0]; // exterior/hero
+        if (propertyImages.length <= 1) return propertyImages[0];
+        // Spread evenly through gallery for variety
+        const offset = Math.floor((propertyImages.length * index) / 3);
+        return propertyImages[Math.min(offset, propertyImages.length - 1)];
+      };
+
       const plan = buildOnboardingGenerationPlan({
         coreTemplates: result?.coreTemplates ?? [],
         starterAngles: result?.starterAngles ?? [],
-        dataItems: (result?.dataItems ?? []).map((d) => ({
-          id: `${d.type}_${d.title}`,
-          dataJson: d.dataJson,
-        })),
+        dataItems: plannerDataItems,
         connectedChannels: result?.suggestedChannels ?? ['INSTAGRAM'],
         industryKey: session.industryKey ?? 'general',
-        brandContext: result?.brandData.description ?? session.contentPrompt ?? '',
+        brandContext: result?.brandData.description ?? session.contentPrompt ?? session.primaryInput ?? '',
       });
+
+      // Override: pass the primary data item to ALL slots so all content
+      // references the property listing (not just the first slot)
+      if (primaryDataItem) {
+        for (const slot of plan) {
+          if (!slot.dataItemId) slot.dataItemId = primaryDataItem.id;
+        }
+      }
 
       setGenerationProgress({ current: 0, total: plan.length });
 
       const drafts: Draft[] = [];
-      for (const slot of plan) {
+      for (let i = 0; i < plan.length; i++) {
+        const slot = plan[i];
         try {
           const draft = await generateContent.mutateAsync({
             clientId,
@@ -877,6 +1286,26 @@ export function useOnboardingEngine() {
             templateType: slot.templateType,
             dataItemId: slot.dataItemId ?? undefined,
           });
+
+          // Attach a varied image to each post — spread different
+          // property photos across posts for visual variety
+          const desiredImage = pickImageForSlot(i);
+          if (desiredImage && draft.mediaUrl !== desiredImage) {
+            try {
+              const patchRes = await fetch(`/api/proxy/drafts/${draft.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mediaUrl: desiredImage }),
+              });
+              if (patchRes.ok) {
+                draft.mediaUrl = desiredImage;
+                draft.mediaType = 'image';
+              }
+            } catch {
+              // Non-critical — draft still usable without varied image
+            }
+          }
+
           drafts.push(draft);
           dispatchSession({ type: 'ADD_PREVIEW_DRAFT', draft });
           setGenerationProgress({ current: drafts.length, total: plan.length });
@@ -997,6 +1426,10 @@ export function useOnboardingEngine() {
     }
   }, [session, addMessage]);
 
+  const replacePreviewDraft = useCallback((oldId: string, newDraft: Draft) => {
+    dispatchSession({ type: 'REPLACE_PREVIEW_DRAFT', oldId, draft: newDraft });
+  }, []);
+
   const addSource = useCallback((source: AgentProfileDraft) => {
     dispatchSession({ type: 'ADD_SOURCE', source });
   }, []);
@@ -1007,8 +1440,19 @@ export function useOnboardingEngine() {
     addMessage(buildCompletionPrompt());
   }, [addMessage]);
 
-  const finish = useCallback(() => {
+  const finish = useCallback(async () => {
     if (session.createdClientId) {
+      // Activate the workspace (created as DRAFT during onboarding)
+      try {
+        await fetch(`/api/proxy/workspaces/${session.createdClientId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'ACTIVE' }),
+        });
+      } catch {
+        // Non-critical — workspace still usable
+      }
+
       // Persist source entries for the post-onboarding welcome panel
       if (session.sourceEntries.length > 0) {
         try {
@@ -1043,15 +1487,16 @@ export function useOnboardingEngine() {
     });
   }
 
-  const submitFiles = useCallback(async (files: File[]) => {
+  const submitFiles = useCallback(async (files: File[], onProgress?: (p: { uploaded: number; total: number; currentName: string }) => void) => {
     const clientId = session.createdClientId;
     if (!clientId || files.length === 0) return;
 
     addMessage(buildUserText(`${files.length} photo${files.length > 1 ? 's' : ''} selected`));
-    addMessage(buildSystemUpdate('Uploading photos...'));
 
     let uploaded = 0;
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      onProgress?.({ uploaded, total: files.length, currentName: file.name });
       try {
         const params = new URLSearchParams();
         params.set('filename', file.name);
@@ -1068,6 +1513,7 @@ export function useOnboardingEngine() {
         // Skip individual failures
       }
     }
+    onProgress?.({ uploaded, total: files.length, currentName: '' });
 
     if (uploaded > 0) {
       // Determine enrichment key from file types
@@ -1081,6 +1527,26 @@ export function useOnboardingEngine() {
     }
   }, [session.createdClientId, addMessage, markEnrichmentDone]);
 
+  // ── Recovery actions ──────────────────────────────────────────────
+
+  const retryAnalysis = useCallback(() => {
+    if (!session.primaryInput) return;
+    // Resolve the current error card and re-submit the same input
+    dispatchConversation({ type: 'RESOLVE_ACTIVE' });
+    submitInput(session.primaryInput);
+  }, [session.primaryInput, submitInput]);
+
+  const fallbackToText = useCallback(() => {
+    // Resolve the current error card and show a text input
+    dispatchConversation({ type: 'RESOLVE_ACTIVE' });
+    dispatchSession({ type: 'SET_PHASE', phase: 'quick_start' });
+    addMessage(buildInteractivePrompt(
+      "No problem! Paste a description of your business instead — what you do, who you serve, and what makes you unique.",
+      'source_input',
+      { inputMode: 'textarea', placeholder: 'Tell me about your business...' },
+    ));
+  }, [addMessage]);
+
   return {
     session,
     conversation,
@@ -1091,8 +1557,11 @@ export function useOnboardingEngine() {
     selectStarter,
     submitInput,
     submitFiles,
+    retryAnalysis,
+    fallbackToText,
     confirmBrand,
     generatePreviews,
+    replacePreviewDraft,
     handleEnrichment,
     markEnrichmentDone,
     addSource,
@@ -1112,6 +1581,8 @@ export function useOnboardingEngine() {
     selectREListingSource,
     selectREContentGoal,
     submitListingForm,
+    uploadListingPhotos,
+    skipListingPhotos,
     saveREAgentProfile,
     skipREAgentProfile,
 
