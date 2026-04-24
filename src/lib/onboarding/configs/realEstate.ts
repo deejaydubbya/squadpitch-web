@@ -38,13 +38,6 @@ export const realEstateConfig: OnboardingConfig = {
   ],
   enrichmentCards: [
     {
-      key: 'zillow',
-      label: 'Zillow profile',
-      description: 'Import your agent info, reviews, and listings from Zillow.',
-      icon: 'Home',
-      cardType: 'source_zillow',
-    },
-    {
       key: 'license',
       label: 'License lookup',
       description: 'Verify and import your license details.',
@@ -130,7 +123,7 @@ export const RE_INTENTS: REIntentDef[] = [
 // ── Listing source definitions ───────────────────────────────────────────
 
 export interface REListingSourceDef {
-  method: 'link' | 'photos' | 'description' | 'manual_form';
+  method: 'link' | 'description' | 'manual_form';
   label: string;
   description: string;
   icon: string;
@@ -142,12 +135,6 @@ export const RE_LISTING_SOURCES: REListingSourceDef[] = [
     label: 'Paste listing link',
     description: "We'll extract property details, photos, and pricing.",
     icon: 'Link',
-  },
-  {
-    method: 'photos',
-    label: 'Upload listing photos',
-    description: "We'll analyze the photos and infer property details.",
-    icon: 'Image',
   },
   {
     method: 'description',

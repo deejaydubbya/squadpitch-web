@@ -80,16 +80,6 @@ function resolveREStep(session: OnboardingSessionState, config: OnboardingConfig
       };
     }
 
-    // Photos: need upload (reuse source_input with document mode)
-    if (session.reListingSource === 'photos' && !session.primaryInput && !session.analyzeResult) {
-      return {
-        message: "Upload your listing photos and I'll analyze them.",
-        cardType: 'source_input',
-        phase: 'quick_start',
-        skippable: false,
-      };
-    }
-
     // Input provided, analysis in progress
     if (!session.analyzeResult && session.primaryInput) {
       return {

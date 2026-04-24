@@ -524,13 +524,6 @@ export function useOnboardingEngine() {
         "Paste the listing description and I'll work with it.",
         'source_input',
       ));
-    } else if (method === 'photos') {
-      dispatchSession({ type: 'SET_STARTER_METHOD', method: 'documents' });
-      addMessage(buildInteractivePrompt(
-        "Upload your listing photos and I'll analyze them.",
-        'source_input',
-        { inputMode: 'file', accept: 'image/*' },
-      ));
     }
   }, [addMessage]);
 
@@ -1234,14 +1227,27 @@ export function useOnboardingEngine() {
             dataJson: d.dataJson,
           }));
 
-      // Find the primary data item (property/listing) for image selection
+      // Find the primary data item (property/listing) for image selection.
+      // Also check uploaded assets in the media library as a fallback.
       const primaryDataItem = plannerDataItems[0] ?? null;
-      const propertyImages = primaryDataItem
-        ? [
-            primaryDataItem.dataJson?.imageUrl as string | undefined,
-            ...((primaryDataItem.dataJson?.images as string[] | undefined) ?? []),
-          ].filter((u): u is string => !!u)
-        : [];
+      let propertyImages: string[] = [];
+      if (primaryDataItem) {
+        const hero = primaryDataItem.dataJson?.imageUrl as string | undefined;
+        const gallery = (primaryDataItem.dataJson?.images as string[] | undefined) ?? [];
+        propertyImages = [hero, ...gallery].filter((u): u is string => !!u);
+      }
+      // Fallback: if data item has no images, use uploaded assets from media library
+      if (propertyImages.length === 0) {
+        try {
+          const assetsRes = await fetch(`/api/proxy/workspaces/${clientId}/assets?limit=50&status=READY&assetType=image`);
+          if (assetsRes.ok) {
+            const assetsData = await assetsRes.json();
+            const assets = assetsData.assets ?? [];
+            propertyImages = assets.map((a: { url: string }) => a.url).filter(Boolean);
+          }
+        } catch { /* non-critical */ }
+      }
+      console.log('[generatePreviews] propertyImages:', propertyImages.length, 'primary dataItem:', !!primaryDataItem);
 
       // Smart image selection: spread different images across posts
       // Real estate listing convention: image 0 = exterior/hero,
@@ -1290,6 +1296,7 @@ export function useOnboardingEngine() {
           // Attach a varied image to each post — spread different
           // property photos across posts for visual variety
           const desiredImage = pickImageForSlot(i);
+          console.log(`[generatePreviews] slot ${i}: draft.mediaUrl=${draft.mediaUrl ? 'set' : 'null'}, desiredImage=${desiredImage ? 'set' : 'none'}`);
           if (desiredImage && draft.mediaUrl !== desiredImage) {
             try {
               const patchRes = await fetch(`/api/proxy/drafts/${draft.id}`, {
@@ -1297,12 +1304,13 @@ export function useOnboardingEngine() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mediaUrl: desiredImage }),
               });
+              console.log(`[generatePreviews] PATCH slot ${i}: status=${patchRes.status}`);
               if (patchRes.ok) {
                 draft.mediaUrl = desiredImage;
                 draft.mediaType = 'image';
               }
-            } catch {
-              // Non-critical — draft still usable without varied image
+            } catch (patchErr) {
+              console.error(`[generatePreviews] PATCH slot ${i} error:`, patchErr);
             }
           }
 
@@ -1547,6 +1555,33 @@ export function useOnboardingEngine() {
     ));
   }, [addMessage]);
 
+  const chooseAlternateMethod = useCallback((method: string) => {
+    dispatchConversation({ type: 'RESOLVE_ACTIVE' });
+    if (method === 'description') {
+      dispatchSession({ type: 'SET_RE_LISTING_SOURCE', method: 'description' as REListingSourceMethod });
+      dispatchSession({ type: 'SET_STARTER_METHOD', method: 'description' });
+      addMessage(buildInteractivePrompt(
+        "Paste the listing description and I'll work with it.",
+        'source_input',
+        { inputMode: 'textarea', placeholder: 'Paste listing text from your MLS or website...' },
+      ));
+    } else if (method === 'manual_form') {
+      dispatchSession({ type: 'SET_RE_LISTING_SOURCE', method: 'manual_form' as REListingSourceMethod });
+      addMessage(buildInteractivePrompt(
+        "Enter your listing details below.",
+        're_listing_form',
+      ));
+    } else if (method === 'link') {
+      // Let them try a different link
+      dispatchSession({ type: 'SET_PHASE', phase: 'quick_start' });
+      addMessage(buildInteractivePrompt(
+        "Paste a different listing link — some sites block automated access, so try another source if possible.",
+        'source_input',
+        { inputMode: 'url', placeholder: 'https://...' },
+      ));
+    }
+  }, [addMessage]);
+
   return {
     session,
     conversation,
@@ -1559,6 +1594,7 @@ export function useOnboardingEngine() {
     submitFiles,
     retryAnalysis,
     fallbackToText,
+    chooseAlternateMethod,
     confirmBrand,
     generatePreviews,
     replacePreviewDraft,

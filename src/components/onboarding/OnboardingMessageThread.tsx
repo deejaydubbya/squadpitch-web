@@ -27,6 +27,7 @@ import { REListingFormCard } from './cards/REListingFormCard';
 import { REContentGoalCard } from './cards/REContentGoalCard';
 import { REContentPromptCard } from './cards/REContentPromptCard';
 import { REAgentProfileCard } from './cards/REAgentProfileCard';
+import { ListingPhotoOfferCard } from './cards/ListingPhotoOfferCard';
 
 type Engine = ReturnType<typeof useOnboardingEngine>;
 
@@ -157,7 +158,14 @@ function CardRouter({
         />
       );
     case 'analysis_progress':
-      return <AnalysisProgressCard progressRef={engine.analysisProgress} />;
+      return (
+        <AnalysisProgressCard
+          progressRef={engine.analysisProgress}
+          onRetry={engine.retryAnalysis}
+          onFallbackToText={engine.fallbackToText}
+          onChooseMethod={engine.chooseAlternateMethod}
+        />
+      );
     case 'brand_preview':
       return (
         <BrandPreviewCard
@@ -172,6 +180,7 @@ function CardRouter({
         <ContentPreviewCard
           session={engine.session}
           onGenerate={engine.generatePreviews}
+          onReplaceDraft={engine.replacePreviewDraft}
           isGenerating={engine.isGenerating}
           generationProgress={engine.generationProgress}
         />
@@ -268,11 +277,32 @@ function CardRouter({
           isGenerating={engine.isGenerating}
         />
       );
-    case 're_agent_profile':
+    case 're_agent_profile': {
+      const ar = engine.session.analyzeResult;
+      const prefill: Partial<import('@/lib/onboarding/types').REAgentProfileData> = {};
+      if (ar) {
+        if (ar.brandData.name) prefill.agentName = ar.brandData.name;
+        if (ar.brandData.offers) prefill.specialties = ar.brandData.offers;
+        // Extract service areas from data items or brand description
+        const listing = ar.dataItems.find((d) => d.dataJson?.city || d.dataJson?.location);
+        if (listing) {
+          prefill.serviceAreas = (listing.dataJson.city ?? listing.dataJson.location) as string;
+        }
+      }
       return (
         <REAgentProfileCard
           onSave={engine.saveREAgentProfile}
           onSkip={engine.skipREAgentProfile}
+          initialData={Object.keys(prefill).length > 0 ? prefill : undefined}
+        />
+      );
+    }
+
+    case 'listing_photo_offer':
+      return (
+        <ListingPhotoOfferCard
+          onUpload={engine.uploadListingPhotos}
+          onSkip={engine.skipListingPhotos}
         />
       );
 

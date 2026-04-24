@@ -44,7 +44,8 @@ export type OnboardingCardType =
   | 're_listing_form'
   | 're_content_goal'
   | 're_content_prompt'
-  | 're_agent_profile';
+  | 're_agent_profile'
+  | 'listing_photo_offer';
 
 // ── Starter methods ──────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ export type FallbackSourceMethod = 'website' | 'description' | 'documents' | 'sk
 
 export type REIntent = 'listing' | 'business' | 'just_create' | 'manual';
 
-export type REListingSourceMethod = 'link' | 'photos' | 'description' | 'manual_form';
+export type REListingSourceMethod = 'link' | 'description' | 'manual_form';
 
 export type REContentGoal =
   | 'attract_sellers'
@@ -199,23 +200,42 @@ export interface CrawlPage {
   totalExpected: number;
 }
 
+export interface CrawlPageError {
+  url: string;
+  error: string;
+}
+
 export interface AnalysisProgress {
-  stage: 'crawling' | 'extracting_brand' | 'extracting_data' | 'done' | 'error';
+  stage: 'connecting' | 'crawling' | 'extracting_brand' | 'extracting_data' | 'done' | 'error';
+  rootUrl: string | null;
   crawledPages: CrawlPage[];
+  failedPages: CrawlPageError[];
+  totalExpected: number;
   crawlDone: boolean;
+  imagesFound: number;
   brandData: OnboardingBrandData | null;
   dataItems: OnboardingDataItem[];
   dataCount: number;
   errorMessage: string | null;
+  errorCode: string | null;
+  // Download progress (set during workspace creation)
+  imagesDownloaded: number;
+  imagesDownloadTotal: number;
+  imagesFailed: number;
 }
 
 export interface StreamCallbacks {
+  onCrawlStart: (url: string | null) => void;
+  onCrawlDiscovered: (totalExpected: number) => void;
   onCrawlPage: (page: CrawlPage) => void;
+  onCrawlPageError: (err: CrawlPageError) => void;
   onCrawlDone: () => void;
+  onImagesFound: (count: number) => void;
+  onExtractStart: () => void;
   onBrandDone: (brandData: OnboardingBrandData) => void;
   onDataProgress: (items: OnboardingDataItem[], count: number) => void;
   onDataDone: (items: OnboardingDataItem[], count: number) => void;
-  onError: (message: string) => void;
+  onError: (message: string, code?: string) => void;
 }
 
 // ── Reducer actions ──────────────────────────────────────────────────────
@@ -228,6 +248,7 @@ export type OnboardingAction =
   | { type: 'SET_ANALYZE_RESULT'; result: OnboardingAnalyzeResult }
   | { type: 'SET_CREATED_CLIENT'; clientId: string }
   | { type: 'ADD_PREVIEW_DRAFT'; draft: Draft }
+  | { type: 'REPLACE_PREVIEW_DRAFT'; oldId: string; draft: Draft }
   | { type: 'SET_PREVIEW_DRAFTS'; drafts: Draft[] }
   | { type: 'ADD_SOURCE'; source: AgentProfileDraft }
   | { type: 'ADD_SOURCE_ENTRY'; entry: SourceEntry }
@@ -254,6 +275,7 @@ export type OnboardingAction =
 
 export type ConversationAction =
   | { type: 'ADD_MESSAGE'; message: OnboardingChatMessage }
+  | { type: 'UPDATE_MESSAGE'; id: string; content: string }
   | { type: 'RESOLVE_ACTIVE' }
   | { type: 'CLEAR' };
 
