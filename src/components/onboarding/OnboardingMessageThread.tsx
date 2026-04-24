@@ -166,6 +166,7 @@ function CardRouter({
           session={engine.session}
           onGenerate={engine.generatePreviews}
           isGenerating={engine.isGenerating}
+          generationProgress={engine.generationProgress}
         />
       );
     case 'enrichment_menu':

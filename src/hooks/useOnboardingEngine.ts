@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useCallback, useRef } from 'react';
+import { useReducer, useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -203,6 +203,10 @@ export function useOnboardingEngine() {
   });
 
   const busyRef = useRef(false);
+  const [generationProgress, setGenerationProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -341,7 +345,7 @@ export function useOnboardingEngine() {
         dispatchSession({ type: 'CONFIRM_BRAND' });
 
         // Generate content directly using the prompt
-        addMessage(buildSystemUpdate('Generating your content...'));
+        setGenerationProgress({ current: 0, total: 1 });
         try {
           const draft = await generateContent.mutateAsync({
             clientId: client.id,
@@ -350,9 +354,11 @@ export function useOnboardingEngine() {
             guidance: prompt,
           });
           dispatchSession({ type: 'ADD_PREVIEW_DRAFT', draft });
+          setGenerationProgress({ current: 1, total: 1 });
         } catch {
           // Non-critical
         }
+        setGenerationProgress(null);
 
         // Show content preview
         addMessage(buildInteractivePrompt(
@@ -556,7 +562,7 @@ export function useOnboardingEngine() {
       }
 
       // Generate preview content
-      addMessage(buildSystemUpdate('Generating listing content...'));
+      setGenerationProgress({ current: 0, total: 1 });
       try {
         const draft = await generateContent.mutateAsync({
           clientId: client.id,
@@ -565,9 +571,11 @@ export function useOnboardingEngine() {
           guidance: `Create an engaging new listing announcement post for: ${description}`,
         });
         dispatchSession({ type: 'ADD_PREVIEW_DRAFT', draft });
+        setGenerationProgress({ current: 1, total: 1 });
       } catch {
         // Non-critical
       }
+      setGenerationProgress(null);
 
       addMessage(buildInteractivePrompt(
         "Here's what I created! What do you think?",
@@ -840,8 +848,6 @@ export function useOnboardingEngine() {
     if (busyRef.current || !session.createdClientId) return;
     busyRef.current = true;
 
-    addMessage(buildSystemUpdate('Generating sample posts...'));
-
     try {
       const result = session.analyzeResult;
       const clientId = session.createdClientId;
@@ -858,6 +864,8 @@ export function useOnboardingEngine() {
         brandContext: result?.brandData.description ?? session.contentPrompt ?? '',
       });
 
+      setGenerationProgress({ current: 0, total: plan.length });
+
       const drafts: Draft[] = [];
       for (const slot of plan) {
         try {
@@ -871,8 +879,10 @@ export function useOnboardingEngine() {
           });
           drafts.push(draft);
           dispatchSession({ type: 'ADD_PREVIEW_DRAFT', draft });
+          setGenerationProgress({ current: drafts.length, total: plan.length });
         } catch {
           // Skip failed individual generations
+          setGenerationProgress((prev) => prev ? { ...prev, total: prev.total - 1 } : null);
         }
       }
 
@@ -918,6 +928,7 @@ export function useOnboardingEngine() {
       const msg = err instanceof Error ? err.message : 'Failed to generate previews.';
       addMessage(buildSystemUpdate(msg));
     } finally {
+      setGenerationProgress(null);
       busyRef.current = false;
     }
   }, [session, addMessage, generateContent]);
@@ -1068,6 +1079,7 @@ export function useOnboardingEngine() {
     // Loading states
     isAnalyzing: busyRef.current && session.phase === 'analysis',
     isCreating: createClient.isPending,
-    isGenerating: generateContent.isPending,
+    isGenerating: generationProgress !== null,
+    generationProgress,
   };
 }
