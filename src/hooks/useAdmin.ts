@@ -172,6 +172,146 @@ export interface PublishItem {
   updatedAt: string;
 }
 
+export interface QueueSummaryItem {
+  queue: string;
+  label: string;
+  category: string;
+  icon: string;
+  counts: {
+    active: number;
+    waiting: number;
+    delayed: number;
+    failed: number;
+    completed: number;
+    paused: number;
+  };
+  error?: string;
+}
+
+export interface JobSummaryItem {
+  id: string;
+  queue: string;
+  queueLabel: string;
+  name: string;
+  status: string;
+  data: Record<string, unknown>;
+  timestamp: number;
+  processedOn: number | null;
+  finishedOn: number | null;
+  attemptsMade: number;
+  attemptsMax: number;
+  failedReason: string | null;
+  workspaceId: string | null;
+  context: string | null;
+}
+
+export interface JobDetail extends JobSummaryItem {
+  returnvalue: unknown;
+  delay: number;
+  stacktrace: string[];
+}
+
+export interface WebhookSummary {
+  totalEndpoints: number;
+  activeEndpoints: number;
+  inactiveEndpoints: number;
+  totalDeliveries: number;
+  deliveriesByStatus: Record<string, number>;
+  recentFailed24h: number;
+}
+
+export interface WebhookEndpointItem {
+  id: string;
+  userId: string;
+  targetUrl: string;
+  hasSecret: boolean;
+  subscribedEvents: string[];
+  isActive: boolean;
+  totalDeliveries: number;
+  recentStats: Record<string, number>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebhookEndpointDetail extends WebhookEndpointItem {
+  statsByStatus: Record<string, number>;
+  recentDeliveries: WebhookDeliveryItem[];
+}
+
+export interface WebhookDeliveryItem {
+  id: string;
+  webhookId: string;
+  eventType: string;
+  requestBody: Record<string, unknown>;
+  requestHeaders: Record<string, string> | null;
+  responseStatus: number | null;
+  responseBody: string | null;
+  status: string;
+  attemptCount: number;
+  deliveredAt: string | null;
+  replayOfId: string | null;
+  createdAt: string;
+  endpoint?: {
+    id: string;
+    targetUrl: string;
+    userId: string;
+    isActive: boolean;
+    subscribedEvents?: string[];
+  } | null;
+}
+
+export interface SystemHealthService {
+  key: string;
+  name: string;
+  category: string;
+  status: string;
+  message: string;
+  impact: string;
+  adminLink: string | null;
+  detail?: Record<string, unknown>;
+}
+
+export interface SystemHealthIssue {
+  key: string;
+  name: string;
+  status: string;
+  message: string;
+  impact: string;
+  adminLink: string | null;
+}
+
+export interface SystemHealthSummary {
+  overall: string;
+  counts: {
+    healthy: number;
+    degraded: number;
+    down: number;
+    unknown: number;
+    total: number;
+  };
+  services: SystemHealthService[];
+  issues: SystemHealthIssue[];
+  checkedAt: string;
+}
+
+export interface FeatureFlagItem {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  category: string;
+  enabled: boolean;
+  scope: string;
+  targetType: string | null;
+  targetIds: string[];
+  rolloutPercentage: number | null;
+  notes: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface PaginatedResult<T> {
   items: T[];
   nextCursor: string | null;
@@ -195,6 +335,17 @@ export const adminKeys = {
   betaTester: (id: string) => ['admin', 'betaTester', id] as const,
   betaFeedback: (params: Record<string, string>) => ['admin', 'betaFeedback', params] as const,
   betaFeedbackItem: (id: string) => ['admin', 'betaFeedbackItem', id] as const,
+  jobsSummary: () => ['admin', 'jobsSummary'] as const,
+  jobs: (params: Record<string, string>) => ['admin', 'jobs', params] as const,
+  job: (queue: string, id: string) => ['admin', 'job', queue, id] as const,
+  webhookSummary: () => ['admin', 'webhookSummary'] as const,
+  webhookEndpoints: (params: Record<string, string>) => ['admin', 'webhookEndpoints', params] as const,
+  webhookEndpoint: (id: string) => ['admin', 'webhookEndpoint', id] as const,
+  webhookDeliveries: (params: Record<string, string>) => ['admin', 'webhookDeliveries', params] as const,
+  webhookDelivery: (id: string) => ['admin', 'webhookDelivery', id] as const,
+  systemHealth: () => ['admin', 'systemHealth'] as const,
+  flags: (params: Record<string, string>) => ['admin', 'flags', params] as const,
+  flag: (id: string) => ['admin', 'flag', id] as const,
 };
 
 // ── Hooks ────────────────────────────────────────────────────────────────
@@ -220,6 +371,18 @@ export function useAdminWorkspace(id: string | undefined) {
     queryKey: adminKeys.workspace(id ?? ''),
     queryFn: () => apiFetch<WorkspaceDetail>(`internal/workspaces/${id}`),
     enabled: Boolean(id),
+  });
+}
+
+export function useDeleteAllWorkspaces() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: boolean; deleted: number }>('internal/workspaces', { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminKeys.workspaces({}) });
+      qc.invalidateQueries({ queryKey: ['squadpitch'] });
+    },
   });
 }
 
@@ -541,6 +704,211 @@ export function useUpdateFeedback(id: string) {
       qc.invalidateQueries({ queryKey: ['admin', 'betaFeedback'] });
       qc.invalidateQueries({ queryKey: ['admin', 'betaFeedbackItem', id] });
       qc.invalidateQueries({ queryKey: ['admin', 'betaSummary'] });
+    },
+  });
+}
+
+// ── Jobs Monitor ────────────────────────────────────────────────────────
+
+export function useJobsSummary() {
+  return useQuery({
+    queryKey: adminKeys.jobsSummary(),
+    queryFn: () => apiFetch<{ items: QueueSummaryItem[] }>('internal/jobs/summary'),
+    select: (d) => d.items,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useAdminJobs(params: Record<string, string>) {
+  return useQuery({
+    queryKey: adminKeys.jobs(params),
+    queryFn: () => apiFetch<{ items: JobSummaryItem[]; total: number }>(`internal/jobs${buildQuery(params)}`),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useAdminJob(queue: string | undefined, id: string | undefined) {
+  return useQuery({
+    queryKey: adminKeys.job(queue ?? '', id ?? ''),
+    queryFn: () => apiFetch<JobDetail>(`internal/jobs/${queue}/${id}`),
+    enabled: Boolean(queue && id),
+  });
+}
+
+export function useRetryJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ queue, jobId }: { queue: string; jobId: string }) =>
+      apiFetch<{ ok: boolean }>(`internal/jobs/${queue}/${jobId}/retry`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'jobs'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'jobsSummary'] });
+    },
+  });
+}
+
+export function useRemoveJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ queue, jobId }: { queue: string; jobId: string }) =>
+      apiFetch<{ ok: boolean }>(`internal/jobs/${queue}/${jobId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'jobs'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'jobsSummary'] });
+    },
+  });
+}
+
+// ── Webhooks Monitor ────────────────────────────────────────────────────
+
+export function useWebhookSummary() {
+  return useQuery({
+    queryKey: adminKeys.webhookSummary(),
+    queryFn: () => apiFetch<WebhookSummary>('internal/webhooks/summary'),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useWebhookEndpoints(params: Record<string, string> = {}) {
+  return useQuery({
+    queryKey: adminKeys.webhookEndpoints(params),
+    queryFn: () => apiFetch<{ items: WebhookEndpointItem[] }>(`internal/webhooks/endpoints${buildQuery(params)}`),
+    select: (d) => d.items,
+  });
+}
+
+export function useWebhookEndpoint(id: string | undefined) {
+  return useQuery({
+    queryKey: adminKeys.webhookEndpoint(id ?? ''),
+    queryFn: () => apiFetch<WebhookEndpointDetail>(`internal/webhooks/endpoints/${id}`),
+    enabled: Boolean(id),
+  });
+}
+
+export function useWebhookDeliveries(params: Record<string, string> = {}) {
+  return useQuery({
+    queryKey: adminKeys.webhookDeliveries(params),
+    queryFn: () => apiFetch<PaginatedResult<WebhookDeliveryItem>>(`internal/webhooks/deliveries${buildQuery(params)}`),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useWebhookDeliveryDetail(id: string | undefined) {
+  return useQuery({
+    queryKey: adminKeys.webhookDelivery(id ?? ''),
+    queryFn: () => apiFetch<WebhookDeliveryItem>(`internal/webhooks/deliveries/${id}`),
+    enabled: Boolean(id),
+  });
+}
+
+export function useToggleWebhookEndpoint() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ endpointId, isActive }: { endpointId: string; isActive: boolean }) =>
+      apiFetch<{ ok: boolean }>(`internal/webhooks/endpoints/${endpointId}/toggle`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'webhookEndpoints'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'webhookEndpoint'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'webhookSummary'] });
+    },
+  });
+}
+
+export function useReplayDelivery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (deliveryId: string) =>
+      apiFetch<{ ok: boolean }>(`internal/webhooks/deliveries/${deliveryId}/replay`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'webhookDeliveries'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'webhookSummary'] });
+    },
+  });
+}
+
+// ── System Health ───────────────────────────────────────────────────────
+
+export function useSystemHealth() {
+  return useQuery({
+    queryKey: adminKeys.systemHealth(),
+    queryFn: () => apiFetch<SystemHealthSummary>('internal/system-health/summary'),
+    refetchInterval: 30_000,
+  });
+}
+
+// ── Config / Feature Flags ──────────────────────────────────────────────
+
+export function useFeatureFlags(params: Record<string, string> = {}) {
+  return useQuery({
+    queryKey: adminKeys.flags(params),
+    queryFn: () => apiFetch<{ items: FeatureFlagItem[] }>(`internal/config/flags${buildQuery(params)}`),
+    select: (d) => d.items,
+  });
+}
+
+export function useFeatureFlag(id: string | undefined) {
+  return useQuery({
+    queryKey: adminKeys.flag(id ?? ''),
+    queryFn: () => apiFetch<FeatureFlagItem>(`internal/config/flags/${id}`),
+    enabled: Boolean(id),
+  });
+}
+
+export function useCreateFlag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      apiFetch<FeatureFlagItem>('internal/config/flags', { method: 'POST', body: JSON.stringify(body) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
+    },
+  });
+}
+
+export function useUpdateFlag(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      apiFetch<FeatureFlagItem>(`internal/config/flags/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'flag', id] });
+    },
+  });
+}
+
+export function useToggleFlag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      apiFetch<FeatureFlagItem>(`internal/config/flags/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
+    },
+  });
+}
+
+export function useDeleteFlag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ ok: boolean }>(`internal/config/flags/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
+    },
+  });
+}
+
+export function useSeedFlags() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ created: number; total: number }>('internal/config/flags/seed', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
     },
   });
 }

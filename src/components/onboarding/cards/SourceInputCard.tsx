@@ -7,11 +7,17 @@ import { isUrl } from '@/lib/onboarding/helpers';
 import type { StarterMethod } from '@/lib/onboarding/types';
 import { ArrowRight, Loader2, Upload } from 'lucide-react';
 
+export interface UploadProgress {
+  uploaded: number;
+  total: number;
+  currentName: string;
+}
+
 interface Props {
   industryKey: string | null;
   starterMethod: StarterMethod | null;
   onSubmit: (input: string) => void;
-  onSubmitFiles?: (files: File[]) => void;
+  onSubmitFiles?: (files: File[], onProgress?: (p: UploadProgress) => void) => void;
   payload?: Record<string, unknown>;
 }
 
@@ -19,6 +25,7 @@ export function SourceInputCard({ industryKey, starterMethod, onSubmit, onSubmit
   const [value, setValue] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Payload-based input mode overrides starter-based detection
@@ -32,7 +39,9 @@ export function SourceInputCard({ industryKey, starterMethod, onSubmit, onSubmit
       ? 'textarea'
       : payloadInputMode === 'file'
         ? 'file'
-        : (starter?.inputType === 'textarea' ? 'textarea' : 'url');
+        : starterMethod === 'documents'
+          ? 'file'
+          : (starter?.inputType === 'textarea' ? 'textarea' : 'url');
 
   const placeholder = (payload?.placeholder as string)
     ?? starter?.placeholder
@@ -50,7 +59,7 @@ export function SourceInputCard({ industryKey, starterMethod, onSubmit, onSubmit
     setSubmitting(true);
     if (inputType === 'file') {
       if (onSubmitFiles) {
-        onSubmitFiles(files);
+        onSubmitFiles(files, (p) => setUploadProgress(p));
       } else {
         onSubmit(files.map((f) => f.name).join(', '));
       }
@@ -76,49 +85,67 @@ export function SourceInputCard({ industryKey, starterMethod, onSubmit, onSubmit
   if (inputType === 'file') {
     return (
       <div className="flex flex-col gap-2">
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className={cn(
-            'flex flex-col items-center justify-center gap-2 p-6 rounded-lg cursor-pointer',
-            'bg-white-5 border border-dashed border-white-20 hover:border-accent-green-110/50',
-            'transition-all',
-          )}
-        >
-          <Upload className="w-6 h-6 text-white-40" />
-          <p className="text-sm text-white-50">
-            {files.length > 0
-              ? `${files.length} file${files.length > 1 ? 's' : ''} selected`
-              : 'Click or drag files here'}
-          </p>
-          {files.length > 0 && (
-            <p className="text-xs text-white-30 truncate max-w-full">
-              {files.map((f) => f.name).join(', ')}
+        {submitting && uploadProgress ? (
+          <div className="flex flex-col gap-2 p-4 rounded-lg bg-white-5 border border-white-10">
+            <div className="flex items-center justify-between text-xs text-white-50">
+              <span>Uploading {uploadProgress.uploaded + 1} of {uploadProgress.total}</span>
+              <span>{Math.round(((uploadProgress.uploaded) / uploadProgress.total) * 100)}%</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-white-10 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-accent-green-110 transition-all duration-300"
+                style={{ width: `${(uploadProgress.uploaded / uploadProgress.total) * 100}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-white-30 truncate">{uploadProgress.currentName}</p>
+          </div>
+        ) : (
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            className={cn(
+              'flex flex-col items-center justify-center gap-2 p-6 rounded-lg cursor-pointer',
+              'bg-white-5 border border-dashed border-white-20 hover:border-accent-green-110/50',
+              'transition-all',
+            )}
+          >
+            <Upload className="w-6 h-6 text-white-40" />
+            <p className="text-sm text-white-50">
+              {files.length > 0
+                ? `${files.length} file${files.length > 1 ? 's' : ''} selected`
+                : 'Click or drag files here'}
             </p>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={accept}
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
-        <button
-          onClick={handleSubmit}
-          disabled={!isValid || submitting}
-          className={cn(
-            'self-end flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium',
-            'transition-all',
-            isValid && !submitting
-              ? 'bg-accent-green-110 text-white hover:bg-accent-green-120 cursor-pointer'
-              : 'bg-white-10 text-white-30 cursor-not-allowed',
-          )}
-        >
-          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Upload <ArrowRight className="w-4 h-4" /></>}
-        </button>
+            {files.length > 0 && (
+              <p className="text-xs text-white-30 truncate max-w-full">
+                {files.map((f) => f.name).join(', ')}
+              </p>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={accept}
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+        )}
+        {!submitting && (
+          <button
+            onClick={handleSubmit}
+            disabled={!isValid || submitting}
+            className={cn(
+              'self-end flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium',
+              'transition-all',
+              isValid && !submitting
+                ? 'bg-accent-green-110 text-white hover:bg-accent-green-120 cursor-pointer'
+                : 'bg-white-10 text-white-30 cursor-not-allowed',
+            )}
+          >
+            Upload <ArrowRight className="w-4 h-4" />
+          </button>
+        )}
       </div>
     );
   }

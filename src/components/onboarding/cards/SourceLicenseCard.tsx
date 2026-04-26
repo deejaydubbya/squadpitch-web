@@ -55,9 +55,9 @@ export function SourceLicenseCard({ onDone }: Props) {
             'focus:border-accent-green-110/50 focus:outline-none',
           )}
         >
-          <option value="">State</option>
+          <option value="" className="bg-neutral-900 text-white">State</option>
           {US_STATES.map((s) => (
-            <option key={s} value={s}>{s}</option>
+            <option key={s} value={s} className="bg-neutral-900 text-white">{s}</option>
           ))}
         </select>
         <input

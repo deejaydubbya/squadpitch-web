@@ -1,5 +1,6 @@
 import type {
   CrawlPage,
+  CrawlPageError,
   StreamCallbacks,
 } from './types';
 import type {
@@ -114,11 +115,26 @@ export async function consumeAnalyzeStream(
       try {
         const data = JSON.parse(line.slice(6));
         switch (data.event) {
+          case 'crawl:start':
+            callbacks.onCrawlStart(data.url || null);
+            break;
+          case 'crawl:discovered':
+            callbacks.onCrawlDiscovered(data.totalExpected || 0);
+            break;
           case 'crawl:page':
             callbacks.onCrawlPage(data as CrawlPage);
             break;
+          case 'crawl:page:error':
+            callbacks.onCrawlPageError(data as CrawlPageError);
+            break;
           case 'crawl:done':
             callbacks.onCrawlDone();
+            break;
+          case 'images:found':
+            callbacks.onImagesFound(data.count || 0);
+            break;
+          case 'extract:start':
+            callbacks.onExtractStart();
             break;
           case 'brand:done':
             callbacks.onBrandDone({ ...data.brandData, logoUrl: data.logoUrl || undefined });
@@ -131,9 +147,10 @@ export async function consumeAnalyzeStream(
             break;
           case 'done':
             finalResult = data as OnboardingAnalyzeResult;
+            console.log('[analyzeStream] done event - dataItems:', finalResult.dataItems?.length ?? 0, 'images:', finalResult.images?.length ?? 0);
             break;
           case 'error':
-            callbacks.onError(data.message || 'Analysis failed.');
+            callbacks.onError(data.message || 'Analysis failed.', data.code);
             break;
         }
       } catch {

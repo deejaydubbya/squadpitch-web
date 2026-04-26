@@ -8,6 +8,7 @@ import { Check, SkipForward } from 'lucide-react';
 interface Props {
   onSave: (data: REAgentProfileData) => void;
   onSkip: () => void;
+  initialData?: Partial<REAgentProfileData>;
 }
 
 const FIELDS: {
@@ -23,9 +24,15 @@ const FIELDS: {
   { key: 'tagline', label: 'Tagline / brand statement', placeholder: 'Your home, your future — let\'s find it together.' },
 ];
 
-export function REAgentProfileCard({ onSave, onSkip }: Props) {
-  const [data, setData] = useState<REAgentProfileData>({});
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+export function REAgentProfileCard({ onSave, onSkip, initialData }: Props) {
+  const [data, setData] = useState<REAgentProfileData>(initialData ?? {});
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    if (!initialData) return new Set();
+    const keys = Object.entries(initialData)
+      .filter(([, v]) => v && v.trim())
+      .map(([k]) => k);
+    return new Set(keys);
+  });
 
   const handleChange = (key: keyof REAgentProfileData, value: string) => {
     setData((prev) => ({ ...prev, [key]: value }));
@@ -65,11 +72,11 @@ export function REAgentProfileCard({ onSave, onSkip }: Props) {
                 onClick={() => setExpanded((prev) => { const next = new Set(Array.from(prev)); next.add(key); return next; })}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left',
-                  'bg-white-5/50 hover:bg-white-5 text-white-40 hover:text-white-60',
-                  'text-sm transition-all cursor-pointer',
+                  'bg-white-5 hover:bg-white-10 text-white-60 hover:text-white-80',
+                  'border border-white-10 text-sm transition-all cursor-pointer',
                 )}
               >
-                <span className="text-white-20">+</span>
+                <span className="text-white-40">+</span>
                 {label}
               </button>
             )}

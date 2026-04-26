@@ -15,6 +15,7 @@ import {
   Image,
   MessageSquare,
   SkipForward,
+  ArrowRight,
   Check,
   Loader2,
   AlertCircle,
@@ -55,7 +56,7 @@ export function EnrichmentMenuCard({ session, onSelect, onSkip }: Props) {
   return (
     <div className="flex flex-col gap-2">
       {sourceEntries.length > 0 && (
-        <div className="px-3 py-2 rounded-lg bg-white-5/50 mb-1">
+        <div className="px-3 py-2 rounded-lg bg-white-5 border border-white-10 mb-1">
           <p className="text-[11px] font-medium text-white-40 uppercase tracking-wide mb-1.5">Sources added</p>
           <div className="flex flex-col gap-1">
             {sourceEntries.map((entry) => {
@@ -79,7 +80,7 @@ export function EnrichmentMenuCard({ session, onSelect, onSkip }: Props) {
             onClick={() => onSelect(card.cardType, card.key)}
             className={cn(
               'flex items-start gap-3 p-3 rounded-lg text-left',
-              'bg-white-5 hover:bg-white-10 border border-transparent hover:border-accent-green-110/30',
+              'bg-white-5 hover:bg-white-10 border border-white-10 hover:border-accent-green-110/30',
               'transition-all cursor-pointer',
             )}
           >
@@ -94,6 +95,16 @@ export function EnrichmentMenuCard({ session, onSelect, onSkip }: Props) {
         );
       })}
 
+      <button
+        onClick={onSkip}
+        className={cn(
+          'flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium',
+          'bg-accent-green-110 text-white hover:bg-accent-green-120 cursor-pointer transition-all',
+        )}
+      >
+        <ArrowRight className="w-4 h-4" />
+        Continue
+      </button>
       <button
         onClick={onSkip}
         className="flex items-center justify-center gap-1.5 py-2 text-xs text-white-40 hover:text-white-60 transition-colors cursor-pointer"

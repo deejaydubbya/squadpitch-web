@@ -19,6 +19,25 @@ interface Props {
   isSubmitting: boolean;
 }
 
+const inputCn = cn(
+  'w-full px-3 py-2 rounded-lg text-sm',
+  'bg-white-5 border border-white-10 text-white-90',
+  'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
+);
+
+const textareaCn = cn(
+  'w-full px-3 py-2 rounded-lg text-sm resize-none',
+  'bg-white-5 border border-white-10 text-white-90',
+  'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
+);
+
+const selectCn = cn(
+  'w-full px-2 py-2 rounded-lg text-sm appearance-none',
+  'bg-white-5 border border-white-10 text-white-90',
+  'focus:border-accent-green-110/50 focus:outline-none',
+  '[&>option]:bg-sp-bg [&>option]:text-white-90',
+);
+
 export function REListingFormCard({ onSubmit, isSubmitting }: Props) {
   const [data, setData] = useState<REListingFormData>({});
 
@@ -29,150 +48,186 @@ export function REListingFormCard({ onSubmit, isSubmitting }: Props) {
   const hasEnough = !!(data.address || data.description) && !!(data.city || data.price);
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Address */}
-      <div>
-        <label className="text-[11px] text-white-40 mb-1 block">Address</label>
-        <input
-          type="text"
-          value={data.address ?? ''}
-          onChange={(e) => update('address', e.target.value)}
-          placeholder="123 Main St"
-          className={cn(
-            'w-full px-3 py-2 rounded-lg text-sm',
-            'bg-white-5 border border-white-10 text-white-90',
-            'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
-          )}
-        />
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* ── Property Basics ─────────────────────────────────────── */}
+      <Section title="Property basics">
+        <div>
+          <Label>Address</Label>
+          <input
+            type="text"
+            value={data.address ?? ''}
+            onChange={(e) => update('address', e.target.value)}
+            placeholder="123 Main St"
+            className={inputCn}
+          />
+        </div>
 
-      {/* City / State row */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[11px] text-white-40 mb-1 block">City</label>
-          <input
-            type="text"
-            value={data.city ?? ''}
-            onChange={(e) => update('city', e.target.value)}
-            placeholder="Springfield"
-            className={cn(
-              'w-full px-3 py-2 rounded-lg text-sm',
-              'bg-white-5 border border-white-10 text-white-90',
-              'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
-            )}
-          />
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <Label>City</Label>
+            <input
+              type="text"
+              value={data.city ?? ''}
+              onChange={(e) => update('city', e.target.value)}
+              placeholder="Springfield"
+              className={inputCn}
+            />
+          </div>
+          <div>
+            <Label>State</Label>
+            <input
+              type="text"
+              value={data.state ?? ''}
+              onChange={(e) => update('state', e.target.value)}
+              placeholder="CA"
+              maxLength={2}
+              className={inputCn}
+            />
+          </div>
+          <div>
+            <Label>Zip code</Label>
+            <input
+              type="text"
+              value={data.zip ?? ''}
+              onChange={(e) => update('zip', e.target.value)}
+              placeholder="90210"
+              maxLength={10}
+              className={inputCn}
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-[11px] text-white-40 mb-1 block">State</label>
-          <input
-            type="text"
-            value={data.state ?? ''}
-            onChange={(e) => update('state', e.target.value)}
-            placeholder="CA"
-            maxLength={2}
-            className={cn(
-              'w-full px-3 py-2 rounded-lg text-sm',
-              'bg-white-5 border border-white-10 text-white-90',
-              'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
-            )}
-          />
-        </div>
-      </div>
 
-      {/* Price / Property Type row */}
-      <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[11px] text-white-40 mb-1 block">Price</label>
-          <input
-            type="text"
-            value={data.price ?? ''}
-            onChange={(e) => update('price', e.target.value)}
-            placeholder="$450,000"
-            className={cn(
-              'w-full px-3 py-2 rounded-lg text-sm',
-              'bg-white-5 border border-white-10 text-white-90',
-              'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
-            )}
-          />
-        </div>
-        <div>
-          <label className="text-[11px] text-white-40 mb-1 block">Property type</label>
+          <Label>Property type</Label>
           <select
             value={data.propertyType ?? ''}
             onChange={(e) => update('propertyType', e.target.value)}
-            className={cn(
-              'w-full px-2 py-2 rounded-lg text-sm',
-              'bg-white-5 border border-white-10 text-white-90',
-              'focus:border-accent-green-110/50 focus:outline-none',
-            )}
+            className={selectCn}
           >
-            <option value="">Select</option>
-            {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            <option value="" className="bg-sp-bg text-white-40">Select</option>
+            {PROPERTY_TYPES.map((t) => (
+              <option key={t} value={t} className="bg-sp-bg text-white-90">{t}</option>
+            ))}
           </select>
         </div>
-      </div>
+      </Section>
 
-      {/* Beds / Baths / Sqft row */}
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-[11px] text-white-40 mb-1 block">Beds</label>
-          <input
-            type="text"
-            value={data.beds ?? ''}
-            onChange={(e) => update('beds', e.target.value)}
-            placeholder="3"
-            className={cn(
-              'w-full px-3 py-2 rounded-lg text-sm',
-              'bg-white-5 border border-white-10 text-white-90',
-              'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
-            )}
-          />
+      {/* ── Listing Facts ───────────────────────────────────────── */}
+      <Section title="Listing facts">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label>Price</Label>
+            <input
+              type="text"
+              value={data.price ?? ''}
+              onChange={(e) => update('price', e.target.value)}
+              placeholder="$450,000"
+              className={inputCn}
+            />
+          </div>
+          <div>
+            <Label>Sqft</Label>
+            <input
+              type="text"
+              value={data.sqft ?? ''}
+              onChange={(e) => update('sqft', e.target.value)}
+              placeholder="1,800"
+              className={inputCn}
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-[11px] text-white-40 mb-1 block">Baths</label>
-          <input
-            type="text"
-            value={data.baths ?? ''}
-            onChange={(e) => update('baths', e.target.value)}
-            placeholder="2"
-            className={cn(
-              'w-full px-3 py-2 rounded-lg text-sm',
-              'bg-white-5 border border-white-10 text-white-90',
-              'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
-            )}
-          />
-        </div>
-        <div>
-          <label className="text-[11px] text-white-40 mb-1 block">Sqft</label>
-          <input
-            type="text"
-            value={data.sqft ?? ''}
-            onChange={(e) => update('sqft', e.target.value)}
-            placeholder="1,800"
-            className={cn(
-              'w-full px-3 py-2 rounded-lg text-sm',
-              'bg-white-5 border border-white-10 text-white-90',
-              'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
-            )}
-          />
-        </div>
-      </div>
 
-      {/* Description */}
-      <div>
-        <label className="text-[11px] text-white-40 mb-1 block">Description / features</label>
-        <textarea
-          value={data.description ?? ''}
-          onChange={(e) => update('description', e.target.value)}
-          placeholder="Highlight key features, upgrades, views..."
-          rows={3}
-          className={cn(
-            'w-full px-3 py-2 rounded-lg text-sm resize-none',
-            'bg-white-5 border border-white-10 text-white-90',
-            'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
-          )}
-        />
-      </div>
+        <div className="grid grid-cols-4 gap-2">
+          <div>
+            <Label>Beds</Label>
+            <input
+              type="text"
+              value={data.beds ?? ''}
+              onChange={(e) => update('beds', e.target.value)}
+              placeholder="3"
+              className={inputCn}
+            />
+          </div>
+          <div>
+            <Label>Baths</Label>
+            <input
+              type="text"
+              value={data.baths ?? ''}
+              onChange={(e) => update('baths', e.target.value)}
+              placeholder="2"
+              className={inputCn}
+            />
+          </div>
+          <div>
+            <Label>Lot size</Label>
+            <input
+              type="text"
+              value={data.lotSize ?? ''}
+              onChange={(e) => update('lotSize', e.target.value)}
+              placeholder="0.25 acres"
+              className={inputCn}
+            />
+          </div>
+          <div>
+            <Label>Year built</Label>
+            <input
+              type="text"
+              value={data.yearBuilt ?? ''}
+              onChange={(e) => update('yearBuilt', e.target.value)}
+              placeholder="2005"
+              maxLength={4}
+              className={inputCn}
+            />
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Marketing Details ───────────────────────────────────── */}
+      <Section title="Marketing details">
+        <div>
+          <Label>Description</Label>
+          <textarea
+            value={data.description ?? ''}
+            onChange={(e) => update('description', e.target.value)}
+            placeholder="Describe the property — upgrades, views, layout..."
+            rows={3}
+            className={textareaCn}
+          />
+        </div>
+
+        <div>
+          <Label>Key features / highlights</Label>
+          <textarea
+            value={data.features ?? ''}
+            onChange={(e) => update('features', e.target.value)}
+            placeholder="e.g. Gourmet kitchen, pool, solar panels, corner lot..."
+            rows={2}
+            className={textareaCn}
+          />
+        </div>
+
+        <div>
+          <Label>Neighborhood / location notes</Label>
+          <textarea
+            value={data.neighborhood ?? ''}
+            onChange={(e) => update('neighborhood', e.target.value)}
+            placeholder="Nearby schools, parks, restaurants, commute details..."
+            rows={2}
+            className={textareaCn}
+          />
+        </div>
+
+        <div>
+          <Label>Showing instructions / call to action</Label>
+          <input
+            type="text"
+            value={data.showingInstructions ?? ''}
+            onChange={(e) => update('showingInstructions', e.target.value)}
+            placeholder="e.g. Open house Saturday 1–3 PM, Call for a private showing"
+            className={inputCn}
+          />
+        </div>
+      </Section>
 
       <button
         onClick={() => onSubmit(data)}
@@ -189,4 +244,17 @@ export function REListingFormCard({ onSubmit, isSubmitting }: Props) {
       </button>
     </div>
   );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <h4 className="text-xs font-medium text-white-50 uppercase tracking-wider">{title}</h4>
+      {children}
+    </div>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <label className="text-[11px] text-white-40 mb-1 block">{children}</label>;
 }

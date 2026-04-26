@@ -37,8 +37,8 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
       status: res.status,
       headers: {
         'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        'connection': 'keep-alive',
+        'cache-control': 'no-cache, no-transform',
+        'x-accel-buffering': 'no',
       },
     });
   }

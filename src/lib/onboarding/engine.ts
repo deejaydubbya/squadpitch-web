@@ -67,11 +67,13 @@ function resolveREStep(session: OnboardingSessionState, config: OnboardingConfig
     }
 
     // Link or description: need input
-    if ((session.reListingSource === 'link' || session.reListingSource === 'description')
+    if ((session.reListingSource === 'single_listing_url' || session.reListingSource === 'listing_feed_url' || session.reListingSource === 'description')
       && !session.primaryInput && !session.analyzeResult) {
-      const msg = session.reListingSource === 'link'
-        ? "Paste the listing URL and I'll extract the details."
-        : "Paste the listing description and I'll work with it.";
+      const msg = session.reListingSource === 'single_listing_url'
+        ? "Paste the property page URL and I'll extract the listing details."
+        : session.reListingSource === 'listing_feed_url'
+          ? "Paste the listing feed or IDX page URL and I'll find the properties on it."
+          : "Paste the listing description and I'll work with it.";
       return {
         message: msg,
         cardType: 'source_input',
@@ -93,7 +95,7 @@ function resolveREStep(session: OnboardingSessionState, config: OnboardingConfig
     // Analysis result exists but brand not confirmed
     if (session.analyzeResult && !session.brandConfirmed) {
       return {
-        message: "Here's the listing I found. Does this look right?",
+        message: "Here's what I found. Review the listing details before I create content.",
         cardType: 'brand_preview',
         phase: 'value_delivery',
         skippable: false,
@@ -159,7 +161,7 @@ function resolveREStep(session: OnboardingSessionState, config: OnboardingConfig
     // Analysis done, brand not confirmed
     if (session.analyzeResult && !session.brandConfirmed) {
       return {
-        message: "Here's what I found. Does this look right?",
+        message: "Here's what I found. Review the brand details before I create content.",
         cardType: 'brand_preview',
         phase: 'value_delivery',
         skippable: false,
@@ -259,6 +261,16 @@ function resolveREPostGenerationStep(session: OnboardingSessionState, config: On
       message: "Want me to make this sound more like your brand? Tell me about yourself.",
       cardType: 're_agent_profile',
       phase: 'profile_refinement',
+      skippable: true,
+    };
+  }
+
+  // Channel connection — after previews, before enrichments
+  if (!session.channelConnectDone && !session.channelConnectSkipped) {
+    return {
+      message: "Connect the accounts you want Squadpitch to publish to. You can skip this and create drafts only.",
+      cardType: 'channel_connect',
+      phase: 'enrichment',
       skippable: true,
     };
   }
@@ -379,6 +391,7 @@ function resolveFallbackStep(session: OnboardingSessionState, config: Onboarding
       cardType: 'source_input',
       phase: 'quick_start',
       skippable: false,
+      payload: { inputMode: 'file', accept: '.pdf,.doc,.docx,.txt,.csv' },
     };
   }
 
@@ -405,7 +418,7 @@ function resolveFallbackStep(session: OnboardingSessionState, config: Onboarding
   // Have analysis result but brand not confirmed
   if (session.analyzeResult && !session.brandConfirmed) {
     return {
-      message: "Here's what I found. Does this look right?",
+      message: "Here's what I found. Review the brand details before I create content.",
       cardType: 'brand_preview',
       phase: 'value_delivery',
       skippable: false,
@@ -436,6 +449,16 @@ function resolvePostGenerationStep(session: OnboardingSessionState, config: Onbo
       message: "Nice work! Want to save some details to make future content even better?",
       cardType: 'profile_refinement',
       phase: 'profile_refinement',
+      skippable: true,
+    };
+  }
+
+  // Channel connection — after previews, before enrichments
+  if (!session.channelConnectDone && !session.channelConnectSkipped) {
+    return {
+      message: "Connect the accounts you want Squadpitch to publish to. You can skip this and create drafts only.",
+      cardType: 'channel_connect',
+      phase: 'enrichment',
       skippable: true,
     };
   }
@@ -508,7 +531,7 @@ function resolveIndustryStep(session: OnboardingSessionState, config: Onboarding
   // Have analysis result but brand not confirmed
   if (session.analyzeResult && !session.brandConfirmed) {
     return {
-      message: "Here's what I found. Does this look right?",
+      message: "Here's what I found. Review the brand details before I create content.",
       cardType: 'brand_preview',
       phase: 'value_delivery',
       skippable: false,

@@ -16,7 +16,7 @@ import {
   Activity,
   Database,
   Zap,
-  Shield,
+  Terminal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
@@ -210,8 +210,8 @@ export function Sidebar({ client }: Props) {
             href="/admin"
             className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
           >
-            <Shield className="w-4 h-4" />
-            Admin Console
+            <Terminal className="w-4 h-4" />
+            Dev Console
           </Link>
         )}
         <Link

@@ -10,11 +10,12 @@ import type { Draft } from '@/hooks/useSquadpitch';
 interface Props {
   session: OnboardingSessionState;
   onGenerate: () => void;
+  onReplaceDraft?: (oldId: string, newDraft: Draft) => void;
   isGenerating: boolean;
   generationProgress: { current: number; total: number } | null;
 }
 
-export function ContentPreviewCard({ session, onGenerate, isGenerating, generationProgress }: Props) {
+export function ContentPreviewCard({ session, onGenerate, onReplaceDraft, isGenerating, generationProgress }: Props) {
   const triggeredRef = useRef(false);
 
   // Auto-trigger generation on mount
@@ -38,23 +39,23 @@ export function ContentPreviewCard({ session, onGenerate, isGenerating, generati
     );
   }
 
+  // No drafts and not generating — auto-retry generation
   if (draftCount === 0 && !isGenerating) {
+    if (!triggeredRef.current) {
+      triggeredRef.current = true;
+      onGenerate();
+    }
     return (
-      <button
-        onClick={onGenerate}
-        className={cn(
-          'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium',
-          'bg-accent-green-110 text-white hover:bg-accent-green-120 cursor-pointer transition-all',
-        )}
-      >
-        <Sparkles className="w-4 h-4" />
-        Generate sample posts
-      </button>
+      <div className="flex flex-col gap-3">
+        <GenerationHeader current={0} total={total} />
+        <SkeletonPostCard />
+      </div>
     );
   }
 
   const brandName = session.analyzeResult?.brandData.name ?? 'Your Business';
-  const logoUrl = session.analyzeResult?.brandData.logoUrl;
+  const rawLogo = session.analyzeResult?.brandData.logoUrl;
+  const logoUrl = rawLogo && /^https?:\/\//i.test(rawLogo) ? rawLogo : undefined;
   const clientId = session.createdClientId ?? '';
 
   // Default schedule time (tomorrow 9am)
@@ -72,22 +73,30 @@ export function ContentPreviewCard({ session, onGenerate, isGenerating, generati
         <GenerationHeader current={draftCount} total={total} />
       )}
 
-      {session.previewDrafts.map((draft, idx) => (
-        <OnboardingPostCard
-          key={draft.id}
-          draft={draft}
-          clientId={clientId}
-          brandName={brandName}
-          logoUrl={logoUrl}
-          defaultScheduleTime={defaultScheduleTime}
-          onRegenerated={(newDraft: Draft) => {
-            // Update handled by parent
-          }}
-          isFirstPost={idx === 0 && !isGenerating}
-          industryKey={session.industryKey ?? undefined}
-          postIndex={idx}
-        />
-      ))}
+      {session.previewDrafts.map((draft, idx) => {
+        // Determine channel connection status for this draft
+        const isChannelConnected = session.connectedChannelsSnapshot.length > 0
+          ? session.connectedChannelsSnapshot.includes(draft.channel as any)
+          : session.channelConnectSkipped ? false : undefined;
+
+        return (
+          <OnboardingPostCard
+            key={draft.id}
+            draft={draft}
+            clientId={clientId}
+            brandName={brandName}
+            logoUrl={logoUrl}
+            defaultScheduleTime={defaultScheduleTime}
+            onRegenerated={(newDraft: Draft) => {
+              onReplaceDraft?.(draft.id, newDraft);
+            }}
+            isFirstPost={idx === 0 && !isGenerating}
+            industryKey={session.industryKey ?? undefined}
+            postIndex={idx}
+            channelConnected={isChannelConnected}
+          />
+        );
+      })}
 
       {/* Show single skeleton for the next post being generated */}
       {isGenerating && draftCount < total && (

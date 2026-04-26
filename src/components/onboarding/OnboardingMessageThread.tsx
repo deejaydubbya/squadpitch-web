@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { OnboardingChatMessage, OnboardingCardType } from '@/lib/onboarding/types';
 import type { useOnboardingEngine } from '@/hooks/useOnboardingEngine';
@@ -28,8 +28,61 @@ import { REContentGoalCard } from './cards/REContentGoalCard';
 import { REContentPromptCard } from './cards/REContentPromptCard';
 import { REAgentProfileCard } from './cards/REAgentProfileCard';
 import { ListingPhotoOfferCard } from './cards/ListingPhotoOfferCard';
+import { PropertyReviewCard } from './cards/PropertyReviewCard';
+import { EnrichmentReviewCard } from './cards/EnrichmentReviewCard';
+import { CampaignPresentationCard } from './cards/CampaignPresentationCard';
 
 type Engine = ReturnType<typeof useOnboardingEngine>;
+
+// ── Step grouping ────────────────────────────────────────────────────────
+
+const STEP_GROUP: Partial<Record<OnboardingCardType, string>> = {
+  industry_select: 'setup', starter_options: 'setup', fallback_starter: 'setup',
+  re_starter: 'setup', source_input: 'setup', fallback_source: 'setup',
+  re_listing_source: 'setup', re_listing_form: 'setup', re_content_goal: 'setup',
+  re_content_prompt: 'setup', fallback_content_prompt: 'setup',
+  analysis_progress: 'analysis',
+  brand_preview: 'review', property_review: 'review', listing_photo_offer: 'review',
+  re_agent_profile: 'review', profile_refinement: 'review',
+  content_preview: 'content', enrichment_menu: 'content', source_zillow: 'content',
+  source_license: 'content', source_crm: 'content', enrichment_review: 'content',
+  channel_connect: 'content',
+  campaign_presentation: 'campaign', completion_summary: 'campaign',
+};
+
+const STEP_LABEL: Record<string, string> = {
+  analysis: 'Analyzing your data',
+  review: 'Review',
+  content: 'Your content',
+  campaign: 'Your campaign',
+};
+
+// Cards that render at full width without chat bubble wrapper
+const WIDE_CARDS = new Set<OnboardingCardType>([
+  'content_preview', 'property_review', 'brand_preview',
+  'enrichment_review', 're_listing_form', 're_agent_profile',
+  'profile_refinement', 'completion_summary', 'campaign_presentation',
+  'analysis_progress', 'channel_connect', 'listing_photo_offer',
+]);
+
+// Cards that persist visible even after resolution
+const PERSIST_CARDS = new Set<OnboardingCardType>([
+  'content_preview', 'property_review',
+]);
+
+function StepDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 py-1 mt-2">
+      <div className="flex-1 h-px bg-white-10" />
+      <span className="text-[11px] font-medium text-white-30 uppercase tracking-wider whitespace-nowrap">
+        {label}
+      </span>
+      <div className="flex-1 h-px bg-white-10" />
+    </div>
+  );
+}
+
+// ── Main component ───────────────────────────────────────────────────────
 
 interface Props {
   engine: Engine;
@@ -44,17 +97,38 @@ export function OnboardingMessageThread({ engine }: Props) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    const timer = setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [conversation.messages.length, lastMessageId]);
+    // Delayed scroll to handle card content that renders after mount
+    const t1 = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 150);
+    const t2 = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [conversation.messages.length, lastMessageId, session.previewDrafts.length]);
+
+  // Track step groups for dividers
+  let lastStep: string | null = null;
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-3 scrollbar-dark">
-      {conversation.messages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} engine={engine} />
-      ))}
+    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-5 space-y-4 scrollbar-dark">
+      {conversation.messages.map((msg) => {
+        const currentStep = msg.cardType ? STEP_GROUP[msg.cardType] ?? null : null;
+        const dividerLabel =
+          currentStep &&
+          currentStep !== lastStep &&
+          currentStep !== 'setup' &&
+          msg.type === 'interactive_prompt'
+            ? STEP_LABEL[currentStep]
+            : null;
+
+        if (currentStep && msg.type === 'interactive_prompt') {
+          lastStep = currentStep;
+        }
+
+        return (
+          <Fragment key={msg.id}>
+            {dividerLabel && <StepDivider label={dividerLabel} />}
+            <MessageBubble message={msg} engine={engine} />
+          </Fragment>
+        );
+      })}
       <div ref={bottomRef} />
     </div>
   );
@@ -67,8 +141,10 @@ function MessageBubble({ message, engine }: { message: OnboardingChatMessage; en
   const isConfirmation = message.type === 'confirmation';
   const isSystemUpdate = message.type === 'system_update';
   const isInteractive = message.type === 'interactive_prompt';
+  const isAssistantText = message.type === 'assistant_text';
   const isResolved = message.status === 'resolved';
 
+  // Confirmation pills — compact inline
   if (isConfirmation) {
     return (
       <div className="flex justify-center">
@@ -79,6 +155,7 @@ function MessageBubble({ message, engine }: { message: OnboardingChatMessage; en
     );
   }
 
+  // System updates — subtle centered pill
   if (isSystemUpdate) {
     return (
       <div className="flex justify-center">
@@ -89,37 +166,61 @@ function MessageBubble({ message, engine }: { message: OnboardingChatMessage; en
     );
   }
 
-  // content_preview should persist even after resolution
-  const persistCard = message.cardType === 'content_preview';
+  const persistCard = message.cardType ? PERSIST_CARDS.has(message.cardType) : false;
+  const isWideCard = message.cardType && WIDE_CARDS.has(message.cardType);
   const showCard = isInteractive && message.cardType && (message.status === 'active' || persistCard);
   const showResolved = isInteractive && isResolved && message.cardType && !persistCard;
 
+  // ── Card-dominant: wide cards break out of the chat bubble ──
+  if (isInteractive && isWideCard && showCard) {
+    return (
+      <div className="w-full">
+        <p className="text-xs text-white-40 mb-2 px-1">{message.content}</p>
+        <CardRouter cardType={message.cardType!} engine={engine} payload={message.payload} />
+      </div>
+    );
+  }
+
+  // ── Resolved interactive prompts — collapsed to minimal text ──
+  if (showResolved) {
+    return (
+      <div className="px-1">
+        <p className="text-[11px] text-white-30 leading-relaxed">{message.content}</p>
+      </div>
+    );
+  }
+
+  // ── Assistant text — no bubble, lighter weight ──
+  if (isAssistantText) {
+    return (
+      <div className="px-1">
+        <p className="text-sm text-white-50 leading-relaxed">{message.content}</p>
+      </div>
+    );
+  }
+
+  // ── Standard bubbles (user text, non-wide interactive with card) ──
   return (
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'min-w-0 rounded-xl px-4 py-2.5',
-          persistCard && showCard ? 'max-w-full' : 'max-w-[85%]',
+          'min-w-0 rounded-xl px-4 py-2.5 max-w-[88%] sm:max-w-[80%]',
           isUser
             ? 'bg-accent-green-110/15 text-white-100'
             : 'bg-white-5 text-white-100',
-          isInteractive && isResolved && !persistCard && 'opacity-60',
         )}
       >
-        <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+        <p className={cn(
+          'whitespace-pre-wrap break-words leading-relaxed',
+          isInteractive && showCard ? 'text-xs text-white-50 mb-1' : 'text-sm',
+        )}>
+          {message.content}
+        </p>
 
         {showCard && (
-          <div className="mt-3">
-            <CardRouter
-              cardType={message.cardType!}
-              engine={engine}
-              payload={message.payload}
-            />
+          <div className="mt-2">
+            <CardRouter cardType={message.cardType!} engine={engine} payload={message.payload} />
           </div>
-        )}
-
-        {showResolved && (
-          <div className="mt-1 text-[11px] text-white-30 italic">Selection confirmed</div>
         )}
       </div>
     </div>
@@ -161,6 +262,7 @@ function CardRouter({
       return (
         <AnalysisProgressCard
           progressRef={engine.analysisProgress}
+          isTextInput={engine.session.starterMethod === 'description' || engine.session.starterMethod === 'documents'}
           onRetry={engine.retryAnalysis}
           onFallbackToText={engine.fallbackToText}
           onChooseMethod={engine.chooseAlternateMethod}
@@ -173,6 +275,15 @@ function CardRouter({
           starterMethod={engine.session.starterMethod}
           onConfirm={engine.confirmBrand}
           isCreating={engine.isCreating}
+          sourceUrl={engine.session.primaryInput && /^https?:\/\//i.test(engine.session.primaryInput) ? engine.session.primaryInput : null}
+        />
+      );
+    case 'property_review':
+      return (
+        <PropertyReviewCard
+          clientId={payload?.clientId as string}
+          onConfirm={engine.confirmPropertyReview}
+          onChooseMethod={engine.chooseAlternateMethod}
         />
       );
     case 'content_preview':
@@ -205,29 +316,39 @@ function CardRouter({
     case 'source_license':
       return (
         <SourceLicenseCard
-          onDone={(source) => {
-            engine.addSource(source);
-            engine.markEnrichmentDone('license');
-          }}
+          onDone={(source) => engine.stageEnrichmentFromCard('license', 'license', source)}
         />
       );
     case 'source_crm':
       return (
         <SourceCrmCard
           clientId={engine.session.createdClientId}
-          onDone={(source) => {
-            engine.addSource(source);
-            engine.markEnrichmentDone('crm');
-          }}
+          onDone={(source, extra) => engine.stageEnrichmentFromCard('crm', 'crm', source, extra)}
         />
       );
+    case 'enrichment_review':
+      return <EnrichmentReviewCard engine={engine} />;
     case 'channel_connect':
       return (
         <ChannelConnectCard
           clientId={engine.session.createdClientId}
-          onDone={() => engine.markEnrichmentDone('channels')}
+          onDone={(channels) => {
+            if (engine.session.channelConnectDone || engine.session.channelConnectSkipped) {
+              // Enrichment menu flow — already past initial channel connect
+              engine.markEnrichmentDone('channels');
+            } else {
+              engine.completeChannelConnect(channels);
+            }
+          }}
+          onSkip={
+            !engine.session.channelConnectDone && !engine.session.channelConnectSkipped
+              ? engine.skipChannelConnect
+              : undefined
+          }
         />
       );
+    case 'campaign_presentation':
+      return <CampaignPresentationCard engine={engine} />;
     case 'completion_summary':
       return (
         <CompletionSummaryCard
@@ -303,6 +424,7 @@ function CardRouter({
         <ListingPhotoOfferCard
           onUpload={engine.uploadListingPhotos}
           onSkip={engine.skipListingPhotos}
+          variant={engine.session.reIntent === 'business' ? 'business' : 'listing'}
         />
       );
 

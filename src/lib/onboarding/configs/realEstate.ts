@@ -123,7 +123,7 @@ export const RE_INTENTS: REIntentDef[] = [
 // ── Listing source definitions ───────────────────────────────────────────
 
 export interface REListingSourceDef {
-  method: 'link' | 'description' | 'manual_form';
+  method: 'single_listing_url' | 'listing_feed_url' | 'description' | 'manual_form';
   label: string;
   description: string;
   icon: string;
@@ -131,21 +131,27 @@ export interface REListingSourceDef {
 
 export const RE_LISTING_SOURCES: REListingSourceDef[] = [
   {
-    method: 'link',
-    label: 'Paste listing link',
-    description: "We'll extract property details, photos, and pricing.",
+    method: 'single_listing_url',
+    label: 'Single listing URL',
+    description: "Paste a property page and we'll extract the details and photos.",
     icon: 'Link',
   },
   {
+    method: 'listing_feed_url',
+    label: 'Listing feed / IDX page',
+    description: 'Paste a page with multiple listings and choose which properties to use.',
+    icon: 'LayoutList',
+  },
+  {
     method: 'description',
-    label: 'Paste listing description',
-    description: 'Copy/paste listing text from your MLS or website.',
+    label: 'Paste listing details',
+    description: 'Copy/paste MLS or listing text.',
     icon: 'FileText',
   },
   {
     method: 'manual_form',
-    label: 'Enter listing details',
-    description: 'Fill in address, price, beds/baths, and features.',
+    label: 'Enter manually',
+    description: 'Fill in property details yourself.',
     icon: 'Pencil',
   },
 ];
@@ -184,11 +190,16 @@ export interface REListingFormData {
   address?: string;
   city?: string;
   state?: string;
+  zip?: string;
   price?: string;
   beds?: string;
   baths?: string;
   sqft?: string;
+  lotSize?: string;
+  yearBuilt?: string;
   propertyType?: string;
   description?: string;
   features?: string;
+  neighborhood?: string;
+  showingInstructions?: string;
 }

@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/apiFetch';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type ClientStatus = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+export type ClientStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 
 export type Channel =
   | 'INSTAGRAM'
@@ -1251,6 +1251,7 @@ export interface CreateClientInput {
   slug: string;
   logoUrl?: string | null;
   industryKey?: string;
+  status?: ClientStatus;
 }
 
 export function useCreateClient() {
@@ -3219,6 +3220,8 @@ export interface OnboardingDataItem {
   dataJson: Record<string, unknown>;
   tags: string[];
   priority: number;
+  /** Real database ID, set after data-import/confirm saves the item */
+  savedId?: string;
 }
 
 export interface OnboardingAnalyzeResult {

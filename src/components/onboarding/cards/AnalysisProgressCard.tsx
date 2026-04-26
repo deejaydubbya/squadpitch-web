@@ -7,13 +7,20 @@ import { Loader2, Check, Globe, Palette, Database, AlertTriangle, RefreshCw, Fil
 
 interface Props {
   progressRef: MutableRefObject<AnalysisProgress>;
+  isTextInput?: boolean;
   onRetry?: () => void;
   onFallbackToText?: () => void;
   onChooseMethod?: (method: string) => void;
 }
 
-const STAGE_CONFIG = [
+const STAGE_CONFIG_URL = [
   { key: 'crawling', label: 'Crawling website', icon: Globe },
+  { key: 'extracting_brand', label: 'Extracting brand identity', icon: Palette },
+  { key: 'extracting_data', label: 'Finding business data', icon: Database },
+] as const;
+
+const STAGE_CONFIG_TEXT = [
+  { key: 'crawling', label: 'Analyzing text', icon: FileText },
   { key: 'extracting_brand', label: 'Extracting brand identity', icon: Palette },
   { key: 'extracting_data', label: 'Finding business data', icon: Database },
 ] as const;
@@ -31,7 +38,7 @@ function shortenUrl(url: string): string {
   }
 }
 
-export function AnalysisProgressCard({ progressRef, onRetry, onFallbackToText, onChooseMethod }: Props) {
+export function AnalysisProgressCard({ progressRef, isTextInput, onRetry, onFallbackToText, onChooseMethod }: Props) {
   // Poll the ref to re-render as progress updates
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -144,7 +151,7 @@ export function AnalysisProgressCard({ progressRef, onRetry, onFallbackToText, o
         </p>
       )}
 
-      {STAGE_CONFIG.map(({ key, label, icon: Icon }) => {
+      {(isTextInput ? STAGE_CONFIG_TEXT : STAGE_CONFIG_URL).map(({ key, label, icon: Icon }) => {
         const stageIdx = STAGE_ORDER.indexOf(key);
         const isDone = currentIdx > stageIdx;
         const isActive = currentIdx === stageIdx;
@@ -170,8 +177,8 @@ export function AnalysisProgressCard({ progressRef, onRetry, onFallbackToText, o
                 {label}
               </p>
 
-              {/* Crawling details */}
-              {key === 'crawling' && (isActive || isDone) && (
+              {/* Crawling details (only for URL-based analysis) */}
+              {key === 'crawling' && !isTextInput && (isActive || isDone) && (
                 <div className="mt-1 flex flex-col gap-0.5">
                   {isActive && progress.totalExpected > 1 && (
                     <div className="flex items-center gap-2">

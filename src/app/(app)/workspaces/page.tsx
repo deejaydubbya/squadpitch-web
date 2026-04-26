@@ -1,18 +1,23 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useClients } from '@/hooks/useSquadpitch';
+import { useDeleteAllWorkspaces } from '@/hooks/useAdmin';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { ClientCard } from '@/components/studio/ClientCard';
 
 export default function WorkspacesPage() {
   const { data: clients, isLoading, error } = useClients();
+  const { isInternalUser } = useCurrentUser();
+  const deleteAll = useDeleteAllWorkspaces();
   const router = useRouter();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Redirect brand-new users to onboarding
   useEffect(() => {
@@ -20,6 +25,16 @@ export default function WorkspacesPage() {
       router.replace('/onboarding');
     }
   }, [isLoading, clients, router]);
+
+  function handleDeleteAll() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    deleteAll.mutate(undefined, {
+      onSettled: () => setConfirmDelete(false),
+    });
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -66,6 +81,31 @@ export default function WorkspacesPage() {
             </div>
           </Link>
         </div>
+
+        {isInternalUser && clients && clients.length > 0 && (
+          <div className="pt-4 border-t border-white-10">
+            <button
+              onClick={handleDeleteAll}
+              disabled={deleteAll.isPending}
+              className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+            >
+              {deleteAll.isPending ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              {confirmDelete ? 'Click again to confirm deletion' : 'Delete all workspaces'}
+            </button>
+            {confirmDelete && (
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-sm text-white-40 hover:text-white-60 mt-1 ml-6"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -25,7 +25,7 @@ export function IndustrySelectCard({ onSelect }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pb-4">
       {industries.map((industry) => {
         const IconComponent = INDUSTRY_ICON_MAP[industry.ui?.icon] ?? Briefcase;
         return (

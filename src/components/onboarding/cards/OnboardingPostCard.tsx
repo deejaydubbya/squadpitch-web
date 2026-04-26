@@ -14,6 +14,9 @@ import {
   Share2,
   ChevronLeft,
   ChevronRight,
+  AlertCircle,
+  ImageIcon,
+  Unplug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -138,6 +141,17 @@ export function OnboardingPostCard({
   const isApproved = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
   const isScheduled = draft.status === 'SCHEDULED';
 
+  // Platform readiness
+  const channelLabel = CHANNEL_LABELS[draft.channel] || draft.channel;
+  const MEDIA_CHANNELS = new Set(['INSTAGRAM', 'TIKTOK']);
+  const draftHasMedia = !!(imageUrl || readyAssets.length > 0);
+  const needsMedia = MEDIA_CHANNELS.has(draft.channel) && !draftHasMedia;
+  const readinessBadge: { label: string; style: string } | null =
+    channelConnected && !needsMedia ? { label: `Ready for ${channelLabel}`, style: 'bg-zone-green/15 text-zone-green' }
+    : channelConnected && needsMedia ? { label: 'Needs media', style: 'bg-yellow-500/15 text-yellow-400' }
+    : channelConnected === false ? { label: 'Connect channel to publish', style: 'bg-white-10 text-white-40' }
+    : null; // channelConnected undefined = don't show badge
+
   const handleSaveEdit = async () => {
     await updateDraft.mutateAsync({ body: editBody });
     setLocalDraft((d) => ({ ...d, body: editBody }));
@@ -197,7 +211,6 @@ export function OnboardingPostCard({
   const minDate = now.toISOString().slice(0, 16);
 
   const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', accent: 'text-white-60' };
-  const channelLabel = CHANNEL_LABELS[draft.channel] || draft.channel;
 
   const displayName = brandName || 'Your Brand';
   const brandInitial = displayName[0]?.toUpperCase() || '?';
@@ -242,7 +255,7 @@ export function OnboardingPostCard({
       {/* Social-style header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white-10">
         <div className="w-9 h-9 rounded-full bg-accent-green-110/15 flex items-center justify-center overflow-hidden flex-shrink-0">
-          {logoUrl ? (
+          {logoUrl && /^https?:\/\//i.test(logoUrl) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt={displayName} className="w-full h-full object-cover" />
           ) : (
@@ -264,6 +277,14 @@ export function OnboardingPostCard({
           </span>
         </div>
       </div>
+
+      {/* Platform readiness badge */}
+      {readinessBadge && (
+        <div className={cn('px-4 py-1.5 text-[11px] font-medium flex items-center gap-1.5', readinessBadge.style)}>
+          {needsMedia ? <ImageIcon className="w-3 h-3" /> : channelConnected === false ? <Unplug className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+          {readinessBadge.label}
+        </div>
+      )}
 
       {/* Image / Carousel */}
       {imageUrl ? (

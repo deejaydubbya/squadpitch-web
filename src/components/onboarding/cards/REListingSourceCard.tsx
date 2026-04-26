@@ -3,11 +3,11 @@
 import { cn } from '@/lib/utils';
 import { RE_LISTING_SOURCES } from '@/lib/onboarding/configs/realEstate';
 import type { REListingSourceMethod } from '@/lib/onboarding/types';
-import { Link, Image, FileText, Pencil, Database } from 'lucide-react';
+import { Link, FileText, Pencil, LayoutList } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Link,
-  Image,
+  LayoutList,
   FileText,
   Pencil,
 };
@@ -42,14 +42,9 @@ export function REListingSourceCard({ onSelect }: Props) {
         );
       })}
 
-      {/* Advanced: IDX/feed link — subtle secondary */}
-      <button
-        onClick={() => onSelect('link', 'Add IDX/feed link')}
-        className="flex items-center justify-center gap-1.5 py-2 text-[11px] text-white-30 hover:text-white-50 transition-colors cursor-pointer"
-      >
-        <Database className="w-3 h-3" />
-        Add IDX/feed link
-      </button>
+      <p className="text-[11px] text-white-25 text-center mt-1">
+        If a site blocks extraction, you can paste details or enter the listing manually.
+      </p>
     </div>
   );
 }
