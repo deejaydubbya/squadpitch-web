@@ -17,6 +17,8 @@ import {
   AlertCircle,
   ImageIcon,
   Unplug,
+  Wand2,
+  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -29,6 +31,7 @@ import {
   type Draft,
   type MediaAsset,
 } from '@/hooks/useSquadpitch';
+import { GenerateImageModal } from '../GenerateImageModal';
 
 const CHANNEL_COLORS: Record<string, { badge: string; accent: string }> = {
   INSTAGRAM: { badge: 'bg-pink-500/20 text-pink-300', accent: 'text-pink-300' },
@@ -64,6 +67,46 @@ const INDUSTRY_ATTRIBUTION: Record<string, string> = {
 };
 
 const FAKE_TIMESTAMPS = ['2h ago', '4h ago', '1h ago', '6h ago', '30m ago'];
+
+// ── Platform preview config ─────────────────────────────────────────
+
+type PreviewPlatform = 'instagram' | 'facebook' | 'linkedin';
+
+const PREVIEW_TABS: { key: PreviewPlatform; label: string; channel: string }[] = [
+  { key: 'instagram', label: 'Instagram', channel: 'INSTAGRAM' },
+  { key: 'facebook', label: 'Facebook', channel: 'FACEBOOK' },
+  { key: 'linkedin', label: 'LinkedIn', channel: 'LINKEDIN' },
+];
+
+const PLATFORM_CONFIG: Record<PreviewPlatform, {
+  captionLimit: number; // chars before truncation (0 = no truncation)
+  showHashtags: boolean;
+  imageFirst: boolean;   // image above text vs text above image
+  imageAspect: string;
+  engagementIcons: typeof Heart[];
+}> = {
+  instagram: {
+    captionLimit: 125,
+    showHashtags: true,
+    imageFirst: true,
+    imageAspect: 'aspect-square',
+    engagementIcons: [Heart, MessageCircle, Share2],
+  },
+  facebook: {
+    captionLimit: 0,
+    showHashtags: false,
+    imageFirst: false,
+    imageAspect: 'aspect-[16/9]',
+    engagementIcons: [Heart, MessageCircle, Share2],
+  },
+  linkedin: {
+    captionLimit: 0,
+    showHashtags: false,
+    imageFirst: false,
+    imageAspect: 'aspect-[1.91/1]',
+    engagementIcons: [Heart, MessageCircle, Share2],
+  },
+};
 
 interface OnboardingPostCardProps {
   draft: Draft;
@@ -114,6 +157,15 @@ export function OnboardingPostCard({
   const qc = useQueryClient();
 
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+
+  // Platform preview — default to the draft's actual channel
+  const defaultPreview: PreviewPlatform =
+    draft.channel === 'FACEBOOK' ? 'facebook'
+    : draft.channel === 'LINKEDIN' ? 'linkedin'
+    : 'instagram';
+  const [previewPlatform, setPreviewPlatform] = useState<PreviewPlatform>(defaultPreview);
+  const platformCfg = PLATFORM_CONFIG[previewPlatform];
 
   const { data: draftAssets } = useQuery({
     queryKey: ['draft-assets', draft.id],
@@ -286,15 +338,60 @@ export function OnboardingPostCard({
         </div>
       )}
 
-      {/* Image / Carousel */}
+      {/* Platform preview tabs */}
+      <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-white-10 bg-white-5">
+        <span className="text-[10px] text-white-25 mr-1.5">Preview as</span>
+        {PREVIEW_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setPreviewPlatform(tab.key)}
+            className={cn(
+              'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors',
+              previewPlatform === tab.key
+                ? 'bg-white-10 text-white-70'
+                : 'text-white-30 hover:text-white-50 hover:bg-white-5',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Facebook/LinkedIn: text before image */}
+      {!platformCfg.imageFirst && !editing && (
+        <PlatformCaption
+          captionText={captionText}
+          uniqueHashtags={uniqueHashtags}
+          platform={previewPlatform}
+          platformCfg={platformCfg}
+          industryKey={industryKey}
+        />
+      )}
+
+      {/* Image / Carousel / Placeholder */}
       {imageUrl ? (
         <div className="relative group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}
             alt={draft.altText ?? 'Generated image'}
-            className="w-full aspect-[4/3] object-cover"
+            className={cn('w-full object-cover', platformCfg.imageAspect)}
           />
+          {/* Image action overlay on hover */}
+          <div className="absolute bottom-2 left-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => setShowGenerateModal(true)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-black/60 text-white hover:bg-black/80 backdrop-blur-sm transition-colors"
+            >
+              <Wand2 className="w-3 h-3" />
+              Regenerate visual
+            </button>
+          </div>
+          {/* Visual ready badge */}
+          <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 text-[10px] text-zone-green font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+            <Check className="w-2.5 h-2.5" />
+            Visual ready
+          </div>
           {/* Carousel navigation arrows */}
           {hasMultipleImages && (
             <>
@@ -334,12 +431,37 @@ export function OnboardingPostCard({
           )}
         </div>
       ) : isLoading ? (
-        <div className="w-full aspect-[4/3] bg-white-5 animate-pulse flex items-center justify-center">
+        <div className={cn('w-full bg-white-5 animate-pulse flex items-center justify-center', platformCfg.imageAspect)}>
           <Loader2 className="w-5 h-5 text-white-30 animate-spin" />
         </div>
-      ) : null}
+      ) : (
+        <div className={cn('w-full bg-white-5 flex flex-col items-center justify-center gap-2 px-4', platformCfg.imageAspect)}>
+          <ImageIcon className="w-6 h-6 text-white-20" />
+          <span className="text-[11px] text-white-25 text-center">
+            {previewPlatform === 'instagram'
+              ? 'Needs image for Instagram'
+              : previewPlatform === 'facebook'
+                ? 'Add an image to boost engagement'
+                : 'Image optional for LinkedIn'}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowGenerateModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-black hover:bg-accent-green-110/90 transition-colors"
+            >
+              <Wand2 className="w-3 h-3" />
+              Generate image
+            </button>
+            <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white-10 text-white-60 hover:bg-white-15 transition-colors cursor-pointer">
+              <Upload className="w-3 h-3" />
+              Upload image
+              <input type="file" accept="image/*" className="hidden" onChange={() => {/* TODO: implement upload */}} />
+            </label>
+          </div>
+        </div>
+      )}
 
-      {/* Caption */}
+      {/* Caption — edit mode or Instagram (image-first) caption */}
       <div className="px-4 py-4 flex-1">
         {editing ? (
           <div className="space-y-3">
@@ -373,24 +495,24 @@ export function OnboardingPostCard({
               </button>
             </div>
           </div>
+        ) : platformCfg.imageFirst ? (
+          <PlatformCaption
+            captionText={captionText}
+            uniqueHashtags={uniqueHashtags}
+            platform={previewPlatform}
+            platformCfg={platformCfg}
+            industryKey={industryKey}
+            inline
+          />
         ) : (
-          <div className="space-y-3">
-            <p className="text-[13.5px] text-white-90 whitespace-pre-wrap leading-[1.65]">
-              {captionText}
-            </p>
-            {uniqueHashtags.length > 0 && (
-              <p className="text-[11.5px] text-accent-green-110/60 leading-relaxed tracking-wide">
-                {uniqueHashtags.join(' ')}
-              </p>
-            )}
-            <div className="flex items-center gap-2 pt-0.5 text-[11px] text-white-25">
-              <span className="w-3 h-px bg-white-15 inline-block" />
-              <span>
-                {industryKey && INDUSTRY_ATTRIBUTION[industryKey]
-                  ? INDUSTRY_ATTRIBUTION[industryKey]
-                  : 'Generated from your business data'}
-              </span>
-            </div>
+          /* Facebook/LinkedIn caption already rendered above image — just show attribution */
+          <div className="flex items-center gap-2 text-[11px] text-white-25">
+            <span className="w-3 h-px bg-white-15 inline-block" />
+            <span>
+              {industryKey && INDUSTRY_ATTRIBUTION[industryKey]
+                ? INDUSTRY_ATTRIBUTION[industryKey]
+                : 'Generated from your business data'}
+            </span>
           </div>
         )}
       </div>
@@ -519,6 +641,88 @@ export function OnboardingPostCard({
           </button>
         </div>
       )}
+
+      {/* Generate Image Modal */}
+      {showGenerateModal && (
+        <GenerateImageModal
+          clientId={clientId}
+          draftId={draft.id}
+          channel={draft.channel as import('@/hooks/useSquadpitch').Channel}
+          isRealEstate={industryKey === 'real_estate'}
+          listingImageUrl={imageUrl || undefined}
+          defaultGuidance={draft.imageGuidance || draft.altText || draft.body.slice(0, 200)}
+          onGenerated={() => {
+            qc.invalidateQueries({ queryKey: ['draft-assets', draft.id] });
+          }}
+          onClose={() => setShowGenerateModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Platform-specific caption renderer ──────────────────────────────
+
+function PlatformCaption({
+  captionText,
+  uniqueHashtags,
+  platform,
+  platformCfg,
+  industryKey,
+  inline,
+}: {
+  captionText: string;
+  uniqueHashtags: string[];
+  platform: PreviewPlatform;
+  platformCfg: (typeof PLATFORM_CONFIG)[PreviewPlatform];
+  industryKey?: string;
+  inline?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const isTruncated = platformCfg.captionLimit > 0 && captionText.length > platformCfg.captionLimit && !expanded;
+  const displayText = isTruncated
+    ? captionText.slice(0, platformCfg.captionLimit).replace(/\s+\S*$/, '') // break at word boundary
+    : captionText;
+
+  return (
+    <div className={cn(inline ? '' : 'px-4 py-3')}>
+      <div className="space-y-2">
+        {/* Caption text */}
+        <p className={cn(
+          'whitespace-pre-wrap leading-[1.65]',
+          platform === 'linkedin' ? 'text-[13px] text-white-80' : 'text-[13.5px] text-white-90',
+        )}>
+          {displayText}
+          {isTruncated && (
+            <button
+              onClick={() => setExpanded(true)}
+              className="text-white-40 hover:text-white-60 ml-1 transition-colors"
+            >
+              ...more
+            </button>
+          )}
+        </p>
+
+        {/* Hashtags — platform-dependent */}
+        {platformCfg.showHashtags && uniqueHashtags.length > 0 && (
+          <p className="text-[11.5px] text-accent-green-110/60 leading-relaxed tracking-wide">
+            {uniqueHashtags.join(' ')}
+          </p>
+        )}
+
+        {/* Attribution */}
+        {inline && (
+          <div className="flex items-center gap-2 pt-0.5 text-[11px] text-white-25">
+            <span className="w-3 h-px bg-white-15 inline-block" />
+            <span>
+              {industryKey && INDUSTRY_ATTRIBUTION[industryKey]
+                ? INDUSTRY_ATTRIBUTION[industryKey]
+                : 'Generated from your business data'}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

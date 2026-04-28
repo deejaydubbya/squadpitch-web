@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, ChevronUp, Loader2, Pencil, X, Image as ImageIcon, AlertTriangle, FileText, Link, ClipboardEdit } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Loader2, Pencil, X, Image as ImageIcon, AlertTriangle, FileText, Link, ClipboardEdit, Globe, ShieldCheck, ShieldAlert, AlertCircle } from 'lucide-react';
+import type { StarterMethod, REListingSourceMethod } from '@/lib/onboarding/types';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -13,6 +14,47 @@ interface DataItem {
   dataJson: Record<string, unknown>;
 }
 
+// ── Source provenance helpers ─────────────────────────────────────────
+
+type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+function getPropertySourceLabel(
+  starterMethod: StarterMethod | null,
+  reListingSource: REListingSourceMethod | null,
+  sourceUrl?: string | null,
+): string {
+  if (reListingSource === 'manual_form') return 'User provided';
+  if (starterMethod === 'zillow') return 'Extracted from Zillow';
+  if (starterMethod === 'description') return 'Extracted from your description';
+  if (starterMethod === 'documents') return 'Extracted from documents';
+  if ((starterMethod === 'website' || reListingSource === 'single_listing_url' || reListingSource === 'listing_feed_url') && sourceUrl) {
+    try {
+      const hostname = new URL(sourceUrl).hostname.replace(/^www\./, '');
+      return `Extracted from ${hostname}`;
+    } catch {
+      return 'Extracted from website';
+    }
+  }
+  return 'Extracted';
+}
+
+function getPropertyConfidence(
+  reListingSource: REListingSourceMethod | null,
+  starterMethod: StarterMethod | null,
+): ConfidenceLevel {
+  if (reListingSource === 'manual_form') return 'high'; // user-controlled
+  if (reListingSource === 'single_listing_url' || starterMethod === 'website' || starterMethod === 'zillow') return 'high';
+  if (reListingSource === 'listing_feed_url') return 'medium';
+  if (starterMethod === 'description' || starterMethod === 'documents') return 'medium';
+  return 'medium';
+}
+
+const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; icon: typeof ShieldCheck }> = {
+  high: { label: 'High confidence', color: 'text-zone-green', icon: ShieldCheck },
+  medium: { label: 'Medium confidence', color: 'text-yellow-400', icon: ShieldAlert },
+  low: { label: 'Low confidence', color: 'text-orange-400', icon: AlertCircle },
+};
+
 interface Props {
   clientId: string;
   onConfirm: (
@@ -20,6 +62,9 @@ interface Props {
     updates: Map<string, { title?: string; dataJson?: Record<string, unknown> }>,
   ) => void;
   onChooseMethod?: (method: string) => void;
+  starterMethod?: StarterMethod | null;
+  reListingSource?: REListingSourceMethod | null;
+  sourceUrl?: string | null;
 }
 
 interface PropertyEdits {
@@ -35,7 +80,7 @@ interface PropertyEdits {
 
 // ── Main Component ───────────────────────────────────────────────────────
 
-export function PropertyReviewCard({ clientId, onConfirm, onChooseMethod }: Props) {
+export function PropertyReviewCard({ clientId, onConfirm, onChooseMethod, starterMethod, reListingSource, sourceUrl }: Props) {
   const [items, setItems] = useState<DataItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -182,10 +227,15 @@ export function PropertyReviewCard({ clientId, onConfirm, onChooseMethod }: Prop
 
   const selectedCount = selectedIds.size;
 
+  const sourceLabel = getPropertySourceLabel(starterMethod ?? null, reListingSource ?? null, sourceUrl);
+  const confidence = getPropertyConfidence(reListingSource ?? null, starterMethod ?? null);
+  const confMeta = CONFIDENCE_META[confidence];
+  const ConfIcon = confMeta.icon;
+
   return (
     <div className="flex flex-col gap-3">
       {/* Header */}
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-white-90">
             {singleItem
@@ -198,10 +248,18 @@ export function PropertyReviewCard({ clientId, onConfirm, onChooseMethod }: Prop
             </span>
           )}
         </div>
-        <p className="text-xs text-white-40">
-          {singleItem
-            ? 'Check the details below and edit anything that looks off.'
-            : 'Select the ones you want to create content for.'}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="inline-flex items-center gap-1 text-[11px] text-white-40">
+            <Globe className="w-3 h-3" />
+            {sourceLabel}
+          </span>
+          <span className={cn('inline-flex items-center gap-1 text-[11px]', confMeta.color)}>
+            <ConfIcon className="w-3 h-3" />
+            {confMeta.label}
+          </span>
+        </div>
+        <p className="text-[11px] text-white-30">
+          Review and edit details before we generate your campaign
         </p>
       </div>
 
@@ -301,11 +359,18 @@ function PropertyCard({
   if (baths) chips.push(`${baths} ba`);
   if (sqft) chips.push(`${formatNumber(sqft)} sqft`);
 
+  // Missing fields
+  const missing: string[] = [];
+  if (!price) missing.push('price');
+  if (!beds) missing.push('beds');
+  if (!baths) missing.push('baths');
+  if (!sqft) missing.push('sqft');
+
   return (
     <div
       className={cn(
         'rounded-lg border transition-all',
-        isSelected ? 'border-white-10 bg-white-5' : 'border-white-10/50 bg-white-5/50 opacity-50',
+        isSelected ? 'border-white-10 bg-white-5' : 'border-white-10/50 bg-white-5 opacity-50',
       )}
     >
       {/* Collapsed header */}
@@ -343,6 +408,11 @@ function PropertyCard({
           <p className="text-sm font-medium text-white-90 truncate">{title}</p>
           {chips.length > 0 && (
             <p className="text-xs text-white-40 truncate">{chips.join(' · ')}</p>
+          )}
+          {missing.length > 0 && !isExpanded && (
+            <p className="text-[10px] text-yellow-400/80 mt-0.5 truncate">
+              Missing: {missing.join(', ')}
+            </p>
           )}
         </div>
 

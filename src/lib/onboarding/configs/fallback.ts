@@ -41,7 +41,7 @@ export const fallbackConfig: OnboardingConfig = {
     {
       key: 'additional_urls',
       label: 'Add more URLs',
-      description: 'Analyze additional web pages for more context.',
+      description: 'Improve content accuracy with more sources.',
       icon: 'Globe',
       cardType: 'source_input',
       payload: { inputMode: 'url', placeholder: 'https://...' },
@@ -49,7 +49,7 @@ export const fallbackConfig: OnboardingConfig = {
     {
       key: 'documents',
       label: 'Upload documents',
-      description: 'Upload PDFs, docs, or CSVs with business info.',
+      description: 'Add business info from PDFs, docs, or CSVs.',
       icon: 'FileText',
       cardType: 'source_input',
       payload: { inputMode: 'file' },
@@ -57,7 +57,7 @@ export const fallbackConfig: OnboardingConfig = {
     {
       key: 'add_description',
       label: 'Add more details',
-      description: 'Describe your business, products, or services in your own words.',
+      description: 'Improve content accuracy with your own words.',
       icon: 'MessageSquare',
       cardType: 'source_input',
       payload: { inputMode: 'textarea', placeholder: 'Tell us more about your business...' },
@@ -65,7 +65,7 @@ export const fallbackConfig: OnboardingConfig = {
     {
       key: 'add_photos',
       label: 'Add photos',
-      description: 'Upload photos of your business, products, or team.',
+      description: 'Better photos mean more engaging posts.',
       icon: 'Image',
       cardType: 'source_input',
       payload: { inputMode: 'file', accept: 'image/*' },
@@ -73,7 +73,7 @@ export const fallbackConfig: OnboardingConfig = {
     {
       key: 'channels',
       label: 'Connect channels',
-      description: 'Connect your social media accounts for publishing.',
+      description: 'Enable publishing and scheduling.',
       icon: 'Zap',
       cardType: 'channel_connect',
     },

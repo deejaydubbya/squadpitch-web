@@ -31,13 +31,14 @@ import { ListingPhotoOfferCard } from './cards/ListingPhotoOfferCard';
 import { PropertyReviewCard } from './cards/PropertyReviewCard';
 import { EnrichmentReviewCard } from './cards/EnrichmentReviewCard';
 import { CampaignPresentationCard } from './cards/CampaignPresentationCard';
+import { QuickStartInputCard } from './cards/QuickStartInputCard';
 
 type Engine = ReturnType<typeof useOnboardingEngine>;
 
 // ── Step grouping ────────────────────────────────────────────────────────
 
 const STEP_GROUP: Partial<Record<OnboardingCardType, string>> = {
-  industry_select: 'setup', starter_options: 'setup', fallback_starter: 'setup',
+  quick_start_input: 'setup', industry_select: 'setup', starter_options: 'setup', fallback_starter: 'setup',
   re_starter: 'setup', source_input: 'setup', fallback_source: 'setup',
   re_listing_source: 'setup', re_listing_form: 'setup', re_content_goal: 'setup',
   re_content_prompt: 'setup', fallback_content_prompt: 'setup',
@@ -59,15 +60,19 @@ const STEP_LABEL: Record<string, string> = {
 
 // Cards that render at full width without chat bubble wrapper
 const WIDE_CARDS = new Set<OnboardingCardType>([
+  'quick_start_input', 'industry_select', 'starter_options', 'source_input',
   'content_preview', 'property_review', 'brand_preview',
-  'enrichment_review', 're_listing_form', 're_agent_profile',
+  'enrichment_review', 'enrichment_menu', 're_listing_form', 're_agent_profile',
+  're_starter', 're_listing_source', 're_content_goal', 're_content_prompt',
   'profile_refinement', 'completion_summary', 'campaign_presentation',
   'analysis_progress', 'channel_connect', 'listing_photo_offer',
+  'source_zillow', 'source_license', 'source_crm',
+  'fallback_starter', 'fallback_source', 'fallback_content_prompt',
 ]);
 
 // Cards that persist visible even after resolution
 const PERSIST_CARDS = new Set<OnboardingCardType>([
-  'content_preview', 'property_review',
+  'property_review',
 ]);
 
 function StepDivider({ label }: { label: string }) {
@@ -91,17 +96,31 @@ interface Props {
 export function OnboardingMessageThread({ engine }: Props) {
   const { session, conversation } = engine;
   const bottomRef = useRef<HTMLDivElement>(null);
+  const campaignCardRef = useRef<HTMLDivElement>(null!) as React.RefObject<HTMLDivElement>;
   const lastMessageId = conversation.messages.length > 0
     ? conversation.messages[conversation.messages.length - 1].id
     : '';
 
+  // Check if the latest active card is campaign_presentation
+  const latestActiveCard = conversation.messages
+    .filter((m) => m.type === 'interactive_prompt' && m.status === 'active')
+    .at(-1)?.cardType;
+  const isCampaignActive = latestActiveCard === 'campaign_presentation';
+
   useEffect(() => {
+    if (isCampaignActive) {
+      // Scroll to top of campaign card, not bottom of thread
+      const t = setTimeout(() => {
+        campaignCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      return () => clearTimeout(t);
+    }
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     // Delayed scroll to handle card content that renders after mount
     const t1 = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 150);
     const t2 = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 500);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [conversation.messages.length, lastMessageId, session.previewDrafts.length]);
+  }, [conversation.messages.length, lastMessageId, isCampaignActive]);
 
   // Track step groups for dividers
   let lastStep: string | null = null;
@@ -125,7 +144,7 @@ export function OnboardingMessageThread({ engine }: Props) {
         return (
           <Fragment key={msg.id}>
             {dividerLabel && <StepDivider label={dividerLabel} />}
-            <MessageBubble message={msg} engine={engine} />
+            <MessageBubble message={msg} engine={engine} campaignCardRef={campaignCardRef} />
           </Fragment>
         );
       })}
@@ -136,7 +155,7 @@ export function OnboardingMessageThread({ engine }: Props) {
 
 // ── Message Bubble ───────────────────────────────────────────────────────
 
-function MessageBubble({ message, engine }: { message: OnboardingChatMessage; engine: Engine }) {
+function MessageBubble({ message, engine, campaignCardRef }: { message: OnboardingChatMessage; engine: Engine; campaignCardRef?: React.RefObject<HTMLDivElement> }) {
   const isUser = message.type === 'user_text';
   const isConfirmation = message.type === 'confirmation';
   const isSystemUpdate = message.type === 'system_update';
@@ -173,8 +192,9 @@ function MessageBubble({ message, engine }: { message: OnboardingChatMessage; en
 
   // ── Card-dominant: wide cards break out of the chat bubble ──
   if (isInteractive && isWideCard && showCard) {
+    const isCampaign = message.cardType === 'campaign_presentation';
     return (
-      <div className="w-full">
+      <div className="w-full" ref={isCampaign ? campaignCardRef : undefined}>
         <p className="text-xs text-white-40 mb-2 px-1">{message.content}</p>
         <CardRouter cardType={message.cardType!} engine={engine} payload={message.payload} />
       </div>
@@ -239,6 +259,14 @@ function CardRouter({
   payload?: Record<string, unknown>;
 }) {
   switch (cardType) {
+    case 'quick_start_input':
+      return (
+        <QuickStartInputCard
+          onSubmit={engine.handleQuickStartInput}
+          onFallbackToIndustry={engine.quickStartFallbackToIndustry}
+          isProcessing={engine.isAnalyzing}
+        />
+      );
     case 'industry_select':
       return <IndustrySelectCard onSelect={engine.selectIndustry} />;
     case 'starter_options':
@@ -284,6 +312,9 @@ function CardRouter({
           clientId={payload?.clientId as string}
           onConfirm={engine.confirmPropertyReview}
           onChooseMethod={engine.chooseAlternateMethod}
+          starterMethod={engine.session.starterMethod}
+          reListingSource={engine.session.reListingSource}
+          sourceUrl={engine.session.primaryInput && /^https?:\/\//i.test(engine.session.primaryInput) ? engine.session.primaryInput : null}
         />
       );
     case 'content_preview':
@@ -301,7 +332,8 @@ function CardRouter({
         <EnrichmentMenuCard
           session={engine.session}
           onSelect={engine.handleEnrichment}
-          onSkip={engine.skipEnrichment}
+          onSkip={payload?.preGeneration ? engine.continueToGeneration : engine.skipEnrichment}
+          preGeneration={!!payload?.preGeneration}
         />
       );
     case 'source_zillow':
@@ -333,17 +365,27 @@ function CardRouter({
         <ChannelConnectCard
           clientId={engine.session.createdClientId}
           onDone={(channels) => {
-            if (engine.session.channelConnectDone || engine.session.channelConnectSkipped) {
-              // Enrichment menu flow — already past initial channel connect
+            if (payload?.fromCampaign) {
+              // Came from campaign presentation — return there instead of advancing
+              engine.returnToCampaignFromChannelConnect(channels);
+            } else if (payload?.fromEnrichment || engine.session.channelConnectDone || engine.session.channelConnectSkipped) {
+              // Enrichment menu flow — update snapshot and mark done
+              if (channels.length > 0) {
+                engine.updateChannelsSnapshot(channels);
+              }
               engine.markEnrichmentDone('channels');
             } else {
               engine.completeChannelConnect(channels);
             }
           }}
           onSkip={
-            !engine.session.channelConnectDone && !engine.session.channelConnectSkipped
-              ? engine.skipChannelConnect
-              : undefined
+            payload?.fromCampaign
+              ? () => engine.returnToCampaignFromChannelConnect([])
+              : payload?.fromEnrichment
+                ? () => engine.markEnrichmentDone('channels')
+                : !engine.session.channelConnectDone && !engine.session.channelConnectSkipped
+                  ? engine.skipChannelConnect
+                  : undefined
           }
         />
       );
@@ -354,6 +396,7 @@ function CardRouter({
         <CompletionSummaryCard
           session={engine.session}
           onFinish={engine.finish}
+          onConnectChannels={engine.connectChannelsFromCampaign}
         />
       );
 

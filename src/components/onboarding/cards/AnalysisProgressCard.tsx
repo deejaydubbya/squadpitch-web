@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type MutableRefObject } from 'react';
+import { useState, useEffect, useRef, type MutableRefObject } from 'react';
 import { cn } from '@/lib/utils';
 import type { AnalysisProgress } from '@/lib/onboarding/types';
 import { Loader2, Check, Globe, Palette, Database, AlertTriangle, RefreshCw, FileText, ImageIcon } from 'lucide-react';
@@ -11,6 +11,45 @@ interface Props {
   onRetry?: () => void;
   onFallbackToText?: () => void;
   onChooseMethod?: (method: string) => void;
+}
+
+// ── Cycling sub-status messages ──────────────────────────────────────────
+const BRAND_SUBSTEPS = [
+  'Reading page content\u2026',
+  'Identifying brand name\u2026',
+  'Analyzing brand voice & tone\u2026',
+  'Detecting content categories\u2026',
+  'Building brand profile\u2026',
+];
+const DATA_SUBSTEPS = [
+  'Scanning for business data\u2026',
+  'Extracting listing details\u2026',
+  'Organizing structured data\u2026',
+];
+const SUBSTEP_INTERVAL = 3500; // ms between message rotations
+
+/** Cycles through an array of messages while a stage is active. */
+function useCyclingMessage(messages: string[], active: boolean): string {
+  const idxRef = useRef(0);
+  const [msg, setMsg] = useState(messages[0]);
+
+  useEffect(() => {
+    if (!active) {
+      idxRef.current = 0;
+      setMsg(messages[0]);
+      return;
+    }
+    // Start from index 0 when becoming active
+    idxRef.current = 0;
+    setMsg(messages[0]);
+    const id = setInterval(() => {
+      idxRef.current = Math.min(idxRef.current + 1, messages.length - 1);
+      setMsg(messages[idxRef.current]);
+    }, SUBSTEP_INTERVAL);
+    return () => clearInterval(id);
+  }, [active, messages]);
+
+  return msg;
 }
 
 const STAGE_CONFIG_URL = [
@@ -48,6 +87,10 @@ export function AnalysisProgressCard({ progressRef, isTextInput, onRetry, onFall
 
   const progress = progressRef.current;
   const currentIdx = STAGE_ORDER.indexOf(progress.stage);
+
+  // Cycling sub-status for long-running stages
+  const brandMsg = useCyclingMessage(BRAND_SUBSTEPS, progress.stage === 'extracting_brand');
+  const dataMsg = useCyclingMessage(DATA_SUBSTEPS, progress.stage === 'extracting_data' && progress.dataCount === 0);
 
   if (progress.stage === 'error') {
     const isBlocked = progress.errorCode === 'BLOCKED';
@@ -216,6 +259,11 @@ export function AnalysisProgressCard({ progressRef, isTextInput, onRetry, onFall
               )}
 
               {/* Brand extraction details */}
+              {key === 'extracting_brand' && isActive && (
+                <p className="text-[11px] text-white-40 mt-1 transition-opacity duration-300">
+                  {brandMsg}
+                </p>
+              )}
               {key === 'extracting_brand' && isDone && progress.brandData && (
                 <p className="text-[11px] text-white-40 mt-0.5 truncate">
                   Found: {progress.brandData.name}
@@ -223,6 +271,11 @@ export function AnalysisProgressCard({ progressRef, isTextInput, onRetry, onFall
               )}
 
               {/* Data extraction details */}
+              {key === 'extracting_data' && isActive && progress.dataCount === 0 && (
+                <p className="text-[11px] text-white-40 mt-1 transition-opacity duration-300">
+                  {dataMsg}
+                </p>
+              )}
               {key === 'extracting_data' && isActive && progress.dataCount > 0 && (
                 <p className="text-[11px] text-white-40 mt-0.5">
                   {progress.dataCount} item{progress.dataCount !== 1 ? 's' : ''} so far...

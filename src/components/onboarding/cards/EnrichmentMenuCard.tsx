@@ -37,9 +37,10 @@ interface Props {
   session: OnboardingSessionState;
   onSelect: (cardType: string, key: string) => void;
   onSkip: () => void;
+  preGeneration?: boolean;
 }
 
-export function EnrichmentMenuCard({ session, onSelect, onSkip }: Props) {
+export function EnrichmentMenuCard({ session, onSelect, onSkip, preGeneration }: Props) {
   const enrichments = getAvailableEnrichments(session);
 
   if (enrichments.length === 0) {
@@ -55,6 +56,14 @@ export function EnrichmentMenuCard({ session, onSelect, onSkip }: Props) {
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Title and subtitle */}
+      <div className="px-1 mb-1">
+        <h3 className="text-sm font-semibold text-white-90">Improve your campaign quality</h3>
+        <p className="text-xs text-white-40 mt-0.5 leading-relaxed">
+          These are optional, but they help Squadpitch create safer, more useful campaigns.
+        </p>
+      </div>
+
       {sourceEntries.length > 0 && (
         <div className="px-3 py-2 rounded-lg bg-white-5 border border-white-10 mb-1">
           <p className="text-[11px] font-medium text-white-40 uppercase tracking-wide mb-1.5">Sources added</p>
@@ -103,14 +112,14 @@ export function EnrichmentMenuCard({ session, onSelect, onSkip }: Props) {
         )}
       >
         <ArrowRight className="w-4 h-4" />
-        Continue
+        {preGeneration ? 'Continue to campaign' : 'Continue'}
       </button>
       <button
         onClick={onSkip}
         className="flex items-center justify-center gap-1.5 py-2 text-xs text-white-40 hover:text-white-60 transition-colors cursor-pointer"
       >
         <SkipForward className="w-3.5 h-3.5" />
-        Skip for now
+        Skip optional setup
       </button>
     </div>
   );

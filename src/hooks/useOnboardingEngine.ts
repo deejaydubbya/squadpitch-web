@@ -12,6 +12,7 @@ import {
   type AgentProfileDraft,
   type OnboardingAnalyzeResult,
 } from '@/hooks/useSquadpitch';
+import { trackActivationEvent } from '@/lib/activationTracking';
 import type {
   OnboardingSessionState,
   OnboardingAction,
@@ -32,7 +33,7 @@ import type {
   PendingEnrichment,
 } from '@/lib/onboarding/types';
 import type { REListingFormData } from '@/lib/onboarding/configs/realEstate';
-import { resolveNextStep } from '@/lib/onboarding/engine';
+import { resolveNextStep, getAvailableEnrichments } from '@/lib/onboarding/engine';
 import { getOnboardingConfig } from '@/lib/onboarding/configRegistry';
 import {
   buildAssistantText,
@@ -52,7 +53,36 @@ import {
 } from '@/lib/onboarding/helpers';
 import { buildOnboardingGenerationPlan } from '@/lib/assistant/onboardingPlanner';
 import type { BrandOverrides } from '@/components/onboarding/cards/BrandPreviewCard';
+import type { QuickStartClassification } from '@/components/onboarding/cards/QuickStartInputCard';
 import { FALLBACK_SOURCE_PROMPT } from '@/lib/onboarding/configs/fallback';
+
+// ── Name confidence heuristic ────────────────────────────────────────────
+
+const STREET_SUFFIXES = /\b(st|street|ave|avenue|blvd|boulevard|dr|drive|rd|road|ln|lane|ct|court|way|pl|place|cir|circle|ter|terrace|pkwy|parkway|hwy|highway)\b/i;
+const ADDRESS_NUMBER = /^\d{1,6}\s/;
+const ZIP_CODE = /\b\d{5}(-\d{4})?\b/;
+const STATE_ABBR = /\b[A-Z]{2}\s*\d{5}\b|\b,\s*[A-Z]{2}\b/;
+const LISTING_PHRASES = /\b(bed|bath|sqft|sq\s*ft|acre|lot\s*size|mls|listing|for\s+sale|price\s*cut|open\s*house|pending|sold)\b/i;
+const PROPERTY_DESCRIPTORS = /^\d+\s*(bed|br|bath|ba)\b/i;
+
+/** Returns true only when the extracted name looks like a business or person name, not a property address or listing description. */
+function looksLikeBusinessOrAgentName(name: string): boolean {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length < 2) return false;
+
+  // Reject clear address patterns
+  if (ADDRESS_NUMBER.test(trimmed) && STREET_SUFFIXES.test(trimmed)) return false;
+  if (ZIP_CODE.test(trimmed)) return false;
+  if (STATE_ABBR.test(trimmed)) return false;
+  if (LISTING_PHRASES.test(trimmed)) return false;
+  if (PROPERTY_DESCRIPTORS.test(trimmed)) return false;
+
+  // Reject if it starts with a street number and contains a comma (like "123 Main St, City")
+  if (ADDRESS_NUMBER.test(trimmed) && trimmed.includes(',')) return false;
+
+  // Accept: looks like a named entity (not just numbers/address fragments)
+  return true;
+}
 
 // ── Initial states ───────────────────────────────────────────────────────
 
@@ -182,6 +212,8 @@ function sessionReducer(state: OnboardingSessionState, action: OnboardingAction)
       return { ...state, channelConnectDone: true, connectedChannelsSnapshot: action.channels };
     case 'SET_CHANNEL_CONNECT_SKIPPED':
       return { ...state, channelConnectSkipped: true };
+    case 'UPDATE_CHANNELS_SNAPSHOT':
+      return { ...state, connectedChannelsSnapshot: action.channels };
     default:
       return state;
   }
@@ -414,13 +446,12 @@ export function useOnboardingEngine() {
         }
         setGenerationProgress(null);
 
-        // Show content preview
+        // Show campaign presentation directly
         addMessage(buildInteractivePrompt(
-          "Review your generated content.",
-          'content_preview',
-          { clientId: client.id },
+          'Your campaign is ready. Review and take action.',
+          'campaign_presentation',
         ));
-        dispatchSession({ type: 'SET_PHASE', phase: 'value_delivery' });
+        dispatchSession({ type: 'SET_PHASE', phase: 'completion' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to create workspace.';
         dispatchSession({ type: 'SET_ERROR', error: msg });
@@ -562,10 +593,10 @@ export function useOnboardingEngine() {
     dispatchSession({ type: 'SET_RE_CONTENT_GOAL', goal });
     addMessage(buildConfirmation(label));
 
-    // After goal selection, generate content
+    // After goal selection, go to campaign card (generation auto-triggers there)
     addMessage(buildInteractivePrompt(
-      "Generating your content...",
-      'content_preview',
+      'Your campaign is ready. Review and take action.',
+      'campaign_presentation',
     ));
     dispatchSession({ type: 'SET_PHASE', phase: 'value_delivery' });
   }, [addMessage]);
@@ -726,15 +757,25 @@ export function useOnboardingEngine() {
     }
   }, [session, addMessage, createClient]);
 
-  // -- Listing photo offer -------------------------------------------------
+  // -- Listing photo offer → optional setup → campaign ----------------------
   const proceedToContentPreview = useCallback(() => {
-    const clientId = session.createdClientId;
-    addMessage(buildInteractivePrompt(
-      "Review your generated content.",
-      'content_preview',
-      clientId ? { clientId } : undefined,
-    ));
-  }, [session.createdClientId, addMessage]);
+    // Show enrichment menu before campaign generation
+    const config = getOnboardingConfig(session.industryKey);
+    const available = getAvailableEnrichments(session, config);
+    if (available.length > 0 && !session.enrichmentsSkipped) {
+      addMessage(buildInteractivePrompt(
+        'Add optional setup to help Squadpitch create better, safer, and more useful campaigns.',
+        'enrichment_menu',
+        { preGeneration: true },
+      ));
+      dispatchSession({ type: 'SET_PHASE', phase: 'enrichment' });
+    } else {
+      addMessage(buildInteractivePrompt(
+        'Your campaign is ready. Review and take action.',
+        'campaign_presentation',
+      ));
+    }
+  }, [session, addMessage]);
 
   const uploadListingPhotos = useCallback(async (
     files: File[],
@@ -891,11 +932,20 @@ export function useOnboardingEngine() {
 
   // ── Standard methods (unchanged) ───────────────────────────────────
 
-  const submitInput = useCallback(async (input: string, opts?: { displayLabel?: string; documentTexts?: string[] }) => {
+  const submitInput = useCallback(async (input: string, opts?: {
+    displayLabel?: string;
+    documentTexts?: string[];
+    industryKeyOverride?: string;
+    reListingSourceOverride?: REListingSourceMethod;
+    reIntentOverride?: REIntent;
+  }) => {
     if (busyRef.current) return;
     busyRef.current = true;
 
-    const config = getOnboardingConfig(session.industryKey);
+    const effectiveIndustryKey = opts?.industryKeyOverride ?? session.industryKey;
+    const effectiveReListingSource = opts?.reListingSourceOverride ?? session.reListingSource;
+    const effectiveReIntent = opts?.reIntentOverride ?? session.reIntent;
+    const config = getOnboardingConfig(effectiveIndustryKey);
     // Detect input type from the content itself, not the original starter method.
     // This prevents sending a description as 'url' during enrichment.
     const looksLikeUrl = isUrl(input);
@@ -911,7 +961,7 @@ export function useOnboardingEngine() {
       listing_feed_url: 'feed_link',
     };
     const sourceType: SourceEntry['sourceType'] =
-      (session.reListingSource && reSourceMap[session.reListingSource])
+      (effectiveReListingSource && reSourceMap[effectiveReListingSource])
         ?? (inputType === 'url' ? 'website' : 'description');
     const entryId = `src_${Date.now()}`;
     dispatchSession({
@@ -953,7 +1003,7 @@ export function useOnboardingEngine() {
           input: normalizedInput,
           inputType,
           documentTexts: opts?.documentTexts,
-          industryKey: session.industryKey ?? undefined,
+          industryKey: effectiveIndustryKey ?? undefined,
         },
         {
           onCrawlStart: (url) => {
@@ -1034,10 +1084,12 @@ export function useOnboardingEngine() {
       );
 
       if (result) {
-        // For listing-intent flows, the AI often extracts the property name/address
-        // as the brand name. Clear it so the user enters their own agent name.
-        if (session.reIntent === 'listing' && result.brandData) {
-          result.brandData.name = '';
+        // Only keep the extracted name if it's confidently a business or agent name,
+        // not a property address, listing description, or generic placeholder.
+        if (result.brandData?.name) {
+          if (!looksLikeBusinessOrAgentName(result.brandData.name)) {
+            result.brandData.name = '';
+          }
         }
 
         dispatchSession({ type: 'SET_ANALYZE_RESULT', result });
@@ -1068,7 +1120,7 @@ export function useOnboardingEngine() {
             'enrichment_review',
           ));
         } else {
-          const isListingFlow = session.reIntent === 'listing';
+          const isListingFlow = effectiveReIntent === 'listing';
           const confirmMsg = isListingFlow
             ? "Review the listing details."
             : "Review your brand details.";
@@ -1316,8 +1368,22 @@ export function useOnboardingEngine() {
           { clientId: client.id },
         ));
       } else {
+        // Show enrichment menu if available, otherwise go to campaign
         const config = getOnboardingConfig(session.industryKey);
-        addMessage(buildInteractivePrompt(config.valueMessage, 'content_preview', { clientId: client.id }));
+        const available = getAvailableEnrichments(session, config);
+        if (available.length > 0 && !session.enrichmentsSkipped) {
+          addMessage(buildInteractivePrompt(
+            'Add optional setup to help Squadpitch create better, safer, and more useful campaigns.',
+            'enrichment_menu',
+            { preGeneration: true },
+          ));
+          dispatchSession({ type: 'SET_PHASE', phase: 'enrichment' });
+        } else {
+          addMessage(buildInteractivePrompt(
+            'Your campaign is ready. Review and take action.',
+            'campaign_presentation',
+          ));
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create workspace.';
@@ -1373,10 +1439,24 @@ export function useOnboardingEngine() {
         { clientId },
       ));
     } else {
+      // Show enrichment menu if available, otherwise go to campaign
       const config = getOnboardingConfig(session.industryKey);
-      addMessage(buildInteractivePrompt(config.valueMessage, 'content_preview', { clientId }));
+      const available = getAvailableEnrichments(session, config);
+      if (available.length > 0 && !session.enrichmentsSkipped) {
+        addMessage(buildInteractivePrompt(
+          'Add optional setup to help Squadpitch create better, safer, and more useful campaigns.',
+          'enrichment_menu',
+          { preGeneration: true },
+        ));
+        dispatchSession({ type: 'SET_PHASE', phase: 'enrichment' });
+      } else {
+        addMessage(buildInteractivePrompt(
+          'Your campaign is ready. Review and take action.',
+          'campaign_presentation',
+        ));
+      }
     }
-  }, [session.createdClientId, session.industryKey, session.reListingSource, session.reIntent, session.starterMethod, addMessage]);
+  }, [session.createdClientId, session.industryKey, session.reListingSource, session.reIntent, session.starterMethod, session.enrichmentsSkipped, session.enrichmentsCompleted, addMessage]);
 
   const generatePreviews = useCallback(async () => {
     if (busyRef.current || !session.createdClientId) return;
@@ -1765,17 +1845,10 @@ export function useOnboardingEngine() {
       }
 
       if (drafts.length > 0) {
-        // Show the campaign presentation card — the main "wow moment"
-        addMessage(buildInteractivePrompt(
-          'Your campaign is ready. Review and take action.',
-          'campaign_presentation',
-        ));
-        dispatchSession({ type: 'SET_PHASE', phase: 'completion' });
-      } else {
-        addMessage(buildSystemUpdate('Could not generate sample posts. You can generate them from your workspace.'));
-        addMessage(buildCompletionPrompt());
+        // Campaign card is already showing — just update the phase
         dispatchSession({ type: 'SET_PHASE', phase: 'completion' });
       }
+      // If 0 drafts, stay on campaign presentation — it shows the failure UI
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to generate previews.';
       addMessage(buildSystemUpdate(msg));
@@ -1788,10 +1861,11 @@ export function useOnboardingEngine() {
   const handleEnrichment = useCallback((cardType: string, key: string) => {
     const config = getOnboardingConfig(session.industryKey);
     const enrichmentDef = config.enrichmentCards.find((c) => c.key === key);
+    const payload = { ...enrichmentDef?.payload, fromEnrichment: true };
     addMessage(buildInteractivePrompt(
       `Let's add your ${key.replace(/_/g, ' ')}.`,
       cardType as any,
-      enrichmentDef?.payload,
+      payload,
     ));
   }, [session.industryKey, addMessage]);
 
@@ -1830,6 +1904,7 @@ export function useOnboardingEngine() {
       }
     }
 
+    const isPreGeneration = session.previewDrafts.length === 0;
     const config = getOnboardingConfig(session.industryKey);
     const remaining = config.enrichmentCards.filter(
       (c) =>
@@ -1842,6 +1917,12 @@ export function useOnboardingEngine() {
       addMessage(buildInteractivePrompt(
         'Anything else you\'d like to add?',
         'enrichment_menu',
+        isPreGeneration ? { preGeneration: true } : undefined,
+      ));
+    } else if (isPreGeneration) {
+      addMessage(buildInteractivePrompt(
+        'Your campaign is ready. Review and take action.',
+        'campaign_presentation',
       ));
     } else {
       addMessage(buildCompletionPrompt());
@@ -1866,17 +1947,24 @@ export function useOnboardingEngine() {
         c.hideIfStarterMethod !== session.starterMethod &&
         !session.enrichmentsCompleted.includes(c.key),
     );
+    const isPreGeneration = session.previewDrafts.length === 0;
     if (remaining.length > 0) {
       addMessage(buildInteractivePrompt(
         'Anything else you\'d like to add?',
         'enrichment_menu',
+        isPreGeneration ? { preGeneration: true } : undefined,
       ));
       dispatchSession({ type: 'SET_PHASE', phase: 'enrichment' });
+    } else if (isPreGeneration) {
+      addMessage(buildInteractivePrompt(
+        'Your campaign is ready. Review and take action.',
+        'campaign_presentation',
+      ));
     } else {
       addMessage(buildCompletionPrompt());
       dispatchSession({ type: 'SET_PHASE', phase: 'completion' });
     }
-  }, [session.industryKey, session.starterMethod, session.enrichmentsCompleted, addMessage]);
+  }, [session.industryKey, session.starterMethod, session.enrichmentsCompleted, session.previewDrafts.length, addMessage]);
 
   const stageEnrichmentFromCard = useCallback((
     type: PendingEnrichment['type'],
@@ -2023,8 +2111,27 @@ export function useOnboardingEngine() {
   const skipEnrichment = useCallback(() => {
     dispatchSession({ type: 'MARK_ENRICHMENT_SKIPPED' });
     addMessage(buildConfirmation('Skipped'));
-    addMessage(buildCompletionPrompt());
+    // If pre-generation (no drafts yet), proceed to campaign; otherwise completion
+    if (session.previewDrafts.length === 0) {
+      addMessage(buildInteractivePrompt(
+        'Your campaign is ready. Review and take action.',
+        'campaign_presentation',
+      ));
+    } else {
+      addMessage(buildCompletionPrompt());
+    }
+  }, [session.previewDrafts.length, addMessage]);
+
+  const continueToGeneration = useCallback(() => {
+    addMessage(buildInteractivePrompt(
+      'Your campaign is ready. Review and take action.',
+      'campaign_presentation',
+    ));
   }, [addMessage]);
+
+  const updateChannelsSnapshot = useCallback((channels: Channel[]) => {
+    dispatchSession({ type: 'UPDATE_CHANNELS_SNAPSHOT', channels });
+  }, []);
 
   // Campaign presentation actions
   const approveCampaign = useCallback(async () => {
@@ -2049,6 +2156,24 @@ export function useOnboardingEngine() {
     addMessage(buildInteractivePrompt(
       'Connect your publishing channels.',
       'channel_connect',
+      { fromCampaign: true },
+    ));
+  }, [addMessage]);
+
+  const returnToCampaignFromChannelConnect = useCallback((connectedChannels: Channel[]) => {
+    // Update channel snapshot without marking channel connect step as "done"
+    // so we don't advance past the campaign screen
+    dispatchSession({ type: 'UPDATE_CHANNELS_SNAPSHOT', channels: connectedChannels });
+    dispatchConversation({ type: 'RESOLVE_ACTIVE' });
+    addMessage(buildConfirmation(
+      connectedChannels.length > 0
+        ? `${connectedChannels.length} channel${connectedChannels.length > 1 ? 's' : ''} connected. Returning to your campaign.`
+        : 'No channels connected',
+    ));
+    // Return to campaign presentation
+    addMessage(buildInteractivePrompt(
+      'Here\'s your campaign.',
+      'campaign_presentation',
     ));
   }, [addMessage]);
 
@@ -2077,7 +2202,13 @@ export function useOnboardingEngine() {
         }
       }
       queryClient.invalidateQueries({ queryKey: squadpitchKeys.clients() });
-      router.push(`/workspaces/${session.createdClientId}?onboarded=true`);
+      trackActivationEvent('onboarding_completed', {
+        clientId: session.createdClientId!,
+        industry: session.industryKey,
+        connectedChannelCount: session.connectedChannelsSnapshot.length,
+        postsReadyCount: session.previewDrafts.length,
+      });
+      router.push(`/workspaces/${session.createdClientId}/getting-started`);
     }
   }, [session.createdClientId, session.sourceEntries, router, queryClient]);
 
@@ -2099,8 +2230,8 @@ export function useOnboardingEngine() {
     dispatchConversation({
       type: 'ADD_MESSAGE',
       message: buildInteractivePrompt(
-        'What industry are you in?',
-        'industry_select',
+        'Paste a link or describe your business to get started.',
+        'quick_start_input',
       ),
     });
   }
@@ -2211,6 +2342,59 @@ export function useOnboardingEngine() {
     ));
   }, [addMessage]);
 
+  // ── Quick Start ──────────────────────────────────────────────────
+
+  const handleQuickStartInput = useCallback((input: string, classification: QuickStartClassification) => {
+    if (busyRef.current) return;
+
+    // Resolve the quick_start_input card
+    dispatchConversation({ type: 'RESOLVE_ACTIVE' });
+
+    if (classification.type === 'listing_url') {
+      // Real estate listing URL
+      dispatchSession({ type: 'SET_INDUSTRY', industryKey: 'real_estate' });
+      dispatchSession({ type: 'SET_RE_INTENT', intent: 'listing' });
+      dispatchSession({ type: 'SET_RE_LISTING_SOURCE', method: 'single_listing_url' });
+      dispatchSession({ type: 'SET_STARTER_METHOD', method: 'website' });
+      addMessage(buildConfirmation("I'll extract listing details, find images, and build your first campaign."));
+      submitInput(classification.url, {
+        industryKeyOverride: 'real_estate',
+        reListingSourceOverride: 'single_listing_url',
+        reIntentOverride: 'listing',
+      });
+    } else if (classification.type === 'feed_url') {
+      // Real estate feed/search URL
+      dispatchSession({ type: 'SET_INDUSTRY', industryKey: 'real_estate' });
+      dispatchSession({ type: 'SET_RE_INTENT', intent: 'listing' });
+      dispatchSession({ type: 'SET_RE_LISTING_SOURCE', method: 'listing_feed_url' });
+      dispatchSession({ type: 'SET_STARTER_METHOD', method: 'website' });
+      addMessage(buildConfirmation("I'll analyze your listings, extract details, and build your campaign."));
+      submitInput(classification.url, {
+        industryKeyOverride: 'real_estate',
+        reListingSourceOverride: 'listing_feed_url',
+        reIntentOverride: 'listing',
+      });
+    } else if (classification.type === 'website_url') {
+      // Generic business website — use fallback flow
+      dispatchSession({ type: 'SET_STARTER_METHOD', method: 'website' });
+      addMessage(buildConfirmation("I'll analyze your website and build your first campaign."));
+      submitInput(classification.url);
+    } else {
+      // Plain text description — use fallback flow
+      dispatchSession({ type: 'SET_STARTER_METHOD', method: 'description' });
+      addMessage(buildConfirmation('Description received'));
+      submitInput(classification.text);
+    }
+  }, [addMessage, submitInput]);
+
+  const quickStartFallbackToIndustry = useCallback(() => {
+    dispatchConversation({ type: 'RESOLVE_ACTIVE' });
+    addMessage(buildInteractivePrompt(
+      'What industry are you in?',
+      'industry_select',
+    ));
+  }, [addMessage]);
+
   const chooseAlternateMethod = useCallback((method: string) => {
     dispatchConversation({ type: 'RESOLVE_ACTIVE' });
     if (method === 'description') {
@@ -2243,6 +2427,10 @@ export function useOnboardingEngine() {
     conversation,
     analysisProgress: analysisProgressRef,
 
+    // Quick start
+    handleQuickStartInput,
+    quickStartFallbackToIndustry,
+
     // Standard actions
     selectIndustry,
     selectStarter,
@@ -2262,6 +2450,8 @@ export function useOnboardingEngine() {
     acceptEnrichment,
     rejectEnrichment,
     skipEnrichment,
+    continueToGeneration,
+    updateChannelsSnapshot,
     finish,
     reset,
 
@@ -2269,6 +2459,7 @@ export function useOnboardingEngine() {
     approveCampaign,
     saveCampaignAsDrafts,
     connectChannelsFromCampaign,
+    returnToCampaignFromChannelConnect,
 
     // Fallback-specific actions
     selectFallbackIntent,

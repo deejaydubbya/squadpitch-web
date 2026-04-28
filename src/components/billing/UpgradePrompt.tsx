@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Zap, Loader2 } from 'lucide-react';
 import { useCreateCheckout, useChangePlan, useSubscription, type PlanTier } from '@/hooks/useBilling';
+import { trackActivationEvent } from '@/lib/activationTracking';
 
 interface Props {
   currentTier: PlanTier;
@@ -12,21 +14,32 @@ export function UpgradePrompt({ currentTier, limitType }: Props) {
   const checkout = useCreateCheckout();
   const changePlan = useChangePlan();
   const { data: subscription } = useSubscription();
+  const trackedRef = useRef(false);
 
   const hasSubscription = !!subscription?.stripeSubscriptionId;
 
-  const nextTier: PlanTier = currentTier === 'FREE' ? 'STARTER'
+  const nextTier: PlanTier = currentTier === 'FREE' ? 'PRO'
     : currentTier === 'STARTER' ? 'PRO'
     : currentTier === 'PRO' ? 'GROWTH' : 'AGENCY';
-  const nextLabel = nextTier === 'STARTER' ? 'Starter ($19/mo)'
-    : nextTier === 'PRO' ? 'Pro ($49/mo)'
-    : nextTier === 'GROWTH' ? 'Growth ($99/mo)' : 'Agency ($199/mo)';
+  const nextLabel = nextTier === 'PRO' ? 'Pro ($39/mo)'
+    : nextTier === 'GROWTH' ? 'Growth ($79/mo)' : 'Agency ($159/mo)';
+
+  useEffect(() => {
+    if (trackedRef.current) return;
+    trackedRef.current = true;
+    trackActivationEvent('limit_hit_viewed', {
+      meta: { currentPlan: currentTier, limitType },
+    });
+  }, [currentTier, limitType]);
 
   if (currentTier === 'AGENCY') return null;
 
   const isPending = checkout.isPending || changePlan.isPending;
 
   const handleUpgrade = () => {
+    trackActivationEvent('upgrade_trigger_clicked', {
+      meta: { currentPlan: currentTier, targetPlan: nextTier, triggerSource: `limit_${limitType}` },
+    });
     if (hasSubscription) {
       changePlan.mutate({ tier: nextTier });
     } else {
@@ -44,10 +57,10 @@ export function UpgradePrompt({ currentTier, limitType }: Props) {
         <Zap className="w-5 h-5 text-accent-orange flex-shrink-0 mt-0.5" />
         <div>
           <h3 className="text-sm font-semibold text-white-100">
-            {limitType} limit reached
+            You&apos;ve used your monthly {limitType.toLowerCase()} limit
           </h3>
           <p className="text-xs text-white-60 mt-1">
-            You&apos;ve used all your monthly {limitType.toLowerCase()}. Upgrade to {nextLabel} for higher limits.
+            Upgrade to {nextLabel} for higher limits and keep creating.
           </p>
           {hasSubscription && (
             <p className="text-[10px] text-white-30 mt-1">

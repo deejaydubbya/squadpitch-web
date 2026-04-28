@@ -1,6 +1,18 @@
 'use client';
 
-import { ArrowUpRight, ArrowDownRight, CreditCard, ExternalLink, Loader2, Zap } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  CreditCard,
+  ExternalLink,
+  Loader2,
+  Zap,
+  Check,
+  Crown,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import {
   useSubscription,
   useUsage,
@@ -14,6 +26,7 @@ import { StatusBanner } from '@/components/common/StatusBanner';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { UsageMeter } from '@/components/billing/UsageMeter';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import { trackActivationEvent } from '@/lib/activationTracking';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -23,64 +36,123 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-const PLANS: { tier: PlanTier; label: string; price: string; features: string[] }[] = [
+// ── Plan definitions ──────────────────────────────────────────────────
+
+interface PlanDef {
+  tier: PlanTier;
+  label: string;
+  price: string;
+  positioning: string;
+  highlights: string[];
+  autopilot: string;
+  detailedLimits: string[];
+  popular?: boolean;
+}
+
+const PLANS: PlanDef[] = [
+  {
+    tier: 'FREE',
+    label: 'Free',
+    price: '$0/mo',
+    positioning: 'For trying Squadpitch',
+    highlights: [
+      '1 workspace',
+      '5 posts/mo',
+      '1 connected channel',
+      'Basic AI generation',
+    ],
+    autopilot: 'Not included',
+    detailedLimits: [
+      '10 images/mo',
+      '1 video/mo',
+      '1 GB storage',
+      'Manual scheduling only',
+    ],
+  },
   {
     tier: 'STARTER',
     label: 'Starter',
     price: '$19/mo',
-    features: [
+    positioning: 'For getting consistent manually',
+    highlights: [
       '3 workspaces',
-      '75 posts/mo',
+      '30 posts/mo',
+      'Up to 3 channels',
+      'Basic scheduling',
+    ],
+    autopilot: 'Not included',
+    detailedLimits: [
       '30 images/mo',
       '3 videos/mo',
-      '3 GB storage',
-      'AI: 75 image + 5 video generations',
-      '50 enhancement runs/mo',
+      '5 GB storage',
+      '30 AI image generations',
     ],
   },
   {
     tier: 'PRO',
     label: 'Pro',
-    price: '$49/mo',
-    features: [
+    price: '$39/mo',
+    positioning: 'For automating your weekly content',
+    popular: true,
+    highlights: [
       '5 workspaces',
-      '250 posts/mo',
+      '150 posts/mo',
+      'Up to 5 channels',
+      'Full scheduling',
+      'Autopilot included',
+      'Multi-platform posting',
+    ],
+    autopilot: 'Included',
+    detailedLimits: [
       '75 images/mo',
       '10 videos/mo',
       '10 GB storage',
-      'AI: 300 image + 15 video generations',
-      '200 enhancement runs/mo',
+      '150 AI image generations',
     ],
   },
   {
     tier: 'GROWTH',
     label: 'Growth',
-    price: '$99/mo',
-    features: [
+    price: '$79/mo',
+    positioning: 'For scaling content across brands',
+    highlights: [
       '10 workspaces',
-      '600 posts/mo',
+      '500 posts/mo',
+      'Up to 10 channels',
+      'Advanced Autopilot',
+      'Higher AI limits',
+    ],
+    autopilot: 'Advanced',
+    detailedLimits: [
       '200 images/mo',
       '30 videos/mo',
       '30 GB storage',
-      'AI: 800 image + 40 video generations',
-      '500 enhancement runs/mo',
+      '500 AI image generations',
     ],
   },
   {
     tier: 'AGENCY',
     label: 'Agency',
-    price: '$199/mo',
-    features: [
+    price: '$159/mo',
+    positioning: 'For managing content for clients',
+    highlights: [
       'Unlimited workspaces',
       '1,200 posts/mo',
+      'Unlimited channels',
+      'Agency Autopilot',
+      'Highest AI & media limits',
+    ],
+    autopilot: 'Agency-scale',
+    detailedLimits: [
       '500 images/mo',
       '100 videos/mo',
       '100 GB storage',
-      'AI: 2,000 image + 100 video generations',
-      '1,500 enhancement runs/mo',
+      '1,000 AI image generations',
     ],
   },
 ];
+
+// ── Page ──────────────────────────────────────────────────────────────
 
 export default function BillingSettingsPage() {
   const { data: subscription, isLoading: subLoading } = useSubscription();
@@ -89,6 +161,13 @@ export default function BillingSettingsPage() {
   const checkout = useCreateCheckout();
   const changePlan = useChangePlan();
   const isLoading = subLoading || usageLoading;
+  const trackedRef = useRef(false);
+
+  useEffect(() => {
+    if (trackedRef.current) return;
+    trackedRef.current = true;
+    trackActivationEvent('pricing_page_viewed', {}, { once: true });
+  }, []);
 
   if (isLoading) {
     return (
@@ -99,7 +178,7 @@ export default function BillingSettingsPage() {
     );
   }
 
-  const tier = usage?.tier ?? 'STARTER';
+  const tier = usage?.tier ?? 'FREE';
   const hasSubscription = subscription?.stripeSubscriptionId;
 
   // Check if any limit is at capacity
@@ -109,9 +188,6 @@ export default function BillingSettingsPage() {
       ['Post', usage.usage.posts, usage.limits.posts],
       ['Image', usage.usage.images, usage.limits.images],
       ['Video', usage.usage.videos, usage.limits.videos],
-      ['Image generation', usage.usage.imageGenerations, usage.limits.imageGenerations],
-      ['Video generation', usage.usage.videoGenerations, usage.limits.videoGenerations],
-      ['Enhancement', usage.usage.enhancementRuns, usage.limits.enhancementRuns],
     ];
     for (const [label, current, limit] of checks) {
       if (isFinite(limit) && current >= limit) atLimitFields.push(label);
@@ -124,6 +200,9 @@ export default function BillingSettingsPage() {
   const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
 
   const handlePlanAction = (planTier: PlanTier) => {
+    trackActivationEvent('pricing_plan_cta_clicked', {
+      meta: { currentPlan: tier, targetPlan: planTier },
+    });
     if (hasSubscription) {
       changePlan.mutate({ tier: planTier });
     } else {
@@ -139,7 +218,7 @@ export default function BillingSettingsPage() {
     changePlan.error?.message || checkout.error?.message || portal.error?.message;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-4xl">
       {mutationError && <StatusBanner error={mutationError} />}
       {changePlan.isSuccess && (
         <StatusBanner
@@ -148,69 +227,84 @@ export default function BillingSettingsPage() {
         />
       )}
 
-      {/* Free tier banner */}
-      {tier === 'FREE' && !hasSubscription && (
-        <div className="card p-5 border-accent-blue/30 bg-accent-blue/5 space-y-3">
-          <div className="flex items-start gap-3">
-            <Zap className="w-5 h-5 text-accent-blue flex-shrink-0 mt-0.5" />
+      {/* Plan Usage Summary */}
+      {usage && (
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-white-100">You&apos;re on the Free plan</h3>
-              <p className="text-xs text-white-60 mt-1">
-                Free includes 1 workspace, 10 posts/mo, 5 images/mo, and 250 MB storage.
-                Upgrade to unlock more workspaces, higher limits, and AI generation.
+              <h2 className="text-lg font-bold text-white-100">Plan Usage</h2>
+              <p className="text-sm text-white-40 mt-0.5">
+                {tier === 'FREE'
+                  ? 'You\'re on the Free plan. Upgrade to unlock more.'
+                  : `You're on the ${tier.charAt(0) + tier.slice(1).toLowerCase()} plan.`}
               </p>
             </div>
+            <PlanBadge tier={tier} />
           </div>
-          <button
-            onClick={() => handlePlanAction('STARTER')}
-            disabled={checkout.isPending}
-            className="btn btn-primary text-xs flex items-center gap-1.5"
-          >
-            {checkout.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Zap className="w-3.5 h-3.5" />
-            )}
-            Upgrade to Starter — $19/mo
-          </button>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <UsageStat label="Posts" used={usage.usage.posts} limit={usage.limits.posts} />
+            <UsageStat label="Images" used={usage.usage.images} limit={usage.limits.images} />
+            <UsageStat label="Videos" used={usage.usage.videos} limit={usage.limits.videos} />
+            <UsageStat
+              label="Storage"
+              used={usage.storage.totalBytes}
+              limit={usage.limits.totalStorageBytes}
+              formatValue={formatBytes}
+            />
+          </div>
+
+          {usage.period?.end && (
+            <p className="text-[10px] text-white-30">
+              Resets {new Date(usage.period.end).toLocaleDateString()}
+            </p>
+          )}
+
+          {(tier === 'FREE' || tier === 'STARTER') && (
+            <button
+              onClick={() => handlePlanAction('PRO')}
+              disabled={checkout.isPending || changePlan.isPending}
+              className="btn btn-primary text-xs flex items-center gap-1.5"
+            >
+              {(checkout.isPending || changePlan.isPending) ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Zap className="w-3.5 h-3.5" />
+              )}
+              Upgrade to Pro — $39/mo
+            </button>
+          )}
         </div>
       )}
 
-      {/* Current Plan */}
-      <div className="card p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-white-100">Subscription</h2>
-            <p className="text-sm text-white-40 mt-0.5">
-              {hasSubscription
-                ? 'Manage your billing and plan.'
-                : 'Choose a plan to get started.'}
-            </p>
+      {/* Subscription Management */}
+      {hasSubscription && (
+        <div className="card p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white-100">Subscription</h3>
+            <PlanBadge tier={tier} />
           </div>
-          <PlanBadge tier={tier} />
-        </div>
 
-        {hasSubscription && subscription?.currentPeriodEnd && (
-          <p className="text-xs text-white-40">
-            Current period ends:{' '}
-            <span className="text-white-60">
-              {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
-            </span>
-            {subscription.cancelAtPeriodEnd && (
-              <span className="text-accent-orange ml-2">
-                (Cancels at period end)
+          {subscription?.currentPeriodEnd && (
+            <p className="text-xs text-white-40">
+              Current period ends:{' '}
+              <span className="text-white-60">
+                {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
               </span>
-            )}
-          </p>
-        )}
+              {subscription.cancelAtPeriodEnd && (
+                <span className="text-accent-orange ml-2">
+                  (Cancels at period end)
+                </span>
+              )}
+            </p>
+          )}
 
-        {hasSubscription && (
           <button
             onClick={() =>
               portal.mutate({ returnUrl: window.location.href })
             }
             disabled={portal.isPending}
-            className="btn btn-primary text-xs flex items-center gap-1.5"
+            className="btn btn-secondary text-xs flex items-center gap-1.5"
           >
             {portal.isPending ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -220,112 +314,39 @@ export default function BillingSettingsPage() {
             Manage subscription
             <ExternalLink className="w-3 h-3 ml-1" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Plan picker */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {PLANS.map((plan) => {
-          const isCurrent = plan.tier === tier;
-          const isHigher = TIER_RANK[plan.tier] > TIER_RANK[tier];
-          const isPending = checkout.isPending || changePlan.isPending;
-
-          return (
-            <div
+      {/* Plan Picker */}
+      <div>
+        <h2 className="text-lg font-bold text-white-100 mb-4">Choose your plan</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {PLANS.map((plan) => (
+            <PlanCard
               key={plan.tier}
-              className={`card p-5 space-y-3 ${
-                isCurrent
-                  ? 'border-accent-blue/50 ring-1 ring-accent-blue/20'
-                  : plan.tier === 'PRO'
-                  ? 'border-accent-green-110/50 ring-1 ring-accent-green-110/20'
-                  : ''
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white-100">
-                    {plan.label}
-                  </h3>
-                  {isCurrent && (
-                    <span className="text-[10px] font-semibold text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
-                      Current
-                    </span>
-                  )}
-                </div>
-                <p className="text-lg font-bold text-accent-green-110 mt-1">
-                  {plan.price}
-                </p>
-              </div>
-              <ul className="space-y-1.5">
-                {plan.features.map((f) => (
-                  <li
-                    key={f}
-                    className="text-xs text-white-60 flex items-center gap-1.5"
-                  >
-                    <span className="text-accent-green-110">✓</span> {f}
-                  </li>
-                ))}
-              </ul>
-              {isCurrent ? (
-                <button
-                  disabled
-                  className="btn w-full text-xs flex items-center justify-center gap-1.5 opacity-50 cursor-default"
-                >
-                  Current plan
-                </button>
-              ) : (
-                <button
-                  onClick={() => handlePlanAction(plan.tier)}
-                  disabled={isPending}
-                  className={`btn w-full text-xs flex items-center justify-center gap-1.5 ${
-                    isHigher ? 'btn-primary' : 'btn-secondary'
-                  }`}
-                >
-                  {isPending ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : isHigher ? (
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  ) : (
-                    <ArrowDownRight className="w-3.5 h-3.5" />
-                  )}
-                  {hasSubscription
-                    ? isHigher ? 'Upgrade' : 'Downgrade'
-                    : 'Subscribe'}
-                </button>
-              )}
-              {hasSubscription && !isCurrent && (
-                <p className="text-[10px] text-white-30 text-center">
-                  {isHigher
-                    ? 'Prorated charge applied today'
-                    : 'Credit applied to next bill'}
-                </p>
-              )}
-            </div>
-          );
-        })}
+              plan={plan}
+              currentTier={tier}
+              hasSubscription={!!hasSubscription}
+              isPending={checkout.isPending || changePlan.isPending}
+              onAction={handlePlanAction}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Usage — Grouped Layout */}
+      {/* Detailed Usage */}
       {usage && (
         <div className="card p-5 space-y-5">
           <h3 className="text-sm font-semibold text-white-100">
-            Monthly Usage
+            Detailed Usage
           </h3>
 
-          {/* Content Creation */}
+          {/* Content */}
           <div className="space-y-3">
-            <h4 className="text-xs font-medium text-white-40 uppercase tracking-wider">Content Creation</h4>
+            <h4 className="text-xs font-medium text-white-40 uppercase tracking-wider">Content</h4>
             <UsageMeter label="Posts" current={usage.usage.posts} limit={usage.limits.posts} />
             <UsageMeter label="Images" current={usage.usage.images} limit={usage.limits.images} />
             <UsageMeter label="Videos" current={usage.usage.videos} limit={usage.limits.videos} />
-          </div>
-
-          {/* AI Generation */}
-          <div className="space-y-3 pt-3 border-t border-white-10">
-            <h4 className="text-xs font-medium text-white-40 uppercase tracking-wider">AI Generation</h4>
-            <UsageMeter label="Image generations" current={usage.usage.imageGenerations} limit={usage.limits.imageGenerations} />
-            <UsageMeter label="Video generations" current={usage.usage.videoGenerations} limit={usage.limits.videoGenerations} />
-            <UsageMeter label="Enhancement runs" current={usage.usage.enhancementRuns} limit={usage.limits.enhancementRuns} />
           </div>
 
           {/* Storage */}
@@ -355,6 +376,177 @@ export default function BillingSettingsPage() {
       {atLimitFields.map((limitType) => (
         <UpgradePrompt key={limitType} currentTier={tier} limitType={limitType} />
       ))}
+    </div>
+  );
+}
+
+// ── Plan Card ────────────────────────────────────────────────────────
+
+function PlanCard({
+  plan,
+  currentTier,
+  hasSubscription,
+  isPending,
+  onAction,
+}: {
+  plan: PlanDef;
+  currentTier: PlanTier;
+  hasSubscription: boolean;
+  isPending: boolean;
+  onAction: (tier: PlanTier) => void;
+}) {
+  const [showDetails, setShowDetails] = useState(false);
+  const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
+  const isCurrent = plan.tier === currentTier;
+  const isHigher = TIER_RANK[plan.tier] > TIER_RANK[currentTier];
+  const isLower = TIER_RANK[plan.tier] < TIER_RANK[currentTier];
+
+  return (
+    <div
+      className={`card p-5 space-y-3 relative flex flex-col ${
+        plan.popular && !isCurrent
+          ? 'border-accent-green-110/50 ring-1 ring-accent-green-110/20'
+          : isCurrent
+            ? 'border-accent-blue/50 ring-1 ring-accent-blue/20'
+            : ''
+      }`}
+    >
+      {/* Badges */}
+      <div className="flex items-center gap-1.5">
+        {plan.popular && (
+          <span className="text-[10px] font-semibold text-accent-green-110 bg-accent-green-110/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+            <Crown className="w-2.5 h-2.5" />
+            Most popular
+          </span>
+        )}
+        {isCurrent && (
+          <span className="text-[10px] font-semibold text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
+            Current
+          </span>
+        )}
+      </div>
+
+      {/* Name + Price */}
+      <div>
+        <h3 className="text-sm font-bold text-white-100">{plan.label}</h3>
+        <p className="text-lg font-bold text-accent-green-110 mt-0.5">{plan.price}</p>
+        <p className="text-[11px] text-white-40 mt-0.5">{plan.positioning}</p>
+      </div>
+
+      {/* Highlights */}
+      <ul className="space-y-1.5 flex-1">
+        {plan.highlights.map((f) => (
+          <li key={f} className="text-xs text-white-60 flex items-start gap-1.5">
+            <Check className="w-3 h-3 text-accent-green-110 flex-shrink-0 mt-0.5" />
+            <span>{f}</span>
+          </li>
+        ))}
+      </ul>
+
+      {/* Autopilot status */}
+      <div className="flex items-center gap-1.5 pt-2 border-t border-white-10">
+        <Zap className={`w-3 h-3 ${plan.autopilot === 'Not included' ? 'text-white-20' : 'text-yellow-400'}`} />
+        <span className={`text-[11px] font-medium ${plan.autopilot === 'Not included' ? 'text-white-30' : 'text-white-70'}`}>
+          Autopilot: {plan.autopilot}
+        </span>
+      </div>
+
+      {/* Detailed limits toggle */}
+      <button
+        onClick={() => setShowDetails(!showDetails)}
+        className="text-[10px] text-white-30 hover:text-white-60 transition-colors flex items-center gap-1"
+      >
+        {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        {showDetails ? 'Hide details' : 'View details'}
+      </button>
+
+      {showDetails && (
+        <ul className="space-y-1">
+          {plan.detailedLimits.map((l) => (
+            <li key={l} className="text-[10px] text-white-40">{l}</li>
+          ))}
+        </ul>
+      )}
+
+      {/* CTA */}
+      {isCurrent ? (
+        <button
+          disabled
+          className="btn w-full text-xs flex items-center justify-center gap-1.5 opacity-50 cursor-default"
+        >
+          Current plan
+        </button>
+      ) : plan.tier === 'FREE' ? (
+        // Don't show downgrade to Free as a prominent button
+        isLower ? (
+          <p className="text-[10px] text-white-30 text-center py-2">
+            Contact support to downgrade
+          </p>
+        ) : null
+      ) : (
+        <button
+          onClick={() => onAction(plan.tier)}
+          disabled={isPending}
+          className={`btn w-full text-xs flex items-center justify-center gap-1.5 ${
+            isHigher
+              ? plan.popular
+                ? 'bg-accent-green-110 text-sp-bg hover:bg-accent-green-120 font-semibold'
+                : 'btn-primary'
+              : 'btn-secondary'
+          }`}
+        >
+          {isPending ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : isHigher ? (
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          ) : (
+            <ArrowDownRight className="w-3.5 h-3.5" />
+          )}
+          {plan.popular && isHigher
+            ? 'Upgrade to Pro'
+            : hasSubscription
+              ? isHigher ? 'Upgrade' : 'Downgrade'
+              : 'Subscribe'}
+        </button>
+      )}
+
+      {hasSubscription && !isCurrent && plan.tier !== 'FREE' && (
+        <p className="text-[10px] text-white-30 text-center">
+          {isHigher
+            ? 'Prorated charge applied today'
+            : 'Credit applied to next bill'}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Usage Stat (compact) ─────────────────────────────────────────────
+
+function UsageStat({
+  label,
+  used,
+  limit,
+  formatValue,
+}: {
+  label: string;
+  used: number;
+  limit: number;
+  formatValue?: (v: number) => string;
+}) {
+  const fmt = formatValue ?? ((v: number) => v.toLocaleString());
+  const pct = isFinite(limit) && limit > 0 ? Math.round((used / limit) * 100) : 0;
+  const color = pct >= 100 ? 'text-red-400' : pct >= 80 ? 'text-orange-400' : 'text-white-100';
+
+  return (
+    <div>
+      <p className="text-xs text-white-40 mb-1">{label}</p>
+      <p className={`text-lg font-bold ${color}`}>
+        {fmt(used)}
+        {isFinite(limit) && (
+          <span className="text-xs text-white-30 font-normal"> / {fmt(limit)}</span>
+        )}
+      </p>
     </div>
   );
 }

@@ -1295,6 +1295,17 @@ export function useArchiveClient(id: string) {
   });
 }
 
+export function useDeleteWorkspace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<Client>(`workspaces/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.clients() });
+    },
+  });
+}
+
 // ── Brand ────────────────────────────────────────────────────────────────
 
 export function useBrandProfile(clientId: string | undefined) {

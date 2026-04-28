@@ -40,21 +40,21 @@ export const realEstateConfig: OnboardingConfig = {
     {
       key: 'license',
       label: 'License lookup',
-      description: 'Verify and import your license details.',
+      description: 'Required for compliant real estate marketing.',
       icon: 'Shield',
       cardType: 'source_license',
     },
     {
       key: 'crm',
       label: 'CRM import',
-      description: 'Upload a CSV from your CRM to import listings.',
+      description: 'Turn contacts into targeted campaigns.',
       icon: 'Database',
       cardType: 'source_crm',
     },
     {
       key: 'additional_urls',
       label: 'Add more URLs',
-      description: 'Analyze additional web pages.',
+      description: 'Improve content accuracy with more sources.',
       icon: 'Globe',
       cardType: 'source_input',
       payload: { inputMode: 'url', placeholder: 'https://...' },
@@ -62,7 +62,7 @@ export const realEstateConfig: OnboardingConfig = {
     {
       key: 'add_description',
       label: 'Add more details',
-      description: 'Describe your business or listings in your own words.',
+      description: 'Improve content accuracy with your own words.',
       icon: 'MessageSquare',
       cardType: 'source_input',
       payload: { inputMode: 'textarea', placeholder: 'Tell us more about your real estate business...' },
@@ -70,7 +70,7 @@ export const realEstateConfig: OnboardingConfig = {
     {
       key: 'add_photos',
       label: 'Add photos',
-      description: 'Upload property or business photos.',
+      description: 'Better photos mean more engaging posts.',
       icon: 'Image',
       cardType: 'source_input',
       payload: { inputMode: 'file', accept: 'image/*' },
@@ -78,7 +78,7 @@ export const realEstateConfig: OnboardingConfig = {
     {
       key: 'channels',
       label: 'Connect channels',
-      description: 'Connect your social media accounts.',
+      description: 'Enable publishing and scheduling.',
       icon: 'Zap',
       cardType: 'channel_connect',
     },

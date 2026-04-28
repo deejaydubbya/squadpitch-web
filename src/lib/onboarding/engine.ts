@@ -106,7 +106,7 @@ function resolveREStep(session: OnboardingSessionState, config: OnboardingConfig
     if (session.brandConfirmed && session.previewDrafts.length === 0) {
       return {
         message: config.valueMessage,
-        cardType: 'content_preview',
+        cardType: 'campaign_presentation',
         phase: 'value_delivery',
         skippable: false,
       };
@@ -182,7 +182,7 @@ function resolveREStep(session: OnboardingSessionState, config: OnboardingConfig
     if (session.reContentGoal && session.previewDrafts.length === 0) {
       return {
         message: "Generating your content...",
-        cardType: 'content_preview',
+        cardType: 'campaign_presentation',
         phase: 'value_delivery',
         skippable: false,
       };
@@ -213,7 +213,7 @@ function resolveREStep(session: OnboardingSessionState, config: OnboardingConfig
     if (session.previewDrafts.length === 0) {
       return {
         message: "Generating your content...",
-        cardType: 'content_preview',
+        cardType: 'campaign_presentation',
         phase: 'value_delivery',
         skippable: false,
       };
@@ -332,7 +332,7 @@ function resolveFallbackStep(session: OnboardingSessionState, config: Onboarding
     if (session.previewDrafts.length === 0) {
       return {
         message: "Generating your content...",
-        cardType: 'content_preview',
+        cardType: 'campaign_presentation',
         phase: 'value_delivery',
         skippable: false,
       };
@@ -376,7 +376,7 @@ function resolveFallbackStep(session: OnboardingSessionState, config: Onboarding
     if (session.previewDrafts.length === 0) {
       return {
         message: "Generating your content...",
-        cardType: 'content_preview',
+        cardType: 'campaign_presentation',
         phase: 'value_delivery',
         skippable: false,
       };
@@ -429,7 +429,7 @@ function resolveFallbackStep(session: OnboardingSessionState, config: Onboarding
   if (session.brandConfirmed && session.previewDrafts.length === 0) {
     return {
       message: config.valueMessage,
-      cardType: 'content_preview',
+      cardType: 'campaign_presentation',
       phase: 'value_delivery',
       skippable: false,
     };
@@ -542,7 +542,7 @@ function resolveIndustryStep(session: OnboardingSessionState, config: Onboarding
   if (session.brandConfirmed && session.previewDrafts.length === 0) {
     return {
       message: config.valueMessage,
-      cardType: 'content_preview',
+      cardType: 'campaign_presentation',
       phase: 'value_delivery',
       skippable: false,
     };

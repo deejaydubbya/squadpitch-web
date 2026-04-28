@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams, usePathname } from 'next/navigation';
 import { AlertTriangle, Menu, X } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -60,6 +61,33 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  const isGettingStarted = pathname.endsWith('/getting-started');
+
+  // Minimal layout for getting-started flow (no sidebar, no hamburger)
+  if (isGettingStarted) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <header className="flex items-center justify-between px-6 py-4 border-b border-white-10">
+          <Link href="/workspaces" className="flex items-center gap-2">
+            <Image src="/icon-192.png" alt="Squadpitch" width={24} height={24} />
+            <span className="text-sm font-semibold text-white-80">Squadpitch</span>
+          </Link>
+          <Link
+            href={`/workspaces/${clientId}`}
+            className="text-xs text-white-30 hover:text-white-60 transition-colors"
+          >
+            Skip setup
+          </Link>
+        </header>
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {children}
+          </div>
+        </main>
       </div>
     );
   }

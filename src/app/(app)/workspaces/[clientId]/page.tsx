@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { OnboardingWelcome } from '@/components/studio/OnboardingWelcome';
@@ -14,6 +14,8 @@ import {
   BarChart3,
   Eye,
   AlertCircle,
+  Rocket,
+  ArrowRight,
 } from 'lucide-react';
 import {
   useClient,
@@ -40,6 +42,12 @@ import { AutopilotStatusCard } from '@/components/studio/AutopilotStatusCard';
 import { AutopilotCampaignsSection } from '@/components/studio/AutopilotCampaignsSection';
 import { OpportunitiesSection } from '@/components/studio/OpportunitiesSection';
 import { ContentActivitySection } from '@/components/studio/ContentActivitySection';
+import { MomentumCard } from '@/components/studio/MomentumCard';
+import { AutopilotUpsellCard } from '@/components/studio/AutopilotUpsellCard';
+import { WeeklyPlanCard } from '@/components/studio/WeeklyPlanCard';
+import { PostOnboardingChecklist } from '@/components/studio/PostOnboardingChecklist';
+import { deriveActivationState } from '@/lib/activationState';
+import { useSubscription } from '@/hooks/useBilling';
 import type { NextActionItem } from '@/components/studio/OpportunitiesSection';
 
 export default function OverviewPage() {
@@ -47,7 +55,15 @@ export default function OverviewPage() {
   const clientId = params.clientId;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [showWelcome, setShowWelcome] = useState(searchParams.get('onboarded') === 'true');
+  const isOnboarded = searchParams.get('onboarded') === 'true';
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  // Backward compat: redirect ?onboarded=true to /getting-started
+  useEffect(() => {
+    if (isOnboarded) {
+      router.replace(`/workspaces/${clientId}/getting-started`);
+    }
+  }, [isOnboarded, clientId, router]);
 
   const { data: client } = useClient(clientId);
   const { data: drafts, isLoading: draftsLoading } = useDrafts({
@@ -62,6 +78,8 @@ export default function OverviewPage() {
   const { data: integrationStatus } = useIntegrationStatus(clientId);
   const { data: listingData } = useListingSources(clientId);
   const { data: genericIntegrations } = useGenericIntegrations();
+  const { data: subscription } = useSubscription();
+  const currentTier = subscription?.tier ?? 'FREE';
   const duplicate = useDuplicateDraft();
   const acceptRec = useAcceptRecommendation(clientId);
   const dismissRec = useDismissRecommendation(clientId);
@@ -74,6 +92,19 @@ export default function OverviewPage() {
   const disconnectedCount = enabledChannels.filter((c) => !connectionStatus.get(c.channel)).length;
   const summary = recommendations?.summary;
   const isRE = client.industryKey === 'real_estate';
+
+  // ── Activation state ────────────────────────────────────────────────
+  const activation = deriveActivationState({
+    clientId,
+    onboardedParam: isOnboarded,
+    analytics,
+    connectedChannelCount: connectedCount,
+    scheduledUpcoming: summary?.scheduledUpcoming ?? 0,
+    publishedThisWeek: summary?.publishedThisWeek ?? 0,
+  });
+  const isFirstWinMode = !activation.isActivatedUser && activation.shouldShowFirstWinMode;
+  const isMomentumMode = activation.isActivatedUser;
+  const pendingDrafts = (analytics?.byStatus?.DRAFT ?? 0) + (analytics?.byStatus?.APPROVED ?? 0) + (analytics?.byStatus?.PENDING_REVIEW ?? 0);
 
   // ── Derived data for dashboard sections ────────────────────────────────
 
@@ -314,8 +345,19 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-8 max-w-5xl">
-      {/* 1. Onboarding welcome */}
-      {showWelcome && (
+      {/* 1. Post-onboarding checklist — always visible until all steps done */}
+      <div className="mb-8">
+        <PostOnboardingChecklist
+          clientId={clientId}
+          base={base}
+          activation={activation}
+          hasWeeklyPlan={(allDrafts?.filter((d) => d.status !== 'PUBLISHED').length ?? 0) >= 3}
+          autopilotEnabled={summary?.autopilot?.enabled ?? false}
+        />
+      </div>
+
+      {/* 2. Onboarding welcome — fresh from onboarding */}
+      {showWelcome && !isMomentumMode && (
         <OnboardingWelcome
           clientId={clientId}
           onDismiss={() => {
@@ -325,13 +367,59 @@ export default function OverviewPage() {
         />
       )}
 
-      {/* 2. Page header */}
+      {/* 3. Momentum Mode — activated users */}
+      {isMomentumMode && (
+        <MomentumCard
+          activation={activation}
+          connectedChannelCount={connectedCount}
+          base={base}
+        />
+      )}
+
+      {/* 3b. First Win Mode — pre-activation users */}
+      {isFirstWinMode && !showWelcome && (
+        <FirstWinBanner
+          postsReady={pendingDrafts}
+          hasChannels={connectedCount > 0}
+          base={base}
+        />
+      )}
+
+      {/* 4. Weekly Plan — content plan for the week */}
+      <WeeklyPlanCard
+        clientId={clientId}
+        base={base}
+        drafts={allDrafts}
+        publishedThisWeek={summary?.publishedThisWeek}
+        scheduledUpcoming={summary?.scheduledUpcoming}
+        autopilotEnabled={summary?.autopilot?.enabled}
+        currentTier={currentTier}
+      />
+
+      {/* 5. Autopilot upsell — autopilot not enabled */}
+      {!summary?.autopilot?.enabled && (
+        <AutopilotUpsellCard
+          clientId={clientId}
+          base={base}
+          postsCreatedCount={activation.postsCreatedCount}
+          connectedChannelCount={connectedCount}
+        />
+      )}
+
+      {/* 3. Page header + remaining sections */}
+      <div className="space-y-8">
       <div>
         <h1 className="text-xl font-bold text-white-100">{client.name}</h1>
-        <p className="text-sm text-white-40 mt-1">Here&apos;s what Squadpitch recommends based on your business and connected sources</p>
+        <p className="text-sm text-white-40 mt-1">
+          {isMomentumMode
+            ? "Here\u2019s what Squadpitch recommends to keep your content consistent."
+            : isFirstWinMode
+              ? 'Get started by reviewing and publishing your first post.'
+              : "Here\u2019s what Squadpitch recommends based on your business and connected sources"}
+        </p>
       </div>
 
-      {/* 3. Setup progress — hidden once all steps complete */}
+      {/* 4. Setup progress — hidden once all steps complete */}
       <SetupProgress
         hasWebsite={Boolean(client.brandProfile?.website)}
         hasChannels={enabledChannels.length > 0}
@@ -430,6 +518,7 @@ export default function OverviewPage() {
         isRE={isRE}
         onDuplicate={(draftId) => duplicate.mutate(draftId)}
       />
+      </div>{/* end de-emphasis wrapper */}
     </div>
   );
 }
@@ -521,5 +610,56 @@ function WeeklySnapshot({
         </div>
       </div>
     </div>
+  );
+}
+
+// ── First Win Banner ─────────────────────────────────────────────────────
+
+function FirstWinBanner({
+  postsReady,
+  hasChannels,
+  base,
+}: {
+  postsReady: number;
+  hasChannels: boolean;
+  base: string;
+}) {
+  const href = !hasChannels
+    ? `${base}/settings/channels`
+    : postsReady > 0
+      ? `${base}/first-post`
+      : `${base}/create`;
+
+  const title = !hasChannels
+    ? 'Connect a channel to publish your first post'
+    : postsReady > 0
+      ? 'Review and publish your first post'
+      : 'Create your first post';
+
+  const cta = !hasChannels ? 'Connect channel' : postsReady > 0 ? 'Review posts' : 'Create post';
+
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-4 px-5 py-4 rounded-2xl bg-accent-green-110/10 border border-accent-green-110/25 hover:border-accent-green-110/40 transition-all group"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-9 h-9 rounded-full bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
+          <Rocket className="w-4 h-4 text-accent-green-110" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white">{title}</p>
+          {postsReady > 0 && hasChannels && (
+            <p className="text-xs text-white-40 mt-0.5">
+              {postsReady} post{postsReady !== 1 ? 's' : ''} waiting for your review
+            </p>
+          )}
+        </div>
+      </div>
+      <span className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold flex-shrink-0 group-hover:bg-accent-green-120 transition-colors">
+        {cta}
+        <ArrowRight className="w-3.5 h-3.5" />
+      </span>
+    </Link>
   );
 }

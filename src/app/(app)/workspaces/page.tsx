@@ -1,52 +1,79 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Terminal, X, LogOut } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
-import { useClients } from '@/hooks/useSquadpitch';
-import { useDeleteAllWorkspaces } from '@/hooks/useAdmin';
+import { useClients, useDeleteWorkspace } from '@/hooks/useSquadpitch';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { ClientCard } from '@/components/studio/ClientCard';
 
 export default function WorkspacesPage() {
   const { data: clients, isLoading, error } = useClients();
-  const { isInternalUser } = useCurrentUser();
-  const deleteAll = useDeleteAllWorkspaces();
-  const router = useRouter();
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const { isAdmin, isDeveloper } = useCurrentUser();
+  const deleteWorkspace = useDeleteWorkspace();
+  const [deletingClient, setDeletingClient] = useState<{ id: string; name: string } | null>(null);
+  const [confirmText, setConfirmText] = useState('');
 
-  // Redirect brand-new users to onboarding
-  useEffect(() => {
-    if (!isLoading && clients && clients.length === 0) {
-      router.replace('/onboarding');
-    }
-  }, [isLoading, clients, router]);
+  const showDevConsole = isAdmin || isDeveloper;
+  const canConfirm = deletingClient !== null && confirmText === deletingClient.name;
 
-  function handleDeleteAll() {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
-    deleteAll.mutate(undefined, {
-      onSettled: () => setConfirmDelete(false),
+  function handleStartDelete(e: React.MouseEvent, id: string, name: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeletingClient({ id, name });
+    setConfirmText('');
+  }
+
+  function handleConfirmDelete() {
+    if (!canConfirm) return;
+    deleteWorkspace.mutate(deletingClient!.id, {
+      onSettled: () => {
+        setDeletingClient(null);
+        setConfirmText('');
+      },
     });
+  }
+
+  function handleCancelDelete() {
+    setDeletingClient(null);
+    setConfirmText('');
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="space-y-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white-100 flex items-center gap-3">
-            <Image src="/icon-192.png" alt="Squadpitch" width={32} height={32} />
-            Squadpitch
-          </h1>
-          <p className="text-white-60 mt-1">
-            Build and manage your AI-powered content systems.
-          </p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white-100 flex items-center gap-3">
+              <Image src="/icon-192.png" alt="Squadpitch" width={32} height={32} />
+              Squadpitch
+            </h1>
+            <p className="text-white-60 mt-1">
+              Build and manage your AI-powered content systems.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {showDevConsole && (
+              <Link
+                href="/admin"
+                target="_blank"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
+              >
+                <Terminal className="w-4 h-4" />
+                Dev Console
+              </Link>
+            )}
+            <a
+              href="/auth/logout"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Log out
+            </a>
+          </div>
         </div>
 
         {isLoading && (
@@ -60,7 +87,11 @@ export default function WorkspacesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">
           {clients?.map((client) => (
-            <ClientCard key={client.id} client={client} />
+            <ClientCard
+              key={client.id}
+              client={client}
+              onDelete={(e) => handleStartDelete(e, client.id, client.name)}
+            />
           ))}
           <Link
             href="/onboarding"
@@ -81,32 +112,62 @@ export default function WorkspacesPage() {
             </div>
           </Link>
         </div>
+      </div>
 
-        {isInternalUser && clients && clients.length > 0 && (
-          <div className="pt-4 border-t border-white-10">
-            <button
-              onClick={handleDeleteAll}
-              disabled={deleteAll.isPending}
-              className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-            >
-              {deleteAll.isPending ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-              {confirmDelete ? 'Click again to confirm deletion' : 'Delete all workspaces'}
-            </button>
-            {confirmDelete && (
+      {/* Delete confirmation modal */}
+      {deletingClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-sp-bg border border-white-10 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white-100">Delete workspace</h3>
               <button
-                onClick={() => setConfirmDelete(false)}
-                className="text-sm text-white-40 hover:text-white-60 mt-1 ml-6"
+                onClick={handleCancelDelete}
+                className="p-1 rounded-lg text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-white-60 mb-4">
+              This will permanently delete <span className="font-semibold text-white-100">{deletingClient.name}</span> and all its content. This action cannot be undone.
+            </p>
+            <label className="block text-sm text-white-40 mb-2">
+              Type <span className="font-mono text-white-60">{deletingClient.name}</span> to confirm
+            </label>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={deletingClient.name}
+              className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm placeholder:text-white-20 focus:outline-none focus:border-white-20 transition-colors"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canConfirm) handleConfirmDelete();
+                if (e.key === 'Escape') handleCancelDelete();
+              }}
+            />
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button
+                onClick={handleCancelDelete}
+                className="px-4 py-2 rounded-lg text-sm text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors"
               >
                 Cancel
               </button>
-            )}
+              <button
+                onClick={handleConfirmDelete}
+                disabled={!canConfirm || deleteWorkspace.isPending}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deleteWorkspace.isPending ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                Delete workspace
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

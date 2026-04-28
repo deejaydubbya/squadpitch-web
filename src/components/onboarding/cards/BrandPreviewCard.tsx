@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { OnboardingAnalyzeResult } from '@/hooks/useSquadpitch';
 import type { StarterMethod } from '@/lib/onboarding/types';
-import { Check, Pencil, Loader2, Globe } from 'lucide-react';
+import { Check, Pencil, Loader2, Globe, ShieldCheck, ShieldAlert, AlertCircle } from 'lucide-react';
 
 export interface BrandOverrides {
   name?: string;
@@ -13,6 +13,42 @@ export interface BrandOverrides {
   offers?: string;
   voiceTone?: string;
 }
+
+// ── Source provenance helpers ─────────────────────────────────────────
+
+type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+function getSourceLabel(starterMethod: StarterMethod | null, sourceUrl?: string | null): string {
+  if (!starterMethod) return 'Unknown source';
+  if (starterMethod === 'zillow') return 'Extracted from Zillow';
+  if (starterMethod === 'website' && sourceUrl) {
+    try {
+      const hostname = new URL(sourceUrl).hostname.replace(/^www\./, '');
+      return `Extracted from ${hostname}`;
+    } catch {
+      return 'Extracted from website';
+    }
+  }
+  if (starterMethod === 'website') return 'Extracted from website';
+  if (starterMethod === 'description') return 'Extracted from your description';
+  if (starterMethod === 'documents') return 'Extracted from documents';
+  if (starterMethod === 'scratch') return 'User provided';
+  return 'Extracted';
+}
+
+function getConfidence(starterMethod: StarterMethod | null): ConfidenceLevel {
+  if (!starterMethod) return 'low';
+  if (starterMethod === 'website' || starterMethod === 'zillow') return 'high';
+  if (starterMethod === 'description' || starterMethod === 'documents') return 'medium';
+  if (starterMethod === 'scratch') return 'high'; // user-controlled
+  return 'medium';
+}
+
+const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; icon: typeof ShieldCheck }> = {
+  high: { label: 'High confidence', color: 'text-zone-green', icon: ShieldCheck },
+  medium: { label: 'Medium confidence', color: 'text-yellow-400', icon: ShieldAlert },
+  low: { label: 'Low confidence', color: 'text-orange-400', icon: AlertCircle },
+};
 
 interface Props {
   analyzeResult: OnboardingAnalyzeResult | null;
@@ -78,10 +114,47 @@ export function BrandPreviewCard({ analyzeResult, starterMethod, onConfirm, isCr
     return Object.keys(o).length > 0 ? o : undefined;
   }
 
+  const sourceLabel = getSourceLabel(starterMethod, sourceUrl);
+  const confidence = getConfidence(starterMethod);
+  const confMeta = CONFIDENCE_META[confidence];
+  const ConfIcon = confMeta.icon;
+
+  // Count missing fields for guidance
+  const missingFields: string[] = [];
+  if (!nameValue) missingFields.push('name');
+  if (!descValue) missingFields.push('description');
+  if (!audienceValue) missingFields.push('audience');
+  if (!offersValue) missingFields.push('offers');
+
   return (
     <div className="flex flex-col gap-3">
-      {/* Heading */}
-      <h3 className="text-sm font-semibold text-white-90">Here&apos;s what we found</h3>
+      {/* Heading + provenance */}
+      <div className="flex flex-col gap-1.5">
+        <h3 className="text-sm font-semibold text-white-90">Here&apos;s what we found</h3>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="inline-flex items-center gap-1 text-[11px] text-white-40">
+            <Globe className="w-3 h-3" />
+            {sourceLabel}
+          </span>
+          <span className={cn('inline-flex items-center gap-1 text-[11px]', confMeta.color)}>
+            <ConfIcon className="w-3 h-3" />
+            {confMeta.label}
+          </span>
+        </div>
+        <p className="text-[11px] text-white-30">
+          Review and edit details before we generate your campaign
+        </p>
+      </div>
+
+      {/* Missing fields alert */}
+      {missingFields.length > 0 && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/8 border border-yellow-500/15">
+          <AlertCircle className="w-3.5 h-3.5 text-yellow-400 flex-none mt-0.5" />
+          <span className="text-[11px] text-white-40">
+            Missing: {missingFields.join(', ')}
+          </span>
+        </div>
+      )}
 
       {/* Brand header */}
       <div className="flex items-start gap-3 p-3 rounded-lg border border-white-10">
@@ -139,18 +212,13 @@ export function BrandPreviewCard({ analyzeResult, starterMethod, onConfirm, isCr
         placeholder="e.g. Professional, friendly, authoritative"
       />
 
-      {/* Source row */}
+      {/* Source URL */}
       {sourceUrl && (
         <div className="flex items-center gap-1.5 text-[11px] text-white-30">
           <Globe className="w-3 h-3 flex-none" />
-          <span className="truncate">Source: {sourceUrl}</span>
+          <span className="truncate">{sourceUrl}</span>
         </div>
       )}
-
-      {/* Helper note */}
-      <p className="text-[11px] text-white-25 text-center">
-        You can edit this now. Squadpitch will use it to write your posts.
-      </p>
 
       {/* Confirm button */}
       <button

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
   X,
@@ -9,18 +9,18 @@ import {
   LinkIcon,
   Database,
   Sparkles,
-  Globe,
-  MessageSquare,
-  Check,
+  FileText,
+  Radio,
+  Palette,
 } from 'lucide-react';
 import {
   useClientAnalytics,
-  useDrafts,
   useChannelSettings,
   useClient,
   useDashboardRecommendations,
 } from '@/hooks/useSquadpitch';
 import type { SourceEntry } from '@/lib/onboarding/types';
+import { trackActivationEvent, setActivationFlag } from '@/lib/activationTracking';
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
   website: 'Website',
@@ -45,7 +45,6 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
   const { data: channels } = useChannelSettings(clientId);
   const { data: recommendations } = useDashboardRecommendations(clientId);
 
-  // Read persisted source entries from onboarding
   const sourceEntries = useMemo<SourceEntry[]>(() => {
     try {
       const raw = localStorage.getItem(`sp_onboarding_sources_${clientId}`);
@@ -57,169 +56,206 @@ export function OnboardingWelcome({ clientId, onDismiss }: OnboardingWelcomeProp
 
   const base = `/workspaces/${clientId}`;
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
+  const hasChannels = enabledChannels.length > 0;
 
   const postsReady =
     (analytics?.byStatus?.DRAFT ?? 0) + (analytics?.byStatus?.APPROVED ?? 0);
-
+  const sourcesUsed = sourceEntries.length;
   const totalDataItems = recommendations?.summary?.totalDataItems ?? 0;
-  const hasChannels = enabledChannels.length > 0;
+  const hasBrand = Boolean(client?.brandProfile?.description || client?.voiceProfile?.tone);
+  const clientName = client?.name ?? 'your business';
 
-  // AI Strategy
-  const voice = client?.voiceProfile;
-  const brand = client?.brandProfile;
-  const goalText =
-    (voice?.ctaPreferences as Record<string, string> | null)?.goal ??
-    brand?.audience ??
-    null;
-  const recommendedPlatform = enabledChannels[0]?.channel ?? null;
-  const bucketNames = voice?.contentBuckets?.slice(0, 3).map((b) => b.label) ?? [];
-  const contentApproach = [voice?.tone, ...bucketNames].filter(Boolean).join(', ') || null;
-  const hasStrategy = goalText || recommendedPlatform || contentApproach;
+  // Primary CTA routing
+  const primaryHref = postsReady > 0 ? `${base}/first-post` : `${base}/create`;
+  const primaryLabel = postsReady > 0 ? 'Review your first post' : 'Create your first post';
+
+  // Secondary CTA
+  const secondaryHref = !hasChannels ? `${base}/settings/channels` : `${base}/planner`;
+  const secondaryLabel = !hasChannels ? 'Connect channels' : 'View content planner';
+
+  // ── Activation tracking ─────────────────────────────────────────────
+  useEffect(() => {
+    trackActivationEvent('onboarding_handoff_viewed', {
+      clientId,
+      industry: client?.industryKey,
+      connectedChannelCount: enabledChannels.length,
+      postsReadyCount: postsReady,
+    }, { once: true });
+    setActivationFlag('handoff_viewed', clientId);
+  }, [clientId, client?.industryKey, enabledChannels.length, postsReady]);
+
+  const handleCtaClick = (label: string) => {
+    trackActivationEvent('onboarding_handoff_cta_clicked', {
+      clientId,
+      postsReadyCount: postsReady,
+      connectedChannelCount: enabledChannels.length,
+      actionSource: label,
+    });
+  };
 
   return (
     <div className="rounded-2xl border border-accent-green-110/30 bg-sp-card overflow-hidden">
-      {/* ── Hero ─────────────────────────────────────────────── */}
-      <div className="relative px-6 pt-8 pb-6">
+      {/* ── Hero ──────────────────────────────────────────────── */}
+      <div className="relative px-5 sm:px-6 pt-6 pb-5">
         <button
           onClick={onDismiss}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-white-60 hover:text-white hover:bg-white-10 transition-colors"
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-white-40 hover:text-white hover:bg-white-10 transition-colors"
           aria-label="Dismiss"
         >
           <X className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-2.5 mb-2">
+        <div className="flex items-center gap-2.5 mb-1.5">
           <div className="w-8 h-8 rounded-full bg-accent-green-110/20 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-accent-green-110" />
+            <CheckCircle2 className="w-4 h-4 text-accent-green-110" />
           </div>
-          <h2 className="text-2xl font-bold text-white">
-            Your content is ready
+          <h2 className="text-xl sm:text-2xl font-bold text-white">
+            Your content system is ready
           </h2>
         </div>
 
-        <p className="text-sm text-white-70 ml-[42px]">
+        <p className="text-sm text-white-60 ml-[42px] leading-relaxed">
           {postsReady > 0
-            ? `We created ${postsReady} post${postsReady !== 1 ? 's' : ''} for ${client?.name ?? 'your business'}.`
-            : `Everything is set up for ${client?.name ?? 'your business'}.`}
+            ? `Squadpitch analyzed your sources and created ${postsReady} post${postsReady !== 1 ? 's' : ''} for ${clientName}. Review, approve, and publish when you're ready.`
+            : `Everything is set up for ${clientName}. Start creating content and Squadpitch will handle the rest.`}
         </p>
 
-        {/* ── Primary CTAs ──────────────────────────────────── */}
-        <div className="flex items-center gap-3 mt-6 ml-[42px]">
+        {/* ── Summary row ────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 ml-[42px]">
+          <SummaryStat
+            icon={<FileText className="w-3.5 h-3.5" />}
+            value={postsReady}
+            label="Posts ready"
+            accent={postsReady > 0 ? 'text-accent-green-110' : 'text-white-30'}
+          />
+          <SummaryStat
+            icon={<Database className="w-3.5 h-3.5" />}
+            value={sourcesUsed || totalDataItems}
+            label="Sources used"
+            accent={sourcesUsed > 0 || totalDataItems > 0 ? 'text-purple-400' : 'text-white-30'}
+          />
+          <SummaryStat
+            icon={<Radio className="w-3.5 h-3.5" />}
+            value={enabledChannels.length}
+            label={enabledChannels.length === 1 ? 'Channel connected' : 'Channels connected'}
+            accent={hasChannels ? 'text-blue-400' : 'text-white-30'}
+          />
+          <SummaryStat
+            icon={<Palette className="w-3.5 h-3.5" />}
+            value={hasBrand ? 1 : 0}
+            label="Brand captured"
+            isBoolean
+            accent={hasBrand ? 'text-orange-400' : 'text-white-30'}
+          />
+        </div>
+
+        {/* ── CTAs ────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 mt-6 ml-[42px]">
           <Link
-            href={`${base}/library`}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-bg font-semibold text-sm hover:bg-accent-green-120 transition-colors"
+            href={primaryHref}
+            onClick={() => handleCtaClick(primaryLabel)}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-bg font-semibold text-sm hover:bg-accent-green-120 transition-colors"
           >
-            <CheckCircle2 className="w-4 h-4" />
-            Review & Approve Posts
+            {primaryLabel}
+            <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
-            href={`${base}/planner`}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white-10 text-white-80 font-medium text-sm hover:bg-white-15 hover:text-white transition-colors"
+            href={secondaryHref}
+            onClick={() => handleCtaClick(secondaryLabel)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white-5 border border-white-10 text-white-70 font-medium text-sm hover:bg-white-10 hover:text-white transition-colors"
           >
-            Schedule Posts
+            {!hasChannels && <LinkIcon className="w-3.5 h-3.5" />}
+            {secondaryLabel}
           </Link>
         </div>
       </div>
 
-      {/* ── Supporting info ──────────────────────────────────── */}
-      <div className="px-6 pb-6 pt-2 border-t border-white-10">
-        {/* Sources summary */}
+      {/* ── What happens next ─────────────────────────────────── */}
+      <div className="px-5 sm:px-6 py-4 border-t border-white-10 bg-white-5/30">
+        <p className="text-[11px] font-semibold text-white-40 uppercase tracking-wider mb-3">
+          What happens next
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <StepItem step={1} label="Review your generated posts" done={postsReady > 0} />
+          <StepItem step={2} label="Connect a publishing channel" done={hasChannels} />
+          <StepItem step={3} label="Schedule or publish" done={false} />
+          <StepItem step={4} label="Squadpitch keeps recommending" done={false} icon={<Sparkles className="w-3 h-3" />} />
+        </div>
+
+        {/* Sources used — compact */}
         {sourceEntries.length > 0 && (
-          <div className="rounded-xl bg-white-5 p-4 space-y-2 mt-4 mb-3">
-            <div className="flex items-center gap-2">
-              <Database className="w-3.5 h-3.5 text-purple-400" />
-              <span className="text-[11px] font-semibold text-white-60 uppercase tracking-wider">
-                Sources used
+          <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-white-5">
+            <span className="text-[10px] text-white-30 uppercase tracking-wider mr-1 leading-[22px]">Sources:</span>
+            {sourceEntries.map((entry) => (
+              <span
+                key={entry.id}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white-5 text-[10px] text-white-50"
+              >
+                {SOURCE_TYPE_LABELS[entry.sourceType] ?? entry.sourceType}
               </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {sourceEntries.map((entry) => (
-                <span
-                  key={entry.id}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white-5 text-[11px] text-white-60"
-                >
-                  <Check className="w-2.5 h-2.5 text-accent-green-110" />
-                  {SOURCE_TYPE_LABELS[entry.sourceType] ?? entry.sourceType}
-                  <span className="text-white-30 truncate max-w-[120px]">{entry.label}</span>
-                </span>
-              ))}
-            </div>
+            ))}
           </div>
         )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-          {/* AI Strategy */}
-          {hasStrategy && (
-            <div className="rounded-xl bg-white-5 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-3.5 h-3.5 text-accent-green-110" />
-                <span className="text-[11px] font-semibold text-white-60 uppercase tracking-wider">
-                  AI Strategy
-                </span>
-              </div>
-              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-baseline">
-                {goalText && (
-                  <>
-                    <span className="text-[11px] text-white-40">Goal</span>
-                    <span className="text-[11px] text-white-80">{goalText}</span>
-                  </>
-                )}
-                {recommendedPlatform && (
-                  <>
-                    <span className="text-[11px] text-white-40">Platform</span>
-                    <span className="text-[11px] text-white-80 flex items-center gap-1">
-                      <Globe className="w-2.5 h-2.5" />
-                      {recommendedPlatform}
-                    </span>
-                  </>
-                )}
-                {contentApproach && (
-                  <>
-                    <span className="text-[11px] text-white-40">Approach</span>
-                    <span className="text-[11px] text-white-80">{contentApproach}</span>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Quick actions */}
-          <div className="rounded-xl bg-white-5 p-4 space-y-2.5">
-            <span className="text-[11px] font-semibold text-white-60 uppercase tracking-wider">
-              Next Steps
-            </span>
-            {!hasChannels && (
-              <Link
-                href={`${base}/settings/channels`}
-                className="flex items-center gap-2.5 group"
-              >
-                <LinkIcon className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
-                <span className="text-xs text-white-70 group-hover:text-white transition-colors">
-                  Connect your social accounts to publish and track performance
-                </span>
-                <ArrowRight className="w-3 h-3 text-white-30 ml-auto flex-shrink-0" />
-              </Link>
-            )}
-            {totalDataItems < 3 && (
-              <Link
-                href={`${base}/sources`}
-                className="flex items-center gap-2.5 group"
-              >
-                <Database className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                <span className="text-xs text-white-70 group-hover:text-white transition-colors">
-                  Add sources so Squadpitch can create smarter posts
-                </span>
-                <ArrowRight className="w-3 h-3 text-white-30 ml-auto flex-shrink-0" />
-              </Link>
-            )}
-            {hasChannels && totalDataItems >= 3 && (
-              <p className="text-xs text-white-60">
-                You&apos;re all set. Review your posts and start publishing.
-              </p>
-            )}
-          </div>
-        </div>
       </div>
+    </div>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────
+
+function SummaryStat({
+  icon,
+  value,
+  label,
+  accent,
+  isBoolean,
+}: {
+  icon: React.ReactNode;
+  value: number;
+  label: string;
+  accent: string;
+  isBoolean?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={accent}>{icon}</span>
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-white-100 leading-none">
+          {isBoolean ? (value > 0 ? 'Yes' : 'No') : value}
+        </p>
+        <p className="text-[10px] text-white-40 mt-0.5 truncate">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function StepItem({
+  step,
+  label,
+  done,
+  icon,
+}: {
+  step: number;
+  label: string;
+  done: boolean;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-px ${
+        done ? 'bg-accent-green-110/20' : 'bg-white-5'
+      }`}>
+        {done ? (
+          <CheckCircle2 className="w-3 h-3 text-accent-green-110" />
+        ) : icon ? (
+          <span className="text-white-30">{icon}</span>
+        ) : (
+          <span className="text-[10px] font-semibold text-white-30">{step}</span>
+        )}
+      </div>
+      <span className={`text-xs leading-tight ${done ? 'text-white-60' : 'text-white-40'}`}>
+        {label}
+      </span>
     </div>
   );
 }

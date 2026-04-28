@@ -40,6 +40,7 @@ export type OnboardingPhase =
 // ── Card types ───────────────────────────────────────────────────────────
 
 export type OnboardingCardType =
+  | 'quick_start_input'
   | 'industry_select'
   | 'starter_options'
   | 'source_input'
@@ -313,7 +314,8 @@ export type OnboardingAction =
   | { type: 'SET_PENDING_ENRICHMENT'; pending: PendingEnrichment }
   | { type: 'CLEAR_PENDING_ENRICHMENT' }
   | { type: 'SET_CHANNEL_CONNECT_DONE'; channels: Channel[] }
-  | { type: 'SET_CHANNEL_CONNECT_SKIPPED' };
+  | { type: 'SET_CHANNEL_CONNECT_SKIPPED' }
+  | { type: 'UPDATE_CHANNELS_SNAPSHOT'; channels: Channel[] };
 
 // ── Conversation reducer actions ─────────────────────────────────────────
 

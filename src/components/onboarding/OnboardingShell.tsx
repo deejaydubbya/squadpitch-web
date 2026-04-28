@@ -13,7 +13,7 @@ const PHASE_LABELS: Record<string, string> = {
   value_delivery: 'Create',
   profile_refinement: 'Profile',
   enrichment: 'Connect',
-  completion: 'Done',
+  completion: 'Campaign',
 };
 
 const PHASE_ORDER = ['industry_select', 'quick_start', 'analysis', 'value_delivery', 'profile_refinement', 'enrichment', 'completion'];
