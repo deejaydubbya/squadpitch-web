@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Plus, Trash2, Terminal, X, LogOut } from 'lucide-react';
+import { Plus, Trash2, Terminal, X, LogOut, Zap } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { useClients, useDeleteWorkspace } from '@/hooks/useSquadpitch';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useUsage, useCreateCheckout, useChangePlan, type PlanTier } from '@/hooks/useBilling';
 import { ClientCard } from '@/components/studio/ClientCard';
 
 export default function WorkspacesPage() {
@@ -17,7 +18,18 @@ export default function WorkspacesPage() {
   const [deletingClient, setDeletingClient] = useState<{ id: string; name: string } | null>(null);
   const [confirmText, setConfirmText] = useState('');
 
+  const { data: usageData } = useUsage();
+  const checkout = useCreateCheckout();
+  const changePlan = useChangePlan();
+
   const showDevConsole = isAdmin || isDeveloper;
+  const workspaceLimit = usageData?.limits.workspaces ?? Infinity;
+  const currentTier: PlanTier = usageData?.tier ?? 'FREE';
+  const atWorkspaceLimit = (clients?.length ?? 0) >= workspaceLimit;
+  const NEXT_TIER: Partial<Record<PlanTier, PlanTier>> = { FREE: 'PRO', STARTER: 'PRO', PRO: 'GROWTH', GROWTH: 'AGENCY' };
+  const upgradeTier = NEXT_TIER[currentTier] ?? 'PRO';
+  const hasSubscription = currentTier !== 'FREE';
+  const isUpgrading = checkout.isPending || changePlan.isPending;
   const canConfirm = deletingClient !== null && confirmText === deletingClient.name;
 
   function handleStartDelete(e: React.MouseEvent, id: string, name: string) {
@@ -93,6 +105,41 @@ export default function WorkspacesPage() {
               onDelete={(e) => handleStartDelete(e, client.id, client.name)}
             />
           ))}
+          {atWorkspaceLimit ? (
+          <div className="card p-5 border-accent-green-110/20">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-accent-green-110/10 border border-accent-green-110/20 flex items-center justify-center flex-shrink-0">
+                <Zap className="w-6 h-6 text-accent-green-110" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-white-100 font-semibold text-lg">
+                  Workspace limit reached
+                </h3>
+                <p className="text-sm text-white-40 mt-1">
+                  Your {currentTier} plan includes {workspaceLimit} workspace{workspaceLimit === 1 ? '' : 's'}. Upgrade to add more.
+                </p>
+                <button
+                  onClick={() => {
+                    if (hasSubscription) {
+                      changePlan.mutate({ tier: upgradeTier });
+                    } else {
+                      checkout.mutate({
+                        tier: upgradeTier,
+                        successUrl: window.location.href,
+                        cancelUrl: window.location.href,
+                      });
+                    }
+                  }}
+                  disabled={isUpgrading}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold hover:bg-accent-green-120 transition-colors disabled:opacity-50"
+                >
+                  {isUpgrading ? <LoadingSpinner size="sm" /> : <Zap className="w-3.5 h-3.5" />}
+                  Upgrade to {upgradeTier}
+                </button>
+              </div>
+            </div>
+          </div>
+          ) : (
           <Link
             href="/onboarding"
             className="card p-5 border-dashed hover:border-accent-green-110/50 transition-colors group text-left w-full block"
@@ -111,6 +158,7 @@ export default function WorkspacesPage() {
               </div>
             </div>
           </Link>
+          )}
         </div>
       </div>
 
