@@ -271,6 +271,7 @@ export function CampaignPresentationCard({ engine }: Props) {
   const isRE = session.industryKey === 'real_estate';
   const isGenerating = engine.isGenerating;
   const generationProgress = engine.generationProgress;
+  const generationError = engine.generationError;
 
   // Track the expected post count (capture max from generation progress)
   const expectedTotalRef = useRef(3);
@@ -384,7 +385,9 @@ export function CampaignPresentationCard({ engine }: Props) {
           </div>
           <p className="text-sm text-white-50 leading-relaxed">
             {completeFailed
-              ? 'Something went wrong during generation. You can retry or continue setting up your workspace.'
+              ? (generationError
+                ? 'You\u2019ve used all your posts for this month. Upgrade to a higher plan to generate more content.'
+                : 'Something went wrong during generation. You can retry or continue setting up your workspace.')
               : isGenerating
                 ? 'Squadpitch is creating your posts and checking readiness.'
                 : 'This campaign was created from your data and is ready to use. Review it, add visuals if needed, then approve or save.'}
@@ -604,23 +607,34 @@ export function CampaignPresentationCard({ engine }: Props) {
           <div className="px-4 py-3 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white-80">Campaign generation failed</p>
+              <p className="text-sm font-medium text-white-80">
+                {generationError ? 'Monthly limit reached' : 'Campaign generation failed'}
+              </p>
               <p className="text-xs text-white-40 mt-0.5 leading-relaxed">
-                No posts could be generated. Try again or save your workspace to continue later.
+                {generationError ?? 'No posts could be generated. Try again or save your workspace to continue later.'}
               </p>
             </div>
           </div>
-          <div className="px-4 pb-3">
-            <button
-              onClick={() => {
-                generationTriggeredRef.current = false;
-                engine.generatePreviews();
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-accent-green-110 text-black text-sm font-semibold hover:bg-accent-green-110/90 transition-colors"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Retry generation
-            </button>
+          <div className="px-4 pb-3 flex items-center gap-2">
+            {generationError ? (
+              <a
+                href={`/workspaces/${clientId}/settings/billing`}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-accent-green-110 text-black text-sm font-semibold hover:bg-accent-green-110/90 transition-colors"
+              >
+                Upgrade plan
+              </a>
+            ) : (
+              <button
+                onClick={() => {
+                  generationTriggeredRef.current = false;
+                  engine.generatePreviews();
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-accent-green-110 text-black text-sm font-semibold hover:bg-accent-green-110/90 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Retry generation
+              </button>
+            )}
           </div>
         </div>
       )}

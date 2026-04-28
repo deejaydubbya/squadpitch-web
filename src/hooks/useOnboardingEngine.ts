@@ -287,6 +287,7 @@ export function useOnboardingEngine() {
     current: number;
     total: number;
   } | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -1461,6 +1462,7 @@ export function useOnboardingEngine() {
   const generatePreviews = useCallback(async () => {
     if (busyRef.current || !session.createdClientId) return;
     busyRef.current = true;
+    setGenerationError(null);
 
     try {
       const result = session.analyzeResult;
@@ -1838,7 +1840,14 @@ export function useOnboardingEngine() {
           drafts.push(draft);
           dispatchSession({ type: 'ADD_PREVIEW_DRAFT', draft });
           setGenerationProgress({ current: drafts.length, total: plan.length });
-        } catch {
+        } catch (slotErr) {
+          const errMsg = slotErr instanceof Error ? slotErr.message : '';
+          const isUsageLimit = errMsg.includes('generation limit') || errMsg.includes('USAGE_LIMIT');
+          if (isUsageLimit) {
+            // Stop trying — all subsequent calls will also fail
+            setGenerationError('You\u2019ve reached your monthly post limit. Upgrade your plan to continue.');
+            break;
+          }
           // Skip failed individual generations
           setGenerationProgress((prev) => prev ? { ...prev, total: prev.total - 1 } : null);
         }
@@ -2485,5 +2494,6 @@ export function useOnboardingEngine() {
     isCreating: createClient.isPending,
     isGenerating: generationProgress !== null,
     generationProgress,
+    generationError,
   };
 }
