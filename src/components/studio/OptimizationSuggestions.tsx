@@ -121,8 +121,8 @@ function SuggestionsPanel({ suggestions, clientId, compact = false }: Suggestion
 
   return (
     <div className={cn(
-      'rounded-xl border border-white-10',
-      compact ? 'bg-white-5/50' : 'bg-gradient-to-br from-purple-500/5 via-transparent to-transparent border-purple-500/20',
+      'rounded-xl border',
+      compact ? 'border-white-5 bg-transparent' : 'border-purple-500/20 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent',
     )}>
       {/* Header */}
       <button

@@ -493,91 +493,62 @@ function QuickPostReviewInner({
   const [isNormalizing, setIsNormalizing] = useState(false);
   const [normalizeError, setNormalizeError] = useState<string | null>(null);
 
-  // Resolve the source URL for a synthetic ID (item_img_N or property_img_N)
-  const resolveSyntheticUrl = (id: string): string | undefined => {
-    const match = id.match(/^(item_img|property_img)_(\d+)$/);
-    if (!match) return undefined;
-    const [, type, indexStr] = match;
-    const idx = parseInt(indexStr, 10);
-    const images = type === 'item_img' ? itemImages : propertyImages;
-    const entry = images[idx];
-    if (!entry) return undefined;
-    return typeof entry === 'string' ? entry : (entry as Record<string, string> | undefined)?.url;
-  };
-
   const executeSaveWithNormalize = async (mode: 'draft' | 'approve') => {
     setNormalizeError(null);
 
-    // Split IDs into real asset IDs and synthetic IDs
-    const realIds: string[] = [];
-    const syntheticUrls: string[] = [];
-    for (const id of mediaIds) {
-      if (id.startsWith('item_img_') || id.startsWith('property_img_')) {
-        const url = resolveSyntheticUrl(id);
-        if (url) syntheticUrls.push(url);
+    // Cap to 6 images (backend limit)
+    const idsToSave = mediaIds.slice(0, 6);
+    const hasSynthetic = idsToSave.some((id) => id.startsWith('item_img_') || id.startsWith('property_img_'));
+
+    console.log('[QP SAVE] Starting', { mode, ids: idsToSave, hasSynthetic });
+
+    // Convert synthetic IDs to real MediaAsset IDs (same pipeline as campaigns)
+    let finalAssetIds: string[] = [];
+    if (idsToSave.length > 0) {
+      if (hasSynthetic) {
+        setIsNormalizing(true);
+        try {
+          const result = await normalizeMediaIdsForSave({
+            clientId,
+            ids: idsToSave,
+            propertyImages: propertyImages as Array<string | { url?: string; label?: string }>,
+            itemImages: itemImages as Array<string | { url?: string; label?: string }>,
+          });
+          finalAssetIds = result.realIds;
+          console.log('[QP SAVE] Normalized', { finalAssetIds, errors: result.errors });
+          if (finalAssetIds.length === 0 && result.errors.length > 0) {
+            setNormalizeError('Could not convert listing images. Try choosing from your media library instead.');
+            setIsNormalizing(false);
+            return;
+          }
+        } catch (err) {
+          console.error('[QP SAVE] Normalize failed:', err);
+          setNormalizeError(err instanceof Error ? err.message : 'Image conversion failed');
+          setIsNormalizing(false);
+          return;
+        }
+        setIsNormalizing(false);
       } else {
-        realIds.push(id);
+        // All IDs are already real asset IDs
+        finalAssetIds = idsToSave;
       }
     }
 
-    // For real asset IDs: use mediaAssetIds + link approach
-    // For synthetic IDs: just set mediaUrl directly (like onboarding does)
-    const realIdsToAttach = realIds.slice(0, 6);
-    const primaryRealUrl = realIdsToAttach.length > 0
-      ? assetMap.get(realIdsToAttach[0])?.url
-      : undefined;
-
-    // Primary image URL: prefer real asset URL, fall back to first synthetic URL
-    const primaryMediaUrl = primaryRealUrl || syntheticUrls[0] || undefined;
-    const hadMedia = realIdsToAttach.length > 0 || syntheticUrls.length > 0;
-
-    console.log('[QP SAVE] Starting', {
-      mode,
-      realIds: realIdsToAttach,
-      syntheticUrlCount: syntheticUrls.length,
-      primaryMediaUrl: primaryMediaUrl?.slice(0, 60),
-      hadMedia,
-    });
-
-    // Build payload: text + mediaUrl (direct URL like onboarding)
+    // Build payload with real asset IDs — backend creates DraftAsset rows + sets mediaUrl
     const payload: Parameters<typeof updateDraft.mutate>[0] = {
       body: editedBody,
       cta: editedCta || undefined,
       hashtags: parsedHashtags,
-      ...(primaryMediaUrl && { mediaUrl: primaryMediaUrl }),
-      ...(realIdsToAttach.length > 0 && { mediaAssetIds: realIdsToAttach }),
-    };
-
-    // Link real assets to draft
-    const linkRealAssets = async () => {
-      for (let i = 0; i < realIdsToAttach.length; i++) {
-        try {
-          await apiFetch(`assets/${realIdsToAttach[i]}/link`, {
-            method: 'POST',
-            body: JSON.stringify({
-              draftId: draft.id,
-              ...(i === 0 ? { role: 'primary' } : {}),
-              orderIndex: i,
-            }),
-          });
-        } catch (err) {
-          console.warn('[QP SAVE] Failed to link asset:', realIdsToAttach[i], err);
-        }
-      }
-    };
-
-    const afterPatch = async () => {
-      if (realIdsToAttach.length > 0) await linkRealAssets();
+      ...(finalAssetIds.length > 0 && { mediaAssetIds: finalAssetIds }),
     };
 
     try {
       await updateDraft.mutateAsync(payload);
-      console.log('[QP SAVE] PATCH succeeded, linking assets…');
-      await afterPatch();
+      console.log('[QP SAVE] PATCH succeeded');
 
       if (mode === 'approve') {
         await approve.mutateAsync({});
-        console.log('[QP SAVE] Approve succeeded, navigating to planner');
+        console.log('[QP SAVE] Approved, navigating to planner');
         qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
         setSaveStatus('Post approved');
         router.push(`/workspaces/${clientId}/planner`);
