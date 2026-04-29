@@ -233,12 +233,12 @@ export function WeeklyPlanCard({
         </div>
       )}
 
-      {/* Free tier upgrade nudge — Trigger B */}
-      {currentTier === 'FREE' && (
+      {/* Free/Starter tier upgrade nudge — Trigger B */}
+      {(currentTier === 'FREE' || currentTier === 'STARTER') && (
         <UpgradeTriggerBanner
           triggerSource="weekly_plan"
-          headline="Free includes 5 posts/month. Pro gives you enough to stay consistent every week."
-          subtext="Upgrade to unlock 150 posts/mo, Autopilot, and multi-platform posting."
+          headline="You need ~3 posts/week to stay consistent. Free plan includes 5/month."
+          subtext="Upgrade to Pro for 150 posts/mo, Autopilot, and multi-platform posting."
           cta="Upgrade to Pro"
           targetTier="PRO"
           clientId={clientId}

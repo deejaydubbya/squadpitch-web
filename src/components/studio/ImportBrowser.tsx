@@ -15,6 +15,7 @@ import {
   useMediaImportFile,
   type MediaImportFile,
 } from '@/hooks/useIntegrations';
+import { UpgradeModal } from '@/components/billing/UpgradeModal';
 
 export interface ImportBrowserProps {
   integrationId: string;
@@ -45,6 +46,7 @@ export function ImportBrowser({ integrationId, providerType, clientId, onClose, 
   const { data, isLoading, error: listError } = useMediaImportFiles(integrationId, queryOpts);
   const importFile = useMediaImportFile();
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const files = data?.files ?? [];
 
@@ -56,6 +58,13 @@ export function ImportBrowser({ integrationId, providerType, clientId, onClose, 
         onSuccess: (result) => {
           setImportedIds((s) => new Set(s).add(file.id));
           onImported?.(file, result);
+        },
+        onError: (error: unknown) => {
+          const msg = (error as Error)?.message ?? '';
+          const status = (error as { status?: number })?.status;
+          if (status === 402 || msg.toLowerCase().includes('limit')) {
+            setShowUpgradeModal(true);
+          }
         },
       },
     );
@@ -162,11 +171,25 @@ export function ImportBrowser({ integrationId, providerType, clientId, onClose, 
         )}
       </div>
 
-      {importFile.error && (
+      {importFile.error && !showUpgradeModal && (
         <p className="text-[10px] text-accent-red">
           {(importFile.error as Error).message}
         </p>
       )}
+
+      <UpgradeModal
+        open={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="You've reached your monthly image limit"
+        description="Upgrade to keep importing and creating image content."
+        features={[
+          'More image imports',
+          'More AI image generations',
+          'More storage for your media library',
+        ]}
+        triggerSource="cloud_import_limit"
+        clientId={clientId}
+      />
     </div>
   );
 }

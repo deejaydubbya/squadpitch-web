@@ -856,8 +856,8 @@ function SuccessStep({
       {/* Upgrade trigger — Trigger A: post-onboarding */}
       <UpgradeTriggerBanner
         triggerSource="post_onboarding"
-        headline="You created your first content set. Upgrade to keep generating every week."
-        subtext="Pro includes Autopilot, 150 posts/mo, and multi-platform posting."
+        headline="Keep your content going every week"
+        subtext="Free plan includes 5 posts per month. Upgrade to stay consistent."
         cta="Upgrade to Pro"
         targetTier="PRO"
         clientId={clientId}

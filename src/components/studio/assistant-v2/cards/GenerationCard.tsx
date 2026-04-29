@@ -31,6 +31,7 @@ import {
   useGenerateMedia,
   useGenerateVideo,
   useMediaProfile,
+  useDataItem,
   type Draft,
   type ContentVariation,
   type ScoredHook,
@@ -41,6 +42,10 @@ import { useUsage } from '@/hooks/useBilling';
 import { mapSessionToCampaignInput, mapSessionToQuickPostInput } from '@/lib/assistant/conversation/sessionToGeneration';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { AssetPreviewModal } from './AssetPreviewModal';
+import { getGenerationErrorInfo } from '@/lib/assistant/media/generationErrors';
+import { normalizeMediaIdsForSave } from '@/lib/assistant/media/normalizeMedia';
+import { resolveThumbUrl } from '@/lib/assistant/media/resolveThumb';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface Props {
   session: AssistantSessionState;
@@ -227,7 +232,7 @@ function QuickPostGeneration({ session, clientId, onSelection }: Props) {
 
   // Complete — inline review for quick post
   return (
-    <QuickPostReview result={result} clientId={clientId} selectedMediaIds={session.selectedMediaIds} onRegenerate={() => { setResult(null); handleGenerate(); }} />
+    <QuickPostReview result={result} clientId={clientId} selectedMediaIds={session.selectedMediaIds} session={session} onRegenerate={() => { setResult(null); handleGenerate(); }} />
   );
 }
 
@@ -250,27 +255,31 @@ function QuickPostReview({
   result,
   clientId,
   selectedMediaIds,
+  session,
   onRegenerate,
 }: {
   result: Draft | null;
   clientId: string;
   selectedMediaIds: string[];
+  session: AssistantSessionState;
   onRegenerate: () => void;
 }) {
   if (!result) return null;
 
-  return <QuickPostReviewInner draft={result} clientId={clientId} selectedMediaIds={selectedMediaIds} onRegenerate={onRegenerate} />;
+  return <QuickPostReviewInner draft={result} clientId={clientId} selectedMediaIds={selectedMediaIds} session={session} onRegenerate={onRegenerate} />;
 }
 
 function QuickPostReviewInner({
   draft,
   clientId,
   selectedMediaIds,
+  session,
   onRegenerate,
 }: {
   draft: Draft;
   clientId: string;
   selectedMediaIds: string[];
+  session: AssistantSessionState;
   onRegenerate: () => void;
 }) {
   const router = useRouter();
@@ -287,16 +296,46 @@ function QuickPostReviewInner({
   const atImageLimit = !!(usage && isFinite(usage.limits.images) && usage.usage.images >= usage.limits.images);
   const atVideoLimit = !!(usage && isFinite(usage.limits.videos) && usage.usage.videos >= usage.limits.videos);
 
+  // Locally-generated assets that aren't yet in the query cache
+  const [localAssets, setLocalAssets] = useState<Map<string, MediaAsset>>(new Map());
+
   const assetMap = useMemo(() => {
     const map = new Map<string, MediaAsset>();
     for (const a of assetsData ?? []) map.set(a.id, a);
+    // Merge locally-generated assets so they survive assetsData re-fetches
+    localAssets.forEach((a, id) => map.set(id, a));
     return map;
-  }, [assetsData]);
+  }, [assetsData, localAssets]);
 
-  // Filter synthetic IDs — they're context images, not attachable assets
-  const [mediaIds, setMediaIds] = useState<string[]>(
-    selectedMediaIds.filter((id) => !id.startsWith('property_img_') && !id.startsWith('item_img_'))
-  );
+  // Property images for synthetic ID resolution (campaign / property-based quick posts)
+  const propertyImages = useMemo(() => {
+    const raw = session.propertyData?.images;
+    return Array.isArray(raw) ? (raw as Array<string | { url?: string; src?: string; imageUrl?: string; label?: string }>) : [];
+  }, [session.propertyData]);
+
+  // Data item images for synthetic item_img_N resolution (data-based quick posts)
+  const { data: dataItem } = useDataItem(session.quickPostDataItemId ?? undefined);
+  const itemImages = useMemo(() => {
+    if (!dataItem) return [];
+    const dataJson = dataItem.dataJson as Record<string, unknown> | undefined;
+    const imgs = Array.isArray(dataJson?.images) ? (dataJson.images as string[]) : [];
+    return imgs;
+  }, [dataItem]);
+
+  // Debug: trace media flow
+  console.log('[QP MEDIA TRACE] mount/update', {
+    selectedMediaIds,
+    quickPostDataItemId: session.quickPostDataItemId,
+    quickPostSource: session.quickPostSource,
+    propertyImagesCount: propertyImages.length,
+    itemImagesCount: itemImages.length,
+    itemImages: itemImages.slice(0, 3),
+    dataItemLoaded: !!dataItem,
+    dataItemDataJson: dataItem ? Object.keys((dataItem.dataJson as Record<string, unknown>) || {}).join(',') : 'N/A',
+  });
+
+  // Preserve all selected IDs including synthetic ones — they'll be converted before save
+  const [mediaIds, setMediaIds] = useState<string[]>(selectedMediaIds);
 
   // Video generation presets
   const [videoPreset, setVideoPreset] = useState<string | undefined>(undefined);
@@ -310,30 +349,56 @@ function QuickPostReviewInner({
     { key: 'talking_head', label: 'Talking Head' },
   ];
 
+  // Poll a PENDING asset until it reaches READY (or FAILED), max ~60s
+  const pollAssetUntilReady = async (assetId: string): Promise<MediaAsset | null> => {
+    const MAX_POLLS = 20;
+    const POLL_INTERVAL = 3000;
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+      try {
+        const fresh = await apiFetch<MediaAsset>(`assets/${assetId}`);
+        if (fresh.status === 'READY' && fresh.url) return fresh;
+        if (fresh.status === 'FAILED') return fresh;
+      } catch {
+        // Network hiccup — keep trying
+      }
+    }
+    return null; // timed out
+  };
+
   // Generate a single AI image/video and add to the media strip
   const handleGenerateAsset = (type: 'image' | 'video') => {
     const guidance = type === 'video'
       ? draft.videoGuidance || draft.imageGuidance || draft.altText || draft.body.slice(0, 500)
       : draft.imageGuidance || draft.altText || draft.body.slice(0, 500);
+
+    const onEnqueued = async (asset: MediaAsset) => {
+      // Add immediately so user sees the pending placeholder
+      setLocalAssets((prev) => new Map(prev).set(asset.id, asset));
+      setMediaIds((prev) => [...prev, asset.id]);
+
+      // If asset is already READY (unlikely but possible), no need to poll
+      if (asset.status === 'READY' && asset.url) return;
+
+      // Poll until the worker finishes
+      const ready = await pollAssetUntilReady(asset.id);
+      if (ready && ready.status === 'READY' && ready.url) {
+        setLocalAssets((prev) => new Map(prev).set(ready.id, ready));
+        // Invalidate assets query so media library picks it up
+        qc.invalidateQueries({ queryKey: ['squadpitch', 'assets'] });
+      } else if (ready?.status === 'FAILED') {
+        // Remove the failed asset from the strip
+        setMediaIds((prev) => prev.filter((id) => id !== asset.id));
+        setLocalAssets((prev) => { const next = new Map(prev); next.delete(asset.id); return next; });
+      }
+    };
+
     if (type === 'image') {
-      generateMedia.mutate(
-        { clientId, guidance },
-        {
-          onSuccess: (asset) => {
-            assetMap.set(asset.id, asset);
-            setMediaIds((prev) => [...prev, asset.id]);
-          },
-        }
-      );
+      generateMedia.mutate({ clientId, guidance }, { onSuccess: onEnqueued });
     } else {
       generateVideoMutation.mutate(
         { clientId, guidance, preset: videoPreset, duration: videoDuration, channel: draft.channel },
-        {
-          onSuccess: (asset) => {
-            assetMap.set(asset.id, asset);
-            setMediaIds((prev) => [...prev, asset.id]);
-          },
-        }
+        { onSuccess: onEnqueued }
       );
     }
   };
@@ -424,34 +489,126 @@ function QuickPostReviewInner({
   };
 
   const isSaving = updateDraft.isPending || approve.isPending;
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [isNormalizing, setIsNormalizing] = useState(false);
+  const [normalizeError, setNormalizeError] = useState<string | null>(null);
 
-  const handleApproveAndQueue = () => {
-    updateDraft.mutate(
-      { body: editedBody, cta: editedCta || undefined, hashtags: parsedHashtags },
-      {
-        onSuccess: () => {
-          approve.mutate({
+  // Resolve the source URL for a synthetic ID (item_img_N or property_img_N)
+  const resolveSyntheticUrl = (id: string): string | undefined => {
+    const match = id.match(/^(item_img|property_img)_(\d+)$/);
+    if (!match) return undefined;
+    const [, type, indexStr] = match;
+    const idx = parseInt(indexStr, 10);
+    const images = type === 'item_img' ? itemImages : propertyImages;
+    const entry = images[idx];
+    if (!entry) return undefined;
+    return typeof entry === 'string' ? entry : (entry as Record<string, string> | undefined)?.url;
+  };
+
+  const executeSaveWithNormalize = async (mode: 'draft' | 'approve') => {
+    setNormalizeError(null);
+
+    // Split IDs into real asset IDs and synthetic IDs
+    const realIds: string[] = [];
+    const syntheticUrls: string[] = [];
+    for (const id of mediaIds) {
+      if (id.startsWith('item_img_') || id.startsWith('property_img_')) {
+        const url = resolveSyntheticUrl(id);
+        if (url) syntheticUrls.push(url);
+      } else {
+        realIds.push(id);
+      }
+    }
+
+    // For real asset IDs: use mediaAssetIds + link approach
+    // For synthetic IDs: just set mediaUrl directly (like onboarding does)
+    const realIdsToAttach = realIds.slice(0, 6);
+    const primaryRealUrl = realIdsToAttach.length > 0
+      ? assetMap.get(realIdsToAttach[0])?.url
+      : undefined;
+
+    // Primary image URL: prefer real asset URL, fall back to first synthetic URL
+    const primaryMediaUrl = primaryRealUrl || syntheticUrls[0] || undefined;
+    const hadMedia = realIdsToAttach.length > 0 || syntheticUrls.length > 0;
+
+    console.log('[QP SAVE] Starting', {
+      mode,
+      realIds: realIdsToAttach,
+      syntheticUrlCount: syntheticUrls.length,
+      primaryMediaUrl: primaryMediaUrl?.slice(0, 60),
+      hadMedia,
+    });
+
+    // Build payload: text + mediaUrl (direct URL like onboarding)
+    const payload: Parameters<typeof updateDraft.mutate>[0] = {
+      body: editedBody,
+      cta: editedCta || undefined,
+      hashtags: parsedHashtags,
+      ...(primaryMediaUrl && { mediaUrl: primaryMediaUrl }),
+      ...(realIdsToAttach.length > 0 && { mediaAssetIds: realIdsToAttach }),
+    };
+
+    // Link real assets to draft
+    const linkRealAssets = async () => {
+      for (let i = 0; i < realIdsToAttach.length; i++) {
+        try {
+          await apiFetch(`assets/${realIdsToAttach[i]}/link`, {
+            method: 'POST',
+            body: JSON.stringify({
+              draftId: draft.id,
+              ...(i === 0 ? { role: 'primary' } : {}),
+              orderIndex: i,
+            }),
+          });
+        } catch (err) {
+          console.warn('[QP SAVE] Failed to link asset:', realIdsToAttach[i], err);
+        }
+      }
+    };
+
+    const afterPatch = async () => {
+      if (realIdsToAttach.length > 0) await linkRealAssets();
+    };
+
+    if (mode === 'approve') {
+      updateDraft.mutate(payload, {
+        onSuccess: async () => {
+          console.log('[QP SAVE] PATCH succeeded, linking assets then approving…');
+          await afterPatch();
+          approve.mutate(undefined, {
             onSuccess: () => {
+              console.log('[QP SAVE] Approve succeeded, navigating to planner');
               qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
+              setSaveStatus('Post approved');
               router.push(`/workspaces/${clientId}/planner`);
+            },
+            onError: (err) => {
+              console.error('[QP SAVE] Approve failed:', err);
             },
           });
         },
-      }
-    );
-  };
-
-  const handleSaveAsDraft = () => {
-    updateDraft.mutate(
-      { body: editedBody, cta: editedCta || undefined, hashtags: parsedHashtags },
-      {
-        onSuccess: () => {
+        onError: (err) => {
+          console.error('[QP SAVE] PATCH failed:', err);
+        },
+      });
+    } else {
+      updateDraft.mutate(payload, {
+        onSuccess: async () => {
+          console.log('[QP SAVE] PATCH succeeded (draft mode), linking assets…');
+          await afterPatch();
           qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
+          setSaveStatus('Post saved as draft');
           router.push(`/workspaces/${clientId}/library`);
         },
-      }
-    );
+        onError: (err) => {
+          console.error('[QP SAVE] PATCH failed:', err);
+        },
+      });
+    }
   };
+
+  const handleApproveAndQueue = () => executeSaveWithNormalize('approve');
+  const handleSaveAsDraft = () => executeSaveWithNormalize('draft');
 
   // Sorted hooks
   const sortedHooks = useMemo(() => {
@@ -505,8 +662,8 @@ function QuickPostReviewInner({
         {mediaIds.length > 0 ? (
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {mediaIds.map((id) => {
+              const resolved = resolveThumbUrl(id, assetMap, propertyImages);
               const asset = assetMap.get(id);
-              const thumb = asset?.assetType === 'video' ? (asset.thumbnailUrl || asset.url) : (asset?.url || asset?.thumbnailUrl);
               return (
                 <div
                   key={id}
@@ -517,14 +674,20 @@ function QuickPostReviewInner({
                     onClick={() => asset && setPreviewAsset(asset)}
                     className="w-full h-full"
                   >
-                    {thumb ? (
-                      <img src={thumb} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="w-4 h-4 text-white-20" />
-                      </div>
+                    {/* Fallback — visible when image missing or fails to load */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-accent-red/60" />
+                      <span className="text-[6px] text-white-30 truncate max-w-[50px]">{id.slice(0, 12)}</span>
+                    </div>
+                    {resolved.url && (
+                      <img
+                        src={resolved.url}
+                        alt={resolved.label}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
                     )}
-                    {asset?.assetType === 'video' && (
+                    {resolved.isVideo && (
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 flex items-center justify-center py-0.5">
                         <Video className="w-2.5 h-2.5 text-white" />
                       </div>
@@ -634,9 +797,31 @@ function QuickPostReviewInner({
           {generateVideoMutation.isSuccess && (
             <span className="text-[10px] text-accent-green-110">Video added</span>
           )}
-          {(generateMedia.isError || generateVideoMutation.isError) && (
-            <span className="text-[10px] text-red-400">Generation failed</span>
-          )}
+          {(generateMedia.isError || generateVideoMutation.isError) && (() => {
+            const info = getGenerationErrorInfo(generateMedia.error ?? generateVideoMutation.error);
+            return (
+              <div className="w-full rounded-lg bg-accent-red/5 border border-accent-red/20 p-2.5 space-y-1.5">
+                <p className="text-[11px] text-accent-red font-medium">{info.title}</p>
+                <p className="text-[10px] text-white-40">{info.description}</p>
+                <div className="flex items-center gap-2 pt-0.5">
+                  {info.showRetry && (
+                    <button
+                      onClick={() => handleGenerateAsset('image')}
+                      className="text-[10px] text-white-60 hover:text-white-100 font-medium"
+                    >
+                      Retry
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowMediaPicker(true)}
+                    className="text-[10px] text-accent-green-110 hover:underline"
+                  >
+                    Choose from library
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -852,20 +1037,20 @@ function QuickPostReviewInner({
 
         <button
           onClick={handleSaveAsDraft}
-          disabled={isSaving}
+          disabled={isSaving || isNormalizing}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-white-10 text-white-80 hover:bg-white-20 transition-colors disabled:opacity-50"
         >
-          {updateDraft.isPending && !approve.isPending ? (
+          {(updateDraft.isPending && !approve.isPending) || isNormalizing ? (
             <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
             <Save className="w-3 h-3" />
           )}
-          Save as Draft
+          {isNormalizing ? 'Converting images...' : 'Save as Draft'}
         </button>
 
         <button
           onClick={handleApproveAndQueue}
-          disabled={isSaving}
+          disabled={isSaving || isNormalizing}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-sp-surface hover:bg-accent-green-110/90 transition-colors disabled:opacity-50"
         >
           {approve.isPending ? (
@@ -876,6 +1061,27 @@ function QuickPostReviewInner({
           Approve & Queue
         </button>
       </div>
+
+      {/* Save status */}
+      {saveStatus && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20">
+          <CheckCircle2 className="w-3.5 h-3.5 text-accent-green-110 flex-shrink-0" />
+          <span className="text-[11px] text-white-80">{saveStatus}</span>
+        </div>
+      )}
+
+      {/* Normalize error */}
+      {normalizeError && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-accent-red/10 border border-accent-red/20">
+          <AlertCircle className="w-3.5 h-3.5 text-accent-red flex-shrink-0" />
+          <span className="text-[11px] text-accent-red">{normalizeError}</span>
+        </div>
+      )}
+
+      {/* Error states */}
+      {updateDraft.isError && (
+        <p className="text-[11px] text-accent-red">{(updateDraft.error as Error).message}</p>
+      )}
 
       {/* Asset preview modal */}
       {previewAsset && (

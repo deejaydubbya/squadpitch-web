@@ -97,22 +97,41 @@ export function mapSessionToQuickPostInput(
 ): QuickPostGenerationInput | null {
   if (!session.quickPostChannel) return null;
 
+  // Determine if user chose to use data or not
+  const isNoData = session.quickPostSource === 'idea' || (
+    !session.quickPostDataItemId && !session.selectedPropertyId
+  );
+
   const parts: string[] = [];
   if (session.quickPostGoal) parts.push(`[Goal: ${session.quickPostGoal}]`);
   if (session.quickPostContentType) parts.push(`[Type: ${session.quickPostContentType}]`);
-  if (session.propertyData) {
+
+  // Only include property context when user intentionally selected data
+  if (!isNoData && session.propertyData) {
     const address = session.propertyData.address as string | undefined;
     if (address) parts.push(`Property: ${address}`);
   }
+
   if (session.quickPostGuidance) parts.push(session.quickPostGuidance);
   if (preferencesContext) parts.push(preferencesContext);
+
+  // When no data source, explicitly instruct AI to stay general
+  if (isNoData) {
+    parts.push('[NO_DATA_IDEA_POST] This is a no-data educational/idea post. Write a general educational real estate post. Do not mention a property, listing, address, price, square footage, bedrooms, bathrooms, neighborhood, seller, buyer, showing, testimonial, or client.');
+
+    // Myth buster content type: extra guidance
+    if (session.quickPostContentType && /myth/i.test(session.quickPostContentType)) {
+      parts.push('[MYTH_BUSTER] Debunk one common real estate myth in general terms. Do not invent or reference a property listing, address, or price.');
+    }
+  }
 
   return {
     clientId,
     kind: session.quickPostKind as DraftKind,
     channel: session.quickPostChannel as Channel,
     guidance: parts.length > 0 ? parts.join(' ') : 'Create an engaging post',
-    dataItemId: session.quickPostDataItemId ?? session.selectedPropertyId ?? undefined,
+    // Only pass dataItemId when user intentionally selected data
+    dataItemId: isNoData ? undefined : (session.quickPostDataItemId ?? session.selectedPropertyId ?? undefined),
     blueprintId: session.quickPostBlueprintId ?? undefined,
   };
 }

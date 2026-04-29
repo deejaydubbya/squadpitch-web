@@ -13,14 +13,16 @@ export default function CreatePage() {
   const initialGuidance = searchParams.get('guidance') ?? undefined;
   const initialTemplateType = searchParams.get('templateType') ?? undefined;
   const [generatedDraft, setGeneratedDraft] = useState<Draft | null>(null);
+  const [pendingAssetId, setPendingAssetId] = useState<string | undefined>();
 
   if (generatedDraft) {
     return (
       <ContentPreview
         draft={generatedDraft}
         clientId={clientId}
-        onDiscard={() => setGeneratedDraft(null)}
-        onRegenerate={() => setGeneratedDraft(null)}
+        pendingAssetId={pendingAssetId}
+        onDiscard={() => { setGeneratedDraft(null); setPendingAssetId(undefined); }}
+        onRegenerate={() => { setGeneratedDraft(null); setPendingAssetId(undefined); }}
       />
     );
   }
@@ -30,7 +32,7 @@ export default function CreatePage() {
       clientId={clientId}
       initialGuidance={initialGuidance}
       initialTemplateType={initialTemplateType}
-      onGenerated={(draft) => setGeneratedDraft(draft)}
+      onGenerated={(draft, assetId) => { setGeneratedDraft(draft); setPendingAssetId(assetId); }}
     />
   );
 }

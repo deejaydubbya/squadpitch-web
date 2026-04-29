@@ -54,6 +54,13 @@ import { useUsage } from '@/hooks/useBilling';
 import { mapSessionToCampaignInput } from '@/lib/assistant/conversation/sessionToGeneration';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { AssetPreviewModal } from './AssetPreviewModal';
+import { normalizeMediaIdsForSave, replaceSyntheticIds } from '@/lib/assistant/media/normalizeMedia';
+import { resolveThumbUrl } from '@/lib/assistant/media/resolveThumb';
+import { apiFetch } from '@/lib/apiFetch';
+import { assignImagesToPosts, type ImagePoolEntry } from '@/lib/assistant/media/mediaAssignment';
+import { getGenerationErrorInfo } from '@/lib/assistant/media/generationErrors';
+import { checkPostQuality } from '@/lib/assistant/media/postQualityChecker';
+import { validateCampaignBeforeSave, type ValidationIssue } from '@/lib/assistant/media/preSaveValidation';
 
 interface Props {
   session: AssistantSessionState;
@@ -77,11 +84,21 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   const atImageLimit = !!(usage && isFinite(usage.limits.images) && usage.usage.images >= usage.limits.images);
   const atVideoLimit = !!(usage && isFinite(usage.limits.videos) && usage.usage.videos >= usage.limits.videos);
 
+  // Locally-generated assets that aren't yet in the query cache
+  const [localAssets, setLocalAssets] = useState<Map<string, MediaAsset>>(new Map());
+
   const assetMap = useMemo(() => {
     const map = new Map<string, MediaAsset>();
     for (const a of assetsData ?? []) map.set(a.id, a);
+    localAssets.forEach((a, id) => map.set(id, a));
     return map;
-  }, [assetsData]);
+  }, [assetsData, localAssets]);
+
+  // Property images for synthetic ID resolution
+  const propertyImages = useMemo(() => {
+    const raw = session.propertyData?.images;
+    return Array.isArray(raw) ? (raw as Array<string | { url?: string; src?: string; imageUrl?: string; label?: string }>) : [];
+  }, [session.propertyData]);
 
   const result = session.generationResult as ListingCampaignResult | null;
   const posts = result?.campaign?.posts ?? [];
@@ -90,6 +107,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   const [expandedPost, setExpandedPost] = useState<number | null>(0);
   const [editedPosts, setEditedPosts] = useState<Map<number, string>>(new Map());
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
+  const [savedAssetCount, setSavedAssetCount] = useState(0);
 
   // Post ordering — tracks original indices
   const [postOrder, setPostOrder] = useState<number[]>(() => posts.map((_, i) => i));
@@ -131,21 +149,30 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   // Image assignment edits per post
   const [imageEdits, setImageEdits] = useState<Map<number, string[]>>(new Map());
 
-  // Auto-assign images to posts: two-pass (hint match → round-robin)
+  // Score-based image auto-assignment
   const [autoAssigned, setAutoAssigned] = useState(false);
+  const [assignmentReasons, setAssignmentReasons] = useState<Map<number, string>>(new Map());
 
   // Build ordered image pool: hero first → property images → library assets
   const imagePool = useMemo(() => {
-    const pool: Array<{ id: string; label: string }> = [];
+    const pool: ImagePoolEntry[] = [];
     // Hero image first
     if (session.heroImageId) {
       const heroAsset = assetMap.get(session.heroImageId);
       if (heroAsset) {
-        pool.push({ id: session.heroImageId, label: heroAsset.filename || session.heroImageId });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ha = heroAsset as any;
+        pool.push({
+          id: session.heroImageId,
+          label: heroAsset.filename || session.heroImageId,
+          tags: ha.tags,
+          altText: ha.altText,
+          isHero: true,
+        });
       }
     }
     // Property images
-    const propImages = session.propertyData?.images as Array<{ label?: string }> | undefined;
+    const propImages = session.propertyData?.images as Array<{ label?: string; url?: string }> | undefined;
     if (Array.isArray(propImages)) {
       propImages.forEach((img, i) => {
         const id = `property_img_${i}`;
@@ -159,7 +186,16 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       if (id === session.heroImageId) continue;
       if (id.startsWith('property_img_') || id.startsWith('item_img_')) continue;
       const asset = assetMap.get(id);
-      if (asset) pool.push({ id, label: asset.filename || asset.id });
+      if (asset) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const a = asset as any;
+        pool.push({
+          id,
+          label: asset.filename || asset.id,
+          tags: a.tags,
+          altText: a.altText,
+        });
+      }
     }
     return pool;
   }, [session.propertyData, session.selectedMediaIds, session.heroImageId, assetMap]);
@@ -168,33 +204,24 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     if (autoAssigned || posts.length === 0 || imagePool.length === 0) return;
     setAutoAssigned(true);
 
+    // Skip posts that already have assigned images
+    const postsInfo = posts.map((p) => ({
+      label: p.label || '',
+      imageHint: p.imageHint,
+      angle: (p as any).angle as string | undefined,
+      channel: p.channel,
+      campaignDay: p.campaignDay,
+    }));
+
+    const results = assignImagesToPosts(postsInfo, imagePool);
     const edits = new Map<number, string[]>();
-    const usedIds = new Set<string>();
+    const reasons = new Map<number, string>();
 
-    // Pass 1: Match posts that have imageHint against pool labels
-    for (let i = 0; i < posts.length; i++) {
-      const post = posts[i];
+    for (const r of results) {
+      const post = posts[r.postIndex];
       if (post.assignedImageIds && post.assignedImageIds.length > 0) continue;
-      if (!post.imageHint) continue;
-      const hint = post.imageHint.toLowerCase();
-      const match = imagePool.find((p) => !usedIds.has(p.id) && p.label.toLowerCase().includes(hint));
-      if (match) {
-        edits.set(i, [match.id]);
-        usedIds.add(match.id);
-      }
-    }
-
-    // Pass 2: Round-robin remaining pool items to unassigned posts
-    const remainingPool = imagePool.filter((p) => !usedIds.has(p.id));
-    if (remainingPool.length > 0) {
-      let poolIdx = 0;
-      for (let i = 0; i < posts.length; i++) {
-        const post = posts[i];
-        if (post.assignedImageIds && post.assignedImageIds.length > 0) continue;
-        if (edits.has(i)) continue;
-        edits.set(i, [remainingPool[poolIdx % remainingPool.length].id]);
-        poolIdx++;
-      }
+      edits.set(r.postIndex, [r.imageId]);
+      reasons.set(r.postIndex, r.reason);
     }
 
     if (edits.size > 0) {
@@ -203,6 +230,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         edits.forEach((ids, idx) => next.set(idx, ids));
         return next;
       });
+      setAssignmentReasons(reasons);
     }
   }, [posts, imagePool, autoAssigned]);
 
@@ -289,6 +317,23 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     });
   };
 
+  // Poll a PENDING asset until READY (or FAILED), max ~60s
+  const pollAssetUntilReady = useCallback(async (assetId: string): Promise<MediaAsset | null> => {
+    const MAX_POLLS = 20;
+    const POLL_INTERVAL = 3000;
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+      try {
+        const fresh = await apiFetch<MediaAsset>(`assets/${assetId}`);
+        if (fresh.status === 'READY' && fresh.url) return fresh;
+        if (fresh.status === 'FAILED') return fresh;
+      } catch {
+        // Network hiccup — keep trying
+      }
+    }
+    return null;
+  }, []);
+
   // Generate a single AI image/video and add to the campaign media pool
   const handleGenerateAsset = useCallback((type: 'image' | 'video') => {
     const campaignName = result?.campaign?.campaignName ?? '';
@@ -298,10 +343,10 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     mutation.mutate(
       { clientId, guidance },
       {
-        onSuccess: (asset) => {
-          // Add the new asset to the image pool so it can be assigned to posts
-          assetMap.set(asset.id, asset);
-          // Auto-assign to first post that has no media, or leave unassigned for manual pick
+        onSuccess: async (asset) => {
+          // Add pending asset immediately
+          setLocalAssets((prev) => new Map(prev).set(asset.id, asset));
+          // Auto-assign to first post that has no media
           setImageEdits((prev) => {
             const next = new Map(prev);
             for (let i = 0; i < posts.length; i++) {
@@ -313,26 +358,148 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
             }
             return next;
           });
+
+          // Poll until ready if the asset is still pending
+          if (asset.status !== 'READY' || !asset.url) {
+            const ready = await pollAssetUntilReady(asset.id);
+            if (ready && ready.status === 'READY' && ready.url) {
+              setLocalAssets((prev) => new Map(prev).set(ready.id, ready));
+            }
+          }
         },
       }
     );
-  }, [result, posts, generateMedia, generateVideoMutation, clientId, assetMap]);
+  }, [result, posts, generateMedia, generateVideoMutation, clientId, pollAssetUntilReady]);
 
   // Save to Planner
-  const handleSave = useCallback((addToPlanner: boolean) => {
+  const [conversionStatus, setConversionStatus] = useState<string | null>(null);
+  const [conversionError, setConversionError] = useState<string | null>(null);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[] | null>(null);
+  const [pendingSaveAction, setPendingSaveAction] = useState<boolean | null>(null);
+
+  // Campaign media debug panel state
+  const [campaignMediaDebug, setCampaignMediaDebug] = useState<{
+    propertyImageCount: number;
+    propertyUrls: string[];
+    assignedIdsBefore: Record<number, string[]>;
+    syntheticToReal: Record<string, string>;
+    assignedIdsAfter: Record<number, string[]>;
+    conversionErrors: Array<{ syntheticId: string; message: string }>;
+  } | null>(null);
+
+  const executeSave = useCallback(async (addToPlanner: boolean) => {
     if (!result || !session.propertyData) return;
 
-    // Apply all edits to posts, respecting reorder
+    setPhase('saving');
+    setConversionError(null);
+    setCampaignMediaDebug(null);
+
+    // Collect all unique synthetic IDs across all posts
+    const allPostImageIds = posts.flatMap((_, i) => getPostImageIds(i));
+    const syntheticIds = Array.from(new Set(allPostImageIds.filter(
+      (id) => id.startsWith('property_img_') || id.startsWith('item_img_')
+    )));
+
+    // Build debug info
+    const propImages = (session.propertyData?.images ?? []) as Array<string | { url?: string; src?: string; imageUrl?: string; label?: string }>;
+    const debugAssignedBefore: Record<number, string[]> = {};
+    posts.forEach((_, i) => { debugAssignedBefore[i] = getPostImageIds(i); });
+
+    // Convert synthetic IDs to real assets
+    let syntheticToReal = new Map<string, string>();
+    let conversionErrors: Array<{ syntheticId: string; message: string }> = [];
+    if (syntheticIds.length > 0) {
+      setConversionStatus(`Converting ${syntheticIds.length} property image(s)...`);
+
+      try {
+        const normResult = await normalizeMediaIdsForSave({
+          clientId,
+          ids: syntheticIds,
+          propertyImages: propImages,
+        });
+        syntheticToReal = normResult.syntheticToReal;
+        conversionErrors = normResult.errors;
+
+        // Block save if ALL conversions failed
+        if (syntheticIds.length > 0 && normResult.syntheticToReal.size === 0) {
+          setCampaignMediaDebug({
+            propertyImageCount: propImages.length,
+            propertyUrls: propImages.slice(0, 3).map((img) =>
+              typeof img === 'string' ? img.slice(0, 80) : (img?.url || img?.src || img?.imageUrl || '(none)').slice(0, 80)
+            ),
+            assignedIdsBefore: debugAssignedBefore,
+            syntheticToReal: {},
+            assignedIdsAfter: {},
+            conversionErrors: normResult.errors,
+          });
+          setConversionError('Property images could not be attached. Please import these images into your media library first or choose media library images.');
+          setConversionStatus(null);
+          setPhase('reviewing');
+          return;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setConversionError(`Image conversion failed: ${msg}`);
+        setConversionStatus(null);
+        setPhase('reviewing');
+        return;
+      }
+      setConversionStatus(null);
+    }
+
+    // Apply all edits to posts, respecting reorder, replacing synthetic IDs
     const finalPosts = postOrder.map((origIdx, displayIdx) => ({
       ...posts[origIdx],
-      campaignDay: displayIdx + 1, // Renumber days based on new order
+      campaignDay: displayIdx + 1,
       body: getPostBody(origIdx),
       hashtags: getPostHashtags(origIdx),
       cta: getPostCta(origIdx),
-      assignedImageIds: getPostImageIds(origIdx),
+      assignedImageIds: replaceSyntheticIds(getPostImageIds(origIdx), syntheticToReal),
     }));
 
-    setPhase('saving');
+    // Assert: no synthetic IDs remain in final posts
+    const remainingSynthetics = finalPosts.flatMap((p) =>
+      (p.assignedImageIds ?? []).filter((id: string) => id.startsWith('property_img_') || id.startsWith('item_img_'))
+    );
+    if (remainingSynthetics.length > 0) {
+      const debugAfter: Record<number, string[]> = {};
+      finalPosts.forEach((p, i) => { debugAfter[i] = p.assignedImageIds ?? []; });
+      setCampaignMediaDebug({
+        propertyImageCount: propImages.length,
+        propertyUrls: propImages.slice(0, 3).map((img) =>
+          typeof img === 'string' ? img.slice(0, 80) : (img?.url || img?.src || img?.imageUrl || '(none)').slice(0, 80)
+        ),
+        assignedIdsBefore: debugAssignedBefore,
+        syntheticToReal: Object.fromEntries(syntheticToReal),
+        assignedIdsAfter: debugAfter,
+        conversionErrors,
+      });
+      setConversionError(`Images were not converted into media assets. ${remainingSynthetics.length} synthetic ID(s) remain.`);
+      setPhase('reviewing');
+      return;
+    }
+
+    // Build top-level mediaAssetIds from original real IDs + converted IDs
+    const originalRealIds = session.selectedMediaIds.filter(
+      (id) => !id.startsWith('property_img_') && !id.startsWith('item_img_')
+    );
+    const convertedIds = Array.from(syntheticToReal.values());
+    const allMediaAssetIds = Array.from(new Set([...originalRealIds, ...convertedIds]));
+
+    // Populate debug panel
+    const debugAfter: Record<number, string[]> = {};
+    finalPosts.forEach((p, i) => { debugAfter[i] = p.assignedImageIds ?? []; });
+    setCampaignMediaDebug({
+      propertyImageCount: propImages.length,
+      propertyUrls: propImages.slice(0, 3).map((img) =>
+        typeof img === 'string' ? img.slice(0, 80) : (img?.url || img?.src || img?.imageUrl || '(none)').slice(0, 80)
+      ),
+      assignedIdsBefore: debugAssignedBefore,
+      syntheticToReal: Object.fromEntries(syntheticToReal),
+      assignedIdsAfter: debugAfter,
+      conversionErrors,
+    });
+
     saveMutation.mutate(
       {
         campaign: { ...result.campaign, posts: finalPosts },
@@ -340,24 +507,48 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         campaignType: (session.campaignType as CampaignType) ?? undefined,
         dataItemId: result.dataItemId,
         addToPlanner,
-        mediaAssetIds: (() => {
-          const realIds = session.selectedMediaIds.filter(
-            (id) => !id.startsWith('property_img_') && !id.startsWith('item_img_')
-          );
-          return realIds.length > 0 ? realIds : undefined;
-        })(),
+        mediaAssetIds: allMediaAssetIds.length > 0 ? allMediaAssetIds : undefined,
       },
       {
         onSuccess: (data) => {
+          const expectedImages = allMediaAssetIds.length;
+          const attached = data.attachedAssetCount ?? 0;
+          if (expectedImages > 0 && attached === 0) {
+            setConversionError(`Campaign saved, but no images were attached (expected ${expectedImages}). Please check media library.`);
+            setPhase('reviewing');
+            return;
+          }
           setPhase('saved');
           setSavedCampaignId(data.campaignId);
+          setSavedAssetCount(attached);
         },
         onError: () => {
           setPhase('reviewing');
         },
       }
     );
-  }, [result, session, posts, editedPosts, hashtagEdits, ctaEdits, imageEdits, versionMap, saveMutation, clientId]);
+  }, [result, session, posts, editedPosts, hashtagEdits, ctaEdits, imageEdits, versionMap, saveMutation, clientId, postOrder]);
+
+  const handleSave = useCallback((addToPlanner: boolean) => {
+    // Pre-save validation
+    const postsForValidation = posts.map((p, i) => ({
+      body: getPostBody(i),
+      channel: p.channel,
+      assignedImageIds: getPostImageIds(i),
+      label: p.label,
+      campaignDay: p.campaignDay,
+    }));
+    const issues = validateCampaignBeforeSave(postsForValidation);
+    const hasErrors = issues.some((i) => i.severity === 'error');
+
+    if (hasErrors || issues.length > 0) {
+      setValidationIssues(issues);
+      setPendingSaveAction(addToPlanner);
+      return;
+    }
+
+    executeSave(addToPlanner);
+  }, [posts, executeSave]);
 
   // Regenerate entire campaign
   const handleRegenerate = useCallback(() => {
@@ -393,12 +584,17 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
 
   // Saved state
   if (phase === 'saved') {
+    const totalSelectedMedia = posts.reduce((sum, _, i) => sum + getPostImageIds(i).length, 0);
+    const mediaMissing = totalSelectedMedia > 0 && savedAssetCount === 0;
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2 p-3 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20">
           <CheckCircle2 className="w-4 h-4 text-accent-green-110" />
           <div>
-            <p className="text-xs font-medium text-white-100">Campaign saved — {posts.length} posts queued</p>
+            <p className="text-xs font-medium text-white-100">
+              Campaign saved — {posts.length} posts queued
+              {savedAssetCount > 0 && ` with ${savedAssetCount} image(s) attached`}
+            </p>
             <Link
               href={`/workspaces/${clientId}/planner${savedCampaignId ? `?campaignId=${savedCampaignId}` : ''}`}
               className="text-[11px] text-accent-green-110 hover:underline"
@@ -407,6 +603,14 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
             </Link>
           </div>
         </div>
+        {mediaMissing && (
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-accent-red/10 border border-accent-red/20">
+            <AlertCircle className="w-3.5 h-3.5 text-accent-red flex-shrink-0" />
+            <span className="text-[11px] text-accent-red">
+              Images were selected but not saved. Please try again.
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -417,7 +621,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       <div className="flex items-center gap-3 py-4">
         <Loader2 className="w-5 h-5 text-accent-green-110 animate-spin" />
         <p className="text-xs text-white-60">
-          {phase === 'saving' ? 'Saving campaign...' : 'Regenerating campaign...'}
+          {conversionStatus ?? (phase === 'saving' ? 'Saving campaign...' : 'Regenerating campaign...')}
         </p>
       </div>
     );
@@ -426,6 +630,50 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   // Review state
   return (
     <div className="space-y-3">
+      {/* Pre-save validation dialog */}
+      {validationIssues && (
+        <div className="rounded-lg border border-accent-orange/30 bg-accent-orange/5 p-3 space-y-2">
+          <p className="text-xs font-medium text-accent-orange">Review before saving</p>
+          <ul className="space-y-1">
+            {validationIssues.map((issue, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className={cn(
+                  'w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1',
+                  issue.severity === 'error' ? 'bg-accent-red' : 'bg-accent-orange'
+                )} />
+                <span className={cn(
+                  'text-[11px]',
+                  issue.severity === 'error' ? 'text-accent-red' : 'text-accent-orange'
+                )}>
+                  {issue.message}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={() => {
+                setValidationIssues(null);
+                if (pendingSaveAction !== null) executeSave(pendingSaveAction);
+                setPendingSaveAction(null);
+              }}
+              className="px-3 py-1 rounded-lg text-[11px] font-medium bg-accent-orange/20 text-accent-orange hover:bg-accent-orange/30 transition-colors"
+            >
+              Save anyway
+            </button>
+            <button
+              onClick={() => {
+                setValidationIssues(null);
+                setPendingSaveAction(null);
+              }}
+              className="text-[11px] text-white-40 hover:text-white-60 transition-colors"
+            >
+              Go back and fix
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Campaign name */}
       <p className="text-[11px] text-white-40 font-medium uppercase tracking-wider">
         {result.campaign.campaignName} — {posts.length} posts
@@ -457,11 +705,30 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
                 onImageReassign={(ids) => handleImageReassign(origIdx, ids)}
                 assetMap={assetMap}
                 allAssets={assetsData ?? []}
+                propertyImages={propertyImages}
+                assignmentReason={assignmentReasons.get(origIdx)}
               />
             ))}
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Media-required channel warning */}
+      {(() => {
+        const MEDIA_REQUIRED_CHANNELS = ['INSTAGRAM', 'TIKTOK', 'YOUTUBE'];
+        const postsWithoutMedia = posts.filter((p, i) =>
+          MEDIA_REQUIRED_CHANNELS.includes(p.channel) && getPostImageIds(i).length === 0
+        );
+        if (postsWithoutMedia.length === 0) return null;
+        return (
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-accent-orange/10 border border-accent-orange/20">
+            <AlertCircle className="w-3.5 h-3.5 text-accent-orange flex-shrink-0" />
+            <span className="text-[11px] text-accent-orange">
+              {postsWithoutMedia.length} post(s) on media-required channels have no images assigned
+            </span>
+          </div>
+        );
+      })()}
 
       {/* AI Media Generation */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -509,10 +776,71 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         {generateVideoMutation.isSuccess && (
           <span className="text-[10px] text-accent-green-110">Video added to pool</span>
         )}
-        {(generateMedia.isError || generateVideoMutation.isError) && (
-          <span className="text-[10px] text-red-400">Generation failed</span>
-        )}
+        {(generateMedia.isError || generateVideoMutation.isError) && (() => {
+          const info = getGenerationErrorInfo(generateMedia.error ?? generateVideoMutation.error);
+          return (
+            <div className="w-full rounded-lg bg-accent-red/5 border border-accent-red/20 p-2 space-y-1">
+              <p className="text-[10px] text-accent-red font-medium">{info.title}</p>
+              <p className="text-[10px] text-white-40">{info.description}</p>
+              {info.showRetry && (
+                <button
+                  onClick={() => handleGenerateAsset('image')}
+                  className="text-[10px] text-white-60 hover:text-white-100"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </div>
+
+      {/* Conversion error */}
+      {conversionError && (
+        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-accent-red/10 border border-accent-red/20">
+          <AlertCircle className="w-3.5 h-3.5 text-accent-red flex-shrink-0" />
+          <span className="text-[11px] text-accent-red">{conversionError}</span>
+        </div>
+      )}
+
+      {/* Campaign media debug panel */}
+      {campaignMediaDebug && (
+        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2.5 space-y-1.5 text-[10px] font-mono text-white-60">
+          <p className="font-semibold text-yellow-500 text-[11px]">Campaign Media Debug</p>
+          <p>Property images: {campaignMediaDebug.propertyImageCount}</p>
+          {campaignMediaDebug.propertyUrls.length > 0 && (
+            <p>First URLs: {campaignMediaDebug.propertyUrls.join(' | ')}</p>
+          )}
+          <p className="font-semibold pt-1">Assigned IDs before conversion:</p>
+          {Object.entries(campaignMediaDebug.assignedIdsBefore).map(([idx, ids]) => (
+            <p key={idx}>Post {idx}: [{ids.join(', ')}]</p>
+          ))}
+          {Object.keys(campaignMediaDebug.syntheticToReal).length > 0 && (
+            <>
+              <p className="font-semibold pt-1">Synthetic → Real mapping:</p>
+              {Object.entries(campaignMediaDebug.syntheticToReal).map(([syn, real]) => (
+                <p key={syn}>{syn} → {real}</p>
+              ))}
+            </>
+          )}
+          {Object.keys(campaignMediaDebug.assignedIdsAfter).length > 0 && (
+            <>
+              <p className="font-semibold pt-1">Assigned IDs after conversion:</p>
+              {Object.entries(campaignMediaDebug.assignedIdsAfter).map(([idx, ids]) => (
+                <p key={idx}>Post {idx}: [{(ids as string[]).join(', ')}]</p>
+              ))}
+            </>
+          )}
+          {campaignMediaDebug.conversionErrors.length > 0 && (
+            <>
+              <p className="font-semibold pt-1 text-accent-red">Conversion errors:</p>
+              {campaignMediaDebug.conversionErrors.map((e, i) => (
+                <p key={i} className="text-accent-red">{e.syntheticId}: {e.message}</p>
+              ))}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap pt-1">
@@ -528,6 +856,17 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
           className="px-3 py-1.5 rounded-lg text-xs font-medium text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors"
         >
           Save as Drafts
+        </button>
+        <button
+          onClick={() => {
+            setAutoAssigned(false);
+            setImageEdits(new Map());
+            setAssignmentReasons(new Map());
+          }}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
+        >
+          <ImageIcon className="w-3 h-3" />
+          Re-assign images
         </button>
         <button
           onClick={handleRegenerate}
@@ -563,6 +902,8 @@ type PostReviewItemProps = {
   onImageReassign: (ids: string[]) => void;
   assetMap: Map<string, MediaAsset>;
   allAssets: MediaAsset[];
+  propertyImages: Array<string | { url?: string; src?: string; imageUrl?: string; label?: string }>;
+  assignmentReason?: string;
 };
 
 function SortablePostItem(props: PostReviewItemProps) {
@@ -605,6 +946,8 @@ function PostReviewItem({
   onImageReassign,
   assetMap,
   allAssets,
+  propertyImages,
+  assignmentReason,
   dragListeners,
 }: PostReviewItemProps & { dragListeners?: Record<string, unknown> }) {
   const [editing, setEditing] = useState(false);
@@ -713,8 +1056,8 @@ function PostReviewItem({
             {assignedImageIds.length > 0 ? (
               <div className="flex gap-1 overflow-x-auto">
                 {assignedImageIds.slice(0, 4).map((id) => {
+                  const resolved = resolveThumbUrl(id, assetMap, propertyImages);
                   const asset = assetMap.get(id);
-                  const thumb = asset?.assetType === 'video' ? (asset.thumbnailUrl || asset.url) : (asset?.url || asset?.thumbnailUrl);
                   return (
                     <button
                       key={id}
@@ -722,13 +1065,21 @@ function PostReviewItem({
                       onClick={() => asset && setPreviewAsset(asset)}
                       className="relative w-8 h-8 rounded border border-white-10 bg-white-5 flex-shrink-0 overflow-hidden hover:border-accent-green-110/40 transition-colors"
                     >
-                      {thumb ? (
-                        <img src={thumb} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <ImageIcon className="w-3 h-3 text-white-20 m-auto mt-2" />
+                      {/* Fallback — visible when image missing or fails */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <AlertCircle className="w-2.5 h-2.5 text-accent-red/60" />
+                        <span className="text-[5px] text-white-20 truncate max-w-[28px]">{id.slice(0, 8)}</span>
+                      </div>
+                      {resolved.url && (
+                        <img
+                          src={resolved.url}
+                          alt={resolved.label}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
                       )}
-                      {asset?.assetType === 'video' && (
-                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[7px] text-white text-center leading-tight">VID</span>
+                      {resolved.isVideo && (
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[7px] text-white text-center leading-tight z-10">VID</span>
                       )}
                     </button>
                   );
@@ -748,6 +1099,13 @@ function PostReviewItem({
             </button>
           </div>
 
+          {/* Why this image? */}
+          {assignmentReason && assignedImageIds.length > 0 && (
+            <p className="text-[10px] text-white-30 italic" title={assignmentReason}>
+              {assignmentReason}
+            </p>
+          )}
+
           {/* Mini media picker */}
           {showImagePicker && (
             <MiniMediaPicker
@@ -755,6 +1113,7 @@ function PostReviewItem({
               assignedIds={assignedImageIds}
               assetMap={assetMap}
               allAssets={allAssets}
+              propertyImages={propertyImages}
               onConfirm={(ids) => {
                 onImageReassign(ids);
                 setShowImagePicker(false);
@@ -886,6 +1245,30 @@ function PostReviewItem({
               )}
             </div>
           )}
+
+          {/* Inline quality warnings */}
+          {(() => {
+            const warnings = checkPostQuality({
+              body,
+              cta: cta || null,
+              hashtags,
+              channel: post.channel,
+              hasMedia: assignedImageIds.length > 0,
+            });
+            if (warnings.length === 0) return null;
+            return (
+              <div className="space-y-0.5 pt-1">
+                {warnings.map((w, i) => (
+                  <p key={i} className={cn(
+                    'text-[10px]',
+                    w.severity === 'error' ? 'text-accent-red' : w.severity === 'warning' ? 'text-accent-orange' : 'text-white-30'
+                  )}>
+                    {w.message}
+                  </p>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -904,6 +1287,7 @@ function MiniMediaPicker({
   assignedIds,
   assetMap,
   allAssets,
+  propertyImages,
   onConfirm,
   onCancel,
 }: {
@@ -911,6 +1295,7 @@ function MiniMediaPicker({
   assignedIds: string[];
   assetMap: Map<string, MediaAsset>;
   allAssets: MediaAsset[];
+  propertyImages: Array<string | { url?: string; src?: string; imageUrl?: string; label?: string }>;
   onConfirm: (ids: string[]) => void;
   onCancel: () => void;
 }) {
@@ -925,12 +1310,8 @@ function MiniMediaPicker({
     });
   };
 
-  // Real selected assets (non-synthetic), shown first
-  const poolIds = useMemo(() => {
-    return selectedMediaIds.filter(
-      (id) => !id.startsWith('property_img_') && !id.startsWith('item_img_')
-    );
-  }, [selectedMediaIds]);
+  // All selected IDs (real + synthetic), shown first
+  const poolIds = useMemo(() => [...selectedMediaIds], [selectedMediaIds]);
   const poolSet = useMemo(() => new Set(poolIds), [poolIds]);
 
   // Library assets not already in the selected pool
@@ -940,8 +1321,8 @@ function MiniMediaPicker({
     );
   }, [allAssets, poolSet]);
 
-  const renderThumb = (id: string, asset: MediaAsset | undefined) => {
-    const thumb = asset?.assetType === 'video' ? (asset.thumbnailUrl || asset.url) : (asset?.url || asset?.thumbnailUrl);
+  const renderThumb = (id: string) => {
+    const resolved = resolveThumbUrl(id, assetMap, propertyImages);
     return (
       <button
         key={id}
@@ -953,15 +1334,20 @@ function MiniMediaPicker({
             : 'border-white-10 hover:border-white-20'
         )}
       >
-        {thumb ? (
-          <img src={thumb} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full bg-white-5 flex items-center justify-center">
-            <ImageIcon className="w-3 h-3 text-white-20" />
-          </div>
+        {/* Fallback — visible when image missing or fails */}
+        <div className="absolute inset-0 bg-white-5 flex items-center justify-center">
+          <ImageIcon className="w-3 h-3 text-white-20" />
+        </div>
+        {resolved.url && (
+          <img
+            src={resolved.url}
+            alt={resolved.label}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
         )}
-        {asset?.assetType === 'video' && (
-          <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[7px] text-white text-center leading-tight">VID</span>
+        {resolved.isVideo && (
+          <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[7px] text-white text-center leading-tight z-10">VID</span>
         )}
         {picked.has(id) && (
           <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-accent-green-110 flex items-center justify-center rounded-bl">
@@ -978,7 +1364,7 @@ function MiniMediaPicker({
         <>
           <p className="text-[9px] text-white-40 uppercase tracking-wider">From your selection</p>
           <div className="flex gap-1 flex-wrap max-h-[80px] overflow-y-auto">
-            {poolIds.map((id) => renderThumb(id, assetMap.get(id)))}
+            {poolIds.map((id) => renderThumb(id))}
           </div>
         </>
       )}
@@ -988,7 +1374,7 @@ function MiniMediaPicker({
             {poolIds.length > 0 ? 'Media Library' : 'Select from library'}
           </p>
           <div className="flex gap-1 flex-wrap max-h-[100px] overflow-y-auto">
-            {libraryAssets.map((a) => renderThumb(a.id, a))}
+            {libraryAssets.map((a) => renderThumb(a.id))}
           </div>
         </>
       )}

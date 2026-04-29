@@ -1670,7 +1670,10 @@ export function useUpdateDraft(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (
-      body: Partial<Pick<Draft, 'body' | 'hooks' | 'hashtags' | 'cta' | 'altText' | 'channel'>>
+      body: Partial<Pick<Draft, 'body' | 'hooks' | 'hashtags' | 'cta' | 'altText' | 'channel'>> & {
+        mediaAssetIds?: string[];
+        mediaUrl?: string | null;
+      }
     ) =>
       apiFetch<Draft>(`drafts/${id}`, {
         method: 'PATCH',
@@ -2798,7 +2801,8 @@ export function useAutopilotCampaignStats(clientId: string | undefined) {
       apiFetch<AutopilotCampaignStatsResponse>(
         `workspaces/${clientId}/autopilot/campaign-stats`,
       ),
-    enabled: Boolean(clientId),
+    // Backend route not yet implemented
+    enabled: false,
   });
 }
 
@@ -2905,7 +2909,8 @@ export function useContentPreferences(clientId: string | undefined) {
       apiFetch<{ preferences: ContentPreferences }>(
         `workspaces/${clientId}/content-preferences`,
       ).then((r) => r.preferences),
-    enabled: Boolean(clientId),
+    // Backend route not yet implemented
+    enabled: false,
   });
 }
 
@@ -4506,6 +4511,7 @@ export interface SaveCampaignDraftsResult {
   drafts: Draft[];
   campaignId: string;
   campaignName: string;
+  attachedAssetCount?: number;
 }
 
 export function useSaveCampaignDrafts(clientId: string) {

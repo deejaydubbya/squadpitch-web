@@ -56,7 +56,11 @@ export type ActivationEvent =
   | 'upgrade_trigger_clicked'
   | 'autopilot_upgrade_prompt_viewed'
   | 'limit_warning_viewed'
-  | 'limit_hit_viewed';
+  | 'limit_hit_viewed'
+  | 'upgrade_prompt_shown'
+  | 'autopilot_blocked'
+  | 'feature_blocked'
+  | 'limit_upgrade_prompt';
 
 // ── Payload ─────────────────────────────────────────────────────────────
 
@@ -75,6 +79,7 @@ export interface ActivationPayload {
   daysSinceLastVisit?: number;
   postIndex?: number;
   totalPosts?: number;
+  feature?: string;
   /** Extra context — keep small */
   meta?: Record<string, unknown>;
 }

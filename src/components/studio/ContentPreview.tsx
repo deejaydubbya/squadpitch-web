@@ -35,6 +35,7 @@ import {
   useGenerateVideo,
   useRemixContent,
   useDraft,
+  useAssets,
   type Draft,
   type ContentVariation,
   type ScoredHook,
@@ -43,10 +44,14 @@ import {
   squadpitchKeys,
 } from '@/hooks/useSquadpitch';
 import { StatusBanner } from '@/components/common/StatusBanner';
+import { getGenerationErrorInfo } from '@/lib/assistant/media/generationErrors';
+import { checkPostQuality, type QualityWarning } from '@/lib/assistant/media/postQualityChecker';
 
 interface Props {
   draft: Draft;
   clientId: string;
+  /** Asset ID of an image generation kicked off before this component mounted */
+  pendingAssetId?: string;
   onDiscard: () => void;
   onRegenerate: () => void;
 }
@@ -58,7 +63,7 @@ interface VariationState {
   cta: string | null;
 }
 
-export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onRegenerate }: Props) {
+export function ContentPreview({ draft: initialDraft, clientId, pendingAssetId, onDiscard, onRegenerate }: Props) {
   const router = useRouter();
   const qc = useQueryClient();
 
@@ -73,9 +78,17 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
   const generateVideo = useGenerateVideo(clientId);
   const remix = useRemixContent(clientId);
   const [remixResults, setRemixResults] = useState<RemixDraft[] | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  // Track the generating asset ID for polling
-  const [generatingAssetId, setGeneratingAssetId] = useState<string | null>(null);
+  // Query assets linked to this draft
+  const { data: draftAssets } = useAssets(clientId, { draftId: draft.id, status: 'READY' });
+  const attachedAssetIds = useMemo(
+    () => (draftAssets ?? []).map((a: MediaAsset) => a.id),
+    [draftAssets]
+  );
+
+  // Track the generating asset ID for polling (seed from auto-generation if provided)
+  const [generatingAssetId, setGeneratingAssetId] = useState<string | null>(pendingAssetId ?? null);
 
   // Poll the asset every 3s while it's in progress
   const { data: generatingAsset } = useQuery({
@@ -139,39 +152,41 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
     .filter(Boolean);
 
   const handleApproveAndQueue = () => {
-    updateDraft.mutate(
-      {
-        body: editedBody,
-        cta: editedCta || undefined,
-        hashtags: parsedHashtags,
+    const payload: Parameters<typeof updateDraft.mutate>[0] = {
+      body: editedBody,
+      cta: editedCta || undefined,
+      hashtags: parsedHashtags,
+      ...(attachedAssetIds.length > 0 && { mediaAssetIds: attachedAssetIds }),
+    };
+    updateDraft.mutate(payload, {
+      onSuccess: () => {
+        approve.mutate({
+          onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
+            const mediaCount = attachedAssetIds.length;
+            setSaveStatus(mediaCount > 0 ? `Post approved with ${mediaCount} image(s) attached` : 'Post approved');
+            router.push(`/workspaces/${clientId}/planner`);
+          },
+        });
       },
-      {
-        onSuccess: () => {
-          approve.mutate({
-            onSuccess: () => {
-              qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
-              router.push(`/workspaces/${clientId}/planner`);
-            },
-          });
-        },
-      }
-    );
+    });
   };
 
   const handleSaveAsDraft = () => {
-    updateDraft.mutate(
-      {
-        body: editedBody,
-        cta: editedCta || undefined,
-        hashtags: parsedHashtags,
+    const payload: Parameters<typeof updateDraft.mutate>[0] = {
+      body: editedBody,
+      cta: editedCta || undefined,
+      hashtags: parsedHashtags,
+      ...(attachedAssetIds.length > 0 && { mediaAssetIds: attachedAssetIds }),
+    };
+    updateDraft.mutate(payload, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
+        const mediaCount = attachedAssetIds.length;
+        setSaveStatus(mediaCount > 0 ? `Post saved with ${mediaCount} image(s) attached` : 'Post saved as draft');
+        router.push(`/workspaces/${clientId}/library`);
       },
-      {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
-          router.push(`/workspaces/${clientId}/library`);
-        },
-      }
-    );
+    });
   };
 
   const handleDiscard = () => {
@@ -261,6 +276,17 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
 
     return { score, max: 10, reasons };
   }, [editedBody, editedCta, parsedHashtags, selectedVariation?.hooks]);
+
+  // Quality warnings
+  const qualityWarnings = useMemo<QualityWarning[]>(() => {
+    return checkPostQuality({
+      body: editedBody,
+      cta: editedCta || null,
+      hashtags: parsedHashtags,
+      channel: draft.channel,
+      hasMedia: Boolean(draft.mediaUrl),
+    });
+  }, [editedBody, editedCta, parsedHashtags, draft.channel, draft.mediaUrl]);
 
   // Determine what to show in the media section
   const mediaUrl = draft.mediaUrl;
@@ -390,6 +416,26 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
               ))}
             </ul>
           </div>
+
+          {/* Quality warnings */}
+          {qualityWarnings.length > 0 && (
+            <div className="card p-4 space-y-1.5">
+              {qualityWarnings.map((w, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className={cn(
+                    'w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1',
+                    w.severity === 'error' ? 'bg-accent-red' : w.severity === 'warning' ? 'bg-accent-orange' : 'bg-white-30'
+                  )} />
+                  <span className={cn(
+                    'text-xs',
+                    w.severity === 'error' ? 'text-accent-red' : w.severity === 'warning' ? 'text-accent-orange' : 'text-white-40'
+                  )}>
+                    {w.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Body */}
           <div className="card p-5 space-y-3">
@@ -577,14 +623,47 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
               </div>
             )}
 
-            {/* Generation failed */}
-            {generationFailed && !mediaUrl && (
-              <div className="aspect-square rounded-lg bg-accent-red/5 border border-accent-red/20 flex flex-col items-center justify-center gap-3">
-                <AlertTriangle className="w-8 h-8 text-accent-red" />
-                <p className="text-sm text-accent-red font-medium">Generation failed</p>
-                <p className="text-xs text-white-40">{generatingAsset?.errorMessage || 'Unknown error'}</p>
-              </div>
-            )}
+            {/* Generation failed — structured error display */}
+            {generationFailed && !mediaUrl && (() => {
+              const errorInfo = getGenerationErrorInfo(
+                generatingAsset?.errorMessage
+                  ? Object.assign(new Error(generatingAsset.errorMessage), {
+                      code: (generatingAsset as any).errorCode ?? '',
+                      status: 500,
+                    })
+                  : generateMedia.error ?? generateVideo.error
+              );
+              return (
+                <div className="rounded-lg bg-accent-red/5 border border-accent-red/20 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-accent-red flex-shrink-0" />
+                    <p className="text-sm text-accent-red font-medium">{errorInfo.title}</p>
+                  </div>
+                  <p className="text-xs text-white-40">{errorInfo.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {errorInfo.showRetry && (
+                      <button
+                        onClick={handleGenerateImage}
+                        className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Retry
+                      </button>
+                    )}
+                    {errorInfo.fallbackOptions.map((opt) => (
+                      <button
+                        key={opt.action}
+                        onClick={() => {
+                          if (opt.action === 'continue') setGeneratingAssetId(null);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-white-5 text-white-40 text-xs font-medium hover:bg-white-10 hover:text-white-60 transition-colors"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Media ready */}
             {!isGenerating && !generationFailed && mediaUrl && (
@@ -668,16 +747,31 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
               </button>
             </div>
 
-            {generateMedia.error && (
-              <p className="text-xs text-accent-red">
-                {(generateMedia.error as Error).message}
-              </p>
-            )}
-            {generateVideo.error && (
-              <p className="text-xs text-accent-red">
-                {(generateVideo.error as Error).message}
-              </p>
-            )}
+            {generateMedia.error && !generationFailed && (() => {
+              const info = getGenerationErrorInfo(generateMedia.error);
+              return (
+                <div className="rounded-lg bg-accent-red/5 border border-accent-red/20 p-3 space-y-2">
+                  <p className="text-xs text-accent-red font-medium">{info.title}</p>
+                  <p className="text-[11px] text-white-40">{info.description}</p>
+                  <div className="flex gap-2">
+                    {info.showRetry && (
+                      <button onClick={handleGenerateImage} className="text-[11px] text-white-60 hover:text-white-100">
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            {generateVideo.error && !generationFailed && (() => {
+              const info = getGenerationErrorInfo(generateVideo.error);
+              return (
+                <div className="rounded-lg bg-accent-red/5 border border-accent-red/20 p-3 space-y-2">
+                  <p className="text-xs text-accent-red font-medium">{info.title}</p>
+                  <p className="text-[11px] text-white-40">{info.description}</p>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Alt text */}
@@ -777,6 +871,14 @@ export function ContentPreview({ draft: initialDraft, clientId, onDiscard, onReg
           </div>
         )}
       </div>
+
+      {/* Save status */}
+      {saveStatus && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20">
+          <Check className="w-3.5 h-3.5 text-accent-green-110" />
+          <span className="text-xs text-white-80">{saveStatus}</span>
+        </div>
+      )}
 
       {/* Error banner */}
       {anyError && <StatusBanner error={anyError.message} />}

@@ -36,18 +36,27 @@ export function MediaTabContext({
     if (isDataItemMode) return [];
     if (!session.propertyData) return [];
     const data = session.propertyData;
-    const urls: string[] = Array.isArray(data.images)
-      ? (data.images as string[])
+    // data.images can be string[] or {url, label}[] — normalize both formats
+    const rawImages: Array<string | { url?: string; label?: string }> = Array.isArray(data.images)
+      ? (data.images as Array<string | { url?: string; label?: string }>)
       : typeof data.imageUrl === 'string'
         ? [data.imageUrl]
         : [];
-    return urls.map((url, i) => ({
-      id: `property_img_${i}`,
-      url,
-      thumbnailUrl: url,
-      source: 'property' as const,
-      label: i === 0 ? 'Primary' : undefined,
-    }));
+    const result: SelectableImage[] = [];
+    for (let i = 0; i < rawImages.length; i++) {
+      const entry = rawImages[i];
+      const url = typeof entry === 'string' ? entry : entry?.url;
+      const label = typeof entry === 'object' ? entry?.label : undefined;
+      if (!url) continue;
+      result.push({
+        id: `property_img_${i}`,
+        url,
+        thumbnailUrl: url,
+        source: 'property' as const,
+        label: label || (i === 0 ? 'Primary' : undefined),
+      });
+    }
+    return result;
   }, [session.propertyData, isDataItemMode]);
 
   // Build images from data item (quick post data mode)

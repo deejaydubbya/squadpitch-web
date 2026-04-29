@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Wand2, Video, Loader2, Check, AlertTriangle } from 'lucide-react';
+import { Wand2, Video, Loader2, Check, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useGenerateMedia,
@@ -14,6 +14,7 @@ import { getPreferredAspectRatio } from '@/lib/channelRegistry';
 import type { AssistantSessionState } from '@/lib/assistant/types';
 import type { SelectableImage } from './types';
 import { MediaTile } from './MediaTile';
+import { getGenerationErrorInfo } from '@/lib/assistant/media/generationErrors';
 
 const VIDEO_PRESET_OPTIONS = [
   { key: undefined as string | undefined, label: 'Auto' },
@@ -32,6 +33,7 @@ interface MediaTabGenerateProps {
   onImageUploaded: (image: SelectableImage) => void;
   channelRequiresVideo: boolean;
   activeChannel: Channel | null;
+  onSwitchToLibrary?: () => void;
 }
 
 export function MediaTabGenerate({
@@ -43,6 +45,7 @@ export function MediaTabGenerate({
   onImageUploaded,
   channelRequiresVideo,
   activeChannel,
+  onSwitchToLibrary,
 }: MediaTabGenerateProps) {
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
@@ -56,11 +59,20 @@ export function MediaTabGenerate({
   const atImageLimit = !!(usage && isFinite(usage.limits.images) && usage.usage.images >= usage.limits.images);
   const atVideoLimit = !!(usage && isFinite(usage.limits.videos) && usage.usage.videos >= usage.limits.videos);
 
-  // Derive default guidance from session context
-  const defaultGuidance =
-    session.quickPostGuidance ||
-    (session.propertyData ? `Property: ${session.propertyData.address || session.propertyData.title || ''}` : '') ||
-    '';
+  // Derive rich default guidance from session context
+  const defaultGuidance = (() => {
+    const parts: string[] = [];
+    if (session.quickPostContentType) parts.push(`Content type: ${session.quickPostContentType}`);
+    if (session.quickPostGoal) parts.push(`Goal: ${session.quickPostGoal}`);
+    if (activeChannel) parts.push(`Channel: ${activeChannel}`);
+    if (session.quickPostSource !== 'idea' && session.propertyData) {
+      const addr = session.propertyData.address || session.propertyData.title;
+      if (addr) parts.push(`Property: ${addr}`);
+    }
+    if (session.quickPostGuidance) parts.push(session.quickPostGuidance);
+    parts.push('Avoid text-heavy images');
+    return parts.join('. ');
+  })();
 
   const effectiveGuidance = guidance.trim() || defaultGuidance;
 
@@ -219,15 +231,44 @@ export function MediaTabGenerate({
         ))}
       </div>
 
-      {/* Error feedback */}
-      {(generateMedia.isError || generateVideo.isError) && (
-        <div className="flex items-center gap-1.5 text-accent-red">
-          <AlertTriangle className="w-3 h-3" />
-          <p className="text-[10px]">
-            {((generateMedia.error || generateVideo.error) as Error)?.message || 'Generation failed'}
-          </p>
-        </div>
-      )}
+      {/* Error feedback — recovery panel */}
+      {(generateMedia.isError || generateVideo.isError) && (() => {
+        const err = generateMedia.error ?? generateVideo.error;
+        const info = getGenerationErrorInfo(err);
+        return (
+          <div className="rounded-lg bg-accent-red/5 border border-accent-red/20 p-3 space-y-2">
+            <p className="text-xs text-accent-red font-medium">{info.title}</p>
+            <p className="text-[11px] text-white-40">{info.description}</p>
+            <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+              {info.showUpgrade && (
+                <a
+                  href="/settings/billing"
+                  className="text-[11px] font-medium text-accent-green-110 hover:underline"
+                >
+                  Upgrade to Pro
+                </a>
+              )}
+              {info.showRetry && (
+                <button
+                  onClick={() => handleGenerate('image')}
+                  className="text-[11px] text-white-60 hover:text-white-100 font-medium"
+                >
+                  Retry
+                </button>
+              )}
+              {onSwitchToLibrary && (
+                <button
+                  onClick={onSwitchToLibrary}
+                  className="flex items-center gap-1 text-[11px] text-accent-green-110 hover:underline"
+                >
+                  <ImageIcon className="w-3 h-3" />
+                  Choose from media library
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Generated assets grid */}
       {generatedAssets.length > 0 && (

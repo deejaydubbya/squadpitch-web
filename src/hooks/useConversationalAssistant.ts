@@ -66,6 +66,21 @@ function sessionReducerCore(
     case 'SET_HERO_IMAGE':
       return { ...state, heroImageId: action.payload };
     case 'SET_QUICK_POST_SOURCE':
+      if (action.payload === 'idea') {
+        // Clear all data context when switching to idea mode
+        return {
+          ...state,
+          quickPostSource: 'idea',
+          selectedPropertyId: null,
+          propertyData: null,
+          quickPostDataItemId: null,
+          quickPostDataItemTitle: null,
+          quickPostBlueprintId: null,
+          selectedMediaIds: [],
+          heroImageId: null,
+          mediaAcknowledged: false,
+        };
+      }
       return { ...state, quickPostSource: action.payload };
     case 'SET_QUICK_POST_CHANNEL':
       return { ...state, quickPostChannel: action.payload };

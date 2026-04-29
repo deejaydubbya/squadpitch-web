@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -30,6 +30,9 @@ import {
 import { AutopilotCampaignsSection } from '@/components/studio/AutopilotCampaignsSection';
 import { AutopilotInboxBanner } from '@/components/studio/AutopilotInboxBanner';
 import { cn } from '@/lib/utils';
+import { useSubscription, type PlanTier } from '@/hooks/useBilling';
+import { UpgradeTriggerBanner } from '@/components/billing/UpgradeTriggerBanner';
+import { trackActivationEvent } from '@/lib/activationTracking';
 
 type AutopilotTab = 'inbox' | 'settings';
 
@@ -96,12 +99,17 @@ export default function AutopilotPage() {
 
   const [activeTab, setActiveTab] = useState<AutopilotTab>('inbox');
 
+  const { data: subscription } = useSubscription();
   const { data: settings, isLoading: settingsLoading } = useAutopilotSettings(clientId);
   const { data: readiness, isLoading: readinessLoading, error: readinessError } = useAutopilotReadiness(clientId);
   const { data: activity } = useAutopilotActivity(clientId);
   const { data: status } = useAutopilotStatus(clientId);
   const { data: campaignData } = useAutopilotCampaignRecommendations(clientId);
   const updateSettings = useUpdateAutopilotSettings(clientId);
+
+  const currentTier: PlanTier = subscription?.tier ?? 'FREE';
+  const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
+  const isBelowPro = TIER_RANK[currentTier] < TIER_RANK['PRO'];
 
   const currentMode = settings?.mode ?? 'off';
   const isEnabled = settings?.enabled && currentMode !== 'off';
@@ -118,11 +126,76 @@ export default function AutopilotPage() {
     updateSettings.mutate({ [key]: value } as Partial<AutopilotSettings>);
   };
 
+  useEffect(() => {
+    if (isBelowPro) {
+      trackActivationEvent('autopilot_blocked', {
+        clientId,
+        feature: 'autopilot',
+        meta: { currentPlan: currentTier },
+      });
+    }
+  }, [isBelowPro, clientId, currentTier]);
+
   if (settingsLoading) {
     return (
       <div className="max-w-4xl space-y-6">
         <div className="h-8 w-48 bg-white-10 rounded animate-pulse" />
         <div className="h-40 bg-white-10 rounded animate-pulse" />
+      </div>
+    );
+  }
+
+  if (isBelowPro) {
+    return (
+      <div className="max-w-4xl space-y-6">
+        {/* Header — same as normal */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-yellow-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white-100">Autopilot</h1>
+              <p className="text-sm text-white-40">
+                Automated content generation and scheduling
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Upgrade block */}
+        <div className="rounded-2xl border border-white-10 bg-sp-card p-8 text-center space-y-5">
+          <div className="w-14 h-14 rounded-2xl bg-accent-green-110/10 flex items-center justify-center mx-auto">
+            <Zap className="w-7 h-7 text-accent-green-110" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold text-white-100">Autopilot is included with Pro</h2>
+            <p className="text-sm text-white-50 max-w-sm mx-auto leading-relaxed">
+              Let Squadpitch generate and schedule your content every week automatically.
+            </p>
+          </div>
+          <ul className="text-left max-w-xs mx-auto space-y-2.5">
+            {[
+              'Weekly content generation',
+              'Smart scheduling',
+              'Multi-platform posting',
+              'Draft review before publishing',
+            ].map((f) => (
+              <li key={f} className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-accent-green-110 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-white-80">{f}</span>
+              </li>
+            ))}
+          </ul>
+          <UpgradeTriggerBanner
+            triggerSource="autopilot_page"
+            headline="Upgrade to Pro to unlock Autopilot"
+            subtext="Autopilot is included with all Pro plans."
+            cta="Upgrade to Pro"
+            targetTier="PRO"
+            clientId={clientId}
+          />
+        </div>
       </div>
     );
   }

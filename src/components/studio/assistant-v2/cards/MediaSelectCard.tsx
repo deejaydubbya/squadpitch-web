@@ -376,6 +376,7 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
           onImageUploaded={handleImageUploaded}
           channelRequiresVideo={channelRequiresVideo}
           activeChannel={activeChannel}
+          onSwitchToLibrary={() => setActiveTab('library')}
         />
       )}
 

@@ -46,15 +46,17 @@ import {
 } from '@/hooks/useSquadpitch';
 import { CHANNEL_REGISTRY, getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 import { StatusBanner } from '@/components/common/StatusBanner';
-import { useUsage } from '@/hooks/useBilling';
+import { useUsage, useSubscription } from '@/hooks/useBilling';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import { UpgradeTriggerBanner } from '@/components/billing/UpgradeTriggerBanner';
+import { UpgradeModal } from '@/components/billing/UpgradeModal';
 import { ServiceAlert } from '@/components/billing/ServiceAlert';
 
 interface Props {
   clientId: string;
   initialGuidance?: string;
   initialTemplateType?: string;
-  onGenerated: (draft: Draft) => void;
+  onGenerated: (draft: Draft, pendingAssetId?: string) => void;
 }
 
 const GOALS = ['Growth', 'Engagement', 'Sales'] as const;
@@ -235,20 +237,24 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
 
           if (cap?.requiresVideo && !atVideoLimit) {
             // YouTube: auto-generate video
-            generateVideo.mutate({
-              clientId,
-              guidance: mediaGuidance,
-              draftId: draft.id,
-              channel,
-            });
+            generateVideo.mutate(
+              { clientId, guidance: mediaGuidance, draftId: draft.id, channel },
+              {
+                onSuccess: (asset) => onGenerated(draft, asset?.id),
+                onError: () => onGenerated(draft),
+              },
+            );
+            return; // onGenerated called in callbacks above
           } else if (aiImageAvailable && !atImageLimit) {
             // Auto-generate image — always for media-required channels, best-effort for others
-            generateMedia.mutate({
-              clientId,
-              guidance: mediaGuidance,
-              draftId: draft.id,
-              channel,
-            });
+            generateMedia.mutate(
+              { clientId, guidance: mediaGuidance, draftId: draft.id, channel },
+              {
+                onSuccess: (asset) => onGenerated(draft, asset?.id),
+                onError: () => onGenerated(draft),
+              },
+            );
+            return; // onGenerated called in callbacks above
           }
           onGenerated(draft);
         },
@@ -312,6 +318,12 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
 
   const atPostLimit =
     usage && isFinite(usage.limits.posts) && usage.usage.posts >= usage.limits.posts;
+  const nearPostLimit =
+    usage && isFinite(usage.limits.posts) && !atPostLimit && usage.usage.posts >= usage.limits.posts * 0.8;
+  const usagePercent =
+    usage && isFinite(usage.limits.posts) && usage.limits.posts > 0
+      ? Math.round((usage.usage.posts / usage.limits.posts) * 100)
+      : 0;
   const atImageLimit =
     usage && isFinite(usage.limits.images) && usage.usage.images >= usage.limits.images;
   const atVideoLimit =
@@ -698,12 +710,39 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
         </div>
 
         {/* Error/warning banners — above CTA */}
+        {nearPostLimit && !atPostLimit && (
+          <UpgradeTriggerBanner
+            triggerSource="limit_approach"
+            headline={`You've used ${usagePercent}% of your monthly posts. Upgrade to avoid hitting your limit.`}
+            subtext={`${usage!.usage.posts} of ${usage!.limits.posts} posts used this month.`}
+            cta="Upgrade to Pro"
+            targetTier="PRO"
+            clientId={clientId}
+          />
+        )}
         {atPostLimit && (
           <UpgradePrompt currentTier={usage!.tier} limitType="Post" />
         )}
         {atImageLimit && !atPostLimit && (
           <UpgradePrompt currentTier={usage!.tier} limitType="Image" />
         )}
+
+        {/* Blocking modal at 100% — overlays the entire page */}
+        <UpgradeModal
+          open={!!atPostLimit}
+          onClose={() => {}}
+          title="You've reached your monthly limit"
+          description="Upgrade to continue generating content. Your existing posts are safe."
+          features={[
+            'Up to 150 posts per month',
+            'Autopilot automated posting',
+            'Multi-platform publishing',
+            'AI image generation',
+          ]}
+          targetTier="PRO"
+          triggerSource="limit_hit"
+          clientId={clientId}
+        />
 
         {genError && (
           genError.type === 'limit' || genError.type === 'tier' ? (
