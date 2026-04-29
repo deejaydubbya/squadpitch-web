@@ -661,8 +661,8 @@ function QuickPostReviewInner({
         </div>
         {mediaIds.length > 0 ? (
           <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {mediaIds.map((id) => {
-              const resolved = resolveThumbUrl(id, assetMap, propertyImages);
+            {mediaIds.slice(0, 6).map((id) => {
+              const resolved = resolveThumbUrl(id, assetMap, propertyImages, itemImages);
               const asset = assetMap.get(id);
               return (
                 <div
@@ -702,6 +702,11 @@ function QuickPostReviewInner({
                 </div>
               );
             })}
+            {mediaIds.length > 6 && (
+              <div className="w-14 h-14 rounded-lg border border-white-10 bg-white-5 flex-shrink-0 flex items-center justify-center">
+                <span className="text-[10px] text-white-40 font-medium">+{mediaIds.length - 6}</span>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-[11px] text-white-30 italic">No media attached — add images or videos to your post</p>
