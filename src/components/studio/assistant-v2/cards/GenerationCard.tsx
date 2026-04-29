@@ -322,18 +322,6 @@ function QuickPostReviewInner({
     return imgs;
   }, [dataItem]);
 
-  // Debug: trace media flow
-  console.log('[QP MEDIA TRACE] mount/update', {
-    selectedMediaIds,
-    quickPostDataItemId: session.quickPostDataItemId,
-    quickPostSource: session.quickPostSource,
-    propertyImagesCount: propertyImages.length,
-    itemImagesCount: itemImages.length,
-    itemImages: itemImages.slice(0, 3),
-    dataItemLoaded: !!dataItem,
-    dataItemDataJson: dataItem ? Object.keys((dataItem.dataJson as Record<string, unknown>) || {}).join(',') : 'N/A',
-  });
-
   // Preserve all selected IDs including synthetic ones — they'll be converted before save
   const [mediaIds, setMediaIds] = useState<string[]>(selectedMediaIds);
 
@@ -500,7 +488,6 @@ function QuickPostReviewInner({
     const idsToSave = mediaIds.slice(0, 6);
     const hasSynthetic = idsToSave.some((id) => id.startsWith('item_img_') || id.startsWith('property_img_'));
 
-    console.log('[QP SAVE] Starting', { mode, ids: idsToSave, hasSynthetic });
 
     // Convert synthetic IDs to real MediaAsset IDs (same pipeline as campaigns)
     let finalAssetIds: string[] = [];
@@ -515,7 +502,6 @@ function QuickPostReviewInner({
             itemImages: itemImages as Array<string | { url?: string; label?: string }>,
           });
           finalAssetIds = result.realIds;
-          console.log('[QP SAVE] Normalized', { finalAssetIds, errors: result.errors });
           if (finalAssetIds.length === 0 && result.errors.length > 0) {
             setNormalizeError('Could not convert listing images. Try choosing from your media library instead.');
             setIsNormalizing(false);
@@ -544,11 +530,9 @@ function QuickPostReviewInner({
 
     try {
       await updateDraft.mutateAsync(payload);
-      console.log('[QP SAVE] PATCH succeeded');
 
       if (mode === 'approve') {
         await approve.mutateAsync({});
-        console.log('[QP SAVE] Approved, navigating to planner');
         qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
         setSaveStatus('Post approved');
         router.push(`/workspaces/${clientId}/planner`);
