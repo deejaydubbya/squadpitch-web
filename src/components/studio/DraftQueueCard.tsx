@@ -57,6 +57,11 @@ interface Props {
 }
 
 export function DraftQueueCard({ draft, selected, onSelect }: Props) {
+  console.log('[PLANNER CARD]', draft.id.slice(-6), {
+    mediaUrl: draft.mediaUrl?.slice(0, 50),
+    mediaAssetsCount: draft.mediaAssets?.length ?? 'undefined',
+    mediaAssets: draft.mediaAssets?.map((a) => ({ id: a.id.slice(-6), url: a.url?.slice(0, 40) })),
+  });
   const [expanded, setExpanded] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [body, setBody] = useState(draft.body);
