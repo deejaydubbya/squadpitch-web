@@ -570,40 +570,25 @@ function QuickPostReviewInner({
       if (realIdsToAttach.length > 0) await linkRealAssets();
     };
 
-    if (mode === 'approve') {
-      updateDraft.mutate(payload, {
-        onSuccess: async () => {
-          console.log('[QP SAVE] PATCH succeeded, linking assets then approving…');
-          await afterPatch();
-          approve.mutate(undefined, {
-            onSuccess: () => {
-              console.log('[QP SAVE] Approve succeeded, navigating to planner');
-              qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
-              setSaveStatus('Post approved');
-              router.push(`/workspaces/${clientId}/planner`);
-            },
-            onError: (err) => {
-              console.error('[QP SAVE] Approve failed:', err);
-            },
-          });
-        },
-        onError: (err) => {
-          console.error('[QP SAVE] PATCH failed:', err);
-        },
-      });
-    } else {
-      updateDraft.mutate(payload, {
-        onSuccess: async () => {
-          console.log('[QP SAVE] PATCH succeeded (draft mode), linking assets…');
-          await afterPatch();
-          qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
-          setSaveStatus('Post saved as draft');
-          router.push(`/workspaces/${clientId}/library`);
-        },
-        onError: (err) => {
-          console.error('[QP SAVE] PATCH failed:', err);
-        },
-      });
+    try {
+      await updateDraft.mutateAsync(payload);
+      console.log('[QP SAVE] PATCH succeeded, linking assets…');
+      await afterPatch();
+
+      if (mode === 'approve') {
+        await approve.mutateAsync({});
+        console.log('[QP SAVE] Approve succeeded, navigating to planner');
+        qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
+        setSaveStatus('Post approved');
+        router.push(`/workspaces/${clientId}/planner`);
+      } else {
+        qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
+        setSaveStatus('Post saved as draft');
+        router.push(`/workspaces/${clientId}/library`);
+      }
+    } catch (err) {
+      console.error('[QP SAVE] Failed:', err);
+      setNormalizeError(err instanceof Error ? err.message : 'Save failed');
     }
   };
 
