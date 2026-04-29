@@ -186,6 +186,15 @@ export interface Draft {
 
   mediaUrl: string | null;
   mediaType: 'image' | 'video' | null;
+  mediaAssets: {
+    id: string;
+    url: string;
+    thumbnailUrl: string | null;
+    assetType: string;
+    filename: string | null;
+    role: string | null;
+    orderIndex: number;
+  }[];
   externalPostId: string | null;
   externalPostUrl: string | null;
   publishError: string | null;

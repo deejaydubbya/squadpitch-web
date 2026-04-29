@@ -198,30 +198,40 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         {draft.mediaUrl ? (
           <div className="space-y-1.5">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setLightboxOpen(true)}
-                className="flex-shrink-0 hover:opacity-90 transition-opacity rounded-lg overflow-hidden"
-                title="Click to preview"
-              >
-                {draft.mediaType === 'video' ? (
-                  <div className="w-14 h-14 rounded-lg bg-white-10 flex items-center justify-center">
-                    <Film className="w-5 h-5 text-white-60" />
-                  </div>
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={draft.mediaUrl}
-                    alt="Attached media"
-                    className="w-14 h-14 rounded-lg object-cover"
-                  />
-                )}
-              </button>
+              <div className="flex gap-1.5 flex-shrink-0 overflow-x-auto">
+                {(draft.mediaAssets?.length > 0
+                  ? draft.mediaAssets.map((a) => ({ url: a.assetType === 'video' ? (a.thumbnailUrl || a.url) : a.url, isVideo: a.assetType === 'video', key: a.id }))
+                  : [{ url: draft.mediaUrl, isVideo: draft.mediaType === 'video', key: 'primary' }]
+                ).map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setLightboxOpen(true)}
+                    className="flex-shrink-0 hover:opacity-90 transition-opacity rounded-lg overflow-hidden"
+                    title="Click to preview"
+                  >
+                    {item.isVideo ? (
+                      <div className="w-14 h-14 rounded-lg bg-white-10 flex items-center justify-center">
+                        <Film className="w-5 h-5 text-white-60" />
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.url}
+                        alt="Attached media"
+                        className="w-14 h-14 rounded-lg object-cover"
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
               <div className="flex-1 min-w-0">
                 <button
                   onClick={() => setLightboxOpen(true)}
                   className="text-xs text-white-60 truncate block text-left hover:text-white-100 transition-colors"
                 >
-                  {draft.mediaType === 'video' ? 'Video attached' : 'Image attached'}
+                  {draft.mediaAssets?.length > 1
+                    ? `${draft.mediaAssets.length} media attached`
+                    : draft.mediaType === 'video' ? 'Video attached' : 'Image attached'}
                 </button>
                 <MediaSourceLabel draft={draft} />
               </div>
@@ -667,6 +677,10 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
           url={draft.mediaUrl}
           type={draft.mediaType ?? 'image'}
           onClose={() => setLightboxOpen(false)}
+          gallery={draft.mediaAssets?.length > 1 ? draft.mediaAssets.map((a) => ({
+            url: a.url,
+            type: (a.assetType as 'image' | 'video') ?? 'image',
+          })) : undefined}
         />
       )}
 
