@@ -120,7 +120,7 @@ export function PostMediaTabGenerate({
             ) : (
               <ImageIcon className="w-3 h-3" />
             )}
-            {isGeneratingImage ? 'Generating...' : 'Generate Image'}
+            {isGeneratingImage ? 'Generating...' : 'Generate from this idea'}
             {atImageLimit && <span className="text-accent-red text-[9px] ml-0.5">Limit</span>}
           </button>
         )}
@@ -228,7 +228,7 @@ export function PostMediaTabGenerate({
         !hasError && (
           <div className="flex flex-col items-center justify-center py-4 gap-1.5">
             <Wand2 className="w-5 h-5 text-white-20" />
-            <p className="text-xs text-white-40">Generate a new visual for this post</p>
+            <p className="text-xs text-white-40">Generate an AI visual from your concept</p>
           </div>
         )
       )}

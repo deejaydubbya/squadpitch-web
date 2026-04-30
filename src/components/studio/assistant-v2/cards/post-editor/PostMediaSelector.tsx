@@ -98,7 +98,7 @@ export function PostMediaSelector({
   };
 
   const tabs: { id: PostMediaTab; label: string; show: boolean }[] = [
-    { id: 'suggested', label: 'Suggested', show: true },
+    { id: 'suggested', label: 'Recommended', show: true },
     { id: 'library', label: 'Library', show: true },
     { id: 'generate', label: 'Generate', show: aiAvailable },
   ];

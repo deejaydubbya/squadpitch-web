@@ -455,7 +455,7 @@ function QuickPostReviewInner({
       {draft.mediaPlan && (
         <MediaPlanBanner
           mediaPlan={draft.mediaPlan}
-          onUsePrompt={() => setShowMediaPicker(true)}
+          onOpenGenerate={() => setShowMediaPicker(true)}
         />
       )}
 

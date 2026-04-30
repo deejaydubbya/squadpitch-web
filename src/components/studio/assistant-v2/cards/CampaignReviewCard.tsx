@@ -186,6 +186,8 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   // Score-based image auto-assignment
   const [autoAssigned, setAutoAssigned] = useState(false);
   const [assignmentReasons, setAssignmentReasons] = useState<Map<number, string>>(new Map());
+  // Per-post per-image match reasons (index → imageId → reason)
+  const [imageMatchReasons, setImageMatchReasons] = useState<Map<number, Map<string, string>>>(new Map());
 
   // ── AI Improve state per post ──────────────────────────────────────
   const [improvedVersions, setImprovedVersions] = useState<Map<number, PostVersion[]>>(new Map());
@@ -355,12 +357,19 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     });
     const edits = new Map<number, string[]>();
     const reasons = new Map<number, string>();
+    const perImageReasons = new Map<number, Map<string, string>>();
 
     for (const r of results) {
       const post = posts[r.postIndex];
       if (post.assignedImageIds && post.assignedImageIds.length > 0) continue;
       edits.set(r.postIndex, r.imageIds);
       reasons.set(r.postIndex, r.reasons[0] ?? 'Auto-assigned');
+      // Store per-image reasons for the RecommendedPhotos section
+      const imgReasons = new Map<string, string>();
+      for (let i = 0; i < r.imageIds.length; i++) {
+        imgReasons.set(r.imageIds[i], r.reasons[i] ?? 'Auto-assigned');
+      }
+      perImageReasons.set(r.postIndex, imgReasons);
     }
 
     if (edits.size > 0) {
@@ -370,6 +379,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         return next;
       });
       setAssignmentReasons(reasons);
+      setImageMatchReasons(perImageReasons);
     }
   }, [posts, imagePool, autoAssigned]);
 
@@ -881,6 +891,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
                 assetMap={assetMap}
                 propertyImages={propertyImages}
                 assignmentReason={assignmentReasons.get(origIdx)}
+                imageMatchReasons={imageMatchReasons.get(origIdx)}
                 clientId={clientId}
                 aiAvailable={aiImageAvailable}
                 onLocalAssetAdded={(asset) => setLocalAssets((prev) => new Map(prev).set(asset.id, asset))}
@@ -1089,6 +1100,7 @@ type PostReviewItemProps = {
   assetMap: Map<string, MediaAsset>;
   propertyImages: Array<string | { url?: string; src?: string; imageUrl?: string; label?: string }>;
   assignmentReason?: string;
+  imageMatchReasons?: Map<string, string>;
   clientId: string;
   aiAvailable: boolean;
   onLocalAssetAdded: (asset: MediaAsset) => void;
@@ -1144,6 +1156,7 @@ function PostReviewItem({
   assetMap,
   propertyImages,
   assignmentReason,
+  imageMatchReasons,
   clientId,
   aiAvailable,
   onLocalAssetAdded,
@@ -1332,7 +1345,10 @@ function PostReviewItem({
           {mediaPlan && (
             <MediaPlanBanner
               mediaPlan={mediaPlan}
-              onUsePrompt={() => setShowImagePicker(true)}
+              matchedMediaIds={assignedImageIds.length > 0 ? assignedImageIds : undefined}
+              matchExplanation={assignmentReason}
+              onAttachMedia={(ids) => onImageReassign(ids)}
+              onOpenGenerate={() => setShowImagePicker(true)}
             />
           )}
 
@@ -1349,11 +1365,38 @@ function PostReviewItem({
             emptyLabel="No media assigned"
           />
 
-          {/* Why this image? */}
-          {assignmentReason && assignedImageIds.length > 0 && (
-            <p className="text-[10px] text-white-30 italic" title={assignmentReason}>
-              {assignmentReason}
-            </p>
+          {/* Recommended photos with match reasons */}
+          {assignedImageIds.length > 0 && imageMatchReasons && imageMatchReasons.size > 0 && (
+            <div className="space-y-1">
+              <p className="text-[9px] text-white-40 uppercase tracking-wider font-medium">Recommended photos</p>
+              <div className="flex gap-1.5 overflow-x-auto">
+                {assignedImageIds.slice(0, 5).map((id) => {
+                  const reason = imageMatchReasons.get(id);
+                  return (
+                    <div key={id} className="flex flex-col items-center gap-0.5 shrink-0">
+                      <div className="w-10 h-10 rounded border border-accent-green-110/30 bg-white-5 overflow-hidden">
+                        {(() => {
+                          const asset = assetMap.get(id);
+                          const url = asset?.thumbnailUrl || asset?.url;
+                          return url ? (
+                            <img src={url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon className="w-3 h-3 text-white-20" />
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      {reason && (
+                        <span className="text-[8px] text-white-40 leading-tight max-w-[60px] text-center truncate" title={reason}>
+                          {reason}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           {/* Media picker */}
