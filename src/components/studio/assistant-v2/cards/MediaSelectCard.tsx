@@ -245,8 +245,9 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-4">
+      <div className="flex items-center justify-center gap-2 py-4">
         <div className="w-5 h-5 border-2 border-white-20 border-t-accent-green-110 rounded-full animate-spin" />
+        <span className="text-xs text-white-40">Loading media...</span>
       </div>
     );
   }
@@ -297,7 +298,7 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
               key={filter}
               onClick={() => setMediaTypeFilter(filter)}
               className={cn(
-                'px-2 py-0.5 rounded-full text-[9px] font-medium whitespace-nowrap transition-colors flex items-center gap-1',
+                'px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap transition-colors flex items-center gap-1',
                 effectiveMediaTypeFilter === filter
                   ? 'bg-white-10 text-white-80'
                   : 'text-white-30 hover:text-white-50'

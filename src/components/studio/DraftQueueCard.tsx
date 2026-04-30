@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -689,6 +689,15 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         draftId={draft.id}
         open={showMediaSwap}
         onClose={() => setShowMediaSwap(false)}
+        onApply={(ids) => {
+          updateDraft.mutate(
+            { mediaAssetIds: ids },
+            { onSuccess: () => setShowMediaSwap(false) }
+          );
+        }}
+        initialSelected={draft.mediaAssets?.map((a) => a.id) ?? []}
+        initialAssets={draft.mediaAssets ?? []}
+        applying={updateDraft.isPending}
       />
     </div>
   );

@@ -296,7 +296,7 @@ export function useConversationalAssistant(workspaceId?: string | null, industry
     const nextPrompts = resolveNextPrompts(newSession);
 
     if (nextPrompts.length === 0 || isReadyToGenerate(newSession)) {
-      const readyMsg = buildReadyMessage();
+      const readyMsg = buildReadyMessage(newSession);
       dispatchConversation({ type: 'ADD_MESSAGE', payload: readyMsg });
     } else {
       const nextMsg = buildNextPromptMessage(nextPrompts[0], newSession);

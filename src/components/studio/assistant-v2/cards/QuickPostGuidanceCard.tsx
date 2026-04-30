@@ -141,11 +141,16 @@ export function QuickPostGuidanceCard({ session, clientId, onSelection }: Props)
             handleConfirm(guidance);
           }
         }}
-        placeholder="e.g. Introduce protein timing for marathon runners, mention our coaching plan..."
+        placeholder="Describe what you want to highlight in this post..."
         rows={4}
         maxLength={4000}
         className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 resize-none placeholder:text-white-30"
       />
+
+      {/* Character counter */}
+      {guidance.length > 0 && (
+        <p className="text-[10px] text-white-30 text-right -mt-2">{guidance.length} / 4,000</p>
+      )}
 
       {/* Quick Angle Chips */}
       {!guidance.trim() && (

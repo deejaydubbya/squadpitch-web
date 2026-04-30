@@ -50,6 +50,15 @@ export function ChannelSelectCard({ session, clientId, onSelection }: Props) {
     );
   };
 
+  if (!channelSettings) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-4">
+        <div className="w-5 h-5 border-2 border-white-20 border-t-accent-green-110 rounded-full animate-spin" />
+        <span className="text-xs text-white-40">Loading channels...</span>
+      </div>
+    );
+  }
+
   if (connectedChannels.length === 0) {
     return (
       <div className="py-3 text-center">

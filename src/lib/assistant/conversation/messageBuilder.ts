@@ -67,7 +67,7 @@ export function buildSystemUpdate(content: string): ChatMessage {
 
 export function buildWelcomeMessage(session: AssistantSessionState): ChatMessage {
   return buildInteractivePrompt(
-    `What would you like to create? I can help you build a multi-post campaign or a quick single post.`,
+    `What would you like to create?`,
     'mode_select'
   );
 }
@@ -82,7 +82,7 @@ export function buildNextPromptMessage(
   switch (prompt.cardType) {
     case 'mode_select':
       return buildInteractivePrompt(
-        `What would you like to create? I can help you build a multi-post campaign or a quick single post.`,
+        `What would you like to create?`,
         'mode_select'
       );
 
@@ -112,7 +112,7 @@ export function buildNextPromptMessage(
 
     case 'media_select':
       return buildInteractivePrompt(
-        `Which images should we use for this campaign? I'll show property photos and your media library.`,
+        `Pick images or video for your content. I'll show property photos and your media library.`,
         'media_select'
       );
 
@@ -124,19 +124,21 @@ export function buildNextPromptMessage(
 
     case 'generation':
       return buildInteractivePrompt(
-        `Everything looks good! Ready to generate your campaign.`,
+        session.mode === 'quick_post'
+          ? `Everything looks good! Ready to generate your post.`
+          : `Everything looks good! Ready to generate your campaign.`,
         'generation'
       );
 
     case 'campaign_review':
       return buildInteractivePrompt(
-        `Your campaign has been generated! Review each post below, then save or launch.`,
+        `Your campaign is ready! Review each post, tweak anything, then save or queue.`,
         'campaign_review'
       );
 
     case 'quick_post_source':
       return buildInteractivePrompt(
-        'Do you want to use your data or start from an idea?',
+        'How do you want to start? You can pull from your data or describe an idea.',
         'quick_post_source'
       );
 
@@ -148,7 +150,7 @@ export function buildNextPromptMessage(
 
     case 'quick_post_guidance':
       return buildInteractivePrompt(
-        'What do you want to post about? Pick a recommendation, use a quick angle, or describe your idea.',
+        'What should this post be about? Pick a suggestion, try a quick angle, or describe your idea.',
         'quick_post_guidance'
       );
 
@@ -184,9 +186,10 @@ export function buildMultiFieldConfirmation(detectedFields: string[]): ChatMessa
   return buildConfirmation(list);
 }
 
-export function buildReadyMessage(): ChatMessage {
+export function buildReadyMessage(session?: AssistantSessionState): ChatMessage {
+  const label = session?.mode === 'quick_post' ? 'your post' : 'your campaign';
   return buildInteractivePrompt(
-    `All set! I have everything needed. Ready to generate when you are.`,
+    `All set! Ready to generate ${label}.`,
     'generation'
   );
 }

@@ -86,7 +86,7 @@ export function QuickPostDataCard({ session, clientId, onSelection }: Props) {
             placeholder={`Search ${bdLabels.itemPlural.toLowerCase()}...`}
             className="w-full px-2.5 py-1.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
           />
-          {dataItems && dataItems.length > 0 && (
+          {dataItems && dataItems.length > 0 ? (
             <div className="space-y-1 max-h-36 overflow-y-auto">
               {dataItems.map((item) => (
                 <button
@@ -107,7 +107,9 @@ export function QuickPostDataCard({ session, clientId, onSelection }: Props) {
                 </button>
               ))}
             </div>
-          )}
+          ) : dataSearch.trim() ? (
+            <p className="text-xs text-white-40 py-2 text-center">No results for &ldquo;{dataSearch.trim()}&rdquo;</p>
+          ) : null}
         </>
       )}
 

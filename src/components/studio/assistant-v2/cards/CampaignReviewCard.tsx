@@ -10,7 +10,6 @@ import {
   ChevronUp,
   RefreshCw,
   Loader2,
-  Send,
   Pencil,
   Plus,
   X,
@@ -47,6 +46,7 @@ import {
   type CampaignType,
   type ListingCampaignResult,
   type MediaAsset,
+  type MediaPlan,
 } from '@/hooks/useSquadpitch';
 import { CHANNEL_REGISTRY } from '@/lib/channelRegistry';
 import { usePreferencesContext } from '@/hooks/useContentPreferences';
@@ -55,12 +55,18 @@ import { mapSessionToCampaignInput } from '@/lib/assistant/conversation/sessionT
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { AssetPreviewModal } from './AssetPreviewModal';
 import { normalizeMediaIdsForSave, replaceSyntheticIds } from '@/lib/assistant/media/normalizeMedia';
-import { resolveThumbUrl } from '@/lib/assistant/media/resolveThumb';
 import { apiFetch } from '@/lib/apiFetch';
-import { assignImagesToPosts, type ImagePoolEntry } from '@/lib/assistant/media/mediaAssignment';
+import { assignImagesToPosts, type ImagePoolEntry, type AssignmentOptions } from '@/lib/assistant/media/mediaAssignment';
 import { getGenerationErrorInfo } from '@/lib/assistant/media/generationErrors';
 import { checkPostQuality } from '@/lib/assistant/media/postQualityChecker';
 import { validateCampaignBeforeSave, type ValidationIssue } from '@/lib/assistant/media/preSaveValidation';
+import { PostMediaStrip, PostMediaSelector, MediaPlanBanner, DataAwarenessBadge, VersionPicker, PostScoreMeter, ImproveMenu } from './post-editor';
+import type { ImproveState } from './post-editor/usePostEditorState';
+import { classifyCampaignDataAwareness } from '@/lib/assistant/dataAwareness';
+import type { DataAwareness, PostVersion } from '@/lib/assistant/normalizedPost.types';
+import { computePostStrength, selectBestVersion } from '@/lib/assistant/normalizedPost.scoring';
+import { useGenerateContent } from '@/hooks/useSquadpitch';
+import { buildImproveGuidance, buildMediaGuidance, type TextImproveActionId, type MediaImproveActionId, type PromptContext } from '@/lib/assistant/improveActions';
 
 interface Props {
   session: AssistantSessionState;
@@ -102,6 +108,11 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
 
   const result = session.generationResult as ListingCampaignResult | null;
   const posts = result?.campaign?.posts ?? [];
+
+  const campaignDataAwareness = useMemo(
+    () => classifyCampaignDataAwareness(result?.dataItemId ?? null, session.propertyData ?? null),
+    [result?.dataItemId, session.propertyData],
+  );
 
   const [phase, setPhase] = useState<ReviewPhase>('reviewing');
   const [expandedPost, setExpandedPost] = useState<number | null>(0);
@@ -149,9 +160,132 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   // Image assignment edits per post
   const [imageEdits, setImageEdits] = useState<Map<number, string[]>>(new Map());
 
+  // Auto-select best version per post on initial load
+  const [versionAutoSelected, setVersionAutoSelected] = useState(false);
+  useEffect(() => {
+    if (versionAutoSelected || posts.length === 0) return;
+    setVersionAutoSelected(true);
+    const bestMap = new Map<number, 'A' | 'B'>();
+    for (let i = 0; i < posts.length; i++) {
+      const post = posts[i];
+      if (!post.bodyAlt) continue; // only 1 version, default 'A' is fine
+      // Quick score comparison to pick best
+      const scoreA = computePostStrength({
+        body: post.body, cta: post.cta, hashtags: post.hashtags,
+        hooks: [], scoredHooks: null, channel: post.channel,
+      });
+      const scoreB = computePostStrength({
+        body: post.bodyAlt, cta: post.cta, hashtags: post.hashtags,
+        hooks: [], scoredHooks: null, channel: post.channel,
+      });
+      if (scoreB.value > scoreA.value) bestMap.set(i, 'B');
+    }
+    if (bestMap.size > 0) setVersionMap(bestMap);
+  }, [posts, versionAutoSelected]);
+
   // Score-based image auto-assignment
   const [autoAssigned, setAutoAssigned] = useState(false);
   const [assignmentReasons, setAssignmentReasons] = useState<Map<number, string>>(new Map());
+
+  // ── AI Improve state per post ──────────────────────────────────────
+  const [improvedVersions, setImprovedVersions] = useState<Map<number, PostVersion[]>>(new Map());
+  const [improveStates, setImproveStates] = useState<Map<number, ImproveState>>(new Map());
+  const generateContentMutation = useGenerateContent();
+
+  const handleTextImprove = useCallback((postIndex: number, actionId: TextImproveActionId) => {
+    const post = posts[postIndex];
+    if (!post) return;
+
+    // Set loading state for this post
+    setImproveStates((prev) => {
+      const next = new Map(prev);
+      next.set(postIndex, { status: 'loading', error: null, lastActionId: actionId });
+      return next;
+    });
+
+    const body = editedPosts.get(postIndex)
+      ?? (versionMap.get(postIndex) === 'B' && post.bodyAlt ? post.bodyAlt : post.body);
+    const postHashtags = hashtagEdits.get(postIndex) ?? post.hashtags ?? [];
+    const postCta = ctaEdits.get(postIndex) ?? post.cta ?? '';
+
+    const ctx: PromptContext = {
+      body,
+      cta: postCta || null,
+      hashtags: postHashtags,
+      channel: post.channel,
+      propertyAddress: session.propertyData?.address as string | undefined,
+    };
+    const guidance = buildImproveGuidance(actionId, ctx);
+
+    generateContentMutation.mutate(
+      { clientId, kind: 'POST', channel: post.channel, guidance },
+      {
+        onSuccess: (draft) => {
+          const score = computePostStrength({
+            body: draft.body,
+            cta: draft.cta,
+            hashtags: draft.hashtags,
+            hooks: draft.hooks ?? [],
+            scoredHooks: draft.scoredHooks ?? null,
+            channel: post.channel,
+          });
+
+          const version: PostVersion = {
+            id: `ai_improved_${postIndex}_${Date.now()}`,
+            label: 'AI Improved',
+            body: draft.body,
+            hooks: draft.hooks ?? [],
+            hashtags: draft.hashtags ?? [],
+            cta: draft.cta ?? null,
+            score,
+          };
+
+          // Store improved version
+          setImprovedVersions((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(postIndex) ?? [];
+            next.set(postIndex, [...existing, version].slice(-2)); // keep last 2
+            return next;
+          });
+
+          // Apply the improved body/hashtags/cta as edits
+          setEditedPosts((prev) => new Map(prev).set(postIndex, draft.body));
+          if (draft.hashtags?.length > 0) {
+            setHashtagEdits((prev) => new Map(prev).set(postIndex, draft.hashtags));
+          }
+          if (draft.cta) {
+            setCtaEdits((prev) => new Map(prev).set(postIndex, draft.cta!));
+          }
+
+          // Clear improve state
+          setImproveStates((prev) => {
+            const next = new Map(prev);
+            next.set(postIndex, { status: 'idle', error: null, lastActionId: null });
+            return next;
+          });
+        },
+        onError: (err) => {
+          setImproveStates((prev) => {
+            const next = new Map(prev);
+            next.set(postIndex, {
+              status: 'error',
+              error: err instanceof Error ? err.message : 'AI improvement failed',
+              lastActionId: actionId,
+            });
+            return next;
+          });
+        },
+      },
+    );
+  }, [posts, editedPosts, versionMap, hashtagEdits, ctaEdits, session.propertyData, clientId, generateContentMutation]);
+
+  const handleDismissImproveError = useCallback((postIndex: number) => {
+    setImproveStates((prev) => {
+      const next = new Map(prev);
+      next.set(postIndex, { status: 'idle', error: null, lastActionId: null });
+      return next;
+    });
+  }, []);
 
   // Build ordered image pool: hero first → property images → library assets
   const imagePool = useMemo(() => {
@@ -211,17 +345,22 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       angle: (p as any).angle as string | undefined,
       channel: p.channel,
       campaignDay: p.campaignDay,
+      body: p.body,
     }));
 
-    const results = assignImagesToPosts(postsInfo, imagePool);
+    const results = assignImagesToPosts(postsInfo, imagePool, {
+      imagesPerPost: 2,
+      maxImagesPerPost: 5,
+      secondaryThreshold: 10,
+    });
     const edits = new Map<number, string[]>();
     const reasons = new Map<number, string>();
 
     for (const r of results) {
       const post = posts[r.postIndex];
       if (post.assignedImageIds && post.assignedImageIds.length > 0) continue;
-      edits.set(r.postIndex, [r.imageId]);
-      reasons.set(r.postIndex, r.reason);
+      edits.set(r.postIndex, r.imageIds);
+      reasons.set(r.postIndex, r.reasons[0] ?? 'Auto-assigned');
     }
 
     if (edits.size > 0) {
@@ -370,6 +509,39 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       }
     );
   }, [result, posts, generateMedia, generateVideoMutation, clientId, pollAssetUntilReady]);
+
+  // Generate media for a specific post via Improve menu
+  const handleMediaImprove = useCallback((postIndex: number, actionId: MediaImproveActionId) => {
+    const post = posts[postIndex];
+    if (!post) return;
+    const body = editedPosts.get(postIndex)
+      ?? (versionMap.get(postIndex) === 'B' && post.bodyAlt ? post.bodyAlt : post.body);
+    const guidance = buildMediaGuidance(body, post.channel);
+    const type = actionId === 'generate_matching_image' ? 'image' : 'video';
+    const mutation = type === 'image' ? generateMedia : generateVideoMutation;
+
+    mutation.mutate(
+      { clientId, guidance },
+      {
+        onSuccess: async (asset) => {
+          setLocalAssets((prev) => new Map(prev).set(asset.id, asset));
+          setImageEdits((prev) => {
+            const next = new Map(prev);
+            const currentIds = next.get(postIndex) ?? posts[postIndex]?.assignedImageIds ?? [];
+            next.set(postIndex, [...currentIds, asset.id]);
+            return next;
+          });
+
+          if (asset.status !== 'READY' || !asset.url) {
+            const ready = await pollAssetUntilReady(asset.id);
+            if (ready && ready.status === 'READY' && ready.url) {
+              setLocalAssets((prev) => new Map(prev).set(ready.id, ready));
+            }
+          }
+        },
+      },
+    );
+  }, [posts, editedPosts, versionMap, generateMedia, generateVideoMutation, clientId, pollAssetUntilReady]);
 
   // Save to Planner
   const [conversionStatus, setConversionStatus] = useState<string | null>(null);
@@ -578,7 +750,10 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
 
   if (!result || posts.length === 0) {
     return (
-      <p className="text-xs text-white-40">No campaign data available.</p>
+      <div className="flex items-center gap-2 py-3">
+        <AlertCircle className="w-4 h-4 text-white-30" />
+        <p className="text-xs text-white-40">No campaign data available.</p>
+      </div>
     );
   }
 
@@ -676,7 +851,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
 
       {/* Campaign name */}
       <p className="text-[11px] text-white-40 font-medium uppercase tracking-wider">
-        {result.campaign.campaignName} — {posts.length} posts
+        {result.campaign.campaignName} — {posts.length} connected posts
       </p>
 
       {/* Post list — drag to reorder */}
@@ -704,9 +879,20 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
                 selectedMediaIds={session.selectedMediaIds}
                 onImageReassign={(ids) => handleImageReassign(origIdx, ids)}
                 assetMap={assetMap}
-                allAssets={assetsData ?? []}
                 propertyImages={propertyImages}
                 assignmentReason={assignmentReasons.get(origIdx)}
+                clientId={clientId}
+                aiAvailable={aiImageAvailable}
+                onLocalAssetAdded={(asset) => setLocalAssets((prev) => new Map(prev).set(asset.id, asset))}
+                mediaPlan={posts[origIdx].mediaPlan}
+                dataAwareness={campaignDataAwareness}
+                improveState={improveStates.get(origIdx) ?? { status: 'idle', error: null, lastActionId: null }}
+                onTextImprove={(actionId) => handleTextImprove(origIdx, actionId)}
+                onMediaImprove={(actionId) => handleMediaImprove(origIdx, actionId)}
+                onDismissImproveError={() => handleDismissImproveError(origIdx)}
+                improvedVersions={improvedVersions.get(origIdx) ?? []}
+                atImageLimit={atImageLimit}
+                atVideoLimit={atVideoLimit}
               />
             ))}
           </div>
@@ -784,7 +970,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
               <p className="text-[10px] text-white-40">{info.description}</p>
               {info.showRetry && (
                 <button
-                  onClick={() => handleGenerateAsset('image')}
+                  onClick={() => handleGenerateAsset(generateVideoMutation.isError ? 'video' : 'image')}
                   className="text-[10px] text-white-60 hover:text-white-100"
                 >
                   Retry
@@ -804,7 +990,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       )}
 
       {/* Campaign media debug panel */}
-      {campaignMediaDebug && (
+      {process.env.NODE_ENV === 'development' && campaignMediaDebug && (
         <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2.5 space-y-1.5 text-[10px] font-mono text-white-60">
           <p className="font-semibold text-yellow-500 text-[11px]">Campaign Media Debug</p>
           <p>Property images: {campaignMediaDebug.propertyImageCount}</p>
@@ -848,8 +1034,8 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
           onClick={() => handleSave(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90 transition-colors"
         >
-          <Send className="w-3 h-3" />
-          Save & Queue
+          <Check className="w-3 h-3" />
+          Approve & Queue
         </button>
         <button
           onClick={() => handleSave(false)}
@@ -866,7 +1052,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
         >
           <ImageIcon className="w-3 h-3" />
-          Re-assign images
+          Redistribute media
         </button>
         <button
           onClick={handleRegenerate}
@@ -901,9 +1087,20 @@ type PostReviewItemProps = {
   selectedMediaIds: string[];
   onImageReassign: (ids: string[]) => void;
   assetMap: Map<string, MediaAsset>;
-  allAssets: MediaAsset[];
   propertyImages: Array<string | { url?: string; src?: string; imageUrl?: string; label?: string }>;
   assignmentReason?: string;
+  clientId: string;
+  aiAvailable: boolean;
+  onLocalAssetAdded: (asset: MediaAsset) => void;
+  mediaPlan?: MediaPlan;
+  dataAwareness?: DataAwareness | null;
+  improveState?: ImproveState;
+  onTextImprove?: (actionId: TextImproveActionId) => void;
+  onMediaImprove?: (actionId: MediaImproveActionId) => void;
+  onDismissImproveError?: () => void;
+  improvedVersions?: PostVersion[];
+  atImageLimit?: boolean;
+  atVideoLimit?: boolean;
 };
 
 function SortablePostItem(props: PostReviewItemProps) {
@@ -945,9 +1142,20 @@ function PostReviewItem({
   selectedMediaIds,
   onImageReassign,
   assetMap,
-  allAssets,
   propertyImages,
   assignmentReason,
+  clientId,
+  aiAvailable,
+  onLocalAssetAdded,
+  mediaPlan,
+  dataAwareness,
+  improveState,
+  onTextImprove,
+  onMediaImprove,
+  onDismissImproveError,
+  improvedVersions,
+  atImageLimit,
+  atVideoLimit,
   dragListeners,
 }: PostReviewItemProps & { dragListeners?: Record<string, unknown> }) {
   const [editing, setEditing] = useState(false);
@@ -962,6 +1170,53 @@ function PostReviewItem({
 
   const body = editedBody ?? (selectedVersion === 'B' && post.bodyAlt ? post.bodyAlt : post.body);
   const hasAltVersion = !!post.bodyAlt;
+
+  // Build per-version scoring for VersionPicker
+  const versions = useMemo(() => {
+    const syntheticHooks = post.hookScore != null
+      ? [{ text: '', hookScore: Math.round(post.hookScore * 10), reason: '' }]
+      : null;
+    const mediaRefs = (assignedImageIds ?? []).map((id) => ({
+      id,
+      source: 'auto_assigned' as const,
+    }));
+
+    const vA: PostVersion = {
+      id: 'A', label: 'Version A', body: post.body,
+      hooks: [], hashtags: post.hashtags, cta: post.cta,
+      score: computePostStrength({
+        body: post.body, cta: post.cta, hashtags: post.hashtags,
+        hooks: [], scoredHooks: syntheticHooks,
+        channel: post.channel, mediaRefs,
+      }),
+    };
+    const result: PostVersion[] = [vA];
+
+    if (post.bodyAlt) {
+      const vB: PostVersion = {
+        id: 'B', label: 'Version B', body: post.bodyAlt,
+        hooks: [], hashtags: post.hashtags, cta: post.cta,
+        score: computePostStrength({
+          body: post.bodyAlt, cta: post.cta, hashtags: post.hashtags,
+          hooks: [], scoredHooks: syntheticHooks,
+          channel: post.channel, mediaRefs,
+        }),
+      };
+      result.push(vB);
+    }
+    // Append AI-improved versions (cap at 4 total)
+    if (improvedVersions && improvedVersions.length > 0) {
+      for (const iv of improvedVersions) {
+        if (result.length >= 4) break;
+        result.push(iv);
+      }
+    }
+    return result;
+  }, [post.body, post.bodyAlt, post.cta, post.hashtags, post.hookScore, post.channel, assignedImageIds, improvedVersions]);
+
+  const bestVersionId = useMemo(() => selectBestVersion(versions), [versions]);
+  const currentSelectedId = selectedVersion;
+  const currentScore = versions.find((v) => v.id === currentSelectedId)?.score ?? null;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(body);
@@ -1009,32 +1264,22 @@ function PostReviewItem({
           {post.label}
         </span>
 
-        {/* A/B toggle in header */}
-        {hasAltVersion && (
-          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => onVersionToggle('A')}
-              className={cn(
-                'px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors',
-                selectedVersion === 'A'
-                  ? 'bg-accent-green-110/20 text-accent-green-110'
-                  : 'text-white-30 hover:text-white-60'
-              )}
-            >
-              A
-            </button>
-            <button
-              onClick={() => onVersionToggle('B')}
-              className={cn(
-                'px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors',
-                selectedVersion === 'B'
-                  ? 'bg-accent-green-110/20 text-accent-green-110'
-                  : 'text-white-30 hover:text-white-60'
-              )}
-            >
-              B
-            </button>
-          </div>
+        {/* Data awareness badge — compact */}
+        {dataAwareness && (
+          <DataAwarenessBadge awareness={dataAwareness} className="shrink-0" />
+        )}
+
+        {/* Version score badge in header */}
+        {currentScore && (
+          <span className={cn(
+            'text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded',
+            currentScore.value >= 8 ? 'text-accent-green-110 bg-accent-green-110/10' :
+            currentScore.value >= 6 ? 'text-accent-green-110/70 bg-accent-green-110/5' :
+            currentScore.value >= 3 ? 'text-accent-orange bg-accent-orange/10' :
+            'text-accent-red bg-accent-red/10'
+          )}>
+            {currentScore.value}/{currentScore.max}
+          </span>
         )}
 
         {editedBody !== undefined && (
@@ -1051,53 +1296,58 @@ function PostReviewItem({
       {/* Expanded content */}
       {isExpanded && (
         <div className="px-3 pb-3 space-y-2">
+          {/* Version picker (replaces old A/B toggle) */}
+          {(hasAltVersion || (improvedVersions && improvedVersions.length > 0)) && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <VersionPicker
+                versions={versions}
+                selectedId={currentSelectedId}
+                bestVersionId={bestVersionId}
+                onSelect={(id) => {
+                  if (id === 'A' || id === 'B') {
+                    onVersionToggle(id);
+                  } else {
+                    // AI-improved version — apply its body as an edit
+                    const v = versions.find((ver) => ver.id === id);
+                    if (v) {
+                      onEditBody(v.body);
+                    }
+                  }
+                }}
+              />
+            </div>
+          )}
+
+          {/* Post score */}
+          {currentScore && (
+            <PostScoreMeter score={currentScore} />
+          )}
+
+          {/* Data awareness — expanded detail */}
+          {dataAwareness && (
+            <DataAwarenessBadge awareness={dataAwareness} showDetail={true} />
+          )}
+
+          {/* Media plan banner */}
+          {mediaPlan && (
+            <MediaPlanBanner
+              mediaPlan={mediaPlan}
+              onUsePrompt={() => setShowImagePicker(true)}
+            />
+          )}
+
           {/* Assigned media */}
-          <div className="flex items-center gap-1.5">
-            {assignedImageIds.length > 0 ? (
-              <div className="flex gap-1 overflow-x-auto">
-                {assignedImageIds.slice(0, 4).map((id) => {
-                  const resolved = resolveThumbUrl(id, assetMap, propertyImages);
-                  const asset = assetMap.get(id);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => asset && setPreviewAsset(asset)}
-                      className="relative w-8 h-8 rounded border border-white-10 bg-white-5 flex-shrink-0 overflow-hidden hover:border-accent-green-110/40 transition-colors"
-                    >
-                      {/* Fallback — visible when image missing or fails */}
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <AlertCircle className="w-2.5 h-2.5 text-accent-red/60" />
-                        <span className="text-[5px] text-white-20 truncate max-w-[28px]">{id.slice(0, 8)}</span>
-                      </div>
-                      {resolved.url && (
-                        <img
-                          src={resolved.url}
-                          alt={resolved.label}
-                          className="absolute inset-0 w-full h-full object-cover"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      )}
-                      {resolved.isVideo && (
-                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[7px] text-white text-center leading-tight z-10">VID</span>
-                      )}
-                    </button>
-                  );
-                })}
-                {assignedImageIds.length > 4 && (
-                  <span className="text-[9px] text-white-40 self-center">+{assignedImageIds.length - 4}</span>
-                )}
-              </div>
-            ) : (
-              <span className="text-[10px] text-white-30 italic">No media assigned</span>
-            )}
-            <button
-              onClick={() => setShowImagePicker(!showImagePicker)}
-              className="text-[10px] text-accent-green-110 hover:underline shrink-0"
-            >
-              {assignedImageIds.length > 0 ? 'Change' : 'Add media'}
-            </button>
-          </div>
+          <PostMediaStrip
+            mediaIds={assignedImageIds}
+            assetMap={assetMap}
+            propertyImages={propertyImages}
+            maxVisible={4}
+            thumbSize="sm"
+            onRemove={(id) => onImageReassign(assignedImageIds.filter((mid) => mid !== id))}
+            onPreview={(asset) => setPreviewAsset(asset)}
+            onTogglePicker={() => setShowImagePicker(!showImagePicker)}
+            emptyLabel="No media assigned"
+          />
 
           {/* Why this image? */}
           {assignmentReason && assignedImageIds.length > 0 && (
@@ -1106,19 +1356,29 @@ function PostReviewItem({
             </p>
           )}
 
-          {/* Mini media picker */}
+          {/* Media picker */}
           {showImagePicker && (
-            <MiniMediaPicker
-              selectedMediaIds={selectedMediaIds}
-              assignedIds={assignedImageIds}
-              assetMap={assetMap}
-              allAssets={allAssets}
-              propertyImages={propertyImages}
-              onConfirm={(ids) => {
+            <PostMediaSelector
+              clientId={clientId}
+              mediaIds={assignedImageIds}
+              onMediaChange={(ids) => {
                 onImageReassign(ids);
                 setShowImagePicker(false);
               }}
-              onCancel={() => setShowImagePicker(false)}
+              assetMap={assetMap}
+              propertyImages={propertyImages}
+              suggestedIds={selectedMediaIds.map((id) => ({
+                id,
+                reason: assignedImageIds.includes(id) && assignmentReason
+                  ? `Matches: ${assignmentReason}`
+                  : 'From campaign selection',
+              }))}
+              sessionSelectedMediaIds={selectedMediaIds}
+              aiAvailable={aiAvailable}
+              defaultGuidance={mediaPlan?.prompt || post.body.slice(0, 300)}
+              mediaPlan={mediaPlan}
+              onLocalAssetAdded={onLocalAssetAdded}
+              onClose={() => setShowImagePicker(false)}
             />
           )}
 
@@ -1161,6 +1421,17 @@ function PostReviewItem({
                 {copied ? <Check className="w-3 h-3 text-accent-green-110" /> : <Copy className="w-3 h-3" />}
                 {copied ? 'Copied' : 'Copy'}
               </button>
+              {improveState && onTextImprove && onDismissImproveError && (
+                <ImproveMenu
+                  improveState={improveState}
+                  onTextAction={onTextImprove}
+                  onMediaAction={onMediaImprove}
+                  onDismissError={onDismissImproveError}
+                  hasUserEdits={editedBody !== undefined}
+                  atImageLimit={atImageLimit}
+                  atVideoLimit={atVideoLimit}
+                />
+              )}
             </div>
           )}
 
@@ -1276,125 +1547,6 @@ function PostReviewItem({
       {previewAsset && (
         <AssetPreviewModal asset={previewAsset} onClose={() => setPreviewAsset(null)} />
       )}
-    </div>
-  );
-}
-
-// ── Mini Media Picker ──────────────────────────────────────────────────
-
-function MiniMediaPicker({
-  selectedMediaIds,
-  assignedIds,
-  assetMap,
-  allAssets,
-  propertyImages,
-  onConfirm,
-  onCancel,
-}: {
-  selectedMediaIds: string[];
-  assignedIds: string[];
-  assetMap: Map<string, MediaAsset>;
-  allAssets: MediaAsset[];
-  propertyImages: Array<string | { url?: string; src?: string; imageUrl?: string; label?: string }>;
-  onConfirm: (ids: string[]) => void;
-  onCancel: () => void;
-}) {
-  const [picked, setPicked] = useState<Set<string>>(new Set(assignedIds));
-
-  const toggle = (id: string) => {
-    setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  // All selected IDs (real + synthetic), shown first
-  const poolIds = useMemo(() => [...selectedMediaIds], [selectedMediaIds]);
-  const poolSet = useMemo(() => new Set(poolIds), [poolIds]);
-
-  // Library assets not already in the selected pool
-  const libraryAssets = useMemo(() => {
-    return (allAssets ?? []).filter(
-      (a) => a.status === 'READY' && !poolSet.has(a.id) && (a.url || a.thumbnailUrl)
-    );
-  }, [allAssets, poolSet]);
-
-  const renderThumb = (id: string) => {
-    const resolved = resolveThumbUrl(id, assetMap, propertyImages);
-    return (
-      <button
-        key={id}
-        onClick={() => toggle(id)}
-        className={cn(
-          'relative w-10 h-10 rounded border flex-shrink-0 overflow-hidden transition-colors',
-          picked.has(id)
-            ? 'border-accent-green-110 ring-1 ring-accent-green-110/40'
-            : 'border-white-10 hover:border-white-20'
-        )}
-      >
-        {/* Fallback — visible when image missing or fails */}
-        <div className="absolute inset-0 bg-white-5 flex items-center justify-center">
-          <ImageIcon className="w-3 h-3 text-white-20" />
-        </div>
-        {resolved.url && (
-          <img
-            src={resolved.url}
-            alt={resolved.label}
-            className="absolute inset-0 w-full h-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-          />
-        )}
-        {resolved.isVideo && (
-          <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[7px] text-white text-center leading-tight z-10">VID</span>
-        )}
-        {picked.has(id) && (
-          <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-accent-green-110 flex items-center justify-center rounded-bl">
-            <Check className="w-2 h-2 text-sp-surface" />
-          </div>
-        )}
-      </button>
-    );
-  };
-
-  return (
-    <div className="border border-white-10 rounded-lg p-2 space-y-1.5">
-      {poolIds.length > 0 && (
-        <>
-          <p className="text-[9px] text-white-40 uppercase tracking-wider">From your selection</p>
-          <div className="flex gap-1 flex-wrap max-h-[80px] overflow-y-auto">
-            {poolIds.map((id) => renderThumb(id))}
-          </div>
-        </>
-      )}
-      {libraryAssets.length > 0 && (
-        <>
-          <p className="text-[9px] text-white-40 uppercase tracking-wider">
-            {poolIds.length > 0 ? 'Media Library' : 'Select from library'}
-          </p>
-          <div className="flex gap-1 flex-wrap max-h-[100px] overflow-y-auto">
-            {libraryAssets.map((a) => renderThumb(a.id))}
-          </div>
-        </>
-      )}
-      {poolIds.length === 0 && libraryAssets.length === 0 && (
-        <p className="text-[10px] text-white-30 italic py-1">No media available</p>
-      )}
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={() => onConfirm(Array.from(picked))}
-          className="text-[10px] text-accent-green-110 hover:underline"
-        >
-          Apply ({picked.size})
-        </button>
-        <button
-          onClick={onCancel}
-          className="text-[10px] text-white-40 hover:text-white-60"
-        >
-          Cancel
-        </button>
-      </div>
     </div>
   );
 }

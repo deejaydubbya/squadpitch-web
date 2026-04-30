@@ -30,10 +30,16 @@ export function ConversationalShell({ clientId }: Props) {
       <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full min-h-0">
         {/* Header — fixed */}
         <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white-10">
-          <h1 className="text-base font-semibold text-white-100">Create Content</h1>
+          <h1 className="text-base font-semibold text-white-100">
+            {session.mode === 'campaign' ? 'Campaign' : session.mode === 'quick_post' ? 'Quick Post' : 'Create Content'}
+          </h1>
           {session.mode && (
             <button
-              onClick={reset}
+              onClick={() => {
+                if (window.confirm('Start over? This will clear your current progress.')) {
+                  reset();
+                }
+              }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
@@ -56,7 +62,9 @@ export function ConversationalShell({ clientId }: Props) {
             onSend={sendMessage}
             placeholder={
               ready
-                ? 'Ready to generate! Type "generate" or adjust settings...'
+                ? session.mode === 'quick_post'
+                  ? 'Ready to generate your post. Type anything to adjust.'
+                  : 'Ready to generate your campaign. Type anything to adjust.'
                 : 'Type your instructions or use the options above...'
             }
           />

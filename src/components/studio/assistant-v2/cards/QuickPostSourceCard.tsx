@@ -21,7 +21,7 @@ export function QuickPostSourceCard({ onSelection }: Props) {
       >
         <Database className="w-5 h-5 text-accent-green-110" />
         <span className="text-xs font-medium text-white-100">Use my data</span>
-        <span className="text-[11px] text-white-40">Pick a data item</span>
+        <span className="text-[11px] text-white-40">Pull facts from your library</span>
       </button>
 
       <button
@@ -35,7 +35,7 @@ export function QuickPostSourceCard({ onSelection }: Props) {
       >
         <Lightbulb className="w-5 h-5 text-accent-green-110" />
         <span className="text-xs font-medium text-white-100">Start from an idea</span>
-        <span className="text-[11px] text-white-40">Describe your topic</span>
+        <span className="text-[11px] text-white-40">Describe what you want to post</span>
       </button>
     </div>
   );

@@ -44,7 +44,7 @@ export function SummaryPanel({ items, ready, onRevise }: Props) {
       <h2 className="text-xs font-semibold text-white-60 mb-3">Summary</h2>
 
       {items.length === 0 && (
-        <p className="text-[11px] text-white-20 italic">Choose a mode to get started.</p>
+        <p className="text-[11px] text-white-20 italic">Pick Campaign or Quick Post to get started.</p>
       )}
 
       {/* Confirmed section */}

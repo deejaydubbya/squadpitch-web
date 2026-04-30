@@ -19,7 +19,10 @@ export function ChatInput({ onSend, placeholder = 'Type a message...', disabled 
     if (!text || disabled) return;
     onSend(text);
     setValue('');
-    inputRef.current?.focus();
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.focus();
+    }
   }, [value, disabled, onSend]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -34,7 +37,12 @@ export function ChatInput({ onSend, placeholder = 'Type a message...', disabled 
       <textarea
         ref={inputRef}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value);
+          const el = e.target;
+          el.style.height = 'auto';
+          el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+        }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
@@ -57,8 +65,9 @@ export function ChatInput({ onSend, placeholder = 'Type a message...', disabled 
             ? 'bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90'
             : 'bg-white-10 text-white-30 cursor-not-allowed'
         )}
+        aria-label="Send message"
       >
-        <SendHorizonal className="w-4 h-4" />
+        <SendHorizonal className="w-4 h-4" aria-hidden="true" />
       </button>
     </div>
   );

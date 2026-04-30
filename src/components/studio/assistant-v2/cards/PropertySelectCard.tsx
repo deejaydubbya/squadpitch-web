@@ -19,8 +19,9 @@ export function PropertySelectCard({ session, clientId, onSelection }: Props) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-4">
+      <div className="flex items-center justify-center gap-2 py-4">
         <div className="w-5 h-5 border-2 border-white-20 border-t-accent-green-110 rounded-full animate-spin" />
+        <span className="text-xs text-white-40">Loading listings...</span>
       </div>
     );
   }

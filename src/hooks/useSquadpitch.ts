@@ -140,6 +140,19 @@ export interface ScoredHook {
   reason: string;
 }
 
+export type MediaPlanSource = 'property_images' | 'brand_library' | 'ai_generated' | 'stock_like' | 'none';
+
+export interface MediaPlan {
+  recommendedMediaType: 'image' | 'video' | 'carousel' | 'none';
+  visualConcept: string;
+  prompt: string;
+  negativePrompt: string;
+  style: string;
+  reason: string;
+  fallbackStrategy: string;
+  preferredSources: MediaPlanSource[];
+}
+
 export interface Draft {
   id: string;
   clientId: string;
@@ -159,6 +172,7 @@ export interface Draft {
   altText: string | null;
   imageGuidance: string | null;
   videoGuidance: string | null;
+  mediaPlan: MediaPlan | null;
   warnings: string[];
   sourceMeta?: {
     source?: string;
@@ -4317,6 +4331,7 @@ export interface CampaignPost {
   cta: string;
   subject: string;
   imageHint?: string;
+  mediaPlan?: MediaPlan;
   hookScore?: number;
   assignedImageIds?: string[];
 }

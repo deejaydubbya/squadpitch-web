@@ -1,16 +1,14 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
+import type { AssistantAction } from '@/lib/assistant/types';
 import { CONTENT_TYPES } from './quickPostConstants';
 
 interface Props {
-  session: AssistantSessionState;
-  clientId: string;
   onSelection: (action: AssistantAction, confirmationText: string) => void;
 }
 
-export function QuickPostContentTypeCard({ session, clientId, onSelection }: Props) {
+export function QuickPostContentTypeCard({ onSelection }: Props) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {CONTENT_TYPES.map((ct) => {

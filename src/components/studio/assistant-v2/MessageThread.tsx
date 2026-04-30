@@ -175,9 +175,9 @@ function CardRenderer({
     case 'quick_post_guidance':
       return <QuickPostGuidanceCard session={session} clientId={clientId} onSelection={onSelection} />;
     case 'quick_post_content_type':
-      return <QuickPostContentTypeCard session={session} clientId={clientId} onSelection={onSelection} />;
+      return <QuickPostContentTypeCard onSelection={onSelection} />;
     case 'quick_post_goal':
-      return <QuickPostGoalCard session={session} clientId={clientId} onSelection={onSelection} />;
+      return <QuickPostGoalCard onSelection={onSelection} />;
     default:
       return null;
   }

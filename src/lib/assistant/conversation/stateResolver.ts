@@ -36,7 +36,7 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
     cardType: 'mode_select',
     priority: 0,
     label: 'Mode',
-    displayValue: (s) => s.mode === 'campaign' ? 'Listing Campaign' : s.mode === 'quick_post' ? 'Quick Post' : null,
+    displayValue: (s) => s.mode === 'campaign' ? 'Campaign' : s.mode === 'quick_post' ? 'Quick Post' : null,
     isComplete: (s) => s.mode !== null,
   },
   {
@@ -122,7 +122,7 @@ const QUICK_POST_FIELDS: FieldDef[] = [
     cardType: 'mode_select',
     priority: 0,
     label: 'Mode',
-    displayValue: (s) => s.mode === 'campaign' ? 'Listing Campaign' : s.mode === 'quick_post' ? 'Quick Post' : null,
+    displayValue: (s) => s.mode === 'campaign' ? 'Campaign' : s.mode === 'quick_post' ? 'Quick Post' : null,
     isComplete: (s) => s.mode !== null,
   },
   {
