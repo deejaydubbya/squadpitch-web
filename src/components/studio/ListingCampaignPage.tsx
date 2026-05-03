@@ -353,7 +353,8 @@ const CAMPAIGN_TYPES: CampaignTypeOption[] = [
 
 // ── Campaign slot configuration — imported from @/lib/assistant/schedulePresets ──
 
-const AVAILABLE_CHANNELS = ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'X'];
+// Available channels are now derived from connected channels at runtime
+// (see connectedChannels memo inside ListingCampaignPage)
 
 interface ImagePoolItem {
   id: string;
@@ -478,6 +479,15 @@ export function ListingCampaignPage({ clientId }: Props) {
   const { data: existingFolders } = useFolders(clientId);
   const regeneratePost = useRegeneratePost(clientId);
   const connectionStatus = useChannelConnectionStatus(clientId);
+
+  // Only show channels the user has actually connected
+  const connectedChannels = useMemo(() => {
+    const channels: string[] = [];
+    connectionStatus.forEach((connected, ch) => {
+      if (connected) channels.push(ch);
+    });
+    return channels;
+  }, [connectionStatus]);
 
   // Existing listings for selector — merge PROPERTY + legacy CUSTOM
   const { data: propertyListings } = useProperties(clientId);
@@ -3340,8 +3350,8 @@ export function ListingCampaignPage({ clientId }: Props) {
                                 onChange={(e) => updateSlot(slot.id, { channel: e.target.value })}
                                 className="px-2 py-0.5 rounded-md bg-white-5 border border-white-10 text-white-60 text-xs focus:outline-none focus:border-accent-green-110"
                               >
-                                {AVAILABLE_CHANNELS.map((ch) => (
-                                  <option key={ch} value={ch}>{getChannelLabel(ch as any)} {connectionStatus.get(ch as any) ? '' : '(not connected)'}</option>
+                                {connectedChannels.map((ch) => (
+                                  <option key={ch} value={ch}>{getChannelLabel(ch as any)}</option>
                                 ))}
                               </select>
                             </div>
@@ -3549,6 +3559,7 @@ export function ListingCampaignPage({ clientId }: Props) {
                       onRegenerate={handleRegeneratePost}
                       isRegenerating={regeneratingIndex === idx}
                       imagePool={imagePool}
+                      availableChannels={connectedChannels}
             />
                   </div>
                 </div>
@@ -3725,6 +3736,7 @@ function CampaignPostCard({
   onRegenerate,
   isRegenerating,
   imagePool = [],
+  availableChannels,
 }: {
   post: CampaignPost;
   index: number;
@@ -3733,6 +3745,7 @@ function CampaignPostCard({
   onRegenerate: (index: number) => void;
   isRegenerating: boolean;
   imagePool?: ImagePoolItem[];
+  availableChannels: string[];
 }) {
   const [copied, setCopied] = useState(false);
   const [showAlt, setShowAlt] = useState(false);
@@ -3803,8 +3816,8 @@ function CampaignPostCard({
           onChange={(e) => onUpdate(index, { channel: e.target.value as CampaignPost['channel'] })}
           className="text-xs bg-white-5 border border-white-10 text-white-60 rounded-lg px-2 py-1.5 focus:outline-none focus:border-accent-green-110 shrink-0"
         >
-          {AVAILABLE_CHANNELS.map((ch) => (
-            <option key={ch} value={ch}>{ch}</option>
+          {availableChannels.map((ch) => (
+            <option key={ch} value={ch}>{getChannelLabel(ch as any)}</option>
           ))}
         </select>
         <button

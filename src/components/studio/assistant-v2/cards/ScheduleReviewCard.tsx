@@ -355,7 +355,7 @@ function SortableSlotRow({
         className="px-1.5 py-0.5 bg-white-5 border border-white-10 rounded text-[11px] text-white-100"
       >
         {channels.map((ch) => (
-          <option key={ch} value={ch}>
+          <option key={ch} value={ch} className="bg-sp-bg text-white-100">
             {CHANNEL_REGISTRY[ch]?.label ?? ch}
           </option>
         ))}

@@ -55,7 +55,9 @@ export function MediaPlanBanner({
       <div className="flex items-center gap-1.5 min-w-0">
         <Icon className="w-3.5 h-3.5 text-white-40 shrink-0" />
         <span className="text-[11px] text-white-60 truncate flex-1">
-          <span className="text-white-80 font-medium capitalize">{mediaPlan.recommendedMediaType}</span>
+          <span className="text-white-80 font-medium capitalize">
+            {isAiConcept && !hasRealMedia ? 'AI image idea' : mediaPlan.recommendedMediaType}
+          </span>
           {' — '}
           {matchExplanation || mediaPlan.reason}
         </span>
@@ -76,10 +78,11 @@ export function MediaPlanBanner({
             <button
               type="button"
               onClick={onOpenGenerate}
+              title="AI generates an image based on the post concept"
               className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 text-[10px] text-purple-400 font-medium transition-colors"
             >
               <Wand2 className="w-2.5 h-2.5" />
-              Generate from this idea
+              Create image like this
             </button>
           )}
           <button

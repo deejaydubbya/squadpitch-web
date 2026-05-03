@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import {
   useGenerateMedia,
   useGenerateVideo,
+  useBrandPersona,
   type Channel,
   type MediaAsset,
 } from '@/hooks/useSquadpitch';
@@ -15,6 +16,7 @@ import type { AssistantSessionState } from '@/lib/assistant/types';
 import type { SelectableImage } from './types';
 import { MediaTile } from './MediaTile';
 import { getGenerationErrorInfo } from '@/lib/assistant/media/generationErrors';
+import { PersonaFeedbackPopover } from '@/components/studio/PersonaFeedbackPopover';
 
 const VIDEO_PRESET_OPTIONS = [
   { key: undefined as string | undefined, label: 'Auto' },
@@ -50,11 +52,17 @@ export function MediaTabGenerate({
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
   const { data: usage } = useUsage();
+  const { data: persona } = useBrandPersona(clientId);
 
   const [videoPreset, setVideoPreset] = useState<string | undefined>(undefined);
   const [videoDuration, setVideoDuration] = useState<string>('5');
   const [guidance, setGuidance] = useState('');
   const [generatedAssets, setGeneratedAssets] = useState<SelectableImage[]>([]);
+  const [usePersona, setUsePersona] = useState(false);
+  const [lastGenerationUsedPersona, setLastGenerationUsedPersona] = useState(false);
+  const [feedbackAssetId, setFeedbackAssetId] = useState<string | null>(null);
+
+  const personaReady = persona?.status === 'COMPLETED';
 
   const atImageLimit = !!(usage && isFinite(usage.limits.images) && usage.usage.images >= usage.limits.images);
   const atVideoLimit = !!(usage && isFinite(usage.limits.videos) && usage.usage.videos >= usage.limits.videos);
@@ -80,8 +88,14 @@ export function MediaTabGenerate({
     if (!effectiveGuidance) return;
 
     if (type === 'image') {
+      setLastGenerationUsedPersona(usePersona);
       generateMedia.mutate(
-        { clientId, guidance: effectiveGuidance, channel: activeChannel ?? undefined },
+        {
+          clientId,
+          guidance: effectiveGuidance,
+          channel: activeChannel ?? undefined,
+          ...(usePersona && { usePersona: true }),
+        },
         {
           onSuccess: (asset: MediaAsset) => {
             const img: SelectableImage = {
@@ -138,7 +152,7 @@ export function MediaTabGenerate({
         <textarea
           value={guidance}
           onChange={(e) => setGuidance(e.target.value)}
-          placeholder={defaultGuidance || 'Describe what to generate...'}
+          placeholder={defaultGuidance || 'Describe the AI video or image you want to generate...'}
           rows={2}
           className="w-full rounded-lg bg-white-5 border border-white-10 px-2.5 py-1.5 text-xs text-white-80 placeholder:text-white-30 focus:outline-none focus:border-accent-green-110/50 resize-none"
         />
@@ -169,7 +183,7 @@ export function MediaTabGenerate({
           </button>
         )}
 
-        {/* Generate Video */}
+        {/* Generate AI Video */}
         <button
           onClick={() => handleGenerate('video')}
           disabled={isGenerating || atVideoLimit || !effectiveGuidance}
@@ -187,13 +201,13 @@ export function MediaTabGenerate({
           ) : (
             <Video className="w-3 h-3" />
           )}
-          {atVideoLimit ? 'Video limit reached' : 'Generate Video'}
+          {atVideoLimit ? 'AI Video limit reached' : 'Generate AI Video'}
         </button>
       </div>
 
       {/* Video presets */}
       <div className="space-y-1.5">
-        <p className="text-[10px] text-white-40">Video preset</p>
+        <p className="text-[10px] text-white-40">AI Video preset</p>
         <div className="flex gap-1 flex-wrap">
           {VIDEO_PRESET_OPTIONS.map((opt) => (
             <button
@@ -237,7 +251,9 @@ export function MediaTabGenerate({
         const info = getGenerationErrorInfo(err);
         return (
           <div className="rounded-lg bg-accent-red/5 border border-accent-red/20 p-3 space-y-2">
-            <p className="text-xs text-accent-red font-medium">{info.title}</p>
+            <p className="text-xs text-accent-red font-medium">
+              {lastGenerationUsedPersona ? 'Persona generation failed' : info.title}
+            </p>
             <p className="text-[11px] text-white-40">{info.description}</p>
             <div className="flex items-center gap-2 pt-0.5 flex-wrap">
               {info.showUpgrade && (
@@ -254,6 +270,23 @@ export function MediaTabGenerate({
                   className="text-[11px] text-white-60 hover:text-white-100 font-medium"
                 >
                   Retry
+                </button>
+              )}
+              {lastGenerationUsedPersona && (
+                <button
+                  onClick={() => {
+                    // Show feedback popover if we have a persona-generated asset
+                    const lastPersonaAsset = [...generatedAssets].reverse().find(a => a.asset?.personaSnapshot);
+                    if (lastPersonaAsset) {
+                      setFeedbackAssetId(lastPersonaAsset.id);
+                    } else {
+                      setUsePersona(false);
+                      handleGenerate('image');
+                    }
+                  }}
+                  className="text-[11px] text-purple-400 hover:text-purple-300 font-medium"
+                >
+                  Retry without persona
                 </button>
               )}
               {onSwitchToLibrary && (
@@ -294,10 +327,74 @@ export function MediaTabGenerate({
       {/* Generating placeholder */}
       {isGenerating && generatedAssets.length === 0 && (
         <div className="flex flex-col items-center py-4 gap-2">
-          <Loader2 className="w-5 h-5 animate-spin text-accent-green-110" />
-          <p className="text-xs text-white-40">Generating...</p>
+          <Loader2 className={cn('w-5 h-5 animate-spin', usePersona ? 'text-purple-400' : 'text-accent-green-110')} />
+          <p className="text-xs text-white-40">
+            {usePersona ? 'Generating with your persona...' : 'Generating...'}
+          </p>
         </div>
       )}
+
+      {/* Persona feedback popover */}
+      {feedbackAssetId && (
+        <PersonaFeedbackPopover
+          assetId={feedbackAssetId}
+          onClose={() => {
+            setFeedbackAssetId(null);
+            setUsePersona(false);
+            handleGenerate('image');
+          }}
+        />
+      )}
+
+      {/* AI Brand Persona selector / CTA */}
+      <div className="border-t border-white-5 pt-3 mt-2">
+        {personaReady ? (
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-white-40 flex items-center gap-1">
+              <Wand2 className="w-3 h-3" />
+              AI Brand Persona
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setUsePersona(false)}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors',
+                  !usePersona
+                    ? 'bg-white-10 text-white-80'
+                    : 'bg-white-5 text-white-30 hover:text-white-50'
+                )}
+              >
+                No persona
+              </button>
+              <button
+                onClick={() => setUsePersona(true)}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors',
+                  usePersona
+                    ? 'bg-purple-500/30 text-purple-300'
+                    : 'bg-white-5 text-white-30 hover:text-white-50'
+                )}
+              >
+                Use &ldquo;{persona.name || 'My Persona'}&rdquo;
+              </button>
+            </div>
+            {usePersona && (
+              <p className="text-[9px] text-purple-400/70">Personalized with your trained persona</p>
+            )}
+          </div>
+        ) : (
+          <a
+            href={`/workspaces/${clientId}/settings/ai-persona`}
+            className="flex items-center gap-2 text-[11px] text-white-40 hover:text-accent-green-110 transition-colors"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>
+              <span className="font-medium text-white-60">Create your AI Brand Persona</span>
+              {' '}&mdash; Train a private AI version of your visual brand for personalized images
+            </span>
+          </a>
+        )}
+      </div>
     </div>
   );
 }

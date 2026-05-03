@@ -10,6 +10,8 @@ import {
   Trash2,
   Film,
   Loader2,
+  Sparkles,
+  UserPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -18,7 +20,10 @@ import {
   useAssetUsage,
   useDeleteAsset,
   useGeneratePostFromAsset,
+  useGenerateMedia,
+  useBrandPersona,
 } from '@/hooks/useSquadpitch';
+import { AddMeToPhotoModal } from './AddMeToPhotoModal';
 
 interface Props {
   asset: MediaAsset;
@@ -49,12 +54,31 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showChannelPicker, setShowChannelPicker] = useState(false);
+  const [personaSuccess, setPersonaSuccess] = useState(false);
+  const [showComposeModal, setShowComposeModal] = useState(false);
 
   const { data: usageDrafts } = useAssetUsage(asset.id);
   const deleteAsset = useDeleteAsset(clientId);
   const generatePost = useGeneratePostFromAsset(clientId);
+  const generateMedia = useGenerateMedia(clientId);
+  const { data: persona } = useBrandPersona(clientId);
+  const personaReady = persona?.status === 'COMPLETED';
 
   const [downloading, setDownloading] = useState(false);
+
+  const personaGuidance = asset.renderedPrompt || asset.caption || asset.altText || asset.filename || 'professional brand photo';
+
+  const handlePersonaGenerate = () => {
+    generateMedia.mutate(
+      { clientId, guidance: personaGuidance, usePersona: true, ...(asset.folderId && { folderId: asset.folderId }) },
+      {
+        onSuccess: () => {
+          setPersonaSuccess(true);
+          setTimeout(() => setPersonaSuccess(false), 3000);
+        },
+      },
+    );
+  };
 
   const handleDownload = async () => {
     if (!asset.url) return;
@@ -154,6 +178,11 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
             )}>
               {asset.source === 'AI_GENERATED' ? 'AI' : asset.source === 'IMPORTED' ? 'Imported' : 'Upload'}
             </span>
+            {asset.personaSnapshot && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/30 text-purple-300">
+                {asset.personaSnapshot.startsWith('style:') ? 'Brand Style' : 'AI Persona'}
+              </span>
+            )}
           </div>
 
           {/* Details */}
@@ -274,6 +303,39 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
               </div>
             )}
 
+            {/* Reimagine with Persona */}
+            {personaReady && asset.assetType !== 'video' && (
+              <button
+                onClick={handlePersonaGenerate}
+                disabled={generateMedia.isPending}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/20 text-purple-400 text-xs font-medium hover:bg-purple-500/30 transition-colors disabled:opacity-50"
+              >
+                {generateMedia.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                {generateMedia.isPending ? 'Generating with persona…' : `Reimagine with ${persona?.name || 'Persona'}`}
+              </button>
+            )}
+
+            {/* Add Me to This Photo */}
+            {personaReady && asset.assetType !== 'video' && asset.url && !asset.personaSnapshot?.startsWith('composite:') && (
+              <button
+                onClick={() => setShowComposeModal(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/20 text-purple-400 text-xs font-medium hover:bg-purple-500/30 transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Add Me to This Photo
+              </button>
+            )}
+
+            {personaSuccess && (
+              <p className="text-[10px] text-accent-green-110 text-center">
+                New persona image queued — check your media library
+              </p>
+            )}
+
             {asset.url && (
               <button
                 onClick={handleDownload}
@@ -324,6 +386,16 @@ export function AssetPreviewModal({ asset, clientId, onClose, onAttach }: Props)
           </div>
         </div>
       </div>
+
+      {/* Add Me to Photo compose modal */}
+      {showComposeModal && (
+        <AddMeToPhotoModal
+          asset={asset}
+          clientId={clientId}
+          onClose={() => setShowComposeModal(false)}
+          onSuccess={() => setShowComposeModal(false)}
+        />
+      )}
     </div>
   );
 }

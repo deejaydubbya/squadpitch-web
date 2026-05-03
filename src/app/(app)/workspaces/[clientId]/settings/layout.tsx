@@ -11,6 +11,7 @@ const tabs = [
   { label: 'Channels & Publishing', suffix: '/channels' },
   { label: 'Autopilot', suffix: '/autopilot' },
   { label: 'Notifications', suffix: '/notifications' },
+  { label: 'AI Brand Persona', suffix: '/ai-persona' },
   { label: 'Integrations', suffix: '/integrations' },
   { label: 'Billing', suffix: '/billing' },
 ];
@@ -27,7 +28,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         <p className="text-sm text-white-40 mt-1">Manage your workspace configuration, content strategy, and publishing.</p>
       </div>
 
-      <div className="flex gap-1 border-b border-white-10">
+      <div className="flex flex-wrap gap-x-0.5 border-b border-white-10">
         {tabs.map((tab) => {
           const href = `${base}${tab.suffix}`;
           const isActive = tab.suffix === ''
@@ -38,10 +39,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
               key={tab.label}
               href={href}
               className={cn(
-                'px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
+                'px-3 py-2.5 text-[13px] leading-tight font-medium whitespace-nowrap transition-colors border-b-2 -mb-px',
                 isActive
                   ? 'text-accent-green-110 border-accent-green-110'
-                  : 'text-white-40 border-transparent hover:text-white-100'
+                  : 'text-white-40 border-transparent hover:text-white-80 hover:border-white-10'
               )}
             >
               {tab.label}

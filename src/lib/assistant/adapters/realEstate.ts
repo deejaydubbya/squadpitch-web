@@ -512,10 +512,10 @@ export const realEstateAdapter: IndustryAdapter = {
   ],
 
   defaultChannelsByCampaignType: {
-    just_listed: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'] as Channel[],
-    open_house: ['INSTAGRAM', 'FACEBOOK'] as Channel[],
-    price_drop: ['INSTAGRAM', 'FACEBOOK'] as Channel[],
-    general_promotion: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'] as Channel[],
+    just_listed: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'YOUTUBE'] as Channel[],
+    open_house: ['INSTAGRAM', 'FACEBOOK', 'YOUTUBE'] as Channel[],
+    price_drop: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'] as Channel[],
+    general_promotion: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'YOUTUBE'] as Channel[],
   },
 
   recommendCampaignType,

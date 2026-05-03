@@ -70,8 +70,15 @@ export function MediaTile({
         </>
       )}
 
+      {/* AI Persona / Brand Style badge (top-left for persona-generated images) */}
+      {!isVideo && image.asset?.personaSnapshot && (
+        <div className="absolute top-0.5 left-0.5 px-1 py-[1px] rounded bg-purple-500/80 text-[7px] font-bold text-white z-10">
+          {image.asset.personaSnapshot.startsWith('style:') ? 'Brand Style' : 'AI Persona'}
+        </div>
+      )}
+
       {/* Hero star (top-left) -- disabled for video */}
-      {!isVideo && (
+      {!isVideo && !image.asset?.personaSnapshot && (
         <button
           onClick={(e) => {
             e.stopPropagation();

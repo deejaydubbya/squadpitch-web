@@ -82,6 +82,16 @@ export function usePostMediaGeneration({
     [generateMediaMutation, clientId, handleEnqueued],
   );
 
+  const generateImageWithPersona = useCallback(
+    (guidance: string) => {
+      generateMediaMutation.mutate(
+        { clientId, guidance, usePersona: true },
+        { onSuccess: handleEnqueued },
+      );
+    },
+    [generateMediaMutation, clientId, handleEnqueued],
+  );
+
   const generateVideo = useCallback(
     (guidance: string, preset?: string, duration?: string, channel?: Channel) => {
       generateVideoMutation.mutate(
@@ -94,6 +104,7 @@ export function usePostMediaGeneration({
 
   return {
     generateImage,
+    generateImageWithPersona,
     generateVideo,
     localAssets,
     isGeneratingImage: generateMediaMutation.isPending,

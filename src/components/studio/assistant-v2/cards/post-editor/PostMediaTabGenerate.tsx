@@ -95,7 +95,7 @@ export function PostMediaTabGenerate({
         <textarea
           value={guidance}
           onChange={(e) => setGuidance(e.target.value)}
-          placeholder="Describe the image or video you want..."
+          placeholder="Describe the image or video you want to generate..."
           rows={2}
           className="w-full px-2 py-1.5 rounded-lg bg-white-5 border border-white-10 text-[11px] text-white-100 placeholder:text-white-30 focus:outline-none focus:border-accent-green-110/50 resize-none"
         />
@@ -105,24 +105,29 @@ export function PostMediaTabGenerate({
       <div className="flex items-start gap-2 flex-wrap">
         {/* Image generation */}
         {aiImageAvailable && (
-          <button
-            onClick={handleGenerateImage}
-            disabled={isGeneratingImage || atImageLimit}
-            className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
-              atImageLimit
-                ? 'opacity-50 cursor-not-allowed bg-white-5 text-white-40'
-                : 'bg-white-5 text-white-60 hover:bg-white-10 hover:text-white-100',
+          <div className="flex flex-col gap-0.5">
+            <button
+              onClick={handleGenerateImage}
+              disabled={isGeneratingImage || atImageLimit}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
+                atImageLimit
+                  ? 'opacity-50 cursor-not-allowed bg-white-5 text-white-40'
+                  : 'bg-white-5 text-white-60 hover:bg-white-10 hover:text-white-100',
+              )}
+            >
+              {isGeneratingImage ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <ImageIcon className="w-3 h-3" />
+              )}
+              {isGeneratingImage ? 'Generating...' : 'Create image like this'}
+              {atImageLimit && <span className="text-accent-red text-[9px] ml-0.5">Limit</span>}
+            </button>
+            {!isGeneratingImage && !atImageLimit && (
+              <span className="text-[9px] text-white-30 px-2.5">AI generates an image based on the post concept</span>
             )}
-          >
-            {isGeneratingImage ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <ImageIcon className="w-3 h-3" />
-            )}
-            {isGeneratingImage ? 'Generating...' : 'Generate from this idea'}
-            {atImageLimit && <span className="text-accent-red text-[9px] ml-0.5">Limit</span>}
-          </button>
+          </div>
         )}
 
         {/* Video generation */}
@@ -142,7 +147,7 @@ export function PostMediaTabGenerate({
             ) : (
               <Video className="w-3 h-3" />
             )}
-            {isGeneratingVideo ? 'Generating...' : 'Generate Video'}
+            {isGeneratingVideo ? 'Generating AI Video...' : 'Generate AI Video'}
             {atVideoLimit && <span className="text-accent-red text-[9px] ml-0.5">Limit</span>}
           </button>
 

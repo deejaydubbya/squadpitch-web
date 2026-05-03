@@ -50,6 +50,24 @@ export interface AssignmentOptions {
   secondaryThreshold?: number;  // min score for 2nd+ image, default 10
 }
 
+// ── Confidence tier helpers ──────────────────────────────────────────
+
+export type ConfidenceTier = 'high' | 'medium' | 'low';
+
+export function getConfidenceTier(confidence: number): ConfidenceTier {
+  if (confidence >= 60) return 'high';
+  if (confidence >= 25) return 'medium';
+  return 'low';
+}
+
+export function getConfidenceLabel(confidence: number, imageLabel?: string): string {
+  const tier = getConfidenceTier(confidence);
+  const cleanLabel = imageLabel?.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ').trim();
+  if (tier === 'high') return cleanLabel ? `Best match: ${cleanLabel}` : 'Best match';
+  if (tier === 'medium') return cleanLabel ? `Strong match: ${cleanLabel}` : 'Strong match';
+  return 'Fallback image';
+}
+
 // Body content keyword patterns for matching post text to image labels/tags
 const BODY_KEYWORD_PATTERNS: Array<{ keyword: string; pattern: RegExp }> = [
   { keyword: 'kitchen',       pattern: /\bkitchen\b/i },
@@ -246,6 +264,28 @@ export function assignImagesToPosts(
         result.imageIds.push(c.imageId);
         result.confidences.push(c.score);
         result.reasons.push(c.reasons.length > 0 ? c.reasons.join('; ') : 'Secondary match');
+      }
+    }
+  }
+
+  // Phase 2.5: Guarantee target — fill up to imagesPerPost even if below threshold
+  if (imagesPerPost > 1) {
+    const allImageIds = pool.map((p) => p.id);
+    for (let pi = 0; pi < posts.length; pi++) {
+      const result = resultMap.get(pi);
+      if (!result || result.imageIds.length >= imagesPerPost) continue;
+
+      const assigned = new Set(result.imageIds);
+      // Pick remaining candidates by score (even score 0), excluding already assigned
+      const remaining = scoreMatrix
+        .filter((c) => c.postIndex === pi && !assigned.has(c.imageId))
+        .slice(0, imagesPerPost - result.imageIds.length);
+
+      for (const c of remaining) {
+        if (result.imageIds.length >= maxPerPost) break;
+        result.imageIds.push(c.imageId);
+        result.confidences.push(c.score);
+        result.reasons.push(c.reasons.length > 0 ? c.reasons.join('; ') : 'Fill to target');
       }
     }
   }

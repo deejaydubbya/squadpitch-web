@@ -5,6 +5,7 @@ import {
   draftToNormalized,
   normalizedToCampaignPost,
   normalizedToDraftUpdate,
+  deriveContentType,
 } from './normalizedPost.adapters';
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -544,5 +545,50 @@ describe('edge cases', () => {
 
     // After adapter processing, score should be filled in
     expect(result.versions[0].score).not.toBeNull();
+  });
+});
+
+// ── deriveContentType ───────────────────────────────────────────────
+
+describe('deriveContentType', () => {
+  it('maps lifestyle angle to Lifestyle', () => {
+    expect(deriveContentType('lifestyle')).toBe('Lifestyle');
+  });
+
+  it('maps authority angle to Educational', () => {
+    expect(deriveContentType('authority')).toBe('Educational');
+  });
+
+  it('maps social_proof angle to Social Proof', () => {
+    expect(deriveContentType('social_proof')).toBe('Social Proof');
+  });
+
+  it('maps urgency angle to Engagement', () => {
+    expect(deriveContentType('urgency')).toBe('Engagement');
+  });
+
+  it('maps promotional angle to Listing (default)', () => {
+    expect(deriveContentType('promotional')).toBe('Listing');
+  });
+
+  it('maps storytelling angle to Listing (default)', () => {
+    expect(deriveContentType('storytelling')).toBe('Listing');
+  });
+
+  it('maps null/undefined to Listing', () => {
+    expect(deriveContentType(null)).toBe('Listing');
+    expect(deriveContentType(undefined)).toBe('Listing');
+  });
+
+  it('populates contentType on campaign adapter', () => {
+    const post = makeCampaignPost({ angle: 'lifestyle' });
+    const result = campaignPostToNormalized(post, 0);
+    expect(result.contentType).toBe('Lifestyle');
+  });
+
+  it('sets contentType to null on draft adapter', () => {
+    const draft = makeDraft();
+    const result = draftToNormalized(draft);
+    expect(result.contentType).toBeNull();
   });
 });

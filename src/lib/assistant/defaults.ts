@@ -53,10 +53,10 @@ export const INITIAL_SESSION: AssistantSessionState = {
 // ── Default Channels ─────────────────────────────────────────────────────
 
 export const DEFAULT_CHANNELS_BY_CAMPAIGN_TYPE: Record<AssistantCampaignType, Channel[]> = {
-  just_listed: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
-  open_house: ['INSTAGRAM', 'FACEBOOK'],
-  price_drop: ['INSTAGRAM', 'FACEBOOK'],
-  general_promotion: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
+  just_listed: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'YOUTUBE'],
+  open_house: ['INSTAGRAM', 'FACEBOOK', 'YOUTUBE'],
+  price_drop: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
+  general_promotion: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'YOUTUBE'],
 };
 
 // ── Campaign Type Options ────────────────────────────────────────────────

@@ -60,6 +60,7 @@ export function Sidebar({ client }: Props) {
     { href: `${base}/settings/brand`, label: 'Brand & Audience' },
     { href: `${base}/settings/voice`, label: 'Content Strategy' },
     { href: `${base}/settings/channels`, label: 'Channels & Publishing' },
+    { href: `${base}/settings/ai-persona`, label: 'AI Persona' },
     { href: `${base}/settings/autopilot`, label: 'Autopilot' },
     { href: `${base}/settings/notifications`, label: 'Notifications' },
     { href: `${base}/settings/integrations`, label: 'Integrations' },

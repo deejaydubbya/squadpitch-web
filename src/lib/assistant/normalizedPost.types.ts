@@ -46,6 +46,8 @@ export interface PostMediaRef {
   source: MediaSource;
 }
 
+export type ContentType = 'Lifestyle' | 'Educational' | 'Social Proof' | 'Engagement' | 'Listing';
+
 export type DataAwarenessLevel = 'uses_user_data' | 'general_content' | 'missing_data';
 
 export interface DataAwareness {
@@ -84,6 +86,7 @@ export interface NormalizedPost {
   dataAwareness: DataAwareness | null;
   channels: Channel[];
   status: NormalizedPostStatus;
+  contentType: ContentType | null;
   campaignMeta: CampaignMeta | null;
   mediaPlan: MediaPlan | null;
 

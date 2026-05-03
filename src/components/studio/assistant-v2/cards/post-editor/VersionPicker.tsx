@@ -93,10 +93,10 @@ export function VersionPicker({
       </button>
 
       {/* Recommendation reason */}
-      {!expanded && isBest && recReason && (
+      {!expanded && recReason && (
         <div className="px-3 pb-1.5 -mt-1">
           <span className="text-[10px] text-white-40 italic">
-            {recReason}
+            {isBest ? recReason : `Try ${versions.find((v) => v.id === bestVersionId)?.label ?? 'recommended'} — ${recReason.toLowerCase()}`}
           </span>
         </div>
       )}

@@ -39,7 +39,7 @@ export const IMPROVE_ACTIONS: ImproveAction[] = [
   { id: 'turn_into_video_idea', category: 'text', label: 'Turn into video idea', description: 'Rewrite as a short-form video script concept' },
   // Media
   { id: 'generate_matching_image', category: 'media', label: 'Generate matching image', description: 'Create an AI image based on the post content' },
-  { id: 'generate_matching_video', category: 'media', label: 'Generate matching video', description: 'Create an AI video based on the post content' },
+  { id: 'generate_matching_video', category: 'media', label: 'Generate AI Video', description: 'Creates a new AI-generated video from a prompt. May use credits.' },
 ];
 
 export const TEXT_ACTIONS = IMPROVE_ACTIONS.filter((a) => a.category === 'text');

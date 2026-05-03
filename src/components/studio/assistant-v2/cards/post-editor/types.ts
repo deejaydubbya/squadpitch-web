@@ -20,6 +20,8 @@ export interface VersionPickerProps {
 
 export interface PostScoreMeterProps {
   score: PostScore;
+  /** When true, hides the score bar and shows only actionable items (weak/missing) */
+  compact?: boolean;
 }
 
 export interface HooksRankingProps {

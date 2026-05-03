@@ -97,6 +97,75 @@ export interface MediaProfile {
   updatedAt: string;
 }
 
+export type PersonaType = 'AGENT' | 'BRAND_STYLE' | 'TEAM';
+
+export type PersonaTrainingStatus =
+  | 'DRAFT'
+  | 'UPLOADING'
+  | 'READY_TO_TRAIN'
+  | 'QUEUED'
+  | 'TRAINING'
+  | 'COMPLETED'
+  | 'FAILED';
+
+export interface PersonaTrainingImage {
+  id: string;
+  url: string;
+  filename: string | null;
+  size: number | null;
+  mimeType: string | null;
+  quality: string;
+  addedAt: string;
+}
+
+export interface PersonaUsageSettings {
+  personalBrandPosts?: boolean;
+  educationalGraphics?: boolean;
+  listingPromotions?: boolean;
+  smartVideoThumbnails?: boolean;
+  smartVideoIntroOutro?: boolean;
+  campaignCoverImages?: boolean;
+  askBeforeUsing?: boolean;
+}
+
+export interface PersonaPreviewImage {
+  url: string;
+  publicId?: string;
+  prompt: string;
+  width?: number;
+  height?: number;
+}
+
+export interface BrandStyleProfile {
+  colors?: string[];
+  fonts?: string[];
+  styleDescriptors?: string[];
+  promptModifiers?: string;
+  mood?: string;
+}
+
+export interface BrandPersona {
+  clientId: string;
+  personaType: PersonaType;
+  name: string | null;
+  status: PersonaTrainingStatus;
+  trainingImages: PersonaTrainingImage[];
+  imageCount: number;
+  visualStyle: string | null;
+  usageSettings: PersonaUsageSettings;
+  styleProfile?: BrandStyleProfile | null;
+  trainingProgress: number | null;
+  previewImages: PersonaPreviewImage[] | null;
+  provider: string | null;
+  providerModelId: boolean; // true if trained model exists (URL not exposed)
+  triggerPhrase: string | null;
+  errorMessage: string | null;
+  consentAt: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChannelSettings {
   id: string;
   clientId: string;
@@ -153,6 +222,15 @@ export interface MediaPlan {
   preferredSources: MediaPlanSource[];
 }
 
+export interface PersonaRecommendation {
+  shouldUsePersona: boolean;
+  suggestedPersonaId: string;
+  usageType: 'thumbnail' | 'intro_frame' | 'outro_frame' | 'image_generation' | 'none';
+  reason: string;
+  safetyLevel: 'safe' | 'needs_review' | 'not_allowed';
+  autoApply: boolean;
+}
+
 export interface Draft {
   id: string;
   clientId: string;
@@ -190,6 +268,7 @@ export interface Draft {
     autoBlueprint?: string;
     rotated?: boolean;
   };
+  personaRecommendation?: PersonaRecommendation;
   // Campaign fields (nullable for non-campaign drafts)
   campaignId: string | null;
   campaignName: string | null;
@@ -771,6 +850,7 @@ export interface MediaAsset {
   displayOrder: number;
   falModelId: string | null;
   renderedPrompt: string | null;
+  personaSnapshot: string | null;
   seed: string | null;
   errorMessage: string | null;
   durationMs: number | null;
@@ -1161,7 +1241,9 @@ export interface GenerateMediaInput {
   clientId: string;
   guidance: string;
   draftId?: string;
+  folderId?: string;
   channel?: Channel;
+  usePersona?: boolean;
   overrides?: Record<string, unknown>;
 }
 
@@ -1249,6 +1331,8 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', clientId, 'autopilot-campaign-stats'] as const,
   contentPreferences: (clientId: string) =>
     [...squadpitchKeys.all, 'client', clientId, 'content-preferences'] as const,
+  brandPersona: (id: string) =>
+    [...squadpitchKeys.all, 'client', id, 'brand-persona'] as const,
 };
 
 // ── Clients ──────────────────────────────────────────────────────────────
@@ -1423,6 +1507,170 @@ export function useUpsertMediaProfile(clientId: string) {
       qc.invalidateQueries({ queryKey: squadpitchKeys.media(clientId) });
       qc.invalidateQueries({ queryKey: squadpitchKeys.client(clientId) });
     },
+  });
+}
+
+// ── Brand Persona ────────────────────────────────────────────────────────
+
+export function useBrandPersona(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.brandPersona(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<{ persona: BrandPersona | null }>(`workspaces/${clientId}/brand-persona`),
+    select: (data) => data.persona,
+    enabled: Boolean(clientId),
+  });
+}
+
+export interface UpsertBrandPersonaInput {
+  personaType?: PersonaType;
+  name?: string | null;
+  status?: PersonaTrainingStatus;
+  visualStyle?: string | null;
+  usageSettings?: PersonaUsageSettings;
+  styleProfile?: BrandStyleProfile;
+}
+
+export function useUpsertBrandPersona(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpsertBrandPersonaInput) =>
+      apiFetch<{ persona: BrandPersona }>(`workspaces/${clientId}/brand-persona`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.brandPersona(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.client(clientId) });
+    },
+  });
+}
+
+export function useDeleteBrandPersona(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch(`workspaces/${clientId}/brand-persona`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.brandPersona(clientId) });
+      qc.invalidateQueries({ queryKey: squadpitchKeys.client(clientId) });
+    },
+  });
+}
+
+export function useUploadPersonaTrainingImage(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      // First upload the file as an asset via existing pipeline
+      const res = await fetch(
+        `/api/proxy/workspaces/${clientId}/assets/upload?filename=${encodeURIComponent(file.name)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          body: file,
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || `Upload failed (${res.status})`);
+      }
+      const asset = await res.json();
+      // Then register the image in the persona's training set
+      return apiFetch<{ image: PersonaTrainingImage }>(
+        `workspaces/${clientId}/brand-persona/training-images`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            url: asset.url,
+            filename: file.name,
+            size: file.size,
+            mimeType: file.type,
+          }),
+        }
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.brandPersona(clientId) });
+    },
+  });
+}
+
+export function useRemovePersonaTrainingImage(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (imageId: string) =>
+      apiFetch(`workspaces/${clientId}/brand-persona/training-images/${imageId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.brandPersona(clientId) });
+    },
+  });
+}
+
+export function useRecordPersonaConsent(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ persona: BrandPersona }>(`workspaces/${clientId}/brand-persona/consent`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.brandPersona(clientId) });
+    },
+  });
+}
+
+export function useStartPersonaTraining(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ ok: true; requestId: string; triggerPhrase: string }>(
+        `workspaces/${clientId}/brand-persona/train`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.brandPersona(clientId) });
+    },
+  });
+}
+
+export function useGeneratePersonaPreviews(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ previews: PersonaPreviewImage[] }>(
+        `workspaces/${clientId}/brand-persona/previews`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.brandPersona(clientId) });
+    },
+  });
+}
+
+// ── Persona Frame Generation ──────────────────────────────────────────────
+
+export interface PersonaFrameInput {
+  purpose: 'intro' | 'outro' | 'thumbnail';
+  overlayText?: string;
+}
+
+export interface PersonaFrame {
+  purpose: 'intro' | 'outro' | 'thumbnail';
+  url: string;
+  width: number;
+  height: number;
+}
+
+export function useGeneratePersonaFrames(clientId: string) {
+  return useMutation({
+    mutationFn: (input: { frames: PersonaFrameInput[] }) =>
+      apiFetch<{ frames: PersonaFrame[] }>(`workspaces/${clientId}/brand-persona/generate-frames`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
   });
 }
 
@@ -1917,6 +2165,7 @@ export function useAssetsPaginated(clientId: string, filters: AssetFilters = {},
     queryKey: squadpitchKeys.assets(clientId, filters as Record<string, unknown>),
     queryFn: () => apiFetch<AssetsPage>(path),
     refetchInterval: poll ? 3000 : false,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -2155,6 +2404,120 @@ export function useGenerateVideo(clientId: string) {
   return useMutation({
     mutationFn: (input: GenerateVideoInput) =>
       apiFetch<MediaAsset>('assets/generate-video', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+    },
+  });
+}
+
+// ── Persona Compose (Add Me to Photo) ────────────────────────────────────
+
+export type ComposePose = 'standing' | 'pointing' | 'casual' | 'presenting' | 'arms_crossed' | 'walking';
+export type SceneType = 'auto' | 'interior' | 'exterior';
+export type InteriorLighting = 'warm_cozy' | 'bright_clean' | 'natural_window' | 'moody_cinematic' | 'luxury_high_end';
+export type ExteriorLighting = 'golden_hour' | 'midday_sun' | 'overcast' | 'sunset_dusk' | 'twilight_lights_on';
+export type LightingStyle = InteriorLighting | ExteriorLighting;
+export type ComposeOutfit = 'business_suit' | 'smart_casual' | 'polo_casual' | 'branded_shirt' | 'luxury_agent' | 'outdoor_casual';
+export type ComposeVibe = 'friendly_smile' | 'professional' | 'confident' | 'welcoming' | 'energetic';
+export type FramingPreset = 'full_body' | 'waist_up' | 'bust' | 'custom';
+
+export interface PersonaLayer {
+  centerX: number;
+  footY: number;
+  scale: number;
+  allowOverflow: boolean;
+  framingPreset: FramingPreset;
+}
+
+export interface PersonaComposeInput {
+  clientId: string;
+  sourceImageUrl: string;
+  sourceAssetId?: string;
+  pose?: ComposePose;
+  sceneType?: SceneType;
+  lightingStyle?: LightingStyle;
+  outfit?: ComposeOutfit;
+  vibe?: ComposeVibe;
+  personaLayer?: PersonaLayer;
+  folderId?: string;
+  draftId?: string;
+}
+
+export function usePersonaCompose(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PersonaComposeInput) =>
+      apiFetch<{ asset: MediaAsset; metadata: { pose: string; placement: string; style: string } }>('persona/compose', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+    },
+  });
+}
+
+// ── Persona Cutout + Blend (new two-step flow) ──────────────────────────
+
+export interface PersonaCutoutInput {
+  clientId: string;
+  pose?: ComposePose;
+  outfit?: ComposeOutfit;
+  vibe?: ComposeVibe;
+  sceneType?: SceneType;
+  lightingStyle?: LightingStyle;
+  framingPreset?: FramingPreset;
+  folderId?: string;
+}
+
+export interface PersonaBlendTransform {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+}
+
+export interface PersonaBlendInput {
+  clientId: string;
+  backgroundImageUrl: string;
+  backgroundAssetId?: string;
+  cutoutImageUrl: string;
+  cutoutAssetId?: string;
+  transform: PersonaBlendTransform;
+  sceneType?: SceneType;
+  lightingStyle?: LightingStyle;
+  advanced?: {
+    shadowIntensity?: number;   // 0-1, default 0.5
+    warmthAdjust?: number;      // -1 to 1, default 0
+    blendStrength?: number;     // 0-1, default 0.8
+  };
+  folderId?: string;
+  draftId?: string;
+}
+
+export function usePersonaCutout(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PersonaCutoutInput) =>
+      apiFetch<{ asset: MediaAsset }>('persona/cutout', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
+    },
+  });
+}
+
+export function usePersonaBlend(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PersonaBlendInput) =>
+      apiFetch<{ asset: MediaAsset }>('persona/blend', {
         method: 'POST',
         body: JSON.stringify(input),
       }),
@@ -4334,6 +4697,7 @@ export interface CampaignPost {
   mediaPlan?: MediaPlan;
   hookScore?: number;
   assignedImageIds?: string[];
+  personaRecommendation?: PersonaRecommendation;
 }
 
 export interface ListingCampaignOutput {
@@ -4691,6 +5055,25 @@ export function usePerformanceInsights(clientId: string | undefined) {
     queryFn: () => apiFetch<PerformanceInsightsResponse>(`workspaces/${clientId}/performance/insights`),
     enabled: !!clientId,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ── Persona Feedback ────────────────────────────────────────────────────
+
+export type PersonaFeedbackReason =
+  | 'doesnt_look_like_me'
+  | 'wrong_style'
+  | 'too_artificial'
+  | 'not_relevant'
+  | 'other';
+
+export function usePersonaFeedback(assetId: string) {
+  return useMutation({
+    mutationFn: (body: { reason: PersonaFeedbackReason; detail?: string }) =>
+      apiFetch<{ ok: true }>(`assets/${assetId}/persona-feedback`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   });
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle2,
@@ -14,26 +14,14 @@ import {
   Plus,
   X,
   ImageIcon,
-  GripVertical,
   Video,
   AlertCircle,
+  Sparkles,
+  ToggleLeft,
+  ToggleRight,
+  Tag,
+  Type,
 } from 'lucide-react';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import {
   useSaveCampaignDrafts,
@@ -56,17 +44,93 @@ import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/typ
 import { AssetPreviewModal } from './AssetPreviewModal';
 import { normalizeMediaIdsForSave, replaceSyntheticIds } from '@/lib/assistant/media/normalizeMedia';
 import { apiFetch } from '@/lib/apiFetch';
-import { assignImagesToPosts, type ImagePoolEntry, type AssignmentOptions } from '@/lib/assistant/media/mediaAssignment';
+import { PersonaRecommendationBadge } from './PersonaRecommendationBadge';
+import { assignImagesToPosts, getConfidenceTier, getConfidenceLabel, type ImagePoolEntry, type AssignmentOptions } from '@/lib/assistant/media/mediaAssignment';
 import { getGenerationErrorInfo } from '@/lib/assistant/media/generationErrors';
 import { checkPostQuality } from '@/lib/assistant/media/postQualityChecker';
 import { validateCampaignBeforeSave, type ValidationIssue } from '@/lib/assistant/media/preSaveValidation';
 import { PostMediaStrip, PostMediaSelector, MediaPlanBanner, DataAwarenessBadge, VersionPicker, PostScoreMeter, ImproveMenu } from './post-editor';
 import type { ImproveState } from './post-editor/usePostEditorState';
 import { classifyCampaignDataAwareness } from '@/lib/assistant/dataAwareness';
-import type { DataAwareness, PostVersion } from '@/lib/assistant/normalizedPost.types';
+import type { ContentType, DataAwareness, PostVersion, ScoreBreakdownItem } from '@/lib/assistant/normalizedPost.types';
+import { deriveContentType } from '@/lib/assistant/normalizedPost.adapters';
+import type { VersionSelection, MediaReplacement } from '@/lib/assistant/types';
 import { computePostStrength, selectBestVersion } from '@/lib/assistant/normalizedPost.scoring';
 import { useGenerateContent } from '@/hooks/useSquadpitch';
 import { buildImproveGuidance, buildMediaGuidance, type TextImproveActionId, type MediaImproveActionId, type PromptContext } from '@/lib/assistant/improveActions';
+import { PostMediaActions } from './PostMediaActions';
+import { resolveThumbUrl } from '@/lib/assistant/media/resolveThumb';
+
+// ── Auto Mode Helpers ────────────────────────────────────────────────
+
+type PostReadiness = 'ready' | 'needs_review';
+
+function computePostReadiness(
+  scoreValue: number | null,
+  mediaIds: string[],
+  channel: string,
+): PostReadiness {
+  const hasMedia = mediaIds.length > 0;
+  const MEDIA_REQUIRED_CHANNELS = ['INSTAGRAM', 'TIKTOK', 'YOUTUBE'];
+  const needsMedia = MEDIA_REQUIRED_CHANNELS.includes(channel);
+  const isReady = (scoreValue ?? 0) >= 6 && (!needsMedia || hasMedia);
+  return isReady ? 'ready' : 'needs_review';
+}
+
+function composeWhyThisWorks(
+  score: { value: number; breakdown: ScoreBreakdownItem[] } | null,
+  assignmentReason: string | undefined,
+  dataAwareness: DataAwareness | null | undefined,
+  postLabel: string,
+  channel?: string,
+): string[] {
+  const points: string[] = [];
+  if (postLabel) points.push(postLabel);
+  if (score) {
+    const strong = score.breakdown
+      .filter((b) => b.grade === 'strong')
+      .map((b) => b.label);
+    points.push(...strong.slice(0, 2));
+  }
+  if (assignmentReason && assignmentReason !== 'Auto-assigned') {
+    points.push(`Media: ${assignmentReason}`);
+  }
+  if (dataAwareness?.level === 'uses_user_data') {
+    points.push('Uses your listing data');
+  }
+  // Channel optimization hint
+  if (channel) {
+    const reg = CHANNEL_REGISTRY[channel as import('@/hooks/useSquadpitch').Channel];
+    if (reg) points.push(`Optimized for ${reg.label}`);
+  }
+  return points.slice(0, 4);
+}
+
+/** Build a single concise AI decision label for a post. */
+function buildAIDecisionLabel(
+  assignmentReason: string | undefined,
+  contentType: ContentType | null | undefined,
+  channel: string,
+): string | null {
+  const reg = CHANNEL_REGISTRY[channel as import('@/hooks/useSquadpitch').Channel];
+  const parts: string[] = [];
+  if (assignmentReason && assignmentReason !== 'Auto-assigned' && assignmentReason !== 'Best scored match') {
+    // Extract the meaningful part — e.g. "Body match: kitchen" → "Using kitchen images"
+    const bodyMatch = assignmentReason.match(/Body match:\s*(.+)/i);
+    if (bodyMatch) {
+      parts.push(`Using ${bodyMatch[1]} images to match post focus`);
+    } else {
+      parts.push(assignmentReason);
+    }
+  }
+  if (reg && !parts.some((p) => p.includes(reg.label))) {
+    parts.push(`Optimized for ${reg.label} engagement`);
+  }
+  if (contentType && !parts.some((p) => p.toLowerCase().includes(contentType.toLowerCase()))) {
+    parts.push(`${contentType} content`);
+  }
+  return parts.length > 0 ? parts[0] : null;
+}
 
 interface Props {
   session: AssistantSessionState;
@@ -115,6 +179,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   );
 
   const [phase, setPhase] = useState<ReviewPhase>('reviewing');
+  const [autoMode, setAutoMode] = useState(true);
   const [expandedPost, setExpandedPost] = useState<number | null>(0);
   const [editedPosts, setEditedPosts] = useState<Map<number, string>>(new Map());
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
@@ -130,24 +195,6 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     }
   }, [posts.length]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const handlePostDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setPostOrder((prev) => {
-      const oldIdx = prev.indexOf(Number(active.id));
-      const newIdx = prev.indexOf(Number(over.id));
-      const next = [...prev];
-      next.splice(oldIdx, 1);
-      next.splice(newIdx, 0, Number(active.id));
-      return next;
-    });
-  };
-
   // A/B version tracking per post
   const [versionMap, setVersionMap] = useState<Map<number, 'A' | 'B'>>(new Map());
 
@@ -159,6 +206,23 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
 
   // Image assignment edits per post
   const [imageEdits, setImageEdits] = useState<Map<number, string[]>>(new Map());
+
+  // Persona recommendation tracking
+  const [personaAcceptedPosts, setPersonaAcceptedPosts] = useState<Set<number>>(new Set());
+  const personaAutoAppliedRef = useRef(false);
+
+  // Auto-apply persona for posts where autoApply is true
+  useEffect(() => {
+    if (personaAutoAppliedRef.current || posts.length === 0) return;
+    personaAutoAppliedRef.current = true;
+    const autoSet = new Set<number>();
+    for (let i = 0; i < posts.length; i++) {
+      if (posts[i].personaRecommendation?.autoApply) {
+        autoSet.add(i);
+      }
+    }
+    if (autoSet.size > 0) setPersonaAcceptedPosts(autoSet);
+  }, [posts]);
 
   // Auto-select best version per post on initial load
   const [versionAutoSelected, setVersionAutoSelected] = useState(false);
@@ -188,6 +252,12 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   const [assignmentReasons, setAssignmentReasons] = useState<Map<number, string>>(new Map());
   // Per-post per-image match reasons (index → imageId → reason)
   const [imageMatchReasons, setImageMatchReasons] = useState<Map<number, Map<string, string>>>(new Map());
+  // Per-post confidence scores (index → confidences[])
+  const [imageConfidences, setImageConfidences] = useState<Map<number, number[]>>(new Map());
+
+  // ── Learning hooks (lightweight data capture) ─────────────────────
+  const [versionSelections, setVersionSelections] = useState<VersionSelection[]>([]);
+  const [mediaReplacements, setMediaReplacements] = useState<MediaReplacement[]>([]);
 
   // ── AI Improve state per post ──────────────────────────────────────
   const [improvedVersions, setImprovedVersions] = useState<Map<number, PostVersion[]>>(new Map());
@@ -350,20 +420,26 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       body: p.body,
     }));
 
+    // Target 3-5 images per post; property campaigns aim higher
+    const hasPropertyData = !!(session.propertyData && (session.propertyData as any).images?.length);
+    const target = hasPropertyData ? 5 : 3;
+
     const results = assignImagesToPosts(postsInfo, imagePool, {
-      imagesPerPost: 2,
+      imagesPerPost: Math.min(target, imagePool.length),
       maxImagesPerPost: 5,
-      secondaryThreshold: 10,
+      secondaryThreshold: 5,
     });
     const edits = new Map<number, string[]>();
     const reasons = new Map<number, string>();
     const perImageReasons = new Map<number, Map<string, string>>();
+    const confidences = new Map<number, number[]>();
 
     for (const r of results) {
       const post = posts[r.postIndex];
       if (post.assignedImageIds && post.assignedImageIds.length > 0) continue;
       edits.set(r.postIndex, r.imageIds);
       reasons.set(r.postIndex, r.reasons[0] ?? 'Auto-assigned');
+      confidences.set(r.postIndex, r.confidences);
       // Store per-image reasons for the RecommendedPhotos section
       const imgReasons = new Map<string, string>();
       for (let i = 0; i < r.imageIds.length; i++) {
@@ -380,6 +456,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       });
       setAssignmentReasons(reasons);
       setImageMatchReasons(perImageReasons);
+      setImageConfidences(confidences);
     }
   }, [posts, imagePool, autoAssigned]);
 
@@ -406,6 +483,49 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     return imageEdits.get(index) ?? posts[index]?.assignedImageIds ?? [];
   };
 
+  // ── Post readiness for auto mode ──────────────────────────────────
+  const postScores = useMemo(() => {
+    return posts.map((post, i) => {
+      const body = getPostBody(i);
+      return computePostStrength({
+        body,
+        cta: getPostCta(i),
+        hashtags: getPostHashtags(i),
+        hooks: [],
+        scoredHooks: post.hookScore != null
+          ? [{ text: '', hookScore: Math.round(post.hookScore * 10), reason: '' }]
+          : null,
+        channel: post.channel,
+        mediaRefs: getPostImageIds(i).map((id) => ({ id, source: 'auto_assigned' as const })),
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posts, editedPosts, hashtagEdits, ctaEdits, imageEdits, versionMap]);
+
+  const postReadiness = useMemo(() => {
+    return posts.map((post, i) => {
+      const score = postScores[i];
+      return computePostReadiness(score?.value ?? null, getPostImageIds(i), post.channel);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posts, postScores, imageEdits]);
+
+  const readyCount = postReadiness.filter((r) => r === 'ready').length;
+
+  // Auto-expand first needs_review post only when auto-mode is toggled on (not on every readiness change)
+  const prevAutoMode = useRef(autoMode);
+  useEffect(() => {
+    if (!autoMode) {
+      prevAutoMode.current = false;
+      return;
+    }
+    if (prevAutoMode.current) return; // already on — don't re-expand
+    prevAutoMode.current = true;
+    const firstNeedsReview = postOrder.find((origIdx) => postReadiness[origIdx] === 'needs_review');
+    setExpandedPost(firstNeedsReview ?? null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMode, postReadiness]);
+
   const handleEditPost = (index: number, newBody: string) => {
     setEditedPosts((prev) => {
       const next = new Map(prev);
@@ -426,6 +546,11 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       next.delete(index);
       return next;
     });
+    // Learning: capture version selection
+    setVersionSelections((prev) => [
+      ...prev,
+      { postIndex: index, selected: version.toLowerCase() as 'a' | 'b', wasAutoSelected: false },
+    ]);
   };
 
   const handleHashtagRemove = (index: number, tagIndex: number) => {
@@ -459,11 +584,19 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   };
 
   const handleImageReassign = (index: number, imageIds: string[]) => {
+    const originalIds = getPostImageIds(index);
     setImageEdits((prev) => {
       const next = new Map(prev);
       next.set(index, imageIds);
       return next;
     });
+    // Learning: capture media replacement
+    if (JSON.stringify(originalIds) !== JSON.stringify(imageIds)) {
+      setMediaReplacements((prev) => [
+        ...prev,
+        { postIndex: index, originalIds, newIds: imageIds },
+      ]);
+    }
   };
 
   // Poll a PENDING asset until READY (or FAILED), max ~60s
@@ -700,6 +833,14 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
             setPhase('reviewing');
             return;
           }
+          // Generate persona images for accepted posts
+          Array.from(personaAcceptedPosts).forEach((postIdx) => {
+            const p = posts[postIdx];
+            if (p) {
+              const guidance = p.imageHint || p.mediaPlan?.prompt || p.label || p.body.slice(0, 500);
+              generateMedia.mutate({ clientId, guidance, usePersona: true });
+            }
+          });
           setPhase('saved');
           setSavedCampaignId(data.campaignId);
           setSavedAssetCount(attached);
@@ -709,7 +850,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         },
       }
     );
-  }, [result, session, posts, editedPosts, hashtagEdits, ctaEdits, imageEdits, versionMap, saveMutation, clientId, postOrder]);
+  }, [result, session, posts, editedPosts, hashtagEdits, ctaEdits, imageEdits, versionMap, saveMutation, clientId, postOrder, personaAcceptedPosts, generateMedia]);
 
   const handleSave = useCallback((addToPlanner: boolean) => {
     // Pre-save validation
@@ -780,6 +921,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
               Campaign saved — {posts.length} posts queued
               {savedAssetCount > 0 && ` with ${savedAssetCount} image(s) attached`}
             </p>
+            <p className="text-[10px] text-white-40">Optimized for your audience</p>
             <Link
               href={`/workspaces/${clientId}/planner${savedCampaignId ? `?campaignId=${savedCampaignId}` : ''}`}
               className="text-[11px] text-accent-green-110 hover:underline"
@@ -859,56 +1001,129 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         </div>
       )}
 
-      {/* Campaign name */}
-      <p className="text-[11px] text-white-40 font-medium uppercase tracking-wider">
-        {result.campaign.campaignName} — {posts.length} connected posts
-      </p>
-
-      {/* Post list — drag to reorder */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handlePostDragEnd}>
-        <SortableContext items={postOrder} strategy={verticalListSortingStrategy}>
-          <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
-            {postOrder.map((origIdx) => (
-              <SortablePostItem
-                key={origIdx}
-                id={origIdx}
-                post={posts[origIdx]}
-                index={origIdx}
-                isExpanded={expandedPost === origIdx}
-                onToggle={() => setExpandedPost(expandedPost === origIdx ? null : origIdx)}
-                editedBody={editedPosts.get(origIdx)}
-                onEditBody={(body) => handleEditPost(origIdx, body)}
-                selectedVersion={getSelectedVersion(origIdx)}
-                onVersionToggle={(v) => handleVersionToggle(origIdx, v)}
-                hashtags={getPostHashtags(origIdx)}
-                onHashtagRemove={(tagIdx) => handleHashtagRemove(origIdx, tagIdx)}
-                onHashtagAdd={(tag) => handleHashtagAdd(origIdx, tag)}
-                cta={getPostCta(origIdx)}
-                onCtaEdit={(cta) => handleCtaEdit(origIdx, cta)}
-                assignedImageIds={getPostImageIds(origIdx)}
-                selectedMediaIds={session.selectedMediaIds}
-                onImageReassign={(ids) => handleImageReassign(origIdx, ids)}
-                assetMap={assetMap}
-                propertyImages={propertyImages}
-                assignmentReason={assignmentReasons.get(origIdx)}
-                imageMatchReasons={imageMatchReasons.get(origIdx)}
-                clientId={clientId}
-                aiAvailable={aiImageAvailable}
-                onLocalAssetAdded={(asset) => setLocalAssets((prev) => new Map(prev).set(asset.id, asset))}
-                mediaPlan={posts[origIdx].mediaPlan}
-                dataAwareness={campaignDataAwareness}
-                improveState={improveStates.get(origIdx) ?? { status: 'idle', error: null, lastActionId: null }}
-                onTextImprove={(actionId) => handleTextImprove(origIdx, actionId)}
-                onMediaImprove={(actionId) => handleMediaImprove(origIdx, actionId)}
-                onDismissImproveError={() => handleDismissImproveError(origIdx)}
-                improvedVersions={improvedVersions.get(origIdx) ?? []}
-                atImageLimit={atImageLimit}
-                atVideoLimit={atVideoLimit}
-              />
-            ))}
+      {/* Campaign readiness banner */}
+      {readyCount === posts.length ? (
+        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20">
+          <CheckCircle2 className="w-4 h-4 text-accent-green-110 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-accent-green-110">Your campaign is ready</p>
+            <p className="text-[10px] text-white-40">All {posts.length} posts optimized</p>
           </div>
-        </SortableContext>
-      </DndContext>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white-5 border border-white-10">
+          <Sparkles className="w-4 h-4 text-accent-green-110/60 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-white-80">
+              {readyCount} post{readyCount !== 1 ? 's' : ''} ready, {posts.length - readyCount} could be improved
+            </p>
+            <p className="text-[10px] text-white-40">Based on your content style</p>
+          </div>
+        </div>
+      )}
+
+      {/* Campaign header with auto mode toggle */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-white-40 font-medium uppercase tracking-wider truncate">
+          {result.campaign.campaignName}
+        </p>
+        <button
+          onClick={() => setAutoMode(!autoMode)}
+          className="flex items-center gap-1 text-[10px] text-white-40 hover:text-white-60 transition-colors shrink-0"
+          title={autoMode ? 'Auto mode: ready posts collapsed' : 'Auto mode off'}
+        >
+          {autoMode ? (
+            <ToggleRight className="w-4 h-4 text-accent-green-110" />
+          ) : (
+            <ToggleLeft className="w-4 h-4" />
+          )}
+          Auto
+        </button>
+      </div>
+
+      {/* Post list grouped by content type */}
+      {(() => {
+        // Group posts by category
+        type GroupKey = string;
+        const groups = new Map<GroupKey, number[]>();
+        for (const origIdx of postOrder) {
+          const ct = deriveContentType((posts[origIdx] as any).angle) ?? 'Other';
+          const existing = groups.get(ct) ?? [];
+          existing.push(origIdx);
+          groups.set(ct, existing);
+        }
+        // Sort groups: Listing first, then alpha
+        const ORDER = ['Listing', 'Educational', 'Engagement', 'Personal', 'Other'];
+        const sortedKeys = Array.from(groups.keys()).sort(
+          (a, b) => (ORDER.indexOf(a) === -1 ? 99 : ORDER.indexOf(a)) - (ORDER.indexOf(b) === -1 ? 99 : ORDER.indexOf(b))
+        );
+        const showGroups = sortedKeys.length > 1;
+
+        return (
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {sortedKeys.map((groupKey) => {
+              const indices = groups.get(groupKey)!;
+              return (
+                <div key={groupKey}>
+                  {showGroups && (
+                    <p className="text-[9px] text-white-30 uppercase tracking-wider font-medium mb-1 mt-1 flex items-center gap-1.5">
+                      <Tag className="w-2.5 h-2.5" />
+                      {groupKey} ({indices.length})
+                    </p>
+                  )}
+                  <div className="space-y-1.5">
+                    {indices.map((origIdx) => (
+                      <PostReviewItem
+                        key={origIdx}
+                        id={origIdx}
+                        post={posts[origIdx]}
+                        index={origIdx}
+                        isExpanded={expandedPost === origIdx}
+                        onToggle={() => setExpandedPost(expandedPost === origIdx ? null : origIdx)}
+                        editedBody={editedPosts.get(origIdx)}
+                        onEditBody={(body) => handleEditPost(origIdx, body)}
+                        selectedVersion={getSelectedVersion(origIdx)}
+                        onVersionToggle={(v) => handleVersionToggle(origIdx, v)}
+                        hashtags={getPostHashtags(origIdx)}
+                        onHashtagRemove={(tagIdx) => handleHashtagRemove(origIdx, tagIdx)}
+                        onHashtagAdd={(tag) => handleHashtagAdd(origIdx, tag)}
+                        cta={getPostCta(origIdx)}
+                        onCtaEdit={(cta) => handleCtaEdit(origIdx, cta)}
+                        assignedImageIds={getPostImageIds(origIdx)}
+                        selectedMediaIds={session.selectedMediaIds}
+                        onImageReassign={(ids) => handleImageReassign(origIdx, ids)}
+                        assetMap={assetMap}
+                        propertyImages={propertyImages}
+                        assignmentReason={assignmentReasons.get(origIdx)}
+                        imageMatchReasons={imageMatchReasons.get(origIdx)}
+                        clientId={clientId}
+                        aiAvailable={aiImageAvailable}
+                        onLocalAssetAdded={(asset) => setLocalAssets((prev) => new Map(prev).set(asset.id, asset))}
+                        mediaPlan={posts[origIdx].mediaPlan}
+                        dataAwareness={campaignDataAwareness}
+                        improveState={improveStates.get(origIdx) ?? { status: 'idle', error: null, lastActionId: null }}
+                        onTextImprove={(actionId) => handleTextImprove(origIdx, actionId)}
+                        onMediaImprove={(actionId) => handleMediaImprove(origIdx, actionId)}
+                        onDismissImproveError={() => handleDismissImproveError(origIdx)}
+                        improvedVersions={improvedVersions.get(origIdx) ?? []}
+                        atImageLimit={atImageLimit}
+                        atVideoLimit={atVideoLimit}
+                        readiness={postReadiness[origIdx]}
+                        autoMode={autoMode}
+                        contentType={deriveContentType((posts[origIdx] as any).angle)}
+                        primaryConfidence={imageConfidences.get(origIdx)?.[0] ?? null}
+                        showDayLabel={posts.length > 3}
+                        onPersonaAccepted={() => setPersonaAcceptedPosts((prev) => new Set(prev).add(origIdx))}
+                        personaAutoApplied={personaAcceptedPosts.has(origIdx)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Media-required channel warning */}
       {(() => {
@@ -964,7 +1179,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
           ) : (
             <Video className="w-3 h-3" />
           )}
-          {generateVideoMutation.isPending ? 'Generating…' : 'Generate Video'}
+          {generateVideoMutation.isPending ? 'Generating AI Video…' : 'Generate AI Video'}
           {atVideoLimit && <span className="text-accent-red text-[9px] ml-0.5">Limit</span>}
         </button>
         {generateMedia.isSuccess && (
@@ -1039,8 +1254,8 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 flex-wrap pt-1">
+      {/* Actions — sticky footer */}
+      <div className="flex items-center gap-2 flex-wrap pt-2 sticky bottom-0 bg-sp-bg/95 backdrop-blur-sm pb-2 -mb-2 z-10 border-t border-white-5">
         <button
           onClick={() => handleSave(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90 transition-colors"
@@ -1113,26 +1328,14 @@ type PostReviewItemProps = {
   improvedVersions?: PostVersion[];
   atImageLimit?: boolean;
   atVideoLimit?: boolean;
+  readiness?: PostReadiness;
+  autoMode?: boolean;
+  contentType?: ContentType | null;
+  primaryConfidence?: number | null;
+  showDayLabel?: boolean;
+  onPersonaAccepted?: () => void;
+  personaAutoApplied?: boolean;
 };
-
-function SortablePostItem(props: PostReviewItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.id,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : undefined,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-      <PostReviewItem {...props} dragListeners={listeners} />
-    </div>
-  );
-}
 
 // ── Individual Post Review Item ──────────────────────────────────────────
 
@@ -1169,8 +1372,14 @@ function PostReviewItem({
   improvedVersions,
   atImageLimit,
   atVideoLimit,
-  dragListeners,
-}: PostReviewItemProps & { dragListeners?: Record<string, unknown> }) {
+  readiness,
+  autoMode,
+  contentType,
+  primaryConfidence,
+  showDayLabel = true,
+  onPersonaAccepted,
+  personaAutoApplied,
+}: PostReviewItemProps) {
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [addingHashtag, setAddingHashtag] = useState(false);
@@ -1179,6 +1388,8 @@ function PostReviewItem({
   const [ctaDraft, setCtaDraft] = useState(cta);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
+  const [whyExpanded, setWhyExpanded] = useState(false);
+  const [personaDismissed, setPersonaDismissed] = useState(false);
   const channelInfo = CHANNEL_REGISTRY[post.channel];
 
   const body = editedBody ?? (selectedVersion === 'B' && post.bodyAlt ? post.bodyAlt : post.body);
@@ -1256,20 +1467,15 @@ function PostReviewItem({
       isExpanded ? 'border-accent-green-110/20 bg-transparent' : 'border-white-5/50 hover:border-white-10'
     )}>
       {/* Header — always visible */}
-      <div className="flex items-center">
-        <div
-          {...dragListeners}
-          className="shrink-0 px-1 py-2 cursor-grab active:cursor-grabbing text-white-20 hover:text-white-40 transition-colors"
-        >
-          <GripVertical className="w-3.5 h-3.5" />
-        </div>
-        <button
-          onClick={onToggle}
-          className="flex-1 flex items-center gap-2 px-1 py-2 text-left min-w-0"
-        >
-        <span className="text-[10px] font-semibold text-accent-green-110 tabular-nums w-10">
-          Day {post.campaignDay}
-        </span>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 px-2 py-2 text-left min-w-0"
+      >
+        {showDayLabel && (
+          <span className="text-[10px] font-semibold text-accent-green-110 tabular-nums w-10">
+            Day {post.campaignDay}
+          </span>
+        )}
         <span className="text-[10px] text-white-40">
           {channelInfo?.label ?? post.channel}
         </span>
@@ -1277,9 +1483,27 @@ function PostReviewItem({
           {post.label}
         </span>
 
-        {/* Data awareness badge — compact */}
-        {dataAwareness && (
-          <DataAwarenessBadge awareness={dataAwareness} className="shrink-0" />
+        {/* Content type tag */}
+        {contentType && (
+          <span className="text-[9px] text-white-30 bg-white-5 px-1.5 py-0.5 rounded shrink-0">
+            {contentType}
+          </span>
+        )}
+
+        {/* Readiness badge */}
+        {readiness && (
+          <span className={cn(
+            'flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0',
+            readiness === 'ready'
+              ? 'text-accent-green-110 bg-accent-green-110/10'
+              : 'text-accent-orange bg-accent-orange/10'
+          )}>
+            <span className={cn(
+              'w-1.5 h-1.5 rounded-full',
+              readiness === 'ready' ? 'bg-accent-green-110' : 'bg-accent-orange'
+            )} />
+            {readiness === 'ready' ? 'Ready' : 'Review'}
+          </span>
         )}
 
         {/* Version score badge in header */}
@@ -1304,11 +1528,61 @@ function PostReviewItem({
           <ChevronDown className="w-3 h-3 text-white-30" />
         )}
       </button>
-      </div>
 
       {/* Expanded content */}
       {isExpanded && (
-        <div className="px-3 pb-3 space-y-2">
+        <div className="px-3 pb-3 space-y-2.5 animate-in fade-in-0 slide-in-from-top-1 duration-200">
+          {/* AI decision label */}
+          {(() => {
+            const aiLabel = buildAIDecisionLabel(assignmentReason, contentType, post.channel);
+            if (!aiLabel) return null;
+            return (
+              <p className="text-[10px] text-white-40 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-accent-green-110/60 shrink-0" />
+                {aiLabel}
+              </p>
+            );
+          })()}
+
+          {/* "Why this works" section */}
+          {(() => {
+            const reasons = composeWhyThisWorks(currentScore, assignmentReason, dataAwareness, post.label, post.channel);
+            if (reasons.length === 0) return null;
+            return whyExpanded ? (
+              <div className="rounded-lg border border-accent-green-110/10 bg-accent-green-110/5 p-2.5 space-y-1">
+                <button
+                  onClick={() => setWhyExpanded(false)}
+                  className="text-[10px] font-medium text-accent-green-110 flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Why this works
+                </button>
+                <ul className="space-y-0.5">
+                  {reasons.map((r, i) => (
+                    <li key={i} className="text-[11px] text-white-60 flex items-center gap-1.5">
+                      <Check className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <button
+                onClick={() => setWhyExpanded(true)}
+                className="text-[11px] text-white-40 italic hover:text-white-60 transition-colors"
+              >
+                {reasons.join(' · ')}
+              </button>
+            );
+          })()}
+
+          {/* Educational + missing data warning */}
+          {contentType === 'Educational' && dataAwareness?.level === 'missing_data' && (
+            <p className="text-[10px] text-accent-orange">
+              Educational posts work best with real data
+            </p>
+          )}
+
           {/* Version picker (replaces old A/B toggle) */}
           {(hasAltVersion || (improvedVersions && improvedVersions.length > 0)) && (
             <div onClick={(e) => e.stopPropagation()}>
@@ -1331,9 +1605,12 @@ function PostReviewItem({
             </div>
           )}
 
-          {/* Post score */}
+          {/* Post score — compact when VersionPicker is visible */}
           {currentScore && (
-            <PostScoreMeter score={currentScore} />
+            <PostScoreMeter
+              score={currentScore}
+              compact={hasAltVersion || (improvedVersions != null && improvedVersions.length > 0)}
+            />
           )}
 
           {/* Data awareness — expanded detail */}
@@ -1341,16 +1618,67 @@ function PostReviewItem({
             <DataAwarenessBadge awareness={dataAwareness} showDetail={true} />
           )}
 
-          {/* Media plan banner */}
-          {mediaPlan && (
-            <MediaPlanBanner
-              mediaPlan={mediaPlan}
-              matchedMediaIds={assignedImageIds.length > 0 ? assignedImageIds : undefined}
-              matchExplanation={assignmentReason}
-              onAttachMedia={(ids) => onImageReassign(ids)}
-              onOpenGenerate={() => setShowImagePicker(true)}
+          {/* Persona recommendation badge */}
+          {post.personaRecommendation && !personaDismissed && !personaAutoApplied && (
+            <PersonaRecommendationBadge
+              recommendation={post.personaRecommendation}
+              onUsePersona={() => {
+                onPersonaAccepted?.();
+                setPersonaDismissed(true);
+              }}
+              onSkip={() => setPersonaDismissed(true)}
             />
           )}
+
+          {/* Media confidence badge */}
+          {primaryConfidence != null && (
+            <div className="flex items-center gap-1.5">
+              {(() => {
+                const tier = getConfidenceTier(primaryConfidence);
+                const label = getConfidenceLabel(
+                  primaryConfidence,
+                  assignedImageIds[0] ? assetMap.get(assignedImageIds[0])?.filename ?? undefined : undefined,
+                );
+                return (
+                  <>
+                    <span className={cn(
+                      'text-[10px] font-medium px-1.5 py-0.5 rounded',
+                      tier === 'high' ? 'text-accent-green-110 bg-accent-green-110/10' :
+                      tier === 'medium' ? 'text-white-60 bg-white-5' :
+                      'text-accent-orange bg-accent-orange/10'
+                    )}>
+                      {label}
+                    </span>
+                    {tier === 'low' && (
+                      <button
+                        onClick={() => setShowImagePicker(true)}
+                        className="text-[10px] text-accent-green-110 hover:underline"
+                      >
+                        Generate better match?
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Media plan banner */}
+          {mediaPlan && (() => {
+            // Only pass IDs that resolve to actual thumbnails
+            const resolvedIds = assignedImageIds.filter((id) =>
+              resolveThumbUrl(id, assetMap, propertyImages as any).url,
+            );
+            return (
+              <MediaPlanBanner
+                mediaPlan={mediaPlan}
+                matchedMediaIds={resolvedIds.length > 0 ? resolvedIds : undefined}
+                matchExplanation={assignmentReason}
+                onAttachMedia={(ids) => onImageReassign(ids)}
+                onOpenGenerate={() => setShowImagePicker(true)}
+              />
+            );
+          })()}
 
           {/* Assigned media */}
           <PostMediaStrip
@@ -1366,26 +1694,23 @@ function PostReviewItem({
           />
 
           {/* Recommended photos with match reasons */}
-          {assignedImageIds.length > 0 && imageMatchReasons && imageMatchReasons.size > 0 && (
-            <div className="space-y-1">
-              <p className="text-[9px] text-white-40 uppercase tracking-wider font-medium">Recommended photos</p>
-              <div className="flex gap-1.5 overflow-x-auto">
-                {assignedImageIds.slice(0, 5).map((id) => {
-                  const reason = imageMatchReasons.get(id);
-                  return (
+          {assignedImageIds.length > 0 && imageMatchReasons && imageMatchReasons.size > 0 && (() => {
+            // Only show thumbnails that actually resolve to a URL
+            const resolved = assignedImageIds.slice(0, 5).map((id) => ({
+              id,
+              reason: imageMatchReasons.get(id),
+              thumb: resolveThumbUrl(id, assetMap, propertyImages as any),
+            }));
+            const withUrls = resolved.filter((r) => r.thumb.url);
+            if (withUrls.length === 0) return null;
+            return (
+              <div className="space-y-1">
+                <p className="text-[9px] text-white-40 uppercase tracking-wider font-medium">Recommended photos</p>
+                <div className="flex gap-1.5 overflow-x-auto">
+                  {withUrls.map(({ id, reason, thumb }) => (
                     <div key={id} className="flex flex-col items-center gap-0.5 shrink-0">
                       <div className="w-10 h-10 rounded border border-accent-green-110/30 bg-white-5 overflow-hidden">
-                        {(() => {
-                          const asset = assetMap.get(id);
-                          const url = asset?.thumbnailUrl || asset?.url;
-                          return url ? (
-                            <img src={url} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ImageIcon className="w-3 h-3 text-white-20" />
-                            </div>
-                          );
-                        })()}
+                        <img src={thumb.url!} alt={thumb.label} className="w-full h-full object-cover" />
                       </div>
                       {reason && (
                         <span className="text-[8px] text-white-40 leading-tight max-w-[60px] text-center truncate" title={reason}>
@@ -1393,11 +1718,11 @@ function PostReviewItem({
                         </span>
                       )}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Media picker */}
           {showImagePicker && (
@@ -1434,36 +1759,74 @@ function PostReviewItem({
                 rows={4}
                 className="w-full text-[12px] text-white-100 bg-white-5 border border-white-10 rounded-lg p-2 resize-none focus:outline-none focus:border-accent-green-110"
               />
-              <button
-                onClick={() => setEditing(false)}
-                className="text-[10px] text-accent-green-110 hover:underline"
-              >
-                Done editing
-              </button>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setEditing(false)}
+                  className="text-[10px] text-accent-green-110 hover:underline"
+                >
+                  Done editing
+                </button>
+                {/* Character counter */}
+                {(() => {
+                  const maxLen = channelInfo?.maxCaptionLength;
+                  if (!maxLen) return null;
+                  const over = body.length > maxLen;
+                  return (
+                    <span className={cn(
+                      'text-[10px] tabular-nums',
+                      over ? 'text-accent-red font-medium' : 'text-white-30'
+                    )}>
+                      {over ? 'Over limit' : `${body.length.toLocaleString()} / ${maxLen.toLocaleString()}`}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
           ) : (
-            <p className="text-[12px] text-white-80 whitespace-pre-wrap leading-relaxed">
-              {body}
-            </p>
+            <div>
+              <p className="text-[12px] text-white-80 whitespace-pre-wrap leading-relaxed">
+                {body}
+              </p>
+              {/* Character counter */}
+              {(() => {
+                const maxLen = channelInfo?.maxCaptionLength;
+                if (!maxLen) return null;
+                const over = body.length > maxLen;
+                return (
+                  <span className={cn(
+                    'text-[10px] tabular-nums mt-1 block',
+                    over ? 'text-accent-red font-medium' : 'text-white-30'
+                  )}>
+                    {over ? 'Over limit' : `${body.length.toLocaleString()} / ${maxLen.toLocaleString()}`}
+                  </span>
+                );
+              })()}
+            </div>
           )}
 
           {/* Actions row */}
           {!editing && (
-            <div className="flex items-center gap-2 pt-0.5">
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
               <button
                 onClick={() => setEditing(true)}
-                className="flex items-center gap-0.5 text-[10px] text-white-40 hover:text-white-100 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors"
               >
-                <Pencil className="w-2.5 h-2.5" />
-                Edit body
+                <Pencil className="w-3 h-3" />
+                Edit
               </button>
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-0.5 text-[10px] text-white-40 hover:text-white-100 transition-colors"
-              >
-                {copied ? <Check className="w-3 h-3 text-accent-green-110" /> : <Copy className="w-3 h-3" />}
-                {copied ? 'Copied' : 'Copy'}
-              </button>
+              <PostMediaActions
+                mediaIds={assignedImageIds ?? []}
+                assetMap={assetMap}
+                propertyImages={propertyImages as any}
+                imageMatchReasons={imageMatchReasons}
+                body={body}
+                cta={cta || null}
+                channel={post.channel}
+                clientId={clientId}
+                onVideoAttached={(asset) => onImageReassign([asset.id])}
+                onLocalAssetAdded={onLocalAssetAdded}
+                variant="padded"
+              />
               {improveState && onTextImprove && onDismissImproveError && (
                 <ImproveMenu
                   improveState={improveState}

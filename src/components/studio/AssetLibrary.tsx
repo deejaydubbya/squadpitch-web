@@ -25,6 +25,7 @@ import {
   Sparkles,
   ArrowRight,
   Check,
+  UserPlus,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,7 @@ import {
   useAutoTagAsset,
   autoTagAssetFetch,
   useAssetTagDefaults,
+  useBrandPersona,
   squadpitchKeys,
   type MediaAssetSource,
   type MediaAssetStatus,
@@ -58,6 +60,7 @@ import { useUsage } from '@/hooks/useBilling';
 import { AssetPreviewModal } from './AssetPreviewModal';
 import { AttachToPostModal } from './AttachToPostModal';
 import { CloudImportExport } from './CloudImportExport';
+import { AddMeToPhotoModal } from './AddMeToPhotoModal';
 
 interface Props {
   clientId: string;
@@ -162,6 +165,11 @@ export function AssetLibrary({ clientId }: Props) {
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showCloudModal, setShowCloudModal] = useState(false);
   const [showFab, setShowFab] = useState(false);
+  const [composeAsset, setComposeAsset] = useState<MediaAsset | null>(null);
+
+  // Persona state for compose feature
+  const { data: persona } = useBrandPersona(clientId);
+  const personaReady = persona?.status === 'COMPLETED';
 
   // Debounce search input
   useEffect(() => {
@@ -692,8 +700,8 @@ export function AssetLibrary({ clientId }: Props) {
           </div>
         )}
 
-        {/* Loading / error state */}
-        {isLoading && (
+        {/* Loading state — only show spinner on initial load, not when loading more */}
+        {isLoading && !accumulatedAssets.length && (
           <div className="flex items-center gap-2 py-6">
             <LoadingSpinner size="sm" />
             <span className="text-white-40 text-sm">Loading assets...</span>
@@ -723,8 +731,8 @@ export function AssetLibrary({ clientId }: Props) {
           </div>
         )}
 
-        {/* Asset grid */}
-        {!isLoading && assets && (
+        {/* Asset grid — show even while fetching next page */}
+        {(!isLoading || accumulatedAssets.length > 0) && assets && (
           <>
             {assets.length === 0 ? (
               <div className="card p-8 text-center space-y-4">
@@ -751,7 +759,7 @@ export function AssetLibrary({ clientId }: Props) {
                     onClick={() => { setGenMode('video'); setShowGenerateModal(true); }}
                     className="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 text-sm font-medium hover:bg-purple-500/30 flex items-center gap-2"
                   >
-                    <Video className="w-4 h-4" /> Generate Video
+                    <Video className="w-4 h-4" /> Generate AI Video
                   </button>
                 </div>
               </div>
@@ -777,6 +785,8 @@ export function AssetLibrary({ clientId }: Props) {
                       onAutoTag={() => {
                         autoTagAsset.mutate(asset.id);
                       }}
+                      personaReady={personaReady}
+                      onCompose={() => setComposeAsset(asset)}
                     />
                   ))}
                 </div>
@@ -832,7 +842,7 @@ export function AssetLibrary({ clientId }: Props) {
                 onClick={() => { setGenMode('video'); setShowGenerateModal(true); setShowFab(false); }}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
               >
-                <Film className="w-3.5 h-3.5" /> Generate Video
+                <Film className="w-3.5 h-3.5" /> Generate AI Video
               </button>
               <div className="border-t border-white-10 my-0.5" />
               <button
@@ -1077,14 +1087,14 @@ export function AssetLibrary({ clientId }: Props) {
                       : 'bg-white-10 text-white-60 hover:bg-white-20'
                   )}
                 >
-                  Video
+                  AI Video
                 </button>
               </div>
 
               <textarea
                 value={guidance}
                 onChange={(e) => setGuidance(e.target.value)}
-                placeholder={genMode === 'video' ? 'Describe the video you want to generate...' : 'Describe the image you want to generate...'}
+                placeholder={genMode === 'video' ? 'Describe the AI video you want to generate...' : 'Describe the image you want to generate...'}
                 rows={4}
                 className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none"
               />
@@ -1116,7 +1126,7 @@ export function AssetLibrary({ clientId }: Props) {
                 ) : (
                   <Wand2 className="w-4 h-4" />
                 )}
-                Generate {genMode === 'video' ? 'Video' : 'Image'}
+                Generate {genMode === 'video' ? 'AI Video' : 'Image'}
               </button>
 
               {generateError && (
@@ -1129,13 +1139,13 @@ export function AssetLibrary({ clientId }: Props) {
                   <p className="text-xs text-white-40 text-center">
                     {genMode === 'image'
                       ? `${Math.max(0, (usage.limits.images ?? 0) - (usage.usage.images ?? 0))} of ${usage.limits.images ?? 0} image generations remaining`
-                      : `${Math.max(0, (usage.limits.videos ?? 0) - (usage.usage.videos ?? 0))} of ${usage.limits.videos ?? 0} video generations remaining`}
+                      : `${Math.max(0, (usage.limits.videos ?? 0) - (usage.usage.videos ?? 0))} of ${usage.limits.videos ?? 0} AI video generations remaining`}
                   </p>
                   {((genMode === 'image' && usage.usage.images >= usage.limits.images) ||
                     (genMode === 'video' && usage.usage.videos >= usage.limits.videos)) && (
                     <UpgradePrompt
                       currentTier={usage.tier}
-                      limitType={genMode === 'video' ? 'Video' : 'Image'}
+                      limitType={genMode === 'video' ? 'AI Video' : 'Image'}
                     />
                   )}
                 </>
@@ -1183,6 +1193,16 @@ export function AssetLibrary({ clientId }: Props) {
             assetId={attachAssetId}
             clientId={clientId}
             onClose={() => setAttachAssetId(null)}
+          />
+        )}
+
+        {/* Add Me to Photo compose modal */}
+        {composeAsset && (
+          <AddMeToPhotoModal
+            asset={composeAsset}
+            clientId={clientId}
+            onClose={() => setComposeAsset(null)}
+            onSuccess={() => setComposeAsset(null)}
           />
         )}
       </div>
@@ -1256,6 +1276,8 @@ interface AssetCardProps {
   onMoveToFolder: (folderId: string | null) => void;
   onUpdateTags: (tags: string[]) => void;
   onAutoTag: () => void;
+  personaReady?: boolean;
+  onCompose?: () => void;
 }
 
 function AssetCard({
@@ -1267,6 +1289,8 @@ function AssetCard({
   onDownload,
   isConfirmingDelete,
   onDeleteClick,
+  personaReady,
+  onCompose,
   onDeleteConfirm,
   onDeleteCancel,
   isDeleting,
@@ -1422,6 +1446,15 @@ function AssetCard({
             >
               <Download className="w-4 h-4" />
             </button>
+            {personaReady && asset.assetType !== 'video' && asset.url && !asset.personaSnapshot?.startsWith('composite:') && onCompose && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onCompose(); }}
+                className="p-2 rounded-full bg-white-10 text-white-100 hover:bg-purple-500/30 hover:text-purple-400 transition-colors"
+                title="Add Me to This Photo"
+              >
+                <UserPlus className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); onPreview(); }}
               className="p-2 rounded-full bg-white-10 text-white-100 hover:bg-accent-green-110/30 hover:text-accent-green-110 transition-colors"

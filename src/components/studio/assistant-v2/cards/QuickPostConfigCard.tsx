@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import {
   useChannelSettings,
+  useChannelConnectionStatus,
   useRecommendations,
   useAcceptRecommendation,
   useDataItems,
@@ -22,7 +23,7 @@ import {
   type WorkspaceDataItem,
   type ContentBlueprint,
 } from '@/hooks/useSquadpitch';
-import { getChannelLabel } from '@/lib/channelRegistry';
+import { getChannelLabel, CHANNEL_REGISTRY } from '@/lib/channelRegistry';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { GOALS, CONTENT_TYPES, QUICK_CHIPS, type ContentType } from './quickPostConstants';
 
@@ -35,6 +36,7 @@ interface Props {
 export function QuickPostConfigCard({ session, clientId, onSelection }: Props) {
   const bdLabels = useBusinessDataLabels(clientId);
   const { data: channels } = useChannelSettings(clientId);
+  const connectedChannels = useChannelConnectionStatus(clientId);
   const { data: recommendations } = useRecommendations(clientId, 'create_content');
   const acceptRec = useAcceptRecommendation(clientId);
 
@@ -59,10 +61,32 @@ export function QuickPostConfigCard({ session, clientId, onSelection }: Props) {
     selectedDataItem ? { applicableType: selectedDataItem.type } : {}
   );
 
-  const enabledChannels = useMemo(
-    () => channels?.filter((c) => c.isEnabled) ?? [],
-    [channels]
-  );
+  // Merge channel settings (isEnabled) with OAuth connections so that
+  // channels connected via OAuth appear even without a channelSettings record.
+  const enabledChannels = useMemo(() => {
+    const seen = new Set<Channel>();
+    const result: { channel: Channel }[] = [];
+
+    // 1. Add channels that have settings with isEnabled
+    for (const c of channels ?? []) {
+      if (c.isEnabled) {
+        seen.add(c.channel);
+        result.push(c);
+      }
+    }
+
+    // 2. Add OAuth-connected channels that don't have settings yet
+    connectedChannels.forEach((_connected, ch) => {
+      if (!seen.has(ch)) {
+        const reg = CHANNEL_REGISTRY[ch];
+        if (reg?.comingSoon) return; // skip coming-soon channels
+        seen.add(ch);
+        result.push({ channel: ch });
+      }
+    });
+
+    return result;
+  }, [channels, connectedChannels]);
 
   // Auto-select first enabled channel if none
   useEffect(() => {

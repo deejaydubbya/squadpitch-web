@@ -3,7 +3,13 @@
 import { useMemo, useState } from 'react';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useChannelSettings, type Channel } from '@/hooks/useSquadpitch';
+import Link from 'next/link';
+import {
+  useChannelSettings,
+  useChannelConnections,
+  type Channel,
+  type ChannelConnection,
+} from '@/hooks/useSquadpitch';
 import { CHANNEL_REGISTRY } from '@/lib/channelRegistry';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 
@@ -15,14 +21,54 @@ interface Props {
 
 export function ChannelSelectCard({ session, clientId, onSelection }: Props) {
   const { data: channelSettings } = useChannelSettings(clientId);
+  const { data: connections, isLoading: connectionsLoading } = useChannelConnections(clientId);
   const isCampaign = session.mode === 'campaign';
 
-  const connectedChannels: Channel[] = useMemo(() => {
-    if (!channelSettings) return [];
-    return channelSettings
-      .filter((cs) => cs.isEnabled)
-      .map((cs) => cs.channel);
-  }, [channelSettings]);
+  // Build map of channel → display name from OAuth connections
+  const connectionDisplayNames = useMemo(() => {
+    const map = new Map<Channel, string>();
+    if (!connections) return map;
+    for (const conn of connections) {
+      if (conn.status === 'CONNECTED' && conn.displayName) {
+        map.set(conn.channel, conn.displayName);
+      }
+    }
+    return map;
+  }, [connections]);
+
+  // Only show channels with an active OAuth connection
+  const availableChannels = useMemo(() => {
+    if (!connections) return [];
+
+    // Build set of connected channels
+    const connected = new Set<Channel>();
+    for (const conn of connections) {
+      if (conn.status === 'CONNECTED') {
+        connected.add(conn.channel);
+      }
+    }
+
+    // If channel settings exist, respect isEnabled as an additional filter
+    if (channelSettings) {
+      const enabledAndConnected: Channel[] = [];
+      for (const cs of channelSettings) {
+        if (cs.isEnabled && connected.has(cs.channel)) {
+          enabledAndConnected.push(cs.channel);
+        }
+      }
+      // Also include connected channels that don't have settings yet
+      connected.forEach((ch) => {
+        if (!enabledAndConnected.includes(ch)) {
+          enabledAndConnected.push(ch);
+        }
+      });
+      return enabledAndConnected;
+    }
+
+    const result: Channel[] = [];
+    connected.forEach((ch) => result.push(ch));
+    return result;
+  }, [channelSettings, connections]);
 
   // Local selection state for multi-select (campaign mode)
   const [selected, setSelected] = useState<Channel[]>(session.channels);
@@ -34,23 +80,31 @@ export function ChannelSelectCard({ session, clientId, onSelection }: Props) {
       );
     } else {
       // Quick post — single select, immediately confirm
+      const displayName = connectionDisplayNames.get(ch);
+      const label = displayName
+        ? `${CHANNEL_REGISTRY[ch]?.label ?? ch} (${displayName})`
+        : (CHANNEL_REGISTRY[ch]?.label ?? ch);
       onSelection(
         { type: 'SET_QUICK_POST_CHANNEL', payload: ch },
-        `Channel: ${CHANNEL_REGISTRY[ch]?.label ?? ch}`
+        `Channel: ${label}`
       );
     }
   };
 
   const confirmMulti = () => {
     if (selected.length === 0) return;
-    const labels = selected.map((ch) => CHANNEL_REGISTRY[ch]?.label ?? ch).join(', ');
+    const labels = selected.map((ch) => {
+      const displayName = connectionDisplayNames.get(ch);
+      const platformLabel = CHANNEL_REGISTRY[ch]?.label ?? ch;
+      return displayName ? `${platformLabel} (${displayName})` : platformLabel;
+    }).join(', ');
     onSelection(
       { type: 'SET_CHANNELS', payload: selected },
       `Channels: ${labels}`
     );
   };
 
-  if (!channelSettings) {
+  if (connectionsLoading) {
     return (
       <div className="flex items-center justify-center gap-2 py-4">
         <div className="w-5 h-5 border-2 border-white-20 border-t-accent-green-110 rounded-full animate-spin" />
@@ -59,10 +113,16 @@ export function ChannelSelectCard({ session, clientId, onSelection }: Props) {
     );
   }
 
-  if (connectedChannels.length === 0) {
+  if (availableChannels.length === 0) {
     return (
-      <div className="py-3 text-center">
-        <p className="text-xs text-white-40">No channels connected to this workspace.</p>
+      <div className="py-4 text-center space-y-2">
+        <p className="text-xs text-white-40">No channels connected yet.</p>
+        <Link
+          href={`/studio/settings/channels`}
+          className="inline-block text-xs text-accent-green-110 hover:underline"
+        >
+          Connect channels
+        </Link>
       </div>
     );
   }
@@ -70,10 +130,11 @@ export function ChannelSelectCard({ session, clientId, onSelection }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {connectedChannels.map((ch) => {
+        {availableChannels.map((ch) => {
           const reg = CHANNEL_REGISTRY[ch];
           if (!reg || reg.comingSoon) return null;
           const isActive = isCampaign ? selected.includes(ch) : session.quickPostChannel === ch;
+          const displayName = connectionDisplayNames.get(ch);
 
           return (
             <button
@@ -87,7 +148,10 @@ export function ChannelSelectCard({ session, clientId, onSelection }: Props) {
               )}
             >
               {isActive && <Check className="w-3 h-3" />}
-              {reg.label}
+              <span>{reg.label}</span>
+              {displayName && (
+                <span className="text-[10px] opacity-60 truncate max-w-[120px]">{displayName}</span>
+              )}
             </button>
           );
         })}

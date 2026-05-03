@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -35,6 +35,8 @@ import { draftToNormalized } from '@/lib/assistant/normalizedPost.adapters';
 import { PostEditorCard, PostMediaStrip, PostMediaSelector, MediaPlanBanner, usePostEditorState, useImproveAction, DataAwarenessBadge } from './post-editor';
 import { usePostMediaGeneration } from './post-editor/usePostMediaGeneration';
 import { buildMediaGuidance, type MediaImproveActionId } from '@/lib/assistant/improveActions';
+import { PostMediaActions } from './PostMediaActions';
+import { PersonaRecommendationBadge } from './PersonaRecommendationBadge';
 
 interface Props {
   session: AssistantSessionState;
@@ -332,6 +334,18 @@ function QuickPostReviewInner({
     }
   };
 
+  // ── Persona recommendation ──────────────────────────────────────────
+  const [personaDismissed, setPersonaDismissed] = useState(false);
+  const autoAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (draft.personaRecommendation?.autoApply && !autoAppliedRef.current) {
+      autoAppliedRef.current = true;
+      mediaGen.generateImageWithPersona(draft.imageGuidance || draft.body);
+      setPersonaDismissed(true);
+    }
+  }, [draft.personaRecommendation]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const hasUserEdits = editor.editedBody !== (editor.selectedVersion?.body ?? '');
 
   // Preserve all selected IDs including synthetic ones — they'll be converted before save
@@ -459,6 +473,19 @@ function QuickPostReviewInner({
         />
       )}
 
+      {/* Persona recommendation badge */}
+      {draft.personaRecommendation && !personaDismissed && (
+        <PersonaRecommendationBadge
+          recommendation={draft.personaRecommendation}
+          isApplying={mediaGen.isGeneratingImage}
+          onUsePersona={() => {
+            mediaGen.generateImageWithPersona(draft.imageGuidance || draft.body);
+            setPersonaDismissed(true);
+          }}
+          onSkip={() => setPersonaDismissed(true)}
+        />
+      )}
+
       {/* Media Strip */}
       <PostMediaStrip
         mediaIds={mediaIds}
@@ -495,13 +522,23 @@ function QuickPostReviewInner({
           Regenerate
         </button>
 
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors"
-        >
-          {copied ? <Check className="w-3 h-3 text-accent-green-110" /> : <Copy className="w-3 h-3" />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+        <PostMediaActions
+          mediaIds={mediaIds}
+          assetMap={assetMap}
+          propertyImages={propertyImages as any}
+          itemImages={itemImages as any}
+          body={editor.editedBody}
+          cta={editor.editedCta || null}
+          channel={draft.channel}
+          clientId={clientId}
+          onVideoAttached={(asset) => setMediaIds([asset.id])}
+          onLocalAssetAdded={(asset) => setLocalAssets((prev) => new Map(prev).set(asset.id, asset))}
+          variant="padded"
+          copyText={[
+            editor.editedBody,
+            editor.parsedHashtags.length ? editor.parsedHashtags.map((h: string) => `#${h}`).join(' ') : '',
+          ].filter(Boolean).join('\n\n')}
+        />
 
         <div className="flex-1" />
 

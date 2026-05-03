@@ -743,7 +743,7 @@ export function ContentPreview({ draft: initialDraft, clientId, pendingAssetId, 
                 ) : (
                   <Video className="w-4 h-4" />
                 )}
-                {mediaUrl ? 'Regenerate Video' : 'Generate Video'}
+                {mediaUrl ? 'Regenerate AI Video' : 'Generate AI Video'}
               </button>
             </div>
 

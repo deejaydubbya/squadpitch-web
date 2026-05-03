@@ -2,6 +2,18 @@ import type { Channel, DraftKind, Draft, ListingCampaignResult } from '@/hooks/u
 
 // ── Session Memory ──────────────────────────────────────────────────────
 
+export interface VersionSelection {
+  postIndex: number;
+  selected: 'a' | 'b' | 'ai';
+  wasAutoSelected: boolean;
+}
+
+export interface MediaReplacement {
+  postIndex: number;
+  originalIds: string[];
+  newIds: string[];
+}
+
 export interface SessionMemory {
   /** Last campaign type the user explicitly selected */
   preferredCampaignType: AssistantCampaignType | null;
@@ -13,6 +25,10 @@ export interface SessionMemory {
   lastSelectedMediaIds: string[];
   /** Number of campaigns completed in this session (for confidence) */
   campaignsCompleted: number;
+  /** Version selections during review (learning data) */
+  versionSelections?: VersionSelection[];
+  /** Media replacements during review (learning data) */
+  mediaReplacements?: MediaReplacement[];
 }
 
 // ── Enums / Unions ───────────────────────────────────────────────────────

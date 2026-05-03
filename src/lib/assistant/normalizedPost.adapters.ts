@@ -12,6 +12,7 @@ import type {
   CampaignMeta,
   PostScore,
   MediaDisplayType,
+  ContentType,
 } from './normalizedPost.types';
 import { computePostStrength, selectBestVersion } from './normalizedPost.scoring';
 import { classifyCampaignDataAwareness, classifyDraftDataAwareness } from './dataAwareness';
@@ -32,6 +33,20 @@ function makeVersion(
   cta: string | null,
 ): PostVersion {
   return { id, label, body, hooks, hashtags, cta, score: null };
+}
+
+// ── Content Type Derivation ──────────────────────────────────────────
+
+const ANGLE_TO_CONTENT_TYPE: Record<string, ContentType> = {
+  lifestyle: 'Lifestyle',
+  authority: 'Educational',
+  social_proof: 'Social Proof',
+  urgency: 'Engagement',
+};
+
+export function deriveContentType(angle: string | undefined | null): ContentType {
+  if (!angle) return 'Listing';
+  return ANGLE_TO_CONTENT_TYPE[angle] ?? 'Listing';
 }
 
 // ── Campaign Post → NormalizedPost ───────────────────────────────────
@@ -126,6 +141,7 @@ export function campaignPostToNormalized(
     dataAwareness: classifyCampaignDataAwareness(dataItemId ?? null, null),
     channels: [post.channel],
     status: 'reviewing',
+    contentType: deriveContentType(post.angle),
     campaignMeta,
     mediaPlan: post.mediaPlan ?? null,
     _originalCampaignPost: post,
@@ -230,6 +246,7 @@ export function draftToNormalized(draft: Draft): NormalizedPost {
     dataAwareness: classifyDraftDataAwareness(draft),
     channels: [draft.channel],
     status: 'reviewing',
+    contentType: null,
     campaignMeta: draft.campaignId
       ? {
           campaignDay: draft.campaignDay ?? 1,

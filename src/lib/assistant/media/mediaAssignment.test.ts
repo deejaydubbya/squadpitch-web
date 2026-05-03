@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   extractBodyKeywords,
   assignImagesToPosts,
+  getConfidenceTier,
+  getConfidenceLabel,
   type CampaignPostInfo,
   type ImagePoolEntry,
 } from './mediaAssignment';
@@ -250,5 +252,43 @@ describe('edge cases', () => {
 
   it('returns empty for no images', () => {
     expect(assignImagesToPosts([{ label: 'x' }], [])).toEqual([]);
+  });
+});
+
+// ── Confidence tier helpers ─────────────────────────────────────────
+
+describe('getConfidenceTier', () => {
+  it('returns high for scores >= 60', () => {
+    expect(getConfidenceTier(60)).toBe('high');
+    expect(getConfidenceTier(130)).toBe('high');
+  });
+
+  it('returns medium for scores 25-59', () => {
+    expect(getConfidenceTier(25)).toBe('medium');
+    expect(getConfidenceTier(59)).toBe('medium');
+  });
+
+  it('returns low for scores < 25', () => {
+    expect(getConfidenceTier(0)).toBe('low');
+    expect(getConfidenceTier(24)).toBe('low');
+  });
+});
+
+describe('getConfidenceLabel', () => {
+  it('returns "Best match (label)" for high confidence with label', () => {
+    expect(getConfidenceLabel(80, 'kitchen')).toBe('Best match (kitchen)');
+  });
+
+  it('returns "Best match" for high confidence without label', () => {
+    expect(getConfidenceLabel(60)).toBe('Best match');
+  });
+
+  it('returns "Good match" for medium confidence', () => {
+    expect(getConfidenceLabel(40)).toBe('Good match');
+    expect(getConfidenceLabel(40, 'bedroom')).toBe('Good match');
+  });
+
+  it('returns "Weak match" for low confidence', () => {
+    expect(getConfidenceLabel(10)).toBe('Weak match');
   });
 });
