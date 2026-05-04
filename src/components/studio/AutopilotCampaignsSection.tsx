@@ -89,7 +89,7 @@ export function AutopilotCampaignsSection({ clientId }: AutopilotCampaignsSectio
     params.set('listingId', rec.listingDataItemId);
     params.set('type', rec.suggestedCampaignType);
     params.set('autopilotRecId', rec.id);
-    router.push(`/workspaces/${clientId}/listing-campaign?${params.toString()}`);
+    router.push(`/workspaces/${clientId}/create?mode=campaign&${params.toString()}`);
   };
 
   const emptyMessage = (() => {

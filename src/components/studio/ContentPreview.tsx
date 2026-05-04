@@ -184,7 +184,7 @@ export function ContentPreview({ draft: initialDraft, clientId, pendingAssetId, 
         qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
         const mediaCount = attachedAssetIds.length;
         setSaveStatus(mediaCount > 0 ? `Post saved with ${mediaCount} image(s) attached` : 'Post saved as draft');
-        router.push(`/workspaces/${clientId}/library`);
+        router.push(`/workspaces/${clientId}/planner`);
       },
     });
   };

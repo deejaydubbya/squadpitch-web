@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { OnboardingWelcome } from '@/components/studio/OnboardingWelcome';
 import {
   Sparkles,
   Send,
@@ -14,7 +13,6 @@ import {
   BarChart3,
   Eye,
   AlertCircle,
-  Rocket,
   ArrowRight,
 } from 'lucide-react';
 import {
@@ -34,20 +32,14 @@ import {
 } from '@/hooks/useSquadpitch';
 import { useGenericIntegrations } from '@/hooks/useIntegrations';
 import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
-import { SetupProgress } from '@/components/studio/SetupProgress';
-import { ListingOpportunitiesWidget } from '@/components/studio/NearbyListingsWidget';
-import { GBPDashboardWidget } from '@/components/studio/GBPDashboardWidget';
-import { SystemStatusCard } from '@/components/studio/SystemStatusCard';
 import { AutopilotStatusCard } from '@/components/studio/AutopilotStatusCard';
-import { AutopilotCampaignsSection } from '@/components/studio/AutopilotCampaignsSection';
-import { OpportunitiesSection } from '@/components/studio/OpportunitiesSection';
 import { ContentActivitySection } from '@/components/studio/ContentActivitySection';
-import { MomentumCard } from '@/components/studio/MomentumCard';
-import { AutopilotUpsellCard } from '@/components/studio/AutopilotUpsellCard';
-import { WeeklyPlanCard } from '@/components/studio/WeeklyPlanCard';
 import { PostOnboardingChecklist } from '@/components/studio/PostOnboardingChecklist';
 import { deriveActivationState } from '@/lib/activationState';
-import { useSubscription } from '@/hooks/useBilling';
+import { useSubscription, useUsage } from '@/hooks/useBilling';
+import { PlanBadge } from '@/components/billing/PlanBadge';
+import { UsageMeter } from '@/components/billing/UsageMeter';
+import { trackActivationEvent } from '@/lib/activationTracking';
 import type { NextActionItem } from '@/components/studio/OpportunitiesSection';
 
 export default function OverviewPage() {
@@ -56,7 +48,6 @@ export default function OverviewPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isOnboarded = searchParams.get('onboarded') === 'true';
-  const [showWelcome, setShowWelcome] = useState(false);
 
   // Backward compat: redirect ?onboarded=true to /getting-started
   useEffect(() => {
@@ -84,7 +75,13 @@ export default function OverviewPage() {
   const acceptRec = useAcceptRecommendation(clientId);
   const dismissRec = useDismissRecommendation(clientId);
 
-  if (!client) return null;
+  if (!client) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-6 h-6 border-2 border-white-20 border-t-accent-green-110 rounded-full animate-spin" />
+      </div>
+    );
+  }
   const base = `/workspaces/${clientId}`;
 
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
@@ -129,7 +126,7 @@ export default function OverviewPage() {
     const items: { label: string; count: number; href: string; accent: string }[] = [];
     const pending = analytics?.byStatus?.PENDING_REVIEW ?? 0;
     if (pending > 0) {
-      items.push({ label: 'Pending review', count: pending, href: `${base}/planner`, accent: 'text-yellow-400' });
+      items.push({ label: 'Needs review', count: pending, href: `${base}/planner`, accent: 'text-yellow-400' });
     }
     const approvedUnscheduled = allDrafts?.filter((d) => d.status === 'APPROVED' && !d.scheduledFor).length ?? 0;
     if (approvedUnscheduled > 0) {
@@ -291,7 +288,7 @@ export default function OverviewPage() {
         break;
       }
       case 'generate_from_data':
-        router.push(`${base}/sources`);
+        router.push(`${base}/data`);
         break;
       case 'generate_content':
         router.push(`${base}/create`);
@@ -300,7 +297,7 @@ export default function OverviewPage() {
         router.push(`${base}/settings/channels`);
         break;
       case 'add_data':
-        router.push(`${base}/sources`);
+        router.push(`${base}/data`);
         break;
       case 'review_drafts':
         router.push(`${base}/planner`);
@@ -313,7 +310,7 @@ export default function OverviewPage() {
         if (rec.metadata?.listingDataItemId) params.set('listingId', rec.metadata.listingDataItemId);
         if (rec.metadata?.campaignType) params.set('type', rec.metadata.campaignType);
         const qs = params.toString();
-        router.push(`${base}/listing-campaign${qs ? `?${qs}` : ''}`);
+        router.push(`${base}/create?mode=campaign${qs ? `&${qs}` : ''}`);
         break;
       }
       case 'draft_gbp_reply':
@@ -344,93 +341,52 @@ export default function OverviewPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-5xl">
-      {/* 1. Post-onboarding checklist — always visible until all steps done */}
-      <div className="mb-8">
-        <PostOnboardingChecklist
-          clientId={clientId}
-          base={base}
-          activation={activation}
-          hasWeeklyPlan={(allDrafts?.filter((d) => d.status !== 'PUBLISHED').length ?? 0) >= 3}
-          autopilotEnabled={summary?.autopilot?.enabled ?? false}
-        />
-      </div>
-
-      {/* 2. Onboarding welcome — fresh from onboarding */}
-      {showWelcome && !isMomentumMode && (
-        <OnboardingWelcome
-          clientId={clientId}
-          onDismiss={() => {
-            setShowWelcome(false);
-            router.replace(base, { scroll: false });
-          }}
-        />
-      )}
-
-      {/* 3. Momentum Mode — activated users */}
-      {isMomentumMode && (
-        <MomentumCard
-          activation={activation}
-          connectedChannelCount={connectedCount}
-          base={base}
-        />
-      )}
-
-      {/* 3b. First Win Mode — pre-activation users */}
-      {isFirstWinMode && !showWelcome && (
-        <FirstWinBanner
-          postsReady={pendingDrafts}
-          hasChannels={connectedCount > 0}
-          base={base}
-        />
-      )}
-
-      {/* 4. Weekly Plan — content plan for the week */}
-      <WeeklyPlanCard
-        clientId={clientId}
-        base={base}
-        drafts={allDrafts}
-        publishedThisWeek={summary?.publishedThisWeek}
-        scheduledUpcoming={summary?.scheduledUpcoming}
-        autopilotEnabled={summary?.autopilot?.enabled}
-        currentTier={currentTier}
-      />
-
-      {/* 5. Autopilot upsell — autopilot not enabled */}
-      {!summary?.autopilot?.enabled && (
-        <AutopilotUpsellCard
-          clientId={clientId}
-          base={base}
-          postsCreatedCount={activation.postsCreatedCount}
-          connectedChannelCount={connectedCount}
-        />
-      )}
-
-      {/* 3. Page header + remaining sections */}
-      <div className="space-y-8">
+    <div className="space-y-6 max-w-5xl">
+      {/* ── Header ── */}
       <div>
         <h1 className="text-xl font-bold text-white-100">{client.name}</h1>
         <p className="text-sm text-white-40 mt-1">
           {isMomentumMode
-            ? "Here\u2019s what Squadpitch recommends to keep your content consistent."
-            : isFirstWinMode
-              ? 'Get started by reviewing and publishing your first post.'
-              : "Here\u2019s what Squadpitch recommends based on your business and connected sources"}
+            ? "Here's what's happening with your content."
+            : 'Get started by creating and publishing your first post.'}
         </p>
       </div>
 
-      {/* 4. Setup progress — hidden once all steps complete */}
-      <SetupProgress
-        hasWebsite={Boolean(client.brandProfile?.website)}
-        hasChannels={enabledChannels.length > 0}
-        hasSources={(summary?.totalDataItems ?? 0) > 0}
-        channelCount={enabledChannels.length}
-        connectedCount={connectedCount}
-        sourceCount={summary?.totalDataItems ?? 0}
+      {/* ── Campaign Quick Input (RE only) ── */}
+      {isRE && <CampaignInput base={base} />}
+
+      {/* ── 1. Primary Action — always visible ── */}
+      <Link
+        href={`${base}/create`}
+        className="flex items-center justify-between gap-4 px-5 py-4 rounded-2xl bg-accent-green-110/10 border border-accent-green-110/25 hover:border-accent-green-110/40 transition-all group"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-full bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-4 h-4 text-accent-green-110" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white">Create new content</p>
+            <p className="text-xs text-white-40 mt-0.5">
+              {isRE ? 'Single post, listing campaign, or AI assistant' : 'Single post or AI assistant'}
+            </p>
+          </div>
+        </div>
+        <span className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold flex-shrink-0 group-hover:bg-accent-green-120 transition-colors">
+          Create
+          <ArrowRight className="w-3.5 h-3.5" />
+        </span>
+      </Link>
+
+      {/* ── Post-onboarding checklist (hidden once complete) ── */}
+      <PostOnboardingChecklist
+        clientId={clientId}
         base={base}
+        activation={activation}
+        hasWeeklyPlan={(allDrafts?.filter((d) => d.status !== 'PUBLISHED').length ?? 0) >= 3}
+        autopilotEnabled={summary?.autopilot?.enabled ?? false}
       />
 
-      {/* 4. Needs Attention — slim alert style */}
+      {/* ── 2. Needs Attention ── */}
       {attentionItems.length > 0 && (
         <div className="card p-3 border-white-10">
           <div className="flex items-center gap-3 flex-wrap">
@@ -457,58 +413,16 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* 5. System Status — channels + integrations combined */}
-      <SystemStatusCard
-        clientId={clientId}
-        enabledChannels={enabledChannels}
-        connectionStatus={connectionStatus}
-        connectedCount={connectedCount}
-        disconnectedCount={disconnectedCount}
-        integrationStatus={integrationStatus}
-        isRE={isRE}
-        listingSourceCount={listingData?.sources?.length ?? 0}
-        cloudStorageConnected={
-          (genericIntegrations ?? []).some(
-            (i) => (i.type === 'google_drive' || i.type === 'dropbox') && i.isActive,
-          )
-        }
-        base={base}
-      />
+      {/* ── Usage Widget ── */}
+      <DashboardUsageWidget clientId={clientId} base={base} />
 
-      {/* 5b. Autopilot Status */}
-      <AutopilotStatusCard clientId={clientId} base={base} />
-
-      {/* 5c. Autopilot Campaign Recommendations */}
-      {isRE && <AutopilotCampaignsSection clientId={clientId} />}
-
-      {/* 6. Opportunities — MOST PROMINENT */}
-      <OpportunitiesSection
-        nextActions={nextActions}
-        topRecommendation={topRecommendation}
-        autopilot={summary?.autopilot ? {
-          enabled: summary.autopilot.enabled,
-          draftsThisWeek: summary.autopilot.draftsThisWeek,
-          maxDraftsPerWeek: summary.autopilot.maxDraftsPerWeek,
-        } : undefined}
-        onNextAction={handleNextAction}
-        onRecommendationAction={handleRecommendationAction}
-        onDismissRecommendation={handleDismissRecommendation}
-      />
-
-      {/* 7. Google Business Profile Widget */}
-      {integrationStatus?.gbp?.status === 'connected' && (
-        <div id="gbp-dashboard-widget">
-          <GBPDashboardWidget clientId={clientId} />
-        </div>
-      )}
-
-      {/* 8. Listing Opportunities (RE only) */}
-      {isRE && <ListingOpportunitiesWidget clientId={clientId} />}
-
-      {/* 9. Weekly Snapshot */}
+      {/* ── 3. Weekly Snapshot ── */}
       <WeeklySnapshot analytics={analytics} recommendations={recommendations} base={base} />
 
-      {/* 10. Content & Campaigns */}
+      {/* ── 4. Autopilot Status ── */}
+      <AutopilotStatusCard clientId={clientId} base={base} />
+
+      {/* ── 5. Content & Campaigns ── */}
       <ContentActivitySection
         drafts={drafts}
         draftsLoading={draftsLoading}
@@ -518,7 +432,6 @@ export default function OverviewPage() {
         isRE={isRE}
         onDuplicate={(draftId) => duplicate.mutate(draftId)}
       />
-      </div>{/* end de-emphasis wrapper */}
     </div>
   );
 }
@@ -613,53 +526,74 @@ function WeeklySnapshot({
   );
 }
 
-// ── First Win Banner ─────────────────────────────────────────────────────
+// ── Campaign Quick Input ──────────────────────────────────────────────
 
-function FirstWinBanner({
-  postsReady,
-  hasChannels,
-  base,
-}: {
-  postsReady: number;
-  hasChannels: boolean;
-  base: string;
-}) {
-  const href = !hasChannels
-    ? `${base}/settings/channels`
-    : postsReady > 0
-      ? `${base}/first-post`
-      : `${base}/create`;
+// ── Dashboard Usage Widget ──────────────────────────────────────────
 
-  const title = !hasChannels
-    ? 'Connect a channel to publish your first post'
-    : postsReady > 0
-      ? 'Review and publish your first post'
-      : 'Create your first post';
+function DashboardUsageWidget({ clientId, base }: { clientId: string; base: string }) {
+  const { data: usage } = useUsage();
+  const trackedRef = useRef(false);
 
-  const cta = !hasChannels ? 'Connect channel' : postsReady > 0 ? 'Review posts' : 'Create post';
+  useEffect(() => {
+    if (!usage || trackedRef.current) return;
+    trackedRef.current = true;
+    trackActivationEvent('dashboard_usage_viewed', { clientId }, { once: true });
+  }, [usage, clientId]);
+
+  if (!usage) return null;
 
   return (
     <Link
-      href={href}
-      className="flex items-center justify-between gap-4 px-5 py-4 rounded-2xl bg-accent-green-110/10 border border-accent-green-110/25 hover:border-accent-green-110/40 transition-all group"
+      href={`${base}/settings/billing`}
+      className="card p-4 border-white-10 hover:border-white-20 transition-colors block"
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="w-9 h-9 rounded-full bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
-          <Rocket className="w-4 h-4 text-accent-green-110" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-white">{title}</p>
-          {postsReady > 0 && hasChannels && (
-            <p className="text-xs text-white-40 mt-0.5">
-              {postsReady} post{postsReady !== 1 ? 's' : ''} waiting for your review
-            </p>
-          )}
-        </div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold text-white-40 uppercase tracking-wider">Plan Usage</span>
+        <PlanBadge tier={usage.tier} />
       </div>
-      <span className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold flex-shrink-0 group-hover:bg-accent-green-120 transition-colors">
-        {cta}
-        <ArrowRight className="w-3.5 h-3.5" />
-      </span>
+      <div className="grid grid-cols-3 gap-4">
+        <UsageMeter label="Posts" current={usage.usage.posts} limit={usage.limits.posts} />
+        <UsageMeter label="Images" current={usage.usage.images} limit={usage.limits.images} />
+        <UsageMeter label="Videos" current={usage.usage.videos} limit={usage.limits.videos} />
+      </div>
     </Link>
   );
 }
+
+// ── Campaign Quick Input ──────────────────────────────────────────────
+
+function CampaignInput({ base }: { base: string }) {
+  const router = useRouter();
+  const [campaignInput, setCampaignInput] = useState('');
+
+  const handleSubmit = () => {
+    const trimmed = campaignInput.trim();
+    if (!trimmed) return;
+    router.push(`${base}/create?mode=campaign&input=${encodeURIComponent(trimmed)}`);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        value={campaignInput}
+        onChange={(e) => setCampaignInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSubmit();
+          }
+        }}
+        placeholder="Paste a listing URL or describe what you want to promote..."
+        className="flex-1 px-4 py-3 rounded-xl bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={!campaignInput.trim()}
+        className="px-4 py-3 rounded-xl bg-accent-green-110 text-sp-surface text-sm font-semibold hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+      >
+        Generate Campaign
+      </button>
+    </div>
+  );
+}
+

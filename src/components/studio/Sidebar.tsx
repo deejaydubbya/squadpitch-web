@@ -8,7 +8,7 @@ import {
   Sparkles,
   BarChart3,
   Settings,
-  FileText,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
   Activity,
   Database,
   Zap,
+  ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
@@ -47,23 +48,25 @@ export function Sidebar({ client }: Props) {
         ? 'bg-yellow-500/20 text-yellow-400'
         : 'bg-white-10 text-white-60';
 
-  const navItems = [
-    { href: base, icon: LayoutDashboard, label: 'Home', exact: true },
+  // ── "Do" group ──
+  const doItems = [
+    { href: `${base}/create`, icon: Sparkles, label: 'Create', primary: true },
+    { href: `${base}/planner`, icon: CalendarDays, label: 'Planner' },
     { href: `${base}/autopilot`, icon: Zap, label: 'Autopilot' },
-    { href: `${base}/compose`, icon: Sparkles, label: 'Create Content', primary: true },
-    { href: `${base}/planner`, icon: FileText, label: 'Content' },
-    { href: `${base}/sources`, icon: Database, label: 'Sources' },
+  ];
+
+  // ── "Manage" group ──
+  const manageItems = [
+    { href: `${base}/data`, icon: Database, label: 'Data' },
+    { href: `${base}/media`, icon: ImageIcon, label: 'Media' },
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics' },
   ];
 
   const settingsItems = [
-    { href: `${base}/settings/brand`, label: 'Brand & Audience' },
-    { href: `${base}/settings/voice`, label: 'Content Strategy' },
-    { href: `${base}/settings/channels`, label: 'Channels & Publishing' },
-    { href: `${base}/settings/ai-persona`, label: 'AI Persona' },
-    { href: `${base}/settings/autopilot`, label: 'Autopilot' },
-    { href: `${base}/settings/notifications`, label: 'Notifications' },
+    { href: `${base}/settings/brand`, label: 'Brand' },
+    { href: `${base}/settings/channels`, label: 'Channels' },
     { href: `${base}/settings/integrations`, label: 'Integrations' },
+    { href: `${base}/settings/notifications`, label: 'Notifications' },
     { href: `${base}/settings/billing`, label: 'Billing' },
   ];
 
@@ -97,30 +100,66 @@ export function Sidebar({ client }: Props) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-hide py-4 px-3 space-y-1">
-        {navItems.map((item) => {
-          const active = isActive(item.href, item.exact);
+        {/* Home */}
+        <Link
+          href={base}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+            pathname === base
+              ? 'bg-accent-green-110/15 text-accent-green-110'
+              : 'text-white-60 hover:bg-white-5 hover:text-white-100'
+          )}
+        >
+          <LayoutDashboard className="w-4.5 h-4.5" />
+          <span>Home</span>
+        </Link>
+
+        {/* ── Do ── */}
+        <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">Do</p>
+        {doItems.map((item) => {
+          const active = isActive(item.href);
           return (
-            <div key={item.href}>
-              <Link
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                  item.primary && !active
-                    ? 'text-green-400 hover:bg-green-500/10'
-                    : active
-                      ? 'bg-accent-green-110/15 text-accent-green-110'
-                      : 'text-white-60 hover:bg-white-5 hover:text-white-100'
-                )}
-              >
-                <item.icon className={cn('w-4.5 h-4.5', item.primary && !active ? 'text-green-400' : '')} />
-                <span className="flex-1">{item.label}</span>
-                {item.label === 'Autopilot' && autopilotBadgeCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-green-500/20 text-green-400">
-                    {autopilotBadgeCount}
-                  </span>
-                )}
-              </Link>
-            </div>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                item.primary && !active
+                  ? 'text-green-400 hover:bg-green-500/10'
+                  : active
+                    ? 'bg-accent-green-110/15 text-accent-green-110'
+                    : 'text-white-60 hover:bg-white-5 hover:text-white-100'
+              )}
+            >
+              <item.icon className={cn('w-4.5 h-4.5', item.primary && !active ? 'text-green-400' : '')} />
+              <span className="flex-1">{item.label}</span>
+              {item.label === 'Autopilot' && autopilotBadgeCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-green-500/20 text-green-400">
+                  {autopilotBadgeCount}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+
+        {/* ── Manage ── */}
+        <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">Manage</p>
+        {manageItems.map((item) => {
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                active
+                  ? 'bg-accent-green-110/15 text-accent-green-110'
+                  : 'text-white-60 hover:bg-white-5 hover:text-white-100'
+              )}
+            >
+              <item.icon className="w-4.5 h-4.5" />
+              <span>{item.label}</span>
+            </Link>
           );
         })}
 

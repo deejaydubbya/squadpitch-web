@@ -87,6 +87,13 @@ export function AutopilotStatusCard({ clientId, base }: Props) {
         </div>
       </div>
 
+      {/* Last action description */}
+      {status.lastActionAt && status.lastActionType && (
+        <p className="text-xs text-white-50 mb-3 line-clamp-1">
+          {status.lastActionType.replace(/_/g, ' ')}{status.lastActionChannel ? ` on ${status.lastActionChannel}` : ''} · {formatRelative(status.lastActionAt)}
+        </p>
+      )}
+
       {campaignsReady > 0 && (
         <Link
           href={`${base}/autopilot`}

@@ -1,9 +1,5 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { useParams } from 'next/navigation';
-import { BrandPersonaWizard } from '@/components/studio/brand-persona/BrandPersonaWizard';
-
-export default function SettingsAIPersonaPage() {
-  const params = useParams<{ clientId: string }>();
-  return <BrandPersonaWizard clientId={params.clientId} />;
+export default function AIPersonaRedirect({ params }: { params: { clientId: string } }) {
+  redirect(`/workspaces/${params.clientId}/settings/brand?section=visual`);
 }

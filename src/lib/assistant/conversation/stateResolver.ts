@@ -36,7 +36,7 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
     cardType: 'mode_select',
     priority: 0,
     label: 'Mode',
-    displayValue: (s) => s.mode === 'campaign' ? 'Campaign' : s.mode === 'quick_post' ? 'Quick Post' : null,
+    displayValue: (s) => s.mode === 'campaign' ? 'Campaign' : s.mode === 'quick_post' ? 'Single Post' : null,
     isComplete: (s) => s.mode !== null,
   },
   {
@@ -98,7 +98,7 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
         const parts: string[] = [];
         if (realCount > 0) parts.push(`${realCount} library`);
         if (syntheticCount > 0) parts.push(`${syntheticCount} property`);
-        const heroSuffix = s.heroImageId ? ' (hero set)' : '';
+        const heroSuffix = s.heroImageId ? ' (cover photo set)' : '';
         return `${s.selectedMediaIds.length} selected${heroSuffix}`;
       }
       if (s.mediaAcknowledged) return 'Skipped';
@@ -122,7 +122,7 @@ const QUICK_POST_FIELDS: FieldDef[] = [
     cardType: 'mode_select',
     priority: 0,
     label: 'Mode',
-    displayValue: (s) => s.mode === 'campaign' ? 'Campaign' : s.mode === 'quick_post' ? 'Quick Post' : null,
+    displayValue: (s) => s.mode === 'campaign' ? 'Campaign' : s.mode === 'quick_post' ? 'Single Post' : null,
     isComplete: (s) => s.mode !== null,
   },
   {
@@ -181,7 +181,7 @@ const QUICK_POST_FIELDS: FieldDef[] = [
     label: 'Media',
     displayValue: (s) => {
       if (s.selectedMediaIds.length > 0) {
-        const heroSuffix = s.heroImageId ? ' (hero set)' : '';
+        const heroSuffix = s.heroImageId ? ' (cover photo set)' : '';
         return `${s.selectedMediaIds.length} selected${heroSuffix}`;
       }
       if (s.mediaAcknowledged) return 'Skipped';

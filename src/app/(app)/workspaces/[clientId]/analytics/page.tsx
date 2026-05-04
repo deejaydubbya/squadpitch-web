@@ -550,7 +550,7 @@ function PerformanceTab({
         badge={campaigns?.hasData ? 'Measured' : 'Measured'}
         isEmpty={!campaigns?.hasData}
         emptyMessage="No campaign data yet. Launch a listing campaign to see coordinated content performance."
-        emptyAction={{ label: 'Launch a campaign', href: `/workspaces/${clientId}/campaigns` }}
+        emptyAction={{ label: 'Launch a campaign', href: `/workspaces/${clientId}/create?mode=campaign` }}
         emptyHint="Campaign analytics track multi-post marketing efforts across platforms — reach, engagement, and completion rates."
       >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

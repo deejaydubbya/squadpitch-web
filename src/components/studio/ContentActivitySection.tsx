@@ -11,7 +11,9 @@ import {
   Check,
   Send,
   CopyPlus,
+  ExternalLink,
 } from 'lucide-react';
+import { OverflowMenu } from './OverflowMenu';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import {
   useApproveDraft,
@@ -82,7 +84,7 @@ export function ContentActivitySection({
                   Create a quick post
                 </Link>
                 <Link
-                  href={isRE ? `${base}/listing-campaign` : `${base}/campaigns`}
+                  href={`${base}/create?mode=campaign`}
                   className="px-4 py-2.5 rounded-xl bg-white-10 text-white-100 text-sm font-semibold hover:bg-white-20 transition-colors"
                 >
                   {isRE ? 'Create a listing campaign' : 'Create a campaign'}
@@ -163,7 +165,7 @@ export function ContentActivitySection({
                     {activeCampaigns.slice(0, 3).map((campaign) => (
                       <Link
                         key={campaign.campaignId}
-                        href={`${base}/campaigns`}
+                        href={`${base}/planner`}
                         className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white-5 transition-colors group"
                       >
                         <span className="text-sm text-white-80 group-hover:text-white-100 transition-colors truncate">
@@ -251,17 +253,9 @@ function DraftCard({
         {draft.body || <span className="italic text-white-40">(empty)</span>}
       </p>
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {canEdit && (
-          <Link
-            href={`${base}/planner`}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
-          >
-            <Pencil className="w-3 h-3" />
-            Edit
-          </Link>
-        )}
+      {/* Action buttons — 1 primary + overflow */}
+      <div className="flex items-center gap-2">
+        {/* Primary action — status-dependent */}
         {canApprove && (
           <button
             onClick={() => approve.mutate()}
@@ -272,7 +266,7 @@ function DraftCard({
             Approve
           </button>
         )}
-        {canSchedule && !showSchedule && (
+        {canSchedule && !showSchedule && !canApprove && (
           <button
             onClick={() => setShowSchedule(true)}
             disabled={isPending}
@@ -282,26 +276,46 @@ function DraftCard({
             Schedule
           </button>
         )}
-        {canPublish && (
-          <button
-            onClick={() => publish.mutate()}
-            disabled={isPending}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-medium hover:bg-accent-green-110/20 transition-colors disabled:opacity-50"
+        {draft.status === 'PUBLISHED' && draft.externalPostUrl && (
+          <a
+            href={draft.externalPostUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
           >
-            <Send className="w-3 h-3" />
-            Publish
-          </button>
+            <ExternalLink className="w-3 h-3" />
+            View post
+          </a>
         )}
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            onDuplicate();
-          }}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
-        >
-          <CopyPlus className="w-3 h-3" />
-          Duplicate
-        </button>
+
+        <div className="flex-1" />
+
+        {/* Overflow menu */}
+        <OverflowMenu
+          items={[
+            ...(canEdit ? [{
+              label: 'Edit',
+              icon: Pencil,
+              onClick: () => { window.location.href = `${base}/planner`; },
+            }] : []),
+            {
+              label: 'Duplicate',
+              icon: CopyPlus,
+              onClick: () => onDuplicate(),
+            },
+            ...(canPublish ? [{
+              label: 'Publish',
+              icon: Send,
+              onClick: () => publish.mutate(),
+              loading: publish.isPending,
+            }] : []),
+            ...(canSchedule && !canApprove ? [] : canSchedule ? [{
+              label: 'Schedule',
+              icon: Calendar,
+              onClick: () => setShowSchedule(true),
+            }] : []),
+          ]}
+        />
       </div>
 
       {/* Inline schedule picker */}

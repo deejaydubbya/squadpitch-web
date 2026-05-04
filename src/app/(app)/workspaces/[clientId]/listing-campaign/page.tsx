@@ -1,23 +1,14 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { useClient } from '@/hooks/useSquadpitch';
-import { ListingCampaignPage } from '@/components/studio/ListingCampaignPage';
-
-export default function Page() {
-  const params = useParams<{ clientId: string }>();
-  const router = useRouter();
-  const { data: client, isLoading } = useClient(params.clientId);
-
-  useEffect(() => {
-    if (!isLoading && client && client.industryKey !== 'real_estate') {
-      router.replace(`/workspaces/${params.clientId}`);
-    }
-  }, [client, isLoading, params.clientId, router]);
-
-  if (isLoading) return null;
-  if (client && client.industryKey !== 'real_estate') return null;
-
-  return <ListingCampaignPage clientId={params.clientId} />;
+export default function ListingCampaignRedirect({
+  params,
+  searchParams,
+}: {
+  params: { clientId: string };
+  searchParams: { listingId?: string; type?: string };
+}) {
+  const qs = new URLSearchParams({ mode: 'campaign' });
+  if (searchParams.listingId) qs.set('listingId', searchParams.listingId);
+  if (searchParams.type) qs.set('type', searchParams.type);
+  redirect(`/workspaces/${params.clientId}/create?${qs.toString()}`);
 }

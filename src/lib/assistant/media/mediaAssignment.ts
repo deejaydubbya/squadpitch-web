@@ -153,7 +153,7 @@ function scoreCandidate(
   // 3. Hero image priority for first post (15pts)
   if (postIndex === 0 && image.isHero) {
     score += 15;
-    reasons.push('Hero image for lead post');
+    reasons.push('Cover photo for lead post');
   }
 
   // 4. Tag/caption match against post label (10pts)

@@ -33,10 +33,10 @@ export function PropertySelectStep({ session, dispatch, clientId }: Props) {
         </div>
         <p className="text-sm text-white-60 mb-3">No saved {t.itemPlural}</p>
         <Link
-          href={`/workspaces/${clientId}/sources`}
+          href={`/workspaces/${clientId}/data`}
           className="text-xs text-accent-green-110 hover:underline"
         >
-          Add {t.itemPlural} in Sources
+          Add {t.itemPlural} in Data
         </Link>
       </div>
     );

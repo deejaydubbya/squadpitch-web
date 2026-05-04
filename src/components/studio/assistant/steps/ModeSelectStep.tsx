@@ -56,7 +56,7 @@ export function ModeSelectStep({ session, dispatch, clientId }: Props) {
           <div className="w-10 h-10 rounded-lg bg-white-10 flex items-center justify-center mb-3">
             <Wand2 className="w-5 h-5 text-white-60" />
           </div>
-          <h3 className="text-sm font-semibold text-white-100 mb-1">Quick Post</h3>
+          <h3 className="text-sm font-semibold text-white-100 mb-1">Single Post</h3>
           <p className="text-xs text-white-40">
             Single post for one channel — fast and simple.
           </p>
@@ -75,7 +75,7 @@ export function ModeSelectStep({ session, dispatch, clientId }: Props) {
           <>
             <span>or</span>
             <Link
-              href={`/workspaces/${clientId}/listing-campaign`}
+              href={`/workspaces/${clientId}/create?mode=campaign`}
               className="hover:text-white-100 transition-colors underline underline-offset-2"
             >
               use Listing Campaign builder

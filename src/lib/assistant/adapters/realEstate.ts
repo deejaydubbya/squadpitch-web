@@ -191,7 +191,7 @@ function prioritizeMedia(
 
     if (hasExterior) {
       score += 30;
-      reasons.push('exterior/hero shot');
+      reasons.push('exterior/cover photo');
     }
     if (hasInterior) {
       score += 15;
@@ -494,7 +494,7 @@ export const realEstateAdapter: IndustryAdapter = {
         description: 'Pick a campaign type and channels for this listing',
       },
       media_select: {
-        description: 'Select property photos — exterior/hero shots work best as lead images',
+        description: 'Select property photos — exterior/cover photos work best as lead images',
       },
       schedule_review: {
         description: 'Review and adjust the posting schedule for your listing campaign',

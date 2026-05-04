@@ -113,7 +113,7 @@ export function CampaignSection({
     });
   }, [campaignDrafts]);
 
-  const editCampaignUrl = `/workspaces/${clientId}/listing-campaign?campaignId=${campaignId}`;
+  const editCampaignUrl = `/workspaces/${clientId}/create?mode=campaign&campaignId=${campaignId}`;
 
   return (
     <div

@@ -423,7 +423,7 @@ function QuickPostReviewInner({
       } else {
         qc.invalidateQueries({ queryKey: ['squadpitch', 'drafts'] });
         setSaveStatus('Post saved as draft');
-        router.push(`/workspaces/${clientId}/library`);
+        router.push(`/workspaces/${clientId}/planner`);
       }
     } catch (err) {
       console.error('[QP SAVE] Failed:', err);

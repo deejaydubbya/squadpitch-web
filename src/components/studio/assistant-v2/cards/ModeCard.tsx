@@ -21,11 +21,11 @@ export function ModeCard({ onSelection }: Props) {
       </button>
 
       <button
-        onClick={() => onSelection({ type: 'SET_MODE', payload: 'quick_post' }, 'Mode: Quick Post')}
+        onClick={() => onSelection({ type: 'SET_MODE', payload: 'quick_post' }, 'Mode: Single Post')}
         className="flex flex-col items-center gap-2 p-3 rounded-lg border border-white-10 hover:border-accent-green-110 hover:bg-accent-green-110/5 transition-colors text-center"
       >
         <Zap className="w-5 h-5 text-accent-green-110" />
-        <span className="text-xs font-medium text-white-100">Quick Post</span>
+        <span className="text-xs font-medium text-white-100">Single Post</span>
         <span className="text-[11px] text-white-40">Create one post right now</span>
         <span className="text-[10px] text-white-30 italic">Best when you need something to post today.</span>
       </button>

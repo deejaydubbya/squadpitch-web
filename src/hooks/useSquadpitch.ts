@@ -4752,7 +4752,10 @@ export function useRegeneratePost(clientId: string) {
 
 export type ImageRegionLabel =
   | 'exterior' | 'kitchen' | 'living_room' | 'bedroom'
-  | 'bathroom' | 'backyard' | 'dining_room' | 'other';
+  | 'bathroom' | 'backyard' | 'dining_room'
+  | 'garage' | 'pool' | 'office' | 'laundry'
+  | 'floorplan' | 'aerial' | 'neighborhood' | 'detail'
+  | 'other';
 
 export type ImageLayoutRole = 'hero' | 'gallery' | 'thumbnail' | 'other';
 
@@ -4887,6 +4890,7 @@ export function useUploadCampaignImages(clientId: string) {
         qualityScore?: number;
         qualityLabel?: 'good' | 'fair' | 'low';
       }>;
+      folderId?: string;
     }) =>
       apiFetch<{ assets: UploadedCampaignAsset[] }>(
         `workspaces/${clientId}/listing-campaign/upload-images`,

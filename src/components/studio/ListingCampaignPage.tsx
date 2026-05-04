@@ -61,6 +61,7 @@ import {
   useRegeneratePost,
   useUploadCampaignImages,
   useUploadAsset,
+  useUploadAssetFromUrl,
   useCreateFolder,
   autoTagAssetWithResult,
   useProperties,
@@ -84,7 +85,11 @@ import {
   type MediaAsset,
   type UnifiedListing,
 } from '@/hooks/useSquadpitch';
+import { useSubscription } from '@/hooks/useBilling';
+import { isAtOrAboveTier } from '@/lib/tierConfig';
+import { UpgradeTriggerBanner } from '@/components/billing/UpgradeTriggerBanner';
 import { PropertySearchModal } from '@/components/studio/PropertySearchModal';
+import { StepIndicator, type StepDef } from '@/components/studio/StepIndicator';
 import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 import {
   SLOT_PURPOSE_HINTS,
@@ -98,6 +103,27 @@ import {
 // ── Types ──
 
 type Step = 'source' | 'images' | 'form' | 'campaign-setup' | 'campaign-type' | 'generating' | 'campaign-builder' | 'output';
+
+const CAMPAIGN_STEPS: StepDef[] = [
+  { key: 'source', label: 'Source', description: 'Choose a listing to promote' },
+  { key: 'images', label: 'Media', description: 'Select the best photos for your campaign' },
+  { key: 'form', label: 'Details', description: 'Confirm property details and listing info' },
+  { key: 'campaign', label: 'Campaign', description: 'Choose your campaign type and schedule' },
+];
+
+function stepToIndicatorKey(step: Step): string | null {
+  switch (step) {
+    case 'source': return 'source';
+    case 'images': return 'images';
+    case 'form': return 'form';
+    case 'campaign-setup':
+    case 'campaign-type':
+    case 'generating':
+      return 'campaign';
+    default:
+      return null;
+  }
+}
 
 // ── Image picker types ──
 
@@ -157,6 +183,8 @@ interface CandidateImage {
   enhancementApplied: EnhanceApplied | null;
   enhancementType: EnhanceImageType | null;
   enhancementSkippedReason: string | null;
+  // Media library asset ID — set when the image has been uploaded to the library
+  assetId?: string | null;
 }
 
 // Derive the URL to display from current toggle state. Falls back to the
@@ -242,8 +270,26 @@ const LABEL_PRIORITY: Record<ImageRegionLabel, number> = {
   dining_room: 6,
   bedroom: 5,
   bathroom: 4,
+  pool: 3.9,
+  garage: 3.8,
+  aerial: 3.7,
+  office: 3.6,
+  neighborhood: 3.5,
+  laundry: 3.4,
+  detail: 3.3,
+  floorplan: 3.2,
   other: 1,
 };
+
+// Set of all valid room/area labels for tag→label mapping.
+// Used by both loadListingImages and handleDirectUpload.
+const LABEL_TAGS_SET = new Set<ImageRegionLabel>([
+  'exterior', 'kitchen', 'living_room', 'bedroom',
+  'bathroom', 'backyard', 'dining_room',
+  'garage', 'pool', 'office', 'laundry',
+  'floorplan', 'aerial', 'neighborhood', 'detail',
+  'other',
+]);
 
 const LABEL_DISPLAY: Record<ImageRegionLabel, string> = {
   exterior: 'Exterior',
@@ -253,6 +299,14 @@ const LABEL_DISPLAY: Record<ImageRegionLabel, string> = {
   dining_room: 'Dining Room',
   bedroom: 'Bedroom',
   bathroom: 'Bathroom',
+  garage: 'Garage',
+  pool: 'Pool',
+  office: 'Office',
+  laundry: 'Laundry',
+  floorplan: 'Floor Plan',
+  aerial: 'Aerial',
+  neighborhood: 'Neighborhood',
+  detail: 'Detail',
   other: 'Other',
 };
 
@@ -366,15 +420,19 @@ interface ImagePoolItem {
 
 interface Props {
   clientId: string;
+  initialUrl?: string;
 }
 
-export function ListingCampaignPage({ clientId }: Props) {
+export function ListingCampaignPage({ clientId, initialUrl }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: _subscription } = useSubscription();
+  const _currentTier = _subscription?.tier ?? 'FREE';
+  const _showValueBanner = !isAtOrAboveTier(_currentTier, 'PRO');
 
   const [step, setStep] = useState<Step>('source');
   const [form, setForm] = useState<PropertyForm>(EMPTY_FORM);
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(initialUrl ?? '');
   const [urlError, setUrlError] = useState('');
   const [sourceLabel, setSourceLabel] = useState('');
   const [prefilledFields, setPrefilledFields] = useState<Set<string>>(new Set());
@@ -383,6 +441,7 @@ export function ListingCampaignPage({ clientId }: Props) {
   const [dataItemId, setDataItemId] = useState<string | null>(null);
   const [genError, setGenError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState('');
+  const [savingCampaign, setSavingCampaign] = useState(false);
   const [schedulePreset, setSchedulePreset] = useState<SchedulePreset>(7);
 
   // Centralized campaign posts — source of truth for all edits. Populated
@@ -475,6 +534,7 @@ export function ListingCampaignPage({ clientId }: Props) {
   const saveDrafts = useSaveCampaignDrafts(clientId);
   const uploadImages = useUploadCampaignImages(clientId);
   const uploadAsset = useUploadAsset(clientId);
+  const uploadAssetFromUrl = useUploadAssetFromUrl(clientId);
   const createFolder = useCreateFolder(clientId);
   const { data: existingFolders } = useFolders(clientId);
   const regeneratePost = useRegeneratePost(clientId);
@@ -522,7 +582,13 @@ export function ListingCampaignPage({ clientId }: Props) {
         // Load images from saved listing into media pool
         const d = listing.dataJson as Record<string, unknown>;
         const imgs = Array.isArray(d.images) ? (d.images as string[]) : d.imageUrl ? [d.imageUrl as string] : [];
-        if (imgs.length > 0) loadListingImages(imgs);
+        if (imgs.length > 0) {
+          const nested = d.address as Record<string, unknown> | undefined;
+          loadListingImages(imgs, {
+            address: (nested?.street ?? d.address) as string | undefined,
+            city: (nested?.city ?? d.city) as string | undefined,
+          });
+        }
         setStep('images');
       }
     }
@@ -578,6 +644,16 @@ export function ListingCampaignPage({ clientId }: Props) {
         if (m[4]) flat.zip = m[4].trim();
       }
     }
+    // Map CanonicalListing extras: features→highlights, status→listingStatus, title→description fallback
+    if (Array.isArray(flat.features) && (flat.features as unknown[]).length > 0 && !flat.highlights) {
+      flat.highlights = (flat.features as string[]).join(', ');
+    }
+    if (flat.status && !flat.listingStatus) {
+      flat.listingStatus = flat.status;
+    }
+    if (flat.title && !flat.description) {
+      flat.description = flat.title;
+    }
     setForm((prev) => {
       const next = { ...prev };
       const map: Record<string, keyof PropertyForm> = {
@@ -623,66 +699,159 @@ export function ListingCampaignPage({ clientId }: Props) {
     setDataItemId(item.id);
   }, [prefillFromData]);
 
-  // Load images from a saved listing's dataJson into the candidate image pool.
-  // Same fetch→blob→dataUrl pattern as addFromLibrary.
-  const loadListingImages = useCallback(async (images: string[]) => {
-    for (let i = 0; i < images.length; i++) {
-      const imgUrl = images[i];
-      try {
-        const res = await fetch(imgUrl, { mode: 'cors' });
-        if (!res.ok) continue;
-        const blob = await res.blob();
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () => reject(reader.error);
-          reader.readAsDataURL(blob);
-        });
-        let qualityScore = 50;
-        let qualityLabel: QualityLabel = 'fair';
+  // Load images from a listing URL import into the candidate image pool.
+  // Uploads each image to the media library (with auto-folder + auto-tag),
+  // replicating the same pipeline as handleDirectUpload.
+  const loadListingImages = useCallback(async (
+    images: string[],
+    context?: { address?: string; city?: string },
+  ) => {
+    // Build a smart folder name from context or current form state.
+    const addr = context?.address || form.address;
+    const city = context?.city || form.city;
+    const folderName = addr
+      ? `Campaign — ${addr}${city ? `, ${city}` : ''}`
+      : `Listing Campaign ${new Date().toLocaleDateString()}`;
+
+    const addedCandidateIds: string[] = [];
+
+    try {
+      // Ensure we have a folder (create once, reuse across uploads).
+      let folderId = campaignFolderId;
+      if (!folderId) {
+        const existing = existingFolders?.find((f) => f.name === folderName);
+        if (existing) {
+          folderId = existing.id;
+        } else {
+          const folder = await createFolder.mutateAsync(folderName);
+          folderId = folder.id;
+        }
+        setCampaignFolderId(folderId);
+      }
+
+      for (let i = 0; i < images.length; i++) {
+        const imgUrl = images[i];
         try {
-          const q = await computeImageQuality(dataUrl);
-          qualityScore = q.score;
-          qualityLabel = q.label;
-        } catch { /* best-effort */ }
-        const id = `saved_listing_img_${Date.now()}_${i}`;
-        const candidate: CandidateImage = {
-          id,
-          originalUrl: dataUrl,
-          cleanedUrl: null,
-          enhancedUrl: null,
-          cleanedEnhancedUrl: null,
-          cleanEnabled: false,
-          enhanceEnabled: false,
-          cleaning: false,
-          enhancing: false,
-          label: 'other',
-          description: '',
-          layoutRole: i === 0 ? 'hero' : 'gallery',
-          photoConfidence: 1,
-          hasText: false,
-          quality: 'bright',
-          bbox: { x: 0, y: 0, w: 1, h: 1 },
-          pixelWidth: 0,
-          pixelHeight: 0,
-          qualityScore,
-          qualityLabel,
-          sourcePass: 'manual',
-          parentRegionId: null,
-          source: i === 0 ? 'hero' : 'manual_crop',
-          overlays: [],
-          overlayRemoved: false,
-          ...EMPTY_CLEANUP_META,
-        };
-        setCandidateImages((prev) => [...prev, candidate]);
-        setSelectedImageIds((prev) => {
-          const next = new Set(prev);
-          next.add(id);
-          return next;
+          // Try server-side URL upload first; fall back to proxy + blob upload.
+          let asset: { id: string; url?: string | null; width?: number | null; height?: number | null; caption?: string | null; altText?: string | null };
+          try {
+            asset = await uploadAssetFromUrl.mutateAsync({ url: imgUrl, folderId });
+          } catch {
+            // Fallback: proxy fetch + upload as blob
+            const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(imgUrl)}`;
+            const proxyRes = await fetch(proxyUrl);
+            if (!proxyRes.ok) continue;
+            const blob = await proxyRes.blob();
+            const fd = new FormData();
+            fd.append('file', blob, `listing-image-${i}.jpg`);
+            asset = await uploadAsset.mutateAsync({ formData: fd, assetType: 'image', folderId });
+          }
+
+          if (!asset.url) continue;
+
+          // Auto-tag — blocking so we get proper labels.
+          const savedTags = await autoTagAssetWithResult(clientId, asset.id);
+          const matchedLabel = savedTags.find((t) => LABEL_TAGS_SET.has(t as ImageRegionLabel)) as ImageRegionLabel | undefined;
+
+          // Fetch the image as dataUrl for the candidate card display.
+          let dataUrl = '';
+          try {
+            const res = await fetch(asset.url, { mode: 'cors' });
+            if (!res.ok) throw new Error('fetch failed');
+            const blob = await res.blob();
+            dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result));
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(blob);
+            });
+          } catch {
+            continue; // can't display — skip
+          }
+
+          let qualityScore = 50;
+          let qualityLabel: QualityLabel = 'fair';
+          try {
+            const q = await computeImageQuality(dataUrl);
+            qualityScore = q.score;
+            qualityLabel = q.label;
+          } catch { /* best-effort */ }
+
+          const candidateId = `listing_${asset.id}_${Date.now()}`;
+          addedCandidateIds.push(candidateId);
+
+          const newLabel = matchedLabel ?? 'other';
+          const candidate: CandidateImage = {
+            id: candidateId,
+            originalUrl: dataUrl,
+            cleanedUrl: null,
+            enhancedUrl: null,
+            cleanedEnhancedUrl: null,
+            cleanEnabled: false,
+            enhanceEnabled: false,
+            cleaning: false,
+            enhancing: false,
+            label: newLabel,
+            description: matchedLabel ? matchedLabel.replace(/_/g, ' ') : '',
+            layoutRole: 'gallery',
+            photoConfidence: 1,
+            hasText: false,
+            quality: 'bright',
+            bbox: { x: 0, y: 0, w: 1, h: 1 },
+            pixelWidth: asset.width ?? 0,
+            pixelHeight: asset.height ?? 0,
+            qualityScore,
+            qualityLabel,
+            sourcePass: 'manual',
+            parentRegionId: null,
+            source: 'manual_crop',
+            overlays: [],
+            overlayRemoved: false,
+            ...EMPTY_CLEANUP_META,
+            assetId: asset.id,
+          };
+          setCandidateImages((prev) => [...prev, candidate]);
+          setSelectedImageIds((prev) => {
+            const next = new Set(prev);
+            next.add(candidateId);
+            return next;
+          });
+          // Update candidate→asset map for save-time dedup
+          setCandidateAssetMap((prev) => {
+            const next = new Map(prev);
+            next.set(candidateId, asset.id);
+            return next;
+          });
+        } catch { /* skip failed images */ }
+      }
+
+      // All uploads done — pick the best hero using LABEL_PRIORITY.
+      if (addedCandidateIds.length > 0) {
+        setCandidateImages((prev) => {
+          const hasHero = prev.some((c) => c.layoutRole === 'hero');
+          if (hasHero) return prev;
+
+          let bestId = '';
+          let bestPriority = -1;
+          for (const c of prev) {
+            if (addedCandidateIds.includes(c.id)) {
+              const p = LABEL_PRIORITY[c.label] ?? 0;
+              if (p > bestPriority) {
+                bestPriority = p;
+                bestId = c.id;
+              }
+            }
+          }
+          if (!bestId) return prev;
+          return prev.map((c) =>
+            c.id === bestId ? { ...c, layoutRole: 'hero' as const, source: 'hero' as const } : c,
+          );
         });
-      } catch { /* skip failed images */ }
+      }
+    } catch {
+      setSplitNotice('Couldn\u2019t create campaign folder.');
     }
-  }, []);
+  }, [form.address, form.city, campaignFolderId, existingFolders, createFolder, uploadAssetFromUrl, uploadAsset, clientId]);
 
   const handleSelectSavedListing = useCallback((item: { id: string; title: string; dataJson?: Record<string, unknown> }) => {
     prefillFromDataItem(item);
@@ -691,7 +860,11 @@ export function ListingCampaignPage({ clientId }: Props) {
       ? Array.isArray(d.images) ? (d.images as string[]) : d.imageUrl ? [d.imageUrl as string] : []
       : [];
     if (imgs.length > 0) {
-      loadListingImages(imgs);
+      const nested = d?.address as Record<string, unknown> | undefined;
+      loadListingImages(imgs, {
+        address: (nested?.street ?? d?.address) as string | undefined,
+        city: (nested?.city ?? d?.city) as string | undefined,
+      });
     }
     setStep('images');
   }, [prefillFromDataItem, loadListingImages]);
@@ -740,12 +913,18 @@ export function ListingCampaignPage({ clientId }: Props) {
       const result = await urlImport.mutateAsync({ url: url.trim() });
       const r = result as unknown as Record<string, unknown>;
       const data = (r.preview ?? r.normalized ?? r) as Record<string, unknown>;
+      // Ensure listingUrl is set from the scraped URL if not returned by backend
+      if (!data.listingUrl) data.listingUrl = url.trim();
       prefillFromData(data, 'From URL');
 
       // Load extracted images into the media pool
       const imgs = Array.isArray(data.images) ? (data.images as string[]) : [];
       if (imgs.length > 0) {
-        loadListingImages(imgs);
+        const nested = data.address as Record<string, unknown> | undefined;
+        loadListingImages(imgs, {
+          address: (nested?.street ?? data.address) as string | undefined,
+          city: (nested?.city ?? data.city) as string | undefined,
+        });
       }
       setStep('images');
     } catch {
@@ -753,6 +932,14 @@ export function ListingCampaignPage({ clientId }: Props) {
       setStep('form');
     }
   }, [url, urlImport, prefillFromData, loadListingImages]);
+
+  // Auto-import if initialUrl was provided from dashboard
+  useEffect(() => {
+    if (initialUrl?.trim()) {
+      handleUrlImport();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Crop each detected region out of the source screenshot using Canvas,
   // with post-crop pixel + aspect validation. Gallery-first (spinstr100):
@@ -1033,17 +1220,37 @@ export function ListingCampaignPage({ clientId }: Props) {
         })),
       });
       setCampaign(result.campaign);
-      // Auto-assign images to posts based on imageHint from generation
+      // Auto-assign images to posts based on imageHint from generation.
+      // Uses fuzzy matching (includes) and round-robin fallback so different
+      // posts get different images even when labels are identical.
       const rawPosts = result.campaign.posts ?? [];
       const selected = candidateImages.filter((c) => selectedImageIds.has(c.id));
-      const autoAssigned = selected.length > 0
-        ? rawPosts.map((post) => {
-            if (post.assignedImageIds && post.assignedImageIds.length > 0) return post;
-            if (!post.imageHint) return post;
-            const match = selected.find((c) => c.label === post.imageHint);
-            return match ? { ...post, assignedImageIds: [match.id] } : post;
-          })
-        : rawPosts;
+      const autoAssigned = (() => {
+        if (selected.length === 0) return rawPosts;
+        const usedIds = new Set<string>();
+        let rrIndex = 0; // round-robin counter for fallback
+        return rawPosts.map((post) => {
+          if (post.assignedImageIds && post.assignedImageIds.length > 0) return post;
+          // 1. Exact label match
+          let match = post.imageHint
+            ? selected.find((c) => c.label === post.imageHint && !usedIds.has(c.id))
+            : null;
+          // 2. Fuzzy match (imageHint contains or is contained in label)
+          if (!match && post.imageHint) {
+            const hint = post.imageHint.toLowerCase();
+            match = selected.find((c) =>
+              (c.label.toLowerCase().includes(hint) || hint.includes(c.label.toLowerCase())) && !usedIds.has(c.id),
+            );
+          }
+          // 3. Round-robin fallback — distribute evenly across posts
+          if (!match) {
+            match = selected[rrIndex % selected.length];
+            rrIndex += 1;
+          }
+          if (match) usedIds.add(match.id);
+          return match ? { ...post, assignedImageIds: [match.id] } : post;
+        });
+      })();
       setCampaignPosts(autoAssigned);
       if (result.dataItemId) setDataItemId(result.dataItemId);
       setStep('output');
@@ -1056,17 +1263,42 @@ export function ListingCampaignPage({ clientId }: Props) {
   const handleSaveDrafts = useCallback(async (addToPlanner: boolean) => {
     if (!campaign) return;
     setSaveSuccess('');
+    setSavingCampaign(true);
 
     // Upload selected image crops to Cloudinary/MediaLibrary first (idempotent).
     // Build a stable candidateId→assetId mapping at upload time so per-post
     // assignment survives even if the pool order changes later.
+    // Candidates that were already uploaded (via loadListingImages or handleDirectUpload)
+    // and have NOT been modified (enhanced/cleaned) are skipped.
     let mediaAssetIds: string[] = uploadedAssetIds;
-    let assetMap = candidateAssetMap;
+    let assetMap = new Map(candidateAssetMap);
     const selectedCandidates = candidateImages.filter((c) => selectedImageIds.has(c.id));
-    if (mediaAssetIds.length === 0 && selectedCandidates.length > 0) {
+
+    // Pre-populate assetMap from candidates that already have an assetId
+    for (const c of selectedCandidates) {
+      if (c.assetId && !assetMap.has(c.id)) {
+        assetMap.set(c.id, c.assetId);
+      }
+    }
+
+    // Partition: already-uploaded-and-unmodified vs needs-upload
+    const alreadyUploaded = selectedCandidates.filter((c) => c.assetId && !(c.enhanceEnabled || c.cleanEnabled));
+    const needsUpload = selectedCandidates.filter((c) => !c.assetId || c.enhanceEnabled || c.cleanEnabled);
+
+    if (mediaAssetIds.length === 0 && needsUpload.length > 0) {
       try {
+        // Build folder name for the upload-images endpoint
+        const folderName = form.address
+          ? `Campaign — ${form.address}${form.city ? `, ${form.city}` : ''}`
+          : undefined;
+        let folderId = campaignFolderId;
+        if (!folderId && folderName) {
+          const existing = existingFolders?.find((f) => f.name === folderName);
+          if (existing) folderId = existing.id;
+        }
+
         const result = await uploadImages.mutateAsync({
-          images: selectedCandidates.map((c) => ({
+          images: needsUpload.map((c) => ({
             dataUrl: getDisplayUrl(c),
             label: c.label,
             caption: c.description,
@@ -1074,21 +1306,28 @@ export function ListingCampaignPage({ clientId }: Props) {
             qualityScore: c.qualityScore,
             qualityLabel: c.qualityLabel,
           })),
+          folderId: folderId ?? undefined,
         });
-        mediaAssetIds = result.assets.map((a) => a.id);
-        setUploadedAssetIds(mediaAssetIds);
-        // Lock the candidate→asset mapping at upload time
-        const newMap = new Map<string, string>();
-        selectedCandidates.forEach((c, i) => {
-          if (result.assets[i]) newMap.set(c.id, result.assets[i].id);
+        // Fire auto-tag for each uploaded asset (non-blocking)
+        for (const asset of result.assets) {
+          autoTagAssetWithResult(clientId, asset.id).catch(() => {});
+        }
+        // Update the candidate→asset mapping with newly uploaded assets
+        needsUpload.forEach((c, i) => {
+          if (result.assets[i]) assetMap.set(c.id, result.assets[i].id);
         });
-        setCandidateAssetMap(newMap);
-        assetMap = newMap;
       } catch (uploadErr) {
         console.error('[campaign] Image upload failed:', uploadErr);
         // Continue save — images can be attached later from the asset library
       }
     }
+
+    // Collect all asset IDs (pre-uploaded + newly uploaded)
+    mediaAssetIds = selectedCandidates
+      .map((c) => assetMap.get(c.id))
+      .filter((id): id is string => !!id);
+    setUploadedAssetIds(mediaAssetIds);
+    setCandidateAssetMap(assetMap);
 
     // Build campaign with current edited posts. Map candidate image IDs to
     // uploaded asset IDs using the stable map captured at upload time.
@@ -1125,14 +1364,16 @@ export function ListingCampaignPage({ clientId }: Props) {
       } else {
         setSaveSuccess(`${count} drafts saved to Content Library${imgNote}! Opening Library…`);
         setTimeout(() => {
-          router.push(`/workspaces/${clientId}/library${cid ? `?campaignId=${cid}` : ''}`);
+          router.push(`/workspaces/${clientId}/planner${cid ? `?campaignId=${cid}` : ''}`);
         }, 1200);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setSaveSuccess(`Failed to save: ${msg}`);
+    } finally {
+      setSavingCampaign(false);
     }
-  }, [campaign, campaignPosts, form, campaignType, dataItemId, saveDrafts, schedulePreset, uploadedAssetIds, candidateAssetMap, candidateImages, selectedImageIds, uploadImages]);
+  }, [campaign, campaignPosts, form, campaignType, dataItemId, saveDrafts, schedulePreset, uploadedAssetIds, candidateAssetMap, candidateImages, selectedImageIds, uploadImages, campaignFolderId, existingFolders, clientId]);
 
   // Update a single post field in the centralized campaign state.
   // Called by CampaignPostCard on every edit — body, hashtags, CTA, subject, etc.
@@ -1260,10 +1501,8 @@ export function ListingCampaignPage({ clientId }: Props) {
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        <div className="mb-2">
-          <p className="text-xs font-medium text-accent-green-110 uppercase tracking-wider mb-1">Campaign Builder · Step 1 of 4</p>
-          <h1 className="text-2xl font-bold text-white-100">Listing Campaign</h1>
-        </div>
+        <StepIndicator steps={CAMPAIGN_STEPS} currentStep="source" />
+        <h1 className="text-2xl font-bold text-white-100 mb-2">Listing Campaign</h1>
         <p className="text-white-40 text-sm mb-8">
           Build a coordinated multi-post campaign for any property. Choose your listing, select images, and generate a complete marketing strategy.
         </p>
@@ -1438,7 +1677,13 @@ export function ListingCampaignPage({ clientId }: Props) {
                           // Load images from saved listing into media pool
                           const d = item.dataJson as Record<string, unknown>;
                           const imgs = Array.isArray(d.images) ? (d.images as string[]) : d.imageUrl ? [d.imageUrl as string] : [];
-                          if (imgs.length > 0) loadListingImages(imgs);
+                          if (imgs.length > 0) {
+                            const nested = d.address as Record<string, unknown> | undefined;
+                            loadListingImages(imgs, {
+                              address: (nested?.street ?? d.address) as string | undefined,
+                              city: (nested?.city ?? d.city) as string | undefined,
+                            });
+                          }
                         }
                       }
                       const recCampaignType = payload?.campaignType ?? rec.suggestedCampaignType;
@@ -1822,7 +2067,7 @@ export function ListingCampaignPage({ clientId }: Props) {
         }
         const id = `manual_${Date.now()}`;
         // First crop becomes the hero; subsequent crops are gallery tiles.
-        // Users can still change the hero later with the "Set as hero"
+        // Users can still change the cover photo later with the "Set as cover"
         // action on any thumbnail.
         const isFirstCrop = candidateImages.length === 0;
         const manual: CandidateImage = {
@@ -2061,11 +2306,6 @@ export function ListingCampaignPage({ clientId }: Props) {
     const handleDirectUpload = async (files: FileList | null) => {
       if (!files || files.length === 0) return;
 
-      const LABEL_TAGS_SET = new Set<ImageRegionLabel>([
-        'exterior', 'kitchen', 'living_room', 'bedroom',
-        'bathroom', 'backyard', 'dining_room', 'other',
-      ]);
-
       // Build a smart folder name from the listing address or a fallback.
       const folderName = form.address
         ? `Campaign — ${form.address}${form.city ? `, ${form.city}` : ''}`
@@ -2170,11 +2410,17 @@ export function ListingCampaignPage({ clientId }: Props) {
               overlays: [],
               overlayRemoved: false,
               ...EMPTY_CLEANUP_META,
+              assetId: asset.id,
             };
             setCandidateImages((prev) => [...prev, candidate]);
             setSelectedImageIds((prev) => {
               const next = new Set(prev);
               next.add(candidateId);
+              return next;
+            });
+            setCandidateAssetMap((prev) => {
+              const next = new Map(prev);
+              next.set(candidateId, asset.id);
               return next;
             });
             setDirectUploadCount(i + 1);
@@ -2229,7 +2475,7 @@ export function ListingCampaignPage({ clientId }: Props) {
           Back
         </button>
 
-        <p className="text-xs font-medium text-accent-green-110 uppercase tracking-wider mb-1">Step 2 of 4</p>
+        <StepIndicator steps={CAMPAIGN_STEPS} currentStep="images" />
         <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-white-100">
             {extractImage.isPending
@@ -2492,7 +2738,7 @@ export function ListingCampaignPage({ clientId }: Props) {
             )}
             <span>
               sources —
-              {' '}hero: <span className="font-semibold">{candidateImages.filter((c) => c.source === 'hero').length}</span>
+              {' '}cover: <span className="font-semibold">{candidateImages.filter((c) => c.source === 'hero').length}</span>
               {' · '}tiles: <span className="font-semibold">{candidateImages.filter((c) => c.source === 'gallery_tile').length}</span>
               {' · '}split: <span className="font-semibold">{candidateImages.filter((c) => c.source === 'split_child').length}</span>
               {' · '}manual: <span className="font-semibold">{candidateImages.filter((c) => c.source === 'manual_crop').length}</span>
@@ -2524,9 +2770,9 @@ export function ListingCampaignPage({ clientId }: Props) {
                   width: `${heroBbox.w * 100}%`,
                   height: `${heroBbox.h * 100}%`,
                 }}
-                title="hero image"
+                title="cover photo"
               >
-                <span className="absolute -top-5 left-0 px-1 py-0.5 bg-lime-500 text-[10px] font-semibold text-black rounded">HERO</span>
+                <span className="absolute -top-5 left-0 px-1 py-0.5 bg-lime-500 text-[10px] font-semibold text-black rounded">COVER</span>
               </div>
             )}
             {candidateImages
@@ -2651,7 +2897,7 @@ export function ListingCampaignPage({ clientId }: Props) {
                 )}
               >
                 {/* Thumbnail — click opens the full-size preview modal
-                    where the user can enhance / clean / set as hero. Use
+                    where the user can enhance / clean / set as cover. Use
                     the checkbox in the top-right to toggle selection.
                     (role=button lets us nest the checkbox + other action
                     buttons without violating button-in-button rules.) */}
@@ -2702,7 +2948,7 @@ export function ListingCampaignPage({ clientId }: Props) {
                   {isHero && (
                     <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-green-110 text-sp-surface text-[10px] font-semibold uppercase tracking-wider">
                       <Star className="w-3 h-3" />
-                      Hero
+                      Cover
                     </div>
                   )}
                   {/* Quality badge */}
@@ -2763,7 +3009,7 @@ export function ListingCampaignPage({ clientId }: Props) {
                     )}
                   </div>
                   {(() => {
-                    const caption = c.description || (isHero ? 'Hero image' : c.layoutRole === 'gallery' ? 'Gallery image' : '');
+                    const caption = c.description || (isHero ? 'Cover photo' : c.layoutRole === 'gallery' ? 'Gallery image' : '');
                     return caption ? (
                       <p className="text-[10px] text-white-40 truncate">{caption}</p>
                     ) : null;
@@ -2938,7 +3184,7 @@ export function ListingCampaignPage({ clientId }: Props) {
           Back
         </button>
 
-        <p className="text-xs font-medium text-accent-green-110 uppercase tracking-wider mb-1">Step 3 of 4</p>
+        <StepIndicator steps={CAMPAIGN_STEPS} currentStep="form" />
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-2xl font-bold text-white-100">Confirm Property Details</h1>
           {sourceLabel && (
@@ -3196,7 +3442,7 @@ export function ListingCampaignPage({ clientId }: Props) {
           Back to details
         </button>
 
-        <p className="text-xs font-medium text-accent-green-110 uppercase tracking-wider mb-1">Step 4 of 4</p>
+        <StepIndicator steps={CAMPAIGN_STEPS} currentStep="campaign" />
         <h1 className="text-2xl font-bold text-white-100 mb-1">Campaign Setup</h1>
         <p className="text-white-40 text-sm mb-8">
           Choose your campaign type and customize the post sequence.
@@ -3503,6 +3749,20 @@ export function ListingCampaignPage({ clientId }: Props) {
           </div>
         </div>
 
+        {/* Post-campaign value banner for free/starter users */}
+        {_showValueBanner && (
+          <div className="mb-6">
+            <UpgradeTriggerBanner
+              triggerSource="post_campaign_value"
+              headline="This would normally take 45+ minutes. SquadPitch did it in seconds."
+              subtext={`${posts.length} posts, ${Math.max(...posts.map((p) => p.campaignDay))} days of content — ready to go.`}
+              cta="Unlock unlimited campaigns"
+              targetTier="PRO"
+              clientId={clientId}
+            />
+          </div>
+        )}
+
         {/* Image Pool */}
         {imagePool.length > 0 && (
           <div className="mb-6 bg-white-5 border border-white-10 rounded-xl p-4">
@@ -3611,22 +3871,22 @@ export function ListingCampaignPage({ clientId }: Props) {
               <div className="text-center">
                 <button
                   onClick={() => handleSaveDrafts(false)}
-                  disabled={saveDrafts.isPending}
+                  disabled={savingCampaign}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white-10 text-white-60 font-semibold text-sm hover:bg-white-20 transition-colors disabled:opacity-50"
                 >
-                  {saveDrafts.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save as Drafts
+                  {savingCampaign ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {savingCampaign ? 'Saving…' : 'Save as Drafts'}
                 </button>
                 <p className="text-[10px] text-white-20 mt-1">Save to library for review</p>
               </div>
               <div className="text-center">
                 <button
                   onClick={() => handleSaveDrafts(true)}
-                  disabled={saveDrafts.isPending}
+                  disabled={savingCampaign}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors disabled:opacity-50"
                 >
-                  <CalendarPlus className="w-4 h-4" />
-                  Launch Campaign
+                  {savingCampaign ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
+                  {savingCampaign ? 'Launching…' : 'Launch Campaign'}
                 </button>
                 <p className="text-[10px] text-white-20 mt-1">Add to planner and schedule</p>
               </div>
@@ -3751,6 +4011,7 @@ function CampaignPostCard({
   const [showAlt, setShowAlt] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [regenDone, setRegenDone] = useState(false);
+  const [carouselIdx, setCarouselIdx] = useState(0);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const displayBody = showAlt && post.bodyAlt ? post.bodyAlt : post.body;
@@ -3814,7 +4075,8 @@ function CampaignPostCard({
         <select
           value={post.channel}
           onChange={(e) => onUpdate(index, { channel: e.target.value as CampaignPost['channel'] })}
-          className="text-xs bg-white-5 border border-white-10 text-white-60 rounded-lg px-2 py-1.5 focus:outline-none focus:border-accent-green-110 shrink-0"
+          style={{ colorScheme: 'dark' }}
+          className="text-xs bg-white-5 border border-white-10 text-white-60 rounded-lg px-2 py-1.5 focus:outline-none focus:border-accent-green-110 shrink-0 [&>option]:bg-sp-card [&>option]:text-white-80"
         >
           {availableChannels.map((ch) => (
             <option key={ch} value={ch}>{getChannelLabel(ch as any)}</option>
@@ -3845,25 +4107,54 @@ function CampaignPostCard({
               <div className="relative group">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={primaryImage.displayUrl}
-                  alt={primaryImage.label}
+                  src={(assignedImages[carouselIdx] ?? primaryImage).displayUrl}
+                  alt={(assignedImages[carouselIdx] ?? primaryImage).label}
                   className="w-full h-48 rounded-lg object-cover"
                 />
+                {/* Carousel navigation */}
+                {assignedImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setCarouselIdx((i) => (i - 1 + assignedImages.length) % assignedImages.length)}
+                      className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center text-sm hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      onClick={() => setCarouselIdx((i) => (i + 1) % assignedImages.length)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center text-sm hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      ›
+                    </button>
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1">
+                      {assignedImages.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setCarouselIdx(i)}
+                          className={cn(
+                            'w-1.5 h-1.5 rounded-full transition-colors',
+                            i === carouselIdx ? 'bg-white' : 'bg-white/40',
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
                 {/* Overlay actions */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
                   <button
                     onClick={() => setShowImagePicker(!showImagePicker)}
-                    className="px-3 py-1.5 rounded-lg bg-white/90 text-gray-900 text-xs font-medium hover:bg-white transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-white/90 text-gray-900 text-xs font-medium hover:bg-white transition-colors pointer-events-auto"
                   >
                     Change Image
                   </button>
                 </div>
                 <span className="absolute bottom-2 left-2 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white-80 font-medium">
-                  {primaryImage.label}
+                  {(assignedImages[carouselIdx] ?? primaryImage).label}
                 </span>
                 {assignedImages.length > 1 && (
-                  <span className="absolute bottom-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white-80">
-                    +{assignedImages.length - 1} more
+                  <span className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white-80">
+                    {carouselIdx + 1}/{assignedImages.length}
                   </span>
                 )}
               </div>
@@ -4237,7 +4528,7 @@ function ManualCropModal({ screenshotUrl, galleryContainer, existingCrops, onCan
                       : 'bg-white/80 text-black',
                   )}
                 >
-                  {ec.isHero ? `hero` : `#${idx + 1}`}
+                  {ec.isHero ? `cover` : `#${idx + 1}`}
                 </span>
               </div>
             ))}
@@ -4325,7 +4616,7 @@ function ImagePreviewModal({
   const isHero = candidate.layoutRole === 'hero';
   const enhanceReady = hasEnhanced(candidate);
   const canEnhance = !enhanceReady && !candidate.enhancing;
-  const caption = candidate.description || (isHero ? 'Hero image' : 'Image preview');
+  const caption = candidate.description || (isHero ? 'Cover photo' : 'Image preview');
   const displayUrl = getDisplayUrl(candidate);
   // Lock the viewer's aspect ratio to the original crop. Enhancement can
   // change pixel dimensions (upscaling), but the ratio is preserved — so we
@@ -4359,7 +4650,7 @@ function ImagePreviewModal({
             <h2 className="text-white-100 font-semibold text-base truncate">{caption}</h2>
             {isHero && (
               <span className="px-2 py-0.5 rounded-md bg-accent-green-110 text-sp-surface text-[10px] font-bold uppercase tracking-wider">
-                Hero
+                Cover
               </span>
             )}
             {candidate.enhanceEnabled && !candidate.enhancementSkippedReason && (
@@ -4456,10 +4747,10 @@ function ImagePreviewModal({
                   ? 'bg-accent-green-110/15 text-accent-green-110/60 cursor-not-allowed'
                   : 'bg-accent-green-110 text-sp-surface hover:bg-accent-green-120',
               )}
-              title={isHero ? 'This image is already the hero' : 'Use this as the flagship image'}
+              title={isHero ? 'This image is already the cover photo' : 'Use this as the cover photo'}
             >
               <Star className="w-3.5 h-3.5" />
-              {isHero ? 'Current hero' : 'Set as hero'}
+              {isHero ? 'Cover photo' : 'Set as cover'}
             </button>
 
             {canEnhance && (

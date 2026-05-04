@@ -60,7 +60,8 @@ export type ActivationEvent =
   | 'upgrade_prompt_shown'
   | 'autopilot_blocked'
   | 'feature_blocked'
-  | 'limit_upgrade_prompt';
+  | 'limit_upgrade_prompt'
+  | 'dashboard_usage_viewed';
 
 // ── Payload ─────────────────────────────────────────────────────────────
 

@@ -111,9 +111,18 @@ export interface AiCostEntry {
 
 // ── Query Keys ──────────────────────────────────────────────────────────
 
+export interface PlanPricing {
+  tier: PlanTier;
+  priceId: string | null;
+  amount: number; // cents
+  currency: string;
+  interval: string;
+}
+
 const billingKeys = {
   subscription: ['billing', 'subscription'] as const,
   usage: ['billing', 'usage'] as const,
+  plans: ['billing', 'plans'] as const,
   systemHealth: ['billing', 'system-health'] as const,
   remaining: ['billing', 'remaining'] as const,
   aiUsage: ['billing', 'ai-usage'] as const,
@@ -129,6 +138,15 @@ export function useSubscription() {
       apiFetch<{ subscription: Subscription | null }>('billing/subscription').then(
         (r) => r.subscription
       ),
+  });
+}
+
+export function usePlans() {
+  return useQuery({
+    queryKey: billingKeys.plans,
+    queryFn: () =>
+      apiFetch<{ plans: PlanPricing[] }>('billing/plans').then((r) => r.plans),
+    staleTime: 300_000, // 5 min — matches server cache
   });
 }
 

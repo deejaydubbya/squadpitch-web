@@ -46,7 +46,7 @@ const STATUS_FILTERS: Array<{
 }> = [
   { label: 'All', value: 'ALL' },
   { label: 'Draft', value: 'DRAFT' },
-  { label: 'Pending', value: 'PENDING_REVIEW' },
+  { label: 'Needs Review', value: 'PENDING_REVIEW' },
   { label: 'Approved', value: 'APPROVED' },
   { label: 'Scheduled', value: 'SCHEDULED' },
   { label: 'Published', value: 'PUBLISHED' },
@@ -285,9 +285,11 @@ export function PlannerView({ clientId }: Props) {
 
   const clearSelection = () => setSelected(new Set());
 
-  const hasApprovable = drafts?.some(
-    (d) => d.status === 'DRAFT' || d.status === 'PENDING_REVIEW'
+  const approvableIds = useMemo(
+    () => (drafts ?? []).filter((d) => d.status === 'DRAFT' || d.status === 'PENDING_REVIEW').map((d) => d.id),
+    [drafts]
   );
+  const hasApprovable = approvableIds.length > 0;
 
   const approvedUnscheduled = useMemo(
     () => allDrafts?.filter((d) => d.status === 'APPROVED' && !d.scheduledFor) ?? [],
@@ -438,7 +440,7 @@ export function PlannerView({ clientId }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-white-100">Content</h1>
+            <h1 className="text-xl font-bold text-white-100">Planner</h1>
             {activeCampaignCount > 0 && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 font-medium">
                 {activeCampaignCount} campaign{activeCampaignCount !== 1 ? 's' : ''} active
@@ -448,23 +450,32 @@ export function PlannerView({ clientId }: Props) {
           <p className="text-sm text-white-40 mt-1">Manage, review, and schedule your posts</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Approve All — prominent when approvable drafts exist */}
+          {hasApprovable && (
+            <button
+              onClick={selected.size > 0 ? clearSelection : selectAll}
+              className="px-3 py-1.5 rounded-lg bg-zone-green/20 text-zone-green text-xs font-semibold hover:bg-zone-green/30 transition-colors flex items-center gap-1.5"
+            >
+              <Check className="w-3.5 h-3.5" />
+              {selected.size > 0
+                ? `Deselect (${selected.size})`
+                : `Approve All (${approvableIds.length})`}
+            </button>
+          )}
+          {selected.size > 0 && (
+            <BulkApproveButton ids={Array.from(selected)} onDone={clearSelection} />
+          )}
           <Link
-            href={`/workspaces/${clientId}/create`}
+            href={`/workspaces/${clientId}/create?mode=single`}
             className="px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-dark text-xs font-semibold hover:bg-accent-green-110/90 transition-colors"
           >
-            Quick Post
+            Single Post
           </Link>
           <Link
-            href={`/workspaces/${clientId}/campaigns`}
+            href={`/workspaces/${clientId}/create?mode=campaign`}
             className="px-3 py-1.5 rounded-lg bg-white-10 text-white-80 text-xs font-semibold hover:bg-white-20 transition-colors"
           >
             Campaign
-          </Link>
-          <Link
-            href={`/workspaces/${clientId}/library`}
-            className="text-xs text-white-40 hover:text-accent-green-110 transition-colors"
-          >
-            View library →
           </Link>
           {/* Tour replay button */}
           <button
@@ -659,23 +670,6 @@ export function PlannerView({ clientId }: Props) {
           isSwapping={swapSuggestion.isPending}
           isCreating={autopilotExecute.isPending}
         />
-      )}
-
-      {/* Bulk actions */}
-      {hasApprovable && (
-        <div className="flex items-center gap-2 text-xs">
-          <button
-            onClick={selected.size > 0 ? clearSelection : selectAll}
-            className="text-white-60 hover:text-white-100"
-          >
-            {selected.size > 0
-              ? `Deselect (${selected.size})`
-              : 'Select all approvable'}
-          </button>
-          {selected.size > 0 && (
-            <BulkApproveButton ids={Array.from(selected)} onDone={clearSelection} />
-          )}
-        </div>
       )}
 
       {/* Day detail label */}

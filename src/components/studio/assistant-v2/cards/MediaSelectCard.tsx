@@ -207,7 +207,7 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
     if (bySource.recent) parts.push(`${bySource.recent} recent`);
     if (bySource.upload) parts.push(`${bySource.upload} uploaded`);
 
-    const heroSuffix = heroId ? ' \u00b7 hero set' : '';
+    const heroSuffix = heroId ? ' \u00b7 cover photo set' : '';
     return `${typeParts.join(', ')} selected (${parts.join(', ')})${heroSuffix}`;
   };
 

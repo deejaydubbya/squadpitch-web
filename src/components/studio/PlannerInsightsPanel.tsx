@@ -104,7 +104,7 @@ export function PlannerInsightsPanel({
                   return (
                     <Link
                       key={cs.id}
-                      href={`/workspaces/${clientId}/listing-campaign${qs ? `?${qs}` : ''}`}
+                      href={`/workspaces/${clientId}/create?mode=campaign${qs ? `&${qs}` : ''}`}
                       className="flex items-center gap-3 p-3 rounded-lg bg-white-5 hover:bg-white-8 border border-white-10 hover:border-purple-400/20 transition-all group"
                     >
                       <div className="flex-1 min-w-0">

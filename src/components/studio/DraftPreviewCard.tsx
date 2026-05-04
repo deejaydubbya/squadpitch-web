@@ -350,7 +350,7 @@ function SourceBadges({ draft }: { draft: Draft }) {
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
-  PENDING_REVIEW: 'Pending',
+  PENDING_REVIEW: 'Needs Review',
   APPROVED: 'Approved',
   SCHEDULED: 'Scheduled',
   PUBLISHED: 'Published',

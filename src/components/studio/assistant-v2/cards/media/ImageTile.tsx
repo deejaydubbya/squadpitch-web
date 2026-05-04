@@ -60,7 +60,7 @@ export function ImageTile({
             ? 'text-yellow-400'
             : 'text-white/40 opacity-0 group-hover:opacity-100'
         )}
-        title={isHero ? 'Remove as hero' : 'Set as hero image'}
+        title={isHero ? 'Remove as cover photo' : 'Set as cover photo'}
       >
         <Star className="w-3.5 h-3.5" fill={isHero ? 'currentColor' : 'none'} />
       </button>
@@ -94,7 +94,7 @@ export function ImageTile({
       {/* Hero badge */}
       {isHero && (
         <div className="absolute top-0.5 left-5 px-1 py-[1px] rounded bg-yellow-400/90 text-[7px] font-bold text-black uppercase tracking-wider">
-          Hero
+          Cover
         </div>
       )}
 

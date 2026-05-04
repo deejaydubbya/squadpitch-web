@@ -31,6 +31,7 @@ import { AutopilotCampaignsSection } from '@/components/studio/AutopilotCampaign
 import { AutopilotInboxBanner } from '@/components/studio/AutopilotInboxBanner';
 import { cn } from '@/lib/utils';
 import { useSubscription, type PlanTier } from '@/hooks/useBilling';
+import { TIER_RANK } from '@/lib/tierConfig';
 import { UpgradeTriggerBanner } from '@/components/billing/UpgradeTriggerBanner';
 import { trackActivationEvent } from '@/lib/activationTracking';
 
@@ -108,7 +109,6 @@ export default function AutopilotPage() {
   const updateSettings = useUpdateAutopilotSettings(clientId);
 
   const currentTier: PlanTier = subscription?.tier ?? 'FREE';
-  const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
   const isBelowPro = TIER_RANK[currentTier] < TIER_RANK['PRO'];
 
   const currentMode = settings?.mode ?? 'off';
@@ -256,6 +256,29 @@ export default function AutopilotPage() {
         <>
           <AutopilotInboxBanner clientId={clientId} />
           <AutopilotCampaignsSection clientId={clientId} />
+
+          {/* Compact recent activity preview */}
+          {activity && activity.length > 0 && (
+            <div className="card p-4 border-white-10 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-white-40" />
+                  <span className="text-xs font-semibold text-white-60 uppercase tracking-wider">Recent Activity</span>
+                </div>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="text-xs text-accent-green-110 hover:underline"
+                >
+                  View all →
+                </button>
+              </div>
+              <div className="space-y-2">
+                {activity.slice(0, 3).map((item) => (
+                  <ActivityRow key={item.id} item={item} base={base} />
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -338,7 +361,7 @@ export default function AutopilotPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Circle className="w-3.5 h-3.5 text-white-20" />
-                  <Link href={`${base}/sources`} className="text-sm text-accent-green-110 hover:underline">
+                  <Link href={`${base}/data`} className="text-sm text-accent-green-110 hover:underline">
                     Business data available
                   </Link>
                 </div>

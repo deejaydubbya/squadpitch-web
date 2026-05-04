@@ -169,7 +169,7 @@ export const CADENCE_OPTIONS: Array<{ value: PreferredCadence; label: string; de
 
 export const MEDIA_ORDER_OPTIONS: Array<{ value: MediaOrderPreference; label: string; description: string }> = [
   { value: 'exterior_first', label: 'Exterior First', description: 'Always lead with the best exterior shot' },
-  { value: 'hero_first', label: 'Hero First', description: 'Use the highest-quality image regardless of type' },
+  { value: 'hero_first', label: 'Cover Photo First', description: 'Use the highest-quality image regardless of type' },
   { value: 'ai_recommended', label: 'AI Recommended', description: 'Let the system pick optimal ordering' },
   { value: 'manual', label: 'Manual', description: 'Always let me choose the order' },
 ];

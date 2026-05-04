@@ -245,7 +245,7 @@ export function ImagePreviewModal({ image, isHero, onHeroToggle, onClose }: Prop
               )}
             >
               <Star className="w-3 h-3" fill={isHero ? 'currentColor' : 'none'} />
-              {isHero ? 'Hero image' : 'Set as hero'}
+              {isHero ? 'Cover photo' : 'Set as cover photo'}
             </button>
             )}
 

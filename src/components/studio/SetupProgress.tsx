@@ -69,7 +69,7 @@ export function SetupProgress({
       description: 'Add business info, testimonials, or connect systems for smarter posts',
       doneDescription: `${sourceCount} source${sourceCount !== 1 ? 's' : ''} added — powering your recommendations`,
       done: hasSources,
-      href: `${base}/sources`,
+      href: `${base}/data`,
     },
   ];
 

@@ -357,7 +357,7 @@ export function PropertyDetailDrawer({ item, clientId, isOpen, onClose }: Props)
                     {/* Hero badge */}
                     {url === heroUrl && (
                       <span className="absolute top-1 left-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-yellow-500/80 text-[9px] font-bold text-black">
-                        <Star className="w-2.5 h-2.5" /> Hero
+                        <Star className="w-2.5 h-2.5" /> Cover
                       </span>
                     )}
                     {/* Hover actions */}
@@ -366,7 +366,7 @@ export function PropertyDetailDrawer({ item, clientId, isOpen, onClose }: Props)
                         <button
                           onClick={() => handleSetHero(url)}
                           className="p-1.5 rounded-md bg-black/60 text-yellow-400 hover:bg-black/80 transition-colors"
-                          title="Set as hero"
+                          title="Set as cover photo"
                         >
                           <Star className="w-3.5 h-3.5" />
                         </button>
@@ -576,7 +576,7 @@ export function PropertyDetailDrawer({ item, clientId, isOpen, onClose }: Props)
         <div className="px-5 py-3 border-t border-white-10 flex items-center gap-3">
           <button
             onClick={() => {
-              router.push(`/workspaces/${clientId}/listing-campaign?listingId=${item.id}`);
+              router.push(`/workspaces/${clientId}/create?mode=campaign&listingId=${item.id}`);
               onClose();
             }}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"

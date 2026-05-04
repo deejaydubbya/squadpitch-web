@@ -32,11 +32,11 @@ export const SLOT_PURPOSE_HINTS: Record<string, string> = {
 };
 
 export const SLOT_MEDIA_HINTS: Record<string, string> = {
-  'Launch Announcement': 'Best exterior / hero shot',
+  'Launch Announcement': 'Best exterior / cover photo',
   'Feature Highlight': 'Kitchen, living room, or upgrades',
   'Lifestyle Story': 'Backyard, living room, or neighborhood',
   'Authority / Social Proof': 'Polished exterior or strong detail',
-  'Final Push': 'Emotionally resonant or hero image',
+  'Final Push': 'Emotionally resonant or cover photo',
 };
 
 // ── Default Slots ───────────────────────────────────────────────────────

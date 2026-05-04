@@ -31,7 +31,7 @@ export function ConversationalShell({ clientId }: Props) {
         {/* Header — fixed */}
         <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white-10">
           <h1 className="text-base font-semibold text-white-100">
-            {session.mode === 'campaign' ? 'Campaign' : session.mode === 'quick_post' ? 'Quick Post' : 'Create Content'}
+            {session.mode === 'campaign' ? 'Campaign' : session.mode === 'quick_post' ? 'Single Post' : 'Create'}
           </h1>
           {session.mode && (
             <button

@@ -522,7 +522,7 @@ function GenericIntegrationsSection() {
         <h2 className="text-base font-semibold text-white-100">Integrations</h2>
       </div>
       <p className="text-sm text-white-40 mb-4">
-        Workflow tools and services that extend Squadpitch. Data sources are managed from the Sources page.
+        Workflow tools and services that extend Squadpitch. Data sources are managed from the Data page.
       </p>
 
       {/* Type cards grouped by category */}

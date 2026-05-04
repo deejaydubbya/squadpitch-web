@@ -1,15 +1,5 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-
-export default function AssistantPage() {
-  const params = useParams<{ clientId: string }>();
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace(`/workspaces/${params.clientId}/compose`);
-  }, [params.clientId, router]);
-
-  return null;
+export default function AssistantRedirect({ params }: { params: { clientId: string } }) {
+  redirect(`/workspaces/${params.clientId}/create?mode=assistant`);
 }

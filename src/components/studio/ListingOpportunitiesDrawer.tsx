@@ -91,7 +91,7 @@ function DrawerListingCard({
 
   const handleCreate = () => {
     sessionStorage.setItem('sp_nearby_listing', JSON.stringify(listing));
-    router.push(`/workspaces/${clientId}/listing-campaign?source=nearby`);
+    router.push(`/workspaces/${clientId}/create?mode=campaign&source=nearby`);
   };
 
   const handleSave = () => {

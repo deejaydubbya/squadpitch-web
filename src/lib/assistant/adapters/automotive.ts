@@ -347,7 +347,7 @@ export const automotiveAdapter: IndustryAdapter = {
         description: 'Pick a campaign type and channels for this vehicle',
       },
       media_select: {
-        description: 'Select vehicle photos — exterior front shots work best as hero images',
+        description: 'Select vehicle photos — exterior front shots work best as cover photos',
       },
       schedule_review: {
         description: 'Review the posting schedule for your inventory campaign',

@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { PlanTier } from '@/hooks/useBilling';
+import { tierLabel } from '@/lib/tierConfig';
 
 interface Props {
   tier: PlanTier;
@@ -25,7 +26,7 @@ export function PlanBadge({ tier, className }: Props) {
         className
       )}
     >
-      {tier}
+      {tierLabel(tier)}
     </span>
   );
 }

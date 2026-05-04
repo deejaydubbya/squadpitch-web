@@ -35,7 +35,7 @@ export function AssistantShell({ clientId }: Props) {
     <div className="flex flex-col h-full min-h-screen p-6 md:p-10 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-white-100">Create Content</h1>
+        <h1 className="text-xl font-semibold text-white-100">Create</h1>
         {session.mode && (
           <button
             onClick={reset}

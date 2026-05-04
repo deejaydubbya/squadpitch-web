@@ -190,7 +190,7 @@ export function GBPDashboardWidget({ clientId }: Props) {
             </span>
           )}
           <Link
-            href={`${base}/sources`}
+            href={`${base}/data`}
             className="flex items-center gap-1 text-[11px] text-accent-green-110 hover:underline ml-auto"
           >
             View all reviews

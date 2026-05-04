@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Zap, Loader2, ArrowRight } from 'lucide-react';
 import { useSubscription, useCreateCheckout, useChangePlan, type PlanTier } from '@/hooks/useBilling';
+import { TIER_RANK } from '@/lib/tierConfig';
 import { trackActivationEvent } from '@/lib/activationTracking';
 
 interface Props {
@@ -42,7 +43,6 @@ export function UpgradeTriggerBanner({
   }, [clientId, currentTier, targetTier, triggerSource]);
 
   // Don't show upgrade banner if user is already on the target tier or higher
-  const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
   if (TIER_RANK[currentTier] >= TIER_RANK[targetTier]) return null;
 
   const handleUpgrade = () => {

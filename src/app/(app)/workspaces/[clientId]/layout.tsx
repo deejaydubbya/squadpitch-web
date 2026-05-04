@@ -9,6 +9,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { Sidebar } from '@/components/studio/Sidebar';
 import { useClient } from '@/hooks/useSquadpitch';
+import { UsageLimitProvider } from '@/components/billing/UsageLimitGuard';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ clientId: string }>();
@@ -130,7 +131,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-16 lg:pt-8">
-          {children}
+          <UsageLimitProvider clientId={clientId}>
+            {children}
+          </UsageLimitProvider>
         </div>
       </main>
     </div>

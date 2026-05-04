@@ -9,6 +9,7 @@ import {
   useChangePlan,
   type PlanTier,
 } from '@/hooks/useBilling';
+import { TIER_RANK } from '@/lib/tierConfig';
 import { trackActivationEvent } from '@/lib/activationTracking';
 
 interface Props {
@@ -21,8 +22,6 @@ interface Props {
   triggerSource: string;
   clientId?: string;
 }
-
-const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
 
 export function UpgradeModal({
   open,

@@ -1,7 +1,5 @@
-'use client';
-import { useParams } from 'next/navigation';
-import { VoiceProfileForm } from '@/components/studio/VoiceProfileForm';
-export default function SettingsVoicePage() {
-  const params = useParams<{ clientId: string }>();
-  return <VoiceProfileForm clientId={params.clientId} />;
+import { redirect } from 'next/navigation';
+
+export default function VoiceRedirect({ params }: { params: { clientId: string } }) {
+  redirect(`/workspaces/${params.clientId}/settings/brand?section=voice`);
 }

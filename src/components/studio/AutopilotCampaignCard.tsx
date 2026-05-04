@@ -208,10 +208,18 @@ export function AutopilotCampaignCard({
           </div>
         )}
 
-        {/* Why This */}
+        {/* Inline reasoning — first reason shown directly */}
         {!isInactive && reasons.length > 0 && (
-          <div className="mt-3">
-            <WhyThis reasons={reasons} />
+          <p className="text-xs text-white-50 flex items-center gap-1.5 mt-2">
+            <Sparkles className="w-3 h-3 text-white-30 shrink-0" />
+            {reasons[0]}
+          </p>
+        )}
+
+        {/* Why This — remaining reasons */}
+        {!isInactive && reasons.length > 1 && (
+          <div className="mt-2">
+            <WhyThis reasons={reasons.slice(1)} />
           </div>
         )}
 

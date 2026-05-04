@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUploadAsset, type MediaAsset } from '@/hooks/useSquadpitch';
+import { useUploadAsset, autoTagAssetFetch, type MediaAsset } from '@/hooks/useSquadpitch';
 import {
   useGenericIntegrations,
   useMediaImportConnect,
@@ -94,6 +94,10 @@ export function MediaTabUpload({ clientId, onImageUploaded }: MediaTabUploadProp
         const result = await uploadAsset.mutateAsync({ formData, assetType });
         const asset = result as MediaAsset;
         const mediaUrl = asset.url || URL.createObjectURL(file);
+        // Auto-tag the uploaded asset (non-blocking)
+        if (!isVideoFile && asset.id) {
+          autoTagAssetFetch(clientId, asset.id);
+        }
 
         let qualityScore: number | null = null;
         if (!isVideoFile) {

@@ -116,6 +116,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   const [contentType, setContentType] = useState<ContentType | null>(null);
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
   const [showSeries, setShowSeries] = useState(false);
+  const [showIdeas, setShowIdeas] = useState(false);
   const [seriesTemplate, setSeriesTemplate] = useState<string>('tips_series');
   const [seriesParts, setSeriesParts] = useState(3);
 
@@ -341,7 +342,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <h1 className="text-2xl font-bold text-white-100">
-        Quick Post
+        Single Post
       </h1>
 
       <ServiceAlert />
@@ -356,7 +357,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             if (sid) params.set('listingId', sid);
             if (p?.campaignType) params.set('type', p.campaignType);
             const qs = params.toString();
-            return `/workspaces/${clientId}/listing-campaign${qs ? `?${qs}` : ''}`;
+            return `/workspaces/${clientId}/create?mode=campaign${qs ? `&${qs}` : ''}`;
           })()}
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-green-110/5 border border-accent-green-110/15 hover:border-accent-green-110/30 transition-all"
         >
@@ -366,42 +367,12 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
         </Link>
       )}
 
-      {/* ── Smart Start strip — recommendations + quick chips in one row ── */}
-      {!guidance.trim() && (recommendedPosts.length > 0 || QUICK_CHIPS.length > 0) && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-accent-green-110" />
-            <span className="text-xs font-medium text-white-40">Start with an idea</span>
-          </div>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-            {recommendedPosts.map((rec) => (
-              <button
-                key={rec.id}
-                type="button"
-                onClick={() => handleRecommendedClick(rec)}
-                title={rec.description}
-                className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-accent-green-110/10 border border-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/20 hover:border-accent-green-110/30 transition-all flex items-center gap-1.5"
-              >
-                {rec.dataItemId && <Database className="w-3 h-3" />}
-                {rec.title}
-              </button>
-            ))}
-            {QUICK_CHIPS.map((chip) => (
-              <button
-                key={chip.label}
-                type="button"
-                onClick={() => handleChipClick(chip)}
-                className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-white-5 border border-white-10 text-white-60 hover:bg-white-10 hover:text-white-100 hover:border-white-20 transition-all"
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="space-y-6">
         {/* Main textarea */}
+        <div>
+        <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-2.5">
+          What do you want to post about?
+        </label>
         <textarea
           value={guidance}
           onChange={(e) => setGuidance(e.target.value)}
@@ -411,6 +382,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           maxLength={4000}
           className="w-full px-4 py-3.5 rounded-xl bg-white-5 border border-white-10 text-white-100 text-base focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 resize-none placeholder:text-white-30"
         />
+        </div>
 
         {/* Platform — primary selection */}
         <div>
@@ -476,7 +448,195 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
           )}
         </div>
 
-        {/* Post Settings — merged Content Type, Goal, Business Data */}
+        {/* Need ideas? — toggle button */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowIdeas((v) => !v)}
+            className="flex items-center gap-2 text-sm text-white-40 hover:text-white-60 transition-colors"
+          >
+            <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
+            {showIdeas ? 'Hide ideas' : 'Need ideas?'}
+            {showIdeas ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </button>
+
+          {showIdeas && (
+            <div className="mt-3 space-y-3">
+              {/* Recommendation pills */}
+              {recommendedPosts.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                  {recommendedPosts.map((rec) => (
+                    <button
+                      key={rec.id}
+                      type="button"
+                      onClick={() => handleRecommendedClick(rec)}
+                      title={rec.description}
+                      className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-accent-green-110/10 border border-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/20 hover:border-accent-green-110/30 transition-all flex items-center gap-1.5"
+                    >
+                      {rec.dataItemId && <Database className="w-3 h-3" />}
+                      {rec.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Quick chips */}
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                {QUICK_CHIPS.map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => handleChipClick(chip)}
+                    className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-white-5 border border-white-10 text-white-60 hover:bg-white-10 hover:text-white-100 hover:border-white-20 transition-all"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Give me ideas AI button + results */}
+              <div className="space-y-2">
+                <button
+                  onClick={() =>
+                    ideasMutation.mutate(undefined, {
+                      onSuccess: (data) => setIdeas(data),
+                    })
+                  }
+                  disabled={ideasMutation.isPending}
+                  className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {ideasMutation.isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5" />
+                  )}
+                  Give me ideas
+                </button>
+
+                {ideas.length > 0 && (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {ideas.map((idea, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setGuidance(idea.description)}
+                        className="w-full text-left p-3 rounded-lg bg-white-5 border border-white-10 hover:bg-white-10 hover:border-white-20 transition-all"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium text-white-100">{idea.title}</span>
+                          <span className="px-1.5 py-0.5 rounded-full bg-white-10 text-white-40 text-[10px] uppercase">
+                            {idea.category}
+                          </span>
+                          <span className="text-[10px] text-white-30 ml-auto">
+                            {idea.suggestedChannel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-white-40">{idea.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Error/warning banners — above CTA */}
+        {nearPostLimit && !atPostLimit && (
+          <UpgradeTriggerBanner
+            triggerSource="limit_approach"
+            headline={`You've used ${usagePercent}% of your monthly posts. Upgrade to avoid hitting your limit.`}
+            subtext={`${usage!.usage.posts} of ${usage!.limits.posts} posts used this month.`}
+            cta="Upgrade to Pro"
+            targetTier="PRO"
+            clientId={clientId}
+          />
+        )}
+        {atPostLimit && (
+          <UpgradePrompt currentTier={usage!.tier} limitType="Post" />
+        )}
+        {atImageLimit && !atPostLimit && (
+          <UpgradePrompt currentTier={usage!.tier} limitType="Image" />
+        )}
+
+        {/* Blocking modal at 100% — overlays the entire page */}
+        <UpgradeModal
+          open={!!atPostLimit}
+          onClose={() => {}}
+          title="You've reached your monthly limit"
+          description="Upgrade to continue generating content. Your existing posts are safe."
+          features={[
+            'Up to 150 posts per month',
+            'Autopilot automated posting',
+            'Multi-platform publishing',
+            'AI image generation',
+          ]}
+          targetTier="PRO"
+          triggerSource="limit_hit"
+          clientId={clientId}
+        />
+
+        {genError && (
+          genError.type === 'limit' || genError.type === 'tier' ? (
+            <UpgradePrompt currentTier={usage?.tier ?? 'FREE'} limitType="Post" />
+          ) : genError.type === 'budget' || genError.type === 'service' ? (
+            <StatusBanner info={genError.message} />
+          ) : genError.type === 'throttled' ? (
+            <StatusBanner warning={genError.message} />
+          ) : (
+            <StatusBanner error={genError.message} />
+          )
+        )}
+
+        {/* Channel-aware generation notices */}
+        {selectedChannels.length > 0 && (() => {
+          const ch = selectedChannels[0];
+          const cap = CHANNEL_REGISTRY[ch];
+          if (!cap) return null;
+          if (cap.requiresVideo && atVideoLimit) {
+            return (
+              <StatusBanner warning={`${getChannelLabel(ch)} requires video, but you've reached your video limit. You can still create the post and attach video later.`} />
+            );
+          }
+          if (cap.requiresMedia && !aiImageAvailable && !cap.requiresVideo) {
+            return (
+              <StatusBanner info={`${getChannelLabel(ch)} requires an image or video. AI image generation isn't enabled — you'll need to upload media after creating.`} />
+            );
+          }
+          return null;
+        })()}
+
+        {/* Generate CTA — full-width with inline quota */}
+        <div className="relative">
+          <button
+            onClick={handleGenerate}
+            disabled={!canGenerate}
+            className="w-full py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generate.isPending ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-5 h-5" />
+                Create Post
+              </>
+            )}
+          </button>
+          {postsRemaining !== null && (
+            <span className={cn('absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono', quotaColor)}>
+              {Math.max(0, postsRemaining)}/{usage!.limits.posts}
+            </span>
+          )}
+        </div>
+
+        <p className="text-center text-[11px] text-white-25">
+          Ctrl+Enter to generate
+        </p>
+
+        {/* Advanced — Content Type, Goal, Business Data, Series Builder */}
         <div className="border border-white-10 rounded-xl overflow-hidden">
           <button
             type="button"
@@ -484,7 +644,7 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
             className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-white-40 hover:bg-white-5 transition-colors"
           >
             <Layers className="w-4 h-4" />
-            Post settings
+            Advanced
             {(contentType || goal !== 'Growth' || selectedDataItem) && (
               <span className="px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-[10px] font-medium">
                 Customized
@@ -655,223 +815,80 @@ export function CreateContentForm({ clientId, initialGuidance, initialTemplateTy
                   </div>
                 )}
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* Inspiration — compact inline */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
-              <span className="text-sm text-white-40">Need inspiration?</span>
-            </div>
-            <button
-              onClick={() =>
-                ideasMutation.mutate(undefined, {
-                  onSuccess: (data) => setIdeas(data),
-                })
-              }
-              disabled={ideasMutation.isPending}
-              className="px-3 py-1.5 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-            >
-              {ideasMutation.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Zap className="w-3.5 h-3.5" />
-              )}
-              Give me ideas
-            </button>
-          </div>
+              <div className="border-t border-white-10" />
 
-          {ideas.length > 0 && (
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {ideas.map((idea, i) => (
+              {/* Series Builder (inside Advanced) */}
+              <div>
                 <button
-                  key={i}
-                  type="button"
-                  onClick={() => setGuidance(idea.description)}
-                  className="w-full text-left p-3 rounded-lg bg-white-5 border border-white-10 hover:bg-white-10 hover:border-white-20 transition-all"
+                  onClick={() => setShowSeries((v) => !v)}
+                  className="w-full py-2.5 rounded-xl border border-white-10 text-white-40 text-sm font-medium hover:bg-white-5 hover:text-white-60 transition-colors"
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-medium text-white-100">{idea.title}</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-white-10 text-white-40 text-[10px] uppercase">
-                      {idea.category}
-                    </span>
-                    <span className="text-[10px] text-white-30 ml-auto">
-                      {idea.suggestedChannel}
-                    </span>
-                  </div>
-                  <p className="text-xs text-white-40">{idea.description}</p>
+                  {showSeries ? 'Hide series builder' : 'Create a multi-post series'}
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Error/warning banners — above CTA */}
-        {nearPostLimit && !atPostLimit && (
-          <UpgradeTriggerBanner
-            triggerSource="limit_approach"
-            headline={`You've used ${usagePercent}% of your monthly posts. Upgrade to avoid hitting your limit.`}
-            subtext={`${usage!.usage.posts} of ${usage!.limits.posts} posts used this month.`}
-            cta="Upgrade to Pro"
-            targetTier="PRO"
-            clientId={clientId}
-          />
-        )}
-        {atPostLimit && (
-          <UpgradePrompt currentTier={usage!.tier} limitType="Post" />
-        )}
-        {atImageLimit && !atPostLimit && (
-          <UpgradePrompt currentTier={usage!.tier} limitType="Image" />
-        )}
+                {showSeries && (
+                  <div className="mt-3 space-y-3 p-3 rounded-lg bg-white-5 border border-white-10">
+                    <div>
+                      <label className="text-xs text-white-40 mb-1 block">Series type</label>
+                      <select
+                        value={seriesTemplate}
+                        onChange={(e) => setSeriesTemplate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+                        style={{ colorScheme: 'dark' }}
+                      >
+                        {(seriesTemplatesData?.templates ?? []).map((t: SeriesTemplate) => (
+                          <option key={t.id} value={t.id}>{t.name} — {t.description}</option>
+                        ))}
+                      </select>
+                    </div>
 
-        {/* Blocking modal at 100% — overlays the entire page */}
-        <UpgradeModal
-          open={!!atPostLimit}
-          onClose={() => {}}
-          title="You've reached your monthly limit"
-          description="Upgrade to continue generating content. Your existing posts are safe."
-          features={[
-            'Up to 150 posts per month',
-            'Autopilot automated posting',
-            'Multi-platform publishing',
-            'AI image generation',
-          ]}
-          targetTier="PRO"
-          triggerSource="limit_hit"
-          clientId={clientId}
-        />
+                    <div>
+                      <label className="text-xs text-white-40 mb-1 block">Number of parts</label>
+                      <div className="flex gap-2">
+                        {[2, 3, 4, 5, 7].map((n) => (
+                          <button
+                            key={n}
+                            onClick={() => setSeriesParts(n)}
+                            className={cn(
+                              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                              seriesParts === n
+                                ? 'bg-accent-green-110/20 text-accent-green-110 border border-accent-green-110/30'
+                                : 'bg-white-5 text-white-60 border border-white-10 hover:bg-white-10'
+                            )}
+                          >
+                            {n} parts
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-        {genError && (
-          genError.type === 'limit' || genError.type === 'tier' ? (
-            <UpgradePrompt currentTier={usage?.tier ?? 'FREE'} limitType="Post" />
-          ) : genError.type === 'budget' || genError.type === 'service' ? (
-            <StatusBanner info={genError.message} />
-          ) : genError.type === 'throttled' ? (
-            <StatusBanner warning={genError.message} />
-          ) : (
-            <StatusBanner error={genError.message} />
-          )
-        )}
-
-        {/* Channel-aware generation notices */}
-        {selectedChannels.length > 0 && (() => {
-          const ch = selectedChannels[0];
-          const cap = CHANNEL_REGISTRY[ch];
-          if (!cap) return null;
-          if (cap.requiresVideo && atVideoLimit) {
-            return (
-              <StatusBanner warning={`${getChannelLabel(ch)} requires video, but you've reached your video limit. You can still create the post and attach video later.`} />
-            );
-          }
-          if (cap.requiresMedia && !aiImageAvailable && !cap.requiresVideo) {
-            return (
-              <StatusBanner info={`${getChannelLabel(ch)} requires an image or video. AI image generation isn't enabled — you'll need to upload media after creating.`} />
-            );
-          }
-          return null;
-        })()}
-
-        {/* Generate CTA — full-width with inline quota */}
-        <div className="relative">
-          <button
-            onClick={handleGenerate}
-            disabled={!canGenerate}
-            className="w-full py-3.5 rounded-xl bg-accent-green-110 text-sp-surface font-semibold text-base flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {generate.isPending ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Wand2 className="w-5 h-5" />
-                Create Post
-              </>
-            )}
-          </button>
-          {postsRemaining !== null && (
-            <span className={cn('absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono', quotaColor)}>
-              {Math.max(0, postsRemaining)}/{usage!.limits.posts}
-            </span>
-          )}
-        </div>
-
-        <p className="text-center text-[11px] text-white-25">
-          Ctrl+Enter to generate
-        </p>
-
-        {/* Series Builder — ghost button toggle */}
-        <div>
-          <button
-            onClick={() => setShowSeries((v) => !v)}
-            className="w-full py-2.5 rounded-xl border border-white-10 text-white-40 text-sm font-medium hover:bg-white-5 hover:text-white-60 transition-colors"
-          >
-            {showSeries ? 'Hide series builder' : 'Or create a multi-post series'}
-          </button>
-
-          {showSeries && (
-            <div className="mt-3 space-y-3 p-3 rounded-lg bg-white-5 border border-white-10">
-              <div>
-                <label className="text-xs text-white-40 mb-1 block">Series type</label>
-                <select
-                  value={seriesTemplate}
-                  onChange={(e) => setSeriesTemplate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
-                  style={{ colorScheme: 'dark' }}
-                >
-                  {(seriesTemplatesData?.templates ?? []).map((t: SeriesTemplate) => (
-                    <option key={t.id} value={t.id}>{t.name} — {t.description}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-white-40 mb-1 block">Number of parts</label>
-                <div className="flex gap-2">
-                  {[2, 3, 4, 5, 7].map((n) => (
                     <button
-                      key={n}
-                      onClick={() => setSeriesParts(n)}
-                      className={cn(
-                        'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                        seriesParts === n
-                          ? 'bg-accent-green-110/20 text-accent-green-110 border border-accent-green-110/30'
-                          : 'bg-white-5 text-white-60 border border-white-10 hover:bg-white-10'
-                      )}
+                      onClick={handleGenerateSeries}
+                      disabled={!guidance.trim() || selectedChannels.length === 0 || generateSeries.isPending}
+                      className="w-full py-2.5 rounded-lg bg-purple-500/20 text-purple-400 font-medium text-sm flex items-center justify-center gap-2 hover:bg-purple-500/30 transition-colors disabled:opacity-50 border border-purple-500/20"
                     >
-                      {n} parts
+                      {generateSeries.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Creating series...
+                        </>
+                      ) : (
+                        <>
+                          <Layers className="w-4 h-4" />
+                          Create {seriesParts}-Part Series
+                        </>
+                      )}
                     </button>
-                  ))}
-                </div>
-              </div>
 
-              <button
-                onClick={handleGenerateSeries}
-                disabled={!guidance.trim() || selectedChannels.length === 0 || generateSeries.isPending}
-                className="w-full py-2.5 rounded-lg bg-purple-500/20 text-purple-400 font-medium text-sm flex items-center justify-center gap-2 hover:bg-purple-500/30 transition-colors disabled:opacity-50 border border-purple-500/20"
-              >
-                {generateSeries.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating series...
-                  </>
-                ) : (
-                  <>
-                    <Layers className="w-4 h-4" />
-                    Create {seriesParts}-Part Series
-                  </>
+                    {generateSeries.isSuccess && (
+                      <p className="text-xs text-accent-green-110 font-medium">
+                        Series created — {generateSeries.data.totalParts} drafts generated
+                      </p>
+                    )}
+                  </div>
                 )}
-              </button>
-
-              {generateSeries.isSuccess && (
-                <p className="text-xs text-accent-green-110 font-medium">
-                  Series created — {generateSeries.data.totalParts} drafts generated
-                </p>
-              )}
+              </div>
             </div>
           )}
         </div>

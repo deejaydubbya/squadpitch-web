@@ -77,7 +77,7 @@ export function SelectionStrip({
                   ? 'text-yellow-400 bg-black/70'
                   : 'text-white/40 bg-black/50 opacity-0 group-hover:opacity-100'
               )}
-              title={heroId === img.id ? 'Remove as hero' : 'Set as hero'}
+              title={heroId === img.id ? 'Remove as cover photo' : 'Set as cover photo'}
             >
               <Star
                 className="w-2.5 h-2.5"

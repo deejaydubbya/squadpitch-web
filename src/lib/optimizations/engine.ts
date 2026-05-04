@@ -122,10 +122,10 @@ function mediaOrderingExteriorFirst(input: OptimizationInput): OptimizationSugge
         priority: 'medium',
         basis: 'heuristic',
         title: 'Lead with strongest exterior image',
-        description: 'Listing campaigns perform better when Day 1 features a compelling exterior shot as the hero image.',
+        description: 'Listing campaigns perform better when Day 1 features a compelling exterior shot as the cover photo.',
         reasoning: 'Real estate best practice: exterior-first image ordering increases click-through by 15-25% (heuristic)',
         applyAction: 'reorder_media',
-        applyPayload: { type: 'reorder_media', suggestedOrder: [], reason: 'Exterior/hero shot should be the lead image' },
+        applyPayload: { type: 'reorder_media', suggestedOrder: [], reason: 'Exterior/cover photo should be the lead image' },
         targetDraftIds: [draft.id],
         targetCampaignId: draft.campaignId,
       };
@@ -283,7 +283,7 @@ function campaignTooShort(input: OptimizationInput): OptimizationSuggestion | nu
     applyAction: 'navigate',
     applyPayload: {
       type: 'navigate',
-      href: `/workspaces/${input.clientId}/listing-campaign?campaignId=${input.campaignId}`,
+      href: `/workspaces/${input.clientId}/create?mode=campaign&campaignId=${input.campaignId}`,
     },
     targetDraftIds: campaignDrafts.map((d) => d.id),
     targetCampaignId: input.campaignId,

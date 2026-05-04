@@ -279,7 +279,7 @@ export function BusinessDataManager({ clientId }: Props) {
           </button>
           {isRE && (
             <Link
-              href={`/workspaces/${clientId}/listing-campaign`}
+              href={`/workspaces/${clientId}/create?mode=campaign`}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />

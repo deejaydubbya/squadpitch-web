@@ -41,8 +41,8 @@ export function SystemStatusCard({
   const crmConnected = integrationStatus?.crm?.status === 'connected';
   const listingsConnected = listingSourceCount > 0;
 
-  // Build data source items — all link to Sources page now
-  const sourcesHref = `${base}/sources?tab=connections`;
+  // Build data source items — all link to integrations settings now
+  const sourcesHref = `${base}/settings/integrations`;
   const integrations: { key: string; label: string; connected: boolean; href: string; syncable: boolean }[] = [
     { key: 'gbp', label: 'Google Business Profile', connected: gbpConnected, href: sourcesHref, syncable: true },
   ];

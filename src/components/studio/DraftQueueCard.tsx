@@ -43,11 +43,15 @@ import {
 } from '@/hooks/useSquadpitch';
 import { validatePublishEligibility } from '@/lib/publishValidator';
 import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
+import { useSubscription, useUsage } from '@/hooks/useBilling';
+import { isAtOrAboveTier } from '@/lib/tierConfig';
+import { UpgradeTriggerBanner } from '@/components/billing/UpgradeTriggerBanner';
 import { DraftPreviewCard } from './DraftPreviewCard';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { MediaLightbox } from './MediaLightbox';
 import { MediaSwapModal } from './MediaSwapModal';
 import { InlineActionsMenu } from './InlineActionsMenu';
+import { OverflowMenu, type OverflowMenuItem } from './OverflowMenu';
 import { DraftOptimizations } from './OptimizationSuggestions';
 
 interface Props {
@@ -100,6 +104,13 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const ratePerformance = useRatePerformance(draft.clientId);
   const connectionStatus = useChannelConnectionStatus(draft.clientId);
   const eligibility = validatePublishEligibility(draft, connectionStatus, draft.clientId);
+  const { data: _sub } = useSubscription();
+  const { data: _usage } = useUsage();
+  const _belowPro = !isAtOrAboveTier(_sub?.tier ?? 'FREE', 'PRO');
+  const _postPct = _usage && isFinite(_usage.limits.posts) && _usage.limits.posts > 0
+    ? Math.round((_usage.usage.posts / _usage.limits.posts) * 100)
+    : 0;
+  const _showSchedulePressure = schedule.isSuccess && _belowPro && _postPct >= 70;
 
   const isEditable = draft.status === 'DRAFT' || draft.status === 'PENDING_REVIEW';
   const canApprove = isEditable;
@@ -354,6 +365,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}
 
       <div className="border-t border-white-10 px-5 py-3 flex items-center gap-2.5 flex-wrap">
+        {/* Expand/Collapse */}
         <button
           onClick={() => setExpanded((v) => !v)}
           className="text-xs text-white-60 hover:text-white-100 flex items-center gap-1"
@@ -369,79 +381,10 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
           )}
         </button>
 
-        {isEditable && (
-          <button
-            onClick={() => setEditMode((v) => !v)}
-            className="text-xs text-white-60 hover:text-white-100 flex items-center gap-1"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            {editMode ? 'Cancel' : 'Edit'}
-          </button>
-        )}
-
-        <button
-          onClick={() => duplicateDraft.mutate(draft.id)}
-          disabled={duplicateDraft.isPending}
-          className="text-xs text-white-60 hover:text-white-100 flex items-center gap-1"
-          title="Duplicate"
-        >
-          {duplicateDraft.isPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <CopyPlus className="w-3.5 h-3.5" />
-          )}
-          Duplicate
-        </button>
-
-        <button
-          onClick={handleRegenerate}
-          disabled={regenerate.isPending || !draft.generationGuidance}
-          className="text-xs text-white-60 hover:text-white-100 flex items-center gap-1"
-          title="Regenerate with same guidance"
-        >
-          {regenerate.isPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="w-3.5 h-3.5" />
-          )}
-          Regenerate
-        </button>
-
-        <InlineActionsMenu draft={draft} />
-
-        <button
-          onClick={() => {
-            if (confirm('Delete this draft?')) deleteDraft.mutate(draft.id);
-          }}
-          disabled={deleteDraft.isPending}
-          className="text-xs text-white-60 hover:text-accent-red flex items-center gap-1"
-          title="Delete"
-        >
-          {deleteDraft.isPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <Trash2 className="w-3.5 h-3.5" />
-          )}
-          Delete
-        </button>
-
         <div className="flex-1" />
 
-        {draft.externalPostUrl && draft.status === 'PUBLISHED' && (
-          <a
-            href={draft.externalPostUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-80 hover:bg-white-20 flex items-center gap-1"
-          >
-            <ExternalLink className="w-3 h-3" />
-            {draft.channel === 'INSTAGRAM'
-              ? 'View on Instagram'
-              : 'View post'}
-          </a>
-        )}
-
-        {canApprove && (
+        {/* Primary action — status-dependent */}
+        {draft.status === 'PENDING_REVIEW' && canApprove && (
           <button
             onClick={() => approve.mutate()}
             disabled={approve.isPending}
@@ -455,49 +398,107 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
             Approve
           </button>
         )}
-        {canReject && (
-          <button
-            onClick={() => setShowReject((v) => !v)}
-            className="text-xs px-2.5 py-1 rounded-md bg-accent-red/20 text-accent-red hover:bg-accent-red/30 flex items-center gap-1"
-          >
-            <X className="w-3 h-3" /> Reject
-          </button>
-        )}
-        {(draft.status === 'APPROVED' || draft.status === 'SCHEDULED' || draft.status === 'FAILED') && (
+        {draft.status === 'APPROVED' && canSchedule && (
           <button
             onClick={() => {
-              if (!canSchedule) return;
-              if (!showSchedule && draft.status === 'SCHEDULED' && draft.scheduledFor) {
-                setScheduleDate(new Date(draft.scheduledFor).toISOString().slice(0, 16));
-              }
               setShowSchedule((v) => !v);
             }}
-            disabled={!canSchedule}
-            title={!canSchedule ? `${getChannelLabel(draft.channel)} is not connected` : undefined}
-            className={cn(
-              'text-xs px-2.5 py-1 rounded-md flex items-center gap-1',
-              canSchedule
-                ? 'bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30'
-                : 'bg-white-10 text-white-30 cursor-not-allowed'
-            )}
+            className="text-xs px-2.5 py-1 rounded-md bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30 flex items-center gap-1"
           >
-            <Calendar className="w-3 h-3" /> {draft.status === 'SCHEDULED' ? 'Reschedule' : 'Schedule'}
+            <Calendar className="w-3 h-3" /> Schedule
           </button>
         )}
-        {canPublish && (
+        {draft.status === 'SCHEDULED' && draft.scheduledFor && (
+          <span className="text-xs text-white-40">
+            <Calendar className="w-3 h-3 inline mr-1" />
+            {new Date(draft.scheduledFor).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          </span>
+        )}
+        {draft.status === 'FAILED' && canSchedule && (
           <button
-            onClick={() => publish.mutate()}
-            disabled={publish.isPending}
-            className="text-xs px-2.5 py-1 rounded-md bg-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/30 flex items-center gap-1 disabled:opacity-50"
+            onClick={() => {
+              setShowSchedule((v) => !v);
+            }}
+            className="text-xs px-2.5 py-1 rounded-md bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30 flex items-center gap-1"
           >
-            {publish.isPending ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Send className="w-3 h-3" />
-            )}
-            Publish
+            <Calendar className="w-3 h-3" /> Schedule
           </button>
         )}
+        {draft.status === 'PUBLISHED' && draft.externalPostUrl && (
+          <a
+            href={draft.externalPostUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-80 hover:bg-white-20 flex items-center gap-1"
+          >
+            <ExternalLink className="w-3 h-3" />
+            View post
+          </a>
+        )}
+
+        {/* Overflow menu */}
+        <OverflowMenu
+          items={[
+            ...(isEditable ? [{
+              label: editMode ? 'Cancel edit' : 'Edit',
+              icon: Pencil,
+              onClick: () => setEditMode((v) => !v),
+            }] : []),
+            {
+              label: 'Duplicate',
+              icon: CopyPlus,
+              onClick: () => duplicateDraft.mutate(draft.id),
+              loading: duplicateDraft.isPending,
+            },
+            {
+              label: 'Regenerate',
+              icon: RefreshCw,
+              onClick: handleRegenerate,
+              disabled: !draft.generationGuidance,
+              loading: regenerate.isPending,
+            },
+            ...(canReject ? [{
+              label: 'Reject',
+              icon: X,
+              onClick: () => setShowReject((v) => !v),
+            }] : []),
+            ...(canPublish ? [{
+              label: 'Publish',
+              icon: Send,
+              onClick: () => publish.mutate(),
+              loading: publish.isPending,
+            }] : []),
+            ...((draft.status === 'APPROVED' || draft.status === 'FAILED') && canSchedule ? [{
+                label: 'Schedule',
+                icon: Calendar,
+                onClick: () => {
+                  setShowSchedule((v) => !v);
+                },
+              }] : []),
+            ...(draft.status === 'SCHEDULED' ? [{
+                label: 'Reschedule',
+                icon: Calendar,
+                onClick: () => {
+                  if (draft.scheduledFor) {
+                    setScheduleDate(new Date(draft.scheduledFor).toISOString().slice(0, 16));
+                  }
+                  setShowSchedule((v) => !v);
+                },
+              }] : []),
+            {
+              label: 'Delete',
+              icon: Trash2,
+              onClick: () => {
+                if (confirm('Delete this draft?')) deleteDraft.mutate(draft.id);
+              },
+              variant: 'danger' as const,
+              loading: deleteDraft.isPending,
+            },
+          ]}
+        />
+
+        {/* Inline AI Actions menu — rendered outside overflow for its own popup */}
+        <InlineActionsMenu draft={draft} />
       </div>
 
       {/* Eligibility issues */}
@@ -628,6 +629,18 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         <div className="border-t border-white-10 px-4 py-2.5 bg-blue-500/5 flex items-center gap-2">
           <Calendar className="w-3.5 h-3.5 text-blue-400" />
           <span className="text-xs text-blue-400 font-medium">Scheduled — it will publish automatically</span>
+        </div>
+      )}
+      {_showSchedulePressure && (
+        <div className="border-t border-white-10 px-4 py-2.5">
+          <UpgradeTriggerBanner
+            triggerSource="schedule_pressure"
+            headline={`You've used ${_postPct}% of your monthly posts`}
+            subtext="Upgrade to keep publishing without interruption."
+            cta="Upgrade to Pro"
+            targetTier="PRO"
+            clientId={draft.clientId}
+          />
         </div>
       )}
 

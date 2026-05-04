@@ -16,16 +16,19 @@ import {
 import {
   useSubscription,
   useUsage,
+  usePlans,
   useCreatePortal,
   useCreateCheckout,
   useChangePlan,
   type PlanTier,
+  type PlanPricing,
 } from '@/hooks/useBilling';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { UsageMeter } from '@/components/billing/UsageMeter';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import { TIER_RANK, tierLabel } from '@/lib/tierConfig';
 import { trackActivationEvent } from '@/lib/activationTracking';
 
 function formatBytes(bytes: number): string {
@@ -36,12 +39,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-// ── Plan definitions ──────────────────────────────────────────────────
+// ── Plan definitions ─────────────────────────────────────────────��────
+
+function formatPrice(plans: PlanPricing[] | undefined, tier: PlanTier): string {
+  if (tier === 'FREE') return '$0/mo';
+  const p = plans?.find((pp) => pp.tier === tier);
+  if (!p) return '…';
+  const dollars = Math.round(p.amount / 100);
+  return `$${dollars}/${p.interval === 'year' ? 'yr' : 'mo'}`;
+}
 
 interface PlanDef {
   tier: PlanTier;
   label: string;
-  price: string;
   positioning: string;
   highlights: string[];
   autopilot: string;
@@ -53,7 +63,6 @@ const PLANS: PlanDef[] = [
   {
     tier: 'FREE',
     label: 'Free',
-    price: '$0/mo',
     positioning: 'For trying Squadpitch',
     highlights: [
       '1 workspace',
@@ -71,8 +80,7 @@ const PLANS: PlanDef[] = [
   },
   {
     tier: 'STARTER',
-    label: 'Starter',
-    price: '$19/mo',
+    label: 'Solo',
     positioning: 'For getting consistent manually',
     highlights: [
       '3 workspaces',
@@ -91,15 +99,12 @@ const PLANS: PlanDef[] = [
   {
     tier: 'PRO',
     label: 'Pro',
-    price: '$39/mo',
     positioning: 'For automating your weekly content',
     popular: true,
     highlights: [
-      '5 workspaces',
       '150 posts/mo',
       'Up to 5 channels',
-      'Full scheduling',
-      'Autopilot included',
+      'Full scheduling + Autopilot',
       'Multi-platform posting',
     ],
     autopilot: 'Included',
@@ -112,15 +117,13 @@ const PLANS: PlanDef[] = [
   },
   {
     tier: 'GROWTH',
-    label: 'Growth',
-    price: '$79/mo',
+    label: 'Team',
     positioning: 'For scaling content across brands',
     highlights: [
       '10 workspaces',
       '500 posts/mo',
       'Up to 10 channels',
       'Advanced Autopilot',
-      'Higher AI limits',
     ],
     autopilot: 'Advanced',
     detailedLimits: [
@@ -133,14 +136,12 @@ const PLANS: PlanDef[] = [
   {
     tier: 'AGENCY',
     label: 'Agency',
-    price: '$159/mo',
     positioning: 'For managing content for clients',
     highlights: [
       'Unlimited workspaces',
       '1,200 posts/mo',
       'Unlimited channels',
       'Agency Autopilot',
-      'Highest AI & media limits',
     ],
     autopilot: 'Agency-scale',
     detailedLimits: [
@@ -157,6 +158,7 @@ const PLANS: PlanDef[] = [
 export default function BillingSettingsPage() {
   const { data: subscription, isLoading: subLoading } = useSubscription();
   const { data: usage, isLoading: usageLoading } = useUsage();
+  const { data: stripePlans } = usePlans();
   const portal = useCreatePortal();
   const checkout = useCreateCheckout();
   const changePlan = useChangePlan();
@@ -197,8 +199,6 @@ export default function BillingSettingsPage() {
     }
   }
 
-  const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
-
   const handlePlanAction = (planTier: PlanTier) => {
     trackActivationEvent('pricing_plan_cta_clicked', {
       meta: { currentPlan: tier, targetPlan: planTier },
@@ -236,7 +236,7 @@ export default function BillingSettingsPage() {
               <p className="text-sm text-white-40 mt-0.5">
                 {tier === 'FREE'
                   ? 'You\'re on the Free plan. Upgrade to unlock more.'
-                  : `You're on the ${tier.charAt(0) + tier.slice(1).toLowerCase()} plan.`}
+                  : `You're on the ${tierLabel(tier)} plan.`}
               </p>
             </div>
             <PlanBadge tier={tier} />
@@ -271,7 +271,7 @@ export default function BillingSettingsPage() {
               ) : (
                 <Zap className="w-3.5 h-3.5" />
               )}
-              Upgrade to Pro — $39/mo
+              Upgrade to Pro — {formatPrice(stripePlans, 'PRO')}
             </button>
           )}
         </div>
@@ -320,11 +320,12 @@ export default function BillingSettingsPage() {
       {/* Plan Picker */}
       <div>
         <h2 className="text-lg font-bold text-white-100 mb-4">Choose your plan</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {PLANS.map((plan) => (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {PLANS.filter((p) => p.tier !== 'AGENCY').map((plan) => (
             <PlanCard
               key={plan.tier}
               plan={plan}
+              price={formatPrice(stripePlans, plan.tier)}
               currentTier={tier}
               hasSubscription={!!hasSubscription}
               isPending={checkout.isPending || changePlan.isPending}
@@ -332,6 +333,18 @@ export default function BillingSettingsPage() {
             />
           ))}
         </div>
+        {/* Agency — full-width below the grid */}
+        {PLANS.filter((p) => p.tier === 'AGENCY').map((plan) => (
+          <AgencyCard
+            key={plan.tier}
+            plan={plan}
+            price={formatPrice(stripePlans, plan.tier)}
+            currentTier={tier}
+            hasSubscription={!!hasSubscription}
+            isPending={checkout.isPending || changePlan.isPending}
+            onAction={handlePlanAction}
+          />
+        ))}
       </div>
 
       {/* Detailed Usage */}
@@ -384,19 +397,20 @@ export default function BillingSettingsPage() {
 
 function PlanCard({
   plan,
+  price,
   currentTier,
   hasSubscription,
   isPending,
   onAction,
 }: {
   plan: PlanDef;
+  price: string;
   currentTier: PlanTier;
   hasSubscription: boolean;
   isPending: boolean;
   onAction: (tier: PlanTier) => void;
 }) {
   const [showDetails, setShowDetails] = useState(false);
-  const TIER_RANK: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, GROWTH: 3, AGENCY: 4 };
   const isCurrent = plan.tier === currentTier;
   const isHigher = TIER_RANK[plan.tier] > TIER_RANK[currentTier];
   const isLower = TIER_RANK[plan.tier] < TIER_RANK[currentTier];
@@ -416,7 +430,7 @@ function PlanCard({
         {plan.popular && (
           <span className="text-[10px] font-semibold text-accent-green-110 bg-accent-green-110/10 px-1.5 py-0.5 rounded flex items-center gap-1">
             <Crown className="w-2.5 h-2.5" />
-            Most popular
+            Recommended
           </span>
         )}
         {isCurrent && (
@@ -429,7 +443,7 @@ function PlanCard({
       {/* Name + Price */}
       <div>
         <h3 className="text-sm font-bold text-white-100">{plan.label}</h3>
-        <p className="text-lg font-bold text-accent-green-110 mt-0.5">{plan.price}</p>
+        <p className="text-lg font-bold text-accent-green-110 mt-0.5">{price}</p>
         <p className="text-[11px] text-white-40 mt-0.5">{plan.positioning}</p>
       </div>
 
@@ -517,6 +531,84 @@ function PlanCard({
             : 'Credit applied to next bill'}
         </p>
       )}
+    </div>
+  );
+}
+
+// ── Agency Card (full-width) ────────────────────────────────────────
+
+function AgencyCard({
+  plan,
+  price,
+  currentTier,
+  hasSubscription,
+  isPending,
+  onAction,
+}: {
+  plan: PlanDef;
+  price: string;
+  currentTier: PlanTier;
+  hasSubscription: boolean;
+  isPending: boolean;
+  onAction: (tier: PlanTier) => void;
+}) {
+  const isCurrent = plan.tier === currentTier;
+  const isHigher = TIER_RANK[plan.tier] > TIER_RANK[currentTier];
+
+  return (
+    <div
+      className={`card p-5 mt-4 ${
+        isCurrent ? 'border-accent-blue/50 ring-1 ring-accent-blue/20' : ''
+      }`}
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-white-100">{plan.label}</h3>
+            <span className="text-lg font-bold text-accent-green-110">{price}</span>
+            {isCurrent && (
+              <span className="text-[10px] font-semibold text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
+                Current
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-white-40">{plan.positioning}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+            {plan.highlights.map((f) => (
+              <span key={f} className="text-xs text-white-60 flex items-center gap-1">
+                <Check className="w-3 h-3 text-accent-green-110 flex-shrink-0" />
+                {f}
+              </span>
+            ))}
+            <span className="text-xs text-white-60 flex items-center gap-1">
+              <Zap className="w-3 h-3 text-yellow-400 flex-shrink-0" />
+              Autopilot: {plan.autopilot}
+            </span>
+          </div>
+        </div>
+        <div className="flex-shrink-0">
+          {isCurrent ? (
+            <button disabled className="btn text-xs px-6 opacity-50 cursor-default">
+              Current plan
+            </button>
+          ) : (
+            <button
+              onClick={() => onAction(plan.tier)}
+              disabled={isPending}
+              className={`btn text-xs px-6 flex items-center gap-1.5 ${isHigher ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              {isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : isHigher ? (
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              ) : (
+                <ArrowDownRight className="w-3.5 h-3.5" />
+              )}
+              {hasSubscription ? (isHigher ? 'Upgrade' : 'Downgrade') : 'Subscribe'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
