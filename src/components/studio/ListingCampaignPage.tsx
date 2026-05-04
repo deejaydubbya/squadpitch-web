@@ -205,6 +205,25 @@ function hasCleaned(c: CandidateImage): boolean {
   return !!c.cleanedUrl;
 }
 
+// Listing pages embed social-share icons, logos, and tracking pixels alongside
+// the actual property photos. Drop URLs that match common icon naming patterns
+// before we spend an upload + auto-tag round-trip on them.
+const LISTING_ICON_PATTERN = /(?:^|[/_-])(icon|favicon|logo|sprite|avatar|badge|watermark|beacon|pixel|tracker|facebook|instagram|twitter|youtube|linkedin|tiktok|pinterest|snapchat|whatsapp)s?(?:[/_.-]|$)/i;
+function filterListingImageUrls(urls: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of urls) {
+    if (!url || typeof url !== 'string') continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    const path = url.split('?')[0].toLowerCase();
+    if (path.endsWith('.svg')) continue;
+    if (LISTING_ICON_PATTERN.test(path)) continue;
+    out.push(url);
+  }
+  return out;
+}
+
 // Defaults for the spinstr112 debug metadata. Spread into newly-created
 // CandidateImage literals.
 const EMPTY_CLEANUP_META = {
@@ -526,6 +545,10 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
   const [directUploadCount, setDirectUploadCount] = useState(0);
   const [directUploadTotal, setDirectUploadTotal] = useState(0);
   const directUploadRef = useRef<HTMLInputElement>(null);
+  // Progress tracking for sequential listing-image loading (one round-trip per
+  // image to upload + auto-tag + score). Surfaced via a floating overlay.
+  const [listingLoadCount, setListingLoadCount] = useState(0);
+  const [listingLoadTotal, setListingLoadTotal] = useState(0);
 
   // Mutations
   const urlImport = useListingUrlImport(clientId);
@@ -706,6 +729,14 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
     images: string[],
     context?: { address?: string; city?: string },
   ) => {
+    // Drop social icons / logos / tracking pixels up front so we don't waste
+    // an upload + auto-tag round-trip on them and so the progress total
+    // reflects only candidate property photos.
+    const filteredImages = filterListingImageUrls(images);
+    if (filteredImages.length === 0) {
+      return;
+    }
+
     // Build a smart folder name from context or current form state.
     const addr = context?.address || form.address;
     const city = context?.city || form.city;
@@ -714,6 +745,9 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
       : `Listing Campaign ${new Date().toLocaleDateString()}`;
 
     const addedCandidateIds: string[] = [];
+
+    setListingLoadCount(0);
+    setListingLoadTotal(filteredImages.length);
 
     try {
       // Ensure we have a folder (create once, reuse across uploads).
@@ -729,8 +763,9 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
         setCampaignFolderId(folderId);
       }
 
-      for (let i = 0; i < images.length; i++) {
-        const imgUrl = images[i];
+      for (let i = 0; i < filteredImages.length; i++) {
+        setListingLoadCount(i + 1);
+        const imgUrl = filteredImages[i];
         try {
           // Try server-side URL upload first; fall back to proxy + blob upload.
           let asset: { id: string; url?: string | null; width?: number | null; height?: number | null; caption?: string | null; altText?: string | null };
@@ -748,6 +783,12 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
           }
 
           if (!asset.url) continue;
+
+          // Drop anything tiny — icons that slipped past the URL filter
+          // (e.g. 64×64 social buttons hosted on a CDN with neutral names).
+          const w = asset.width ?? 0;
+          const h = asset.height ?? 0;
+          if (w > 0 && h > 0 && (w < 300 || h < 300)) continue;
 
           // Auto-tag — blocking so we get proper labels.
           const savedTags = await autoTagAssetWithResult(clientId, asset.id);
@@ -850,6 +891,9 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
       }
     } catch {
       setSplitNotice('Couldn\u2019t create campaign folder.');
+    } finally {
+      setListingLoadCount(0);
+      setListingLoadTotal(0);
     }
   }, [form.address, form.city, campaignFolderId, existingFolders, createFolder, uploadAssetFromUrl, uploadAsset, clientId]);
 
@@ -2467,6 +2511,26 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
 
     return (
       <div className="max-w-4xl mx-auto py-8 px-4">
+        {listingLoadTotal > 0 && (
+          <div
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-40 px-5 py-3 rounded-full bg-sp-surface/95 border border-white-10 shadow-xl flex items-center gap-3 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="w-4 h-4 text-accent-green-110 animate-spin shrink-0" />
+            <div className="flex flex-col">
+              <p className="text-sm font-medium text-white-80 tabular-nums">
+                Loading photo {listingLoadCount} of {listingLoadTotal}
+              </p>
+              <div className="mt-1.5 h-1 w-48 rounded-full bg-white-10 overflow-hidden">
+                <div
+                  className="h-full bg-accent-green-110 rounded-full transition-all duration-300"
+                  style={{ width: `${(listingLoadCount / listingLoadTotal) * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
         <button
           onClick={() => setStep('source')}
           className="flex items-center gap-1 text-white-40 text-sm hover:text-white-60 transition-colors mb-6"
