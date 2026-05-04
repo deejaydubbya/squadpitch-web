@@ -205,6 +205,26 @@ function hasCleaned(c: CandidateImage): boolean {
   return !!c.cleanedUrl;
 }
 
+// Pull a US address out of a freeform text field. Used as a fallback when the
+// scraper returns the address only inside a meta description or page title
+// instead of as structured `address`/`city`/`state`/`zip` fields. Matches
+// "{number} {street name} {suffix}, {city}, {ST} {ZIP?}".
+const STREET_SUFFIX = '(?:avenue|ave|street|st|drive|dr|road|rd|boulevard|blvd|lane|ln|court|ct|place|pl|way|circle|cir|highway|hwy|trail|trl|parkway|pkwy|terrace|ter|square|sq|loop|run|crossing|xing)';
+const ADDRESS_IN_TEXT = new RegExp(
+  `(\\d+\\s+[\\w.'-]+(?:\\s+[\\w.'-]+){0,5}?\\s+${STREET_SUFFIX})\\s*,\\s*([A-Za-z][A-Za-z .'-]+?)\\s*,\\s*([A-Z]{2})(?:\\s+(\\d{5}(?:-\\d{4})?))?`,
+  'i',
+);
+function extractAddressFromText(text: string): { street: string; city: string; state: string; zip?: string } | null {
+  const m = text.match(ADDRESS_IN_TEXT);
+  if (!m) return null;
+  return {
+    street: m[1].trim(),
+    city: m[2].trim(),
+    state: m[3].trim().toUpperCase(),
+    zip: m[4]?.trim(),
+  };
+}
+
 // Listing pages embed social-share icons, logos, and tracking pixels alongside
 // the actual property photos. Drop URLs that match common icon naming patterns
 // before we spend an upload + auto-tag round-trip on them.
@@ -665,6 +685,23 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
         flat.city = m[2].trim();
         flat.state = m[3].trim().toUpperCase();
         if (m[4]) flat.zip = m[4].trim();
+      }
+    }
+    // Last-resort: scan free-text fields for an embedded address. Some sources
+    // (e.g. meta descriptions, page titles) only include the address in prose
+    // — "Find Property Information for 123 Main St, Phoenix, AZ 85037…".
+    if (!flat.address || !flat.city || !flat.state) {
+      const candidates = [flat.description, flat.title, flat.subtitle, flat.summary]
+        .filter((v): v is string => typeof v === 'string' && v.length > 0);
+      for (const text of candidates) {
+        const parsed = extractAddressFromText(text);
+        if (parsed) {
+          if (!flat.address) flat.address = parsed.street;
+          if (!flat.city) flat.city = parsed.city;
+          if (!flat.state) flat.state = parsed.state;
+          if (!flat.zip && parsed.zip) flat.zip = parsed.zip;
+          break;
+        }
       }
     }
     // Map CanonicalListing extras: features→highlights, status→listingStatus, title→description fallback
