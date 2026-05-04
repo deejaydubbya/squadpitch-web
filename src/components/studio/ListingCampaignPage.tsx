@@ -746,8 +746,16 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
 
     const addedCandidateIds: string[] = [];
 
+    // Counter rules:
+    //   total = initial filter count − bad-so-far. Shrinks when an image is
+    //   discovered to be unusable (failed upload, sub-300px icon, fetch error)
+    //   so the user sees a target that converges on what they'll actually get.
+    //   count = good-so-far. Increments only when a candidate card is added.
+    let goodCount = 0;
+    let badCount = 0;
+    const initialTotal = filteredImages.length;
     setListingLoadCount(0);
-    setListingLoadTotal(filteredImages.length);
+    setListingLoadTotal(initialTotal);
 
     try {
       // Ensure we have a folder (create once, reuse across uploads).
@@ -764,8 +772,8 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
       }
 
       for (let i = 0; i < filteredImages.length; i++) {
-        setListingLoadCount(i + 1);
         const imgUrl = filteredImages[i];
+        let iterSuccess = false;
         try {
           // Try server-side URL upload first; fall back to proxy + blob upload.
           let asset: { id: string; url?: string | null; width?: number | null; height?: number | null; caption?: string | null; altText?: string | null };
@@ -863,7 +871,18 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
             next.set(candidateId, asset.id);
             return next;
           });
-        } catch { /* skip failed images */ }
+          iterSuccess = true;
+        } catch { /* skip failed images */ } finally {
+          // `finally` runs even when the body uses `continue`, so this is the
+          // only place we need to update progress.
+          if (iterSuccess) {
+            goodCount += 1;
+            setListingLoadCount(goodCount);
+          } else {
+            badCount += 1;
+            setListingLoadTotal(initialTotal - badCount);
+          }
+        }
       }
 
       // All uploads done — pick the best hero using LABEL_PRIORITY.
@@ -2513,19 +2532,28 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
       <div className="max-w-4xl mx-auto py-8 px-4">
         {listingLoadTotal > 0 && (
           <div
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-40 px-5 py-3 rounded-full bg-sp-surface/95 border border-white-10 shadow-xl flex items-center gap-3 backdrop-blur-sm"
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-4 rounded-2xl bg-sp-surface border-2 border-accent-green-110/50 shadow-2xl shadow-accent-green-110/20 ring-4 ring-accent-green-110/10 flex items-center gap-4 backdrop-blur-md min-w-[360px]"
             role="status"
             aria-live="polite"
           >
-            <Loader2 className="w-4 h-4 text-accent-green-110 animate-spin shrink-0" />
-            <div className="flex flex-col">
-              <p className="text-sm font-medium text-white-80 tabular-nums">
-                Loading photo {listingLoadCount} of {listingLoadTotal}
-              </p>
-              <div className="mt-1.5 h-1 w-48 rounded-full bg-white-10 overflow-hidden">
+            <Loader2 className="w-7 h-7 text-accent-green-110 animate-spin shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-3xl font-bold text-white-100 tabular-nums leading-none">
+                  {listingLoadCount}
+                </span>
+                <span className="text-base text-white-40 font-medium">/</span>
+                <span className="text-xl font-semibold text-white-80 tabular-nums leading-none">
+                  {listingLoadTotal}
+                </span>
+                <span className="text-sm text-white-60 ml-2">listing photos loaded</span>
+              </div>
+              <div className="mt-2.5 h-2 rounded-full bg-white-10 overflow-hidden">
                 <div
                   className="h-full bg-accent-green-110 rounded-full transition-all duration-300"
-                  style={{ width: `${(listingLoadCount / listingLoadTotal) * 100}%` }}
+                  style={{
+                    width: `${listingLoadTotal > 0 ? Math.min(100, (listingLoadCount / listingLoadTotal) * 100) : 0}%`,
+                  }}
                 />
               </div>
             </div>
