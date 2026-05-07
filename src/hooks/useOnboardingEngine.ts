@@ -1,6 +1,11 @@
 'use client';
 
-import { useReducer, useCallback, useRef, useState } from 'react';
+import { useReducer, useCallback, useRef, useState, useEffect } from 'react';
+import {
+  loadOnboardingSession,
+  saveOnboardingSession,
+  clearOnboardingSession,
+} from '@/lib/onboarding/persistence';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -179,6 +184,10 @@ function sessionReducer(state: OnboardingSessionState, action: OnboardingAction)
       return { ...state, error: action.error };
     case 'RESET':
       return { ...initialSession };
+    case 'HYDRATE':
+      // Trust the payload — callers (loadOnboardingSession) verify the
+      // schema version and shape before dispatching.
+      return { ...action.state };
     // Fallback flow
     case 'SET_FALLBACK_INTENT':
       return { ...state, fallbackIntent: action.intent };
@@ -262,6 +271,50 @@ export function useOnboardingEngine() {
 
   const [session, dispatchSession] = useReducer(sessionReducer, initialSession);
   const [conversation, dispatchConversation] = useReducer(conversationReducer, initialConversation);
+
+  // ── Resume / Start-over persistence ─────────────────────────────────
+  //
+  // On mount, look for a previously-saved session in localStorage. If
+  // we find a valid one, expose it as `pendingResume` so the shell can
+  // prompt the user. We never auto-rehydrate — the user picks.
+  //
+  // After mount, every session change is persisted (best-effort).
+  // `RESET` and reaching the `completion` phase clear the storage.
+  const [pendingResume, setPendingResume] = useState<OnboardingSessionState | null>(null);
+  const persistenceReadyRef = useRef(false);
+
+  useEffect(() => {
+    const saved = loadOnboardingSession();
+    if (saved) {
+      setPendingResume(saved);
+    }
+    // Allow the save effect below to start writing only AFTER we've
+    // looked at any prior state. Without this guard the very first
+    // render would overwrite the saved session with `initialSession`.
+    persistenceReadyRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!persistenceReadyRef.current) return;
+    if (session.phase === 'completion') {
+      clearOnboardingSession();
+      return;
+    }
+    saveOnboardingSession(session);
+  }, [session]);
+
+  const resumeFromSaved = useCallback(() => {
+    if (!pendingResume) return;
+    dispatchSession({ type: 'HYDRATE', state: pendingResume });
+    setPendingResume(null);
+  }, [pendingResume]);
+
+  const startOver = useCallback(() => {
+    clearOnboardingSession();
+    setPendingResume(null);
+    dispatchSession({ type: 'RESET' });
+    dispatchConversation({ type: 'CLEAR' });
+  }, []);
 
   // Track analysis progress for the UI
   const analysisProgressRef = useRef<AnalysisProgress>({
@@ -2495,5 +2548,10 @@ export function useOnboardingEngine() {
     isGenerating: generationProgress !== null,
     generationProgress,
     generationError,
+
+    // Persistence / Resume flow
+    pendingResume,
+    resumeFromSaved,
+    startOver,
   };
 }

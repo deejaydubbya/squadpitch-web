@@ -8,6 +8,10 @@ export function getAuth0(): Auth0Client {
     _auth0 = new Auth0Client({
       authorizationParameters: {
         audience: process.env.AUTH0_AUDIENCE,
+        // offline_access requests a refresh token so the proxy can
+        // silently refresh expired access tokens. Requires "Allow
+        // Offline Access" to be enabled on the Auth0 API/audience.
+        scope: 'openid profile email offline_access',
       },
       async onCallback(error: any, ctx: any) {
         if (error) {

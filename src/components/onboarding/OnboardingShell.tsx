@@ -24,6 +24,44 @@ export function OnboardingShell() {
   const currentIdx = PHASE_ORDER.indexOf(engine.session.phase);
   const isEarlyPhase = currentIdx <= 1;
 
+  // Resume / Start over prompt — shown when a previous in-flight
+  // onboarding session is found in localStorage. The user picks; we
+  // never auto-rehydrate.
+  if (engine.pendingResume) {
+    const savedPhaseLabel = PHASE_LABELS[engine.pendingResume.phase] ?? 'In progress';
+    return (
+      <div className="flex flex-col h-[calc(100vh-48px)] max-w-3xl mx-auto px-4 sm:px-6 py-12">
+        <div className="card p-6">
+          <h2 className="text-lg font-semibold text-white-100">
+            Pick up where you left off?
+          </h2>
+          <p className="mt-1 text-sm text-white-60">
+            We saved your previous setup so you don&apos;t have to start
+            from scratch.{' '}
+            <span className="text-white-80">Step: {savedPhaseLabel}</span>
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={engine.resumeFromSaved}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold hover:bg-accent-green-120 transition-colors"
+            >
+              <Check className="w-4 h-4" />
+              Resume setup
+            </button>
+            <button
+              type="button"
+              onClick={engine.startOver}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white-5 text-white-80 text-sm font-medium hover:bg-white-10 border border-white-10 transition-colors"
+            >
+              Start over
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-48px)] max-w-5xl mx-auto">
       {/* Header — shown prominently at start, collapses once user progresses */}

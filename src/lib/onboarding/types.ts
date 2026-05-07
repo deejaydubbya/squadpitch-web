@@ -315,7 +315,11 @@ export type OnboardingAction =
   | { type: 'CLEAR_PENDING_ENRICHMENT' }
   | { type: 'SET_CHANNEL_CONNECT_DONE'; channels: Channel[] }
   | { type: 'SET_CHANNEL_CONNECT_SKIPPED' }
-  | { type: 'UPDATE_CHANNELS_SNAPSHOT'; channels: Channel[] };
+  | { type: 'UPDATE_CHANNELS_SNAPSHOT'; channels: Channel[] }
+  // Replace the entire session state with a previously-saved snapshot
+  // (used by the localStorage Resume flow). The reducer trusts the
+  // payload — callers are expected to validate the version + shape.
+  | { type: 'HYDRATE'; state: OnboardingSessionState };
 
 // ── Conversation reducer actions ─────────────────────────────────────────
 

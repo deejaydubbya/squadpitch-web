@@ -145,14 +145,17 @@ describe('multi-image assignment', () => {
       { id: 'img-b', label: 'photo b' },
       { id: 'img-c', label: 'photo c' },
     ];
+    // Set the *target* (imagesPerPost) to 1 so the "guarantee target" pass
+    // doesn't fill beyond the threshold-respecting Phase 2 result.
+    // maxImagesPerPost stays at 3 to prove the threshold caps secondaries.
     const results = assignImagesToPosts(posts, lowScorePool, {
-      imagesPerPost: 3,
+      imagesPerPost: 1,
       maxImagesPerPost: 3,
       secondaryThreshold: 50, // very high threshold
     });
 
     expect(results).toHaveLength(1);
-    // Primary always assigned, but secondaries won't meet threshold
+    // Primary always assigned, but no secondary clears the threshold.
     expect(results[0].imageIds.length).toBe(1);
   });
 
@@ -275,20 +278,22 @@ describe('getConfidenceTier', () => {
 });
 
 describe('getConfidenceLabel', () => {
-  it('returns "Best match (label)" for high confidence with label', () => {
-    expect(getConfidenceLabel(80, 'kitchen')).toBe('Best match (kitchen)');
+  // Labels live in mediaAssignment.ts:getConfidenceLabel. Update fixtures
+  // here whenever the source strings change.
+  it('returns "Best match: <label>" for high confidence with label', () => {
+    expect(getConfidenceLabel(80, 'kitchen')).toBe('Best match: kitchen');
   });
 
   it('returns "Best match" for high confidence without label', () => {
     expect(getConfidenceLabel(60)).toBe('Best match');
   });
 
-  it('returns "Good match" for medium confidence', () => {
-    expect(getConfidenceLabel(40)).toBe('Good match');
-    expect(getConfidenceLabel(40, 'bedroom')).toBe('Good match');
+  it('returns "Strong match" for medium confidence', () => {
+    expect(getConfidenceLabel(40)).toBe('Strong match');
+    expect(getConfidenceLabel(40, 'bedroom')).toBe('Strong match: bedroom');
   });
 
-  it('returns "Weak match" for low confidence', () => {
-    expect(getConfidenceLabel(10)).toBe('Weak match');
+  it('returns "Fallback image" for low confidence', () => {
+    expect(getConfidenceLabel(10)).toBe('Fallback image');
   });
 });

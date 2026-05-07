@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
+import { captureWebException, initWebSentry } from '@/lib/sentry';
+
 export default function GlobalError({
   error,
   reset,
@@ -7,6 +10,11 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    // Optional Sentry capture — no-op if NEXT_PUBLIC_SENTRY_DSN is unset.
+    void initWebSentry().then(() => captureWebException(error, { digest: error.digest }));
+  }, [error]);
+
   return (
     <html>
       <body style={{ backgroundColor: '#0a0a0a', color: '#e5e5e5', fontFamily: 'system-ui, sans-serif' }}>

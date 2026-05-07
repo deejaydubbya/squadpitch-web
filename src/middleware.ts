@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth0 } from '@/lib/auth0';
 
-const PUBLIC_PATHS = ['/'];
+// Public pages reachable without an authenticated session.
+// Keep in sync with the (public) route group and any new legal/trust pages.
+// Exported so tests can lock in the contract.
+export const PUBLIC_PATHS = ['/', '/privacy', '/terms', '/help', '/sms-consent'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -42,6 +45,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|icon\\.png|apple-icon\\.png|icon-.*\\.png|logo.*\\.png|sw\\.js|sitemap\\.xml|robots\\.txt|.*\\.txt$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|icon\\.png|apple-icon\\.png|icon-.*\\.png|logo.*\\.png|squadpitch-.*\\.(?:png|jpg|jpeg|webp|mp4|webm)|sw\\.js|sitemap\\.xml|robots\\.txt|.*\\.txt$).*)',
   ],
 };

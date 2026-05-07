@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useState } from 'react';
 import { ApiError } from '@/lib/apiFetch';
 import { UpgradeModal } from '@/components/billing/UpgradeModal';
 import { trackActivationEvent } from '@/lib/activationTracking';
+import { track } from '@/lib/analytics';
 
 interface UsageLimitContext {
   handleMutationError: (error: unknown, context?: string) => boolean;
@@ -38,6 +39,12 @@ export function UsageLimitProvider({
         trackActivationEvent('limit_upgrade_prompt', {
           clientId,
           meta: { context, code: error.code },
+        });
+        // Funnel event — operator can correlate paywall hits with checkout conversion.
+        // No PII forwarded; just the error code + a short context label.
+        track('usage_limit_hit', {
+          code: error.code ?? null,
+          context: context ?? null,
         });
         return true;
       }

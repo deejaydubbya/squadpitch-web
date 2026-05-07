@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Plus, Trash2, Terminal, X, LogOut, Zap } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
@@ -10,11 +11,27 @@ import { useClients, useDeleteWorkspace } from '@/hooks/useSquadpitch';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUsage, useCreateCheckout, useChangePlan, type PlanTier } from '@/hooks/useBilling';
 import { ClientCard } from '@/components/studio/ClientCard';
+import { shouldRedirectToOnboarding } from '@/lib/onboardingRedirect';
 
 export default function WorkspacesPage() {
+  const router = useRouter();
   const { data: clients, isLoading, error } = useClients();
   const { isAdmin, isDeveloper } = useCurrentUser();
   const deleteWorkspace = useDeleteWorkspace();
+
+  // First-time activation: a brand-new authenticated user lands here with
+  // zero workspaces. Push them straight into onboarding instead of showing
+  // a confusing empty list. Only fire once per mount to avoid loops if the
+  // /onboarding page navigates back before the clients query refetches.
+  const hasRedirectedRef = useRef(false);
+  const shouldRedirect = shouldRedirectToOnboarding({ isLoading, error, clients });
+
+  useEffect(() => {
+    if (shouldRedirect && !hasRedirectedRef.current) {
+      hasRedirectedRef.current = true;
+      router.replace('/onboarding');
+    }
+  }, [shouldRedirect, router]);
   const [deletingClient, setDeletingClient] = useState<{ id: string; name: string } | null>(null);
   const [confirmText, setConfirmText] = useState('');
 
@@ -96,6 +113,34 @@ export default function WorkspacesPage() {
         )}
 
         {error && <StatusBanner error={(error as Error).message} />}
+
+        {/* Brand-new user — clients loaded, list is empty.
+            useEffect above is firing router.replace('/onboarding'); show
+            a clear interim state instead of an empty grid. */}
+        {shouldRedirect && (
+          <div className="card p-6 max-w-xl">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-accent-green-110/10 border border-accent-green-110/20 flex items-center justify-center flex-shrink-0">
+                <LoadingSpinner size="sm" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-white-100 font-semibold text-lg">
+                  Setting up your first workspace…
+                </h2>
+                <p className="text-sm text-white-40 mt-1">
+                  Taking you to onboarding so you can paste a listing or
+                  website and generate your first posts.
+                </p>
+                <Link
+                  href="/onboarding"
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold hover:bg-accent-green-120 transition-colors"
+                >
+                  Continue to onboarding
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">
           {clients?.map((client) => (

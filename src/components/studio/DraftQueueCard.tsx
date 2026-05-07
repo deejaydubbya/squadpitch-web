@@ -42,6 +42,7 @@ import {
   type PerformanceRating,
 } from '@/hooks/useSquadpitch';
 import { validatePublishEligibility } from '@/lib/publishValidator';
+import { interpretPublishError } from '@/lib/publishErrorMessage';
 import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 import { useSubscription, useUsage } from '@/hooks/useBilling';
 import { isAtOrAboveTier } from '@/lib/tierConfig';
@@ -350,19 +351,80 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         )}
       </div>
 
-      {showPublishError && (
-        <div className="border-t border-white-10 px-4 py-3 bg-accent-red/10">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-accent-red flex-shrink-0 mt-0.5" />
-            <div className="text-xs text-white-80">
-              <span className="text-accent-red font-medium">
-                Last publish attempt failed:
-              </span>{' '}
-              {draft.publishError}. Click Publish to retry.
+      {showPublishError && (() => {
+        const friendly = interpretPublishError({
+          publishError: draft.publishError,
+          channel: draft.channel,
+          clientId: draft.clientId,
+        });
+        if (!friendly) return null;
+        return (
+          <div className="border-t border-white-10 px-4 py-3 bg-accent-red/10">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-accent-red flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-white-80 flex-1 min-w-0">
+                <div className="text-accent-red font-medium">
+                  {friendly.message}
+                </div>
+                {friendly.detail && (
+                  <div className="text-white-60 mt-0.5">{friendly.detail}</div>
+                )}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {friendly.actions.map((action) => {
+                    if (action.kind === 'reconnect' && action.href) {
+                      return (
+                        <Link
+                          key={action.kind}
+                          href={action.href}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent-red/20 text-accent-red hover:bg-accent-red/30 text-[11px] font-medium"
+                        >
+                          {action.label}
+                        </Link>
+                      );
+                    }
+                    if (action.kind === 'retry' && canPublish) {
+                      return (
+                        <button
+                          key={action.kind}
+                          onClick={() => publish.mutate()}
+                          disabled={publish.isPending}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white-10 text-white-80 hover:bg-white-20 text-[11px] font-medium disabled:opacity-50"
+                        >
+                          {publish.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                          {action.label}
+                        </button>
+                      );
+                    }
+                    if (action.kind === 'edit') {
+                      return (
+                        <button
+                          key={action.kind}
+                          onClick={() => setEditMode(true)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white-10 text-white-80 hover:bg-white-20 text-[11px] font-medium"
+                        >
+                          {action.label}
+                        </button>
+                      );
+                    }
+                    if (action.kind === 'contact_support') {
+                      return (
+                        <a
+                          key={action.kind}
+                          href="mailto:support@squadpitch.com?subject=Squadpitch%20publish%20error"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white-10 text-white-80 hover:bg-white-20 text-[11px] font-medium"
+                        >
+                          {action.label}
+                        </a>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="border-t border-white-10 px-5 py-3 flex items-center gap-2.5 flex-wrap">
         {/* Expand/Collapse */}

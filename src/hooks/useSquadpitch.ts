@@ -1914,6 +1914,32 @@ export interface DraftFilters {
   limit?: number;
 }
 
+// "Active" statuses are the ones whose state can change without the user
+// touching the page — scheduled posts that the worker may pick up,
+// drafts that are mid-publish-attempt, etc. When the planner sees any
+// active draft, we poll every 20 s so the UI reflects the worker's
+// progress without a manual refresh. Otherwise we don't poll.
+const ACTIVE_DRAFT_STATUSES = new Set([
+  'SCHEDULED',
+  'PENDING_REVIEW',
+  'APPROVED',
+]);
+
+function hasActiveDraft(drafts: ReadonlyArray<Draft> | undefined): boolean {
+  if (!drafts) return false;
+  return drafts.some((d) => {
+    if (ACTIVE_DRAFT_STATUSES.has(d.status)) return true;
+    // A FAILED draft with a recent (last 30 min) publish attempt is
+    // still likely to flip if the user retries; refresh while that's
+    // possible.
+    if (d.status === 'FAILED' && d.lastPublishAttemptAt) {
+      const ageMs = Date.now() - new Date(d.lastPublishAttemptAt).getTime();
+      if (ageMs < 30 * 60 * 1000) return true;
+    }
+    return false;
+  });
+}
+
 export function useDrafts(filters: DraftFilters = {}) {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
@@ -1926,6 +1952,10 @@ export function useDrafts(filters: DraftFilters = {}) {
     queryKey: squadpitchKeys.drafts(filters as Record<string, unknown>),
     queryFn: () => apiFetch<{ drafts: Draft[] }>(path),
     select: (data) => data.drafts,
+    // refetchInterval can return a number (ms) or false. We re-evaluate
+    // each time to flip polling off as soon as the active drafts settle.
+    refetchInterval: (q) => (hasActiveDraft(q.state.data?.drafts) ? 20_000 : false),
+    refetchIntervalInBackground: false,
   });
 }
 

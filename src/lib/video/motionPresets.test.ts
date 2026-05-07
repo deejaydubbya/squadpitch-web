@@ -73,19 +73,22 @@ describe('resolveMotionPreset', () => {
 });
 
 describe('getClipDuration', () => {
-  it('returns 4s for aerial', () => {
-    expect(getClipDuration('aerial')).toBe(4.0);
+  // Values come from CLIP_DURATIONS in motionPresets.ts. Tuned for visual
+  // pacing — bump these here whenever the source map changes, not the
+  // other way around.
+  it('returns 4.5s for aerial', () => {
+    expect(getClipDuration('aerial')).toBe(4.5);
   });
 
-  it('returns 2.5s for bathroom', () => {
-    expect(getClipDuration('bathroom')).toBe(2.5);
+  it('returns 3s for bathroom', () => {
+    expect(getClipDuration('bathroom')).toBe(3.0);
   });
 
-  it('returns 3s default for other', () => {
-    expect(getClipDuration('other')).toBe(3.0);
+  it('falls back to the 3.5s default for "other"', () => {
+    expect(getClipDuration('other')).toBe(3.5);
   });
 
-  it('returns 3.5s for exterior', () => {
-    expect(getClipDuration('exterior')).toBe(3.5);
+  it('returns 4s for exterior', () => {
+    expect(getClipDuration('exterior')).toBe(4.0);
   });
 });
