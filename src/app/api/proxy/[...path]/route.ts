@@ -22,23 +22,48 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
   const path = params.path.join('/');
   const url = `${API_URL}/api/v1/${path}${request.nextUrl.search}`;
 
-  // getAccessToken auto-refreshes when the access token is expired or
-  // about to expire (provided offline_access scope was granted at login,
-  // see lib/auth0.ts). If refresh fails — refresh token revoked,
-  // expired, or never issued — we surface a recognizable 401 that the
-  // client can map to a redirect-to-login. Without this branch the
-  // proxy would either pass an expired token (API → 401) or pass no
-  // token at all, and the user would just see a generic API error.
+  // Token strategy:
+  //   1. Read the session. If there is none, return SESSION_EXPIRED.
+  //   2. If the access token still has plenty of life left, use it as-is.
+  //      This avoids hitting auth0.getAccessToken() on every request,
+  //      which (in v4 Route Handler context) requires (req, res) args
+  //      and a writable response — awkward to thread through a proxy.
+  //   3. If the token is near or past expiry, attempt a refresh. If
+  //      refresh fails (no refresh token, revoked, etc.) we surface a
+  //      recognizable 401 so the client redirects to login.
   let token: string | null = null;
   try {
     const session = await auth0.getSession(request);
     if (!session) {
       return sessionExpiredResponse('No active session.');
     }
-    const at = await auth0.getAccessToken();
-    token = at?.token ?? null;
+
+    const tokenSet = (session as any).tokenSet ?? null;
+    const accessToken: string | undefined = tokenSet?.accessToken;
+    // expiresAt is typically unix seconds in v4; tolerate ms just in case.
+    const rawExpiresAt: number | undefined = tokenSet?.expiresAt;
+    const expiresAtSec = typeof rawExpiresAt === 'number'
+      ? (rawExpiresAt > 1e12 ? Math.floor(rawExpiresAt / 1000) : rawExpiresAt)
+      : 0;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const refreshSkewSec = 60;
+
+    if (accessToken && expiresAtSec > nowSec + refreshSkewSec) {
+      token = accessToken;
+    } else {
+      try {
+        const at = await auth0.getAccessToken();
+        token = at?.token ?? accessToken ?? null;
+      } catch (refreshErr) {
+        console.warn(
+          '[proxy] getAccessToken refresh failed:',
+          (refreshErr as Error)?.message
+        );
+        return sessionExpiredResponse('Your session has expired. Please log in again.');
+      }
+    }
   } catch (err) {
-    console.warn('[proxy] getAccessToken failed:', (err as Error)?.message);
+    console.error('[proxy] session lookup failed:', (err as Error)?.message);
     return sessionExpiredResponse('Your session has expired. Please log in again.');
   }
   if (!token) {
