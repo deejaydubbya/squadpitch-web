@@ -2291,11 +2291,30 @@ export function useFolders(clientId: string) {
 export function useCreateFolder(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      apiFetch<AssetFolder>(`workspaces/${clientId}/folders`, {
-        method: 'POST',
-        body: JSON.stringify({ name }),
-      }),
+    // Idempotent "ensure folder exists" semantics. A naive POST hits
+    // the (clientId, name) unique index with a 409 when the folder was
+    // already created (different tab, recent campaign rerun, stale
+    // useFolders cache). We treat 409 as "great, fetch the existing
+    // one" so callers can always rely on getting back a folder.
+    mutationFn: async (name: string): Promise<AssetFolder> => {
+      try {
+        return await apiFetch<AssetFolder>(`workspaces/${clientId}/folders`, {
+          method: 'POST',
+          body: JSON.stringify({ name }),
+        });
+      } catch (err) {
+        const status = (err as { status?: number })?.status;
+        const code = (err as { code?: string })?.code;
+        if (status === 409 || code === 'DUPLICATE_FOLDER') {
+          const fresh = await apiFetch<{ folders: AssetFolder[] }>(
+            `workspaces/${clientId}/folders`
+          );
+          const existing = fresh.folders.find((f) => f.name === name);
+          if (existing) return existing;
+        }
+        throw err;
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.folders(clientId) });
     },
