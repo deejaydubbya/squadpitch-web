@@ -775,8 +775,13 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
     }
 
     // Build a smart folder name from context or current form state.
-    const addr = context?.address || form.address;
-    const city = context?.city || form.city;
+    // Coerce defensively: callers occasionally pass through a nested
+    // address object (e.g. { street, city, ... }) whose `.street` is
+    // missing — falling back to the raw object stringifies to
+    // "[object Object]" in the template literal.
+    const safeStr = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+    const addr = safeStr(context?.address) || safeStr(form.address);
+    const city = safeStr(context?.city) || safeStr(form.city);
     const folderName = addr
       ? `Campaign — ${addr}${city ? `, ${city}` : ''}`
       : `Listing Campaign ${new Date().toLocaleDateString()}`;
@@ -1388,8 +1393,10 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
     if (mediaAssetIds.length === 0 && needsUpload.length > 0) {
       try {
         // Build folder name for the upload-images endpoint
-        const folderName = form.address
-          ? `Campaign — ${form.address}${form.city ? `, ${form.city}` : ''}`
+        const addrStr = typeof form.address === 'string' ? form.address.trim() : '';
+        const cityStr = typeof form.city === 'string' ? form.city.trim() : '';
+        const folderName = addrStr
+          ? `Campaign — ${addrStr}${cityStr ? `, ${cityStr}` : ''}`
           : undefined;
         let folderId = campaignFolderId;
         if (!folderId && folderName) {
@@ -2407,8 +2414,10 @@ export function ListingCampaignPage({ clientId, initialUrl }: Props) {
       if (!files || files.length === 0) return;
 
       // Build a smart folder name from the listing address or a fallback.
-      const folderName = form.address
-        ? `Campaign — ${form.address}${form.city ? `, ${form.city}` : ''}`
+      const addrStr = typeof form.address === 'string' ? form.address.trim() : '';
+      const cityStr = typeof form.city === 'string' ? form.city.trim() : '';
+      const folderName = addrStr
+        ? `Campaign — ${addrStr}${cityStr ? `, ${cityStr}` : ''}`
         : `Listing Campaign ${new Date().toLocaleDateString()}`;
 
       setDirectUploadTotal(files.length);
