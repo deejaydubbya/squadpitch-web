@@ -19,8 +19,14 @@ export const metadata: Metadata = {
     'Squadpitch is the AI social media generator for real estate agents. Paste a listing link and get a complete, ready-to-schedule campaign in seconds.',
 };
 
-const SIGNUP_HREF = '/auth/login?returnTo=/workspaces';
-const LOGIN_HREF = '/auth/login?returnTo=/workspaces';
+// Auth links must hit the app subdomain — Auth0 v4 sets the state
+// cookie host-only on /auth/login, so starting the flow on the apex
+// (squadpitch.com) and finishing on the app host (app.squadpitch.com)
+// loses the cookie and produces invalid_state on callback. Pinning to
+// the canonical app origin keeps the whole flow on one host.
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://app.squadpitch.com';
+const SIGNUP_HREF = `${APP_ORIGIN}/auth/login?returnTo=/workspaces`;
+const LOGIN_HREF = `${APP_ORIGIN}/auth/login?returnTo=/workspaces`;
 
 export default function LandingPage() {
   return (

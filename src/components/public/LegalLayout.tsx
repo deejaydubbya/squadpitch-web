@@ -1,8 +1,12 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-const LOGIN_HREF = '/auth/login?returnTo=/workspaces';
-const SIGNUP_HREF = '/auth/login?returnTo=/workspaces';
+// Same reasoning as (public)/page.tsx — auth must start on the canonical
+// app origin so the state cookie set at /auth/login is sent back to
+// /auth/callback. See LandingPage for full context.
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://app.squadpitch.com';
+const LOGIN_HREF = `${APP_ORIGIN}/auth/login?returnTo=/workspaces`;
+const SIGNUP_HREF = `${APP_ORIGIN}/auth/login?returnTo=/workspaces`;
 
 /**
  * Shared layout shell for public legal/trust pages (/privacy, /terms, /help).
