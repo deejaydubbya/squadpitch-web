@@ -4,7 +4,7 @@ import { auth0 } from '@/lib/auth0';
 // Public pages reachable without an authenticated session.
 // Keep in sync with the (public) route group and any new legal/trust pages.
 // Exported so tests can lock in the contract.
-export const PUBLIC_PATHS = ['/', '/privacy', '/terms', '/contact', '/help', '/sms-consent'];
+export const PUBLIC_PATHS = ['/', '/privacy', '/terms', '/contact', '/data-deletion', '/help', '/sms-consent'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

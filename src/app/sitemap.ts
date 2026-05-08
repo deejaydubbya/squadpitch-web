@@ -36,6 +36,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.4,
     },
     {
+      url: `${APP_BASE_URL}/data-deletion`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.3,
+    },
+    {
       url: `${APP_BASE_URL}/help`,
       lastModified,
       changeFrequency: 'monthly',

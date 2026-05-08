@@ -70,6 +70,9 @@ export function LegalLayout({
             <Link href="/contact" className="hover:text-gray-700">
               Contact
             </Link>
+            <Link href="/data-deletion" className="hover:text-gray-700">
+              Data Deletion
+            </Link>
             <Link href="/help" className="hover:text-gray-700">
               Help
             </Link>

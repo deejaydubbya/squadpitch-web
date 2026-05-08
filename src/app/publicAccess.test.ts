@@ -17,6 +17,7 @@ describe('PUBLIC_PATHS — middleware allowlist', () => {
     expect(PUBLIC_PATHS).toContain('/privacy');
     expect(PUBLIC_PATHS).toContain('/terms');
     expect(PUBLIC_PATHS).toContain('/contact');
+    expect(PUBLIC_PATHS).toContain('/data-deletion');
     expect(PUBLIC_PATHS).toContain('/help');
   });
 
@@ -40,6 +41,7 @@ describe('robots.txt', () => {
     expect(allow).toContain('/privacy');
     expect(allow).toContain('/terms');
     expect(allow).toContain('/contact');
+    expect(allow).toContain('/data-deletion');
     expect(allow).toContain('/help');
   });
 
@@ -65,6 +67,7 @@ describe('sitemap.xml', () => {
     expect(urls.some((u) => u.endsWith('/privacy'))).toBe(true);
     expect(urls.some((u) => u.endsWith('/terms'))).toBe(true);
     expect(urls.some((u) => u.endsWith('/contact'))).toBe(true);
+    expect(urls.some((u) => u.endsWith('/data-deletion'))).toBe(true);
     expect(urls.some((u) => u.endsWith('/help'))).toBe(true);
   });
 

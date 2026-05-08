@@ -303,7 +303,13 @@ export default function PrivacyPage() {
           Squadpitch does not currently provide a self-service in-app
           account-deletion button. The email path above is the primary
           deletion route. If we add a self-service flow later, this section
-          will be updated.
+          will be updated. For step-by-step guidance — including what to
+          put in the email and what may be retained for legal or billing
+          reasons — see the{' '}
+          <a href="/data-deletion" className="text-[#1DBF60] hover:underline">
+            Data Deletion
+          </a>{' '}
+          page.
         </p>
       </Section>
 

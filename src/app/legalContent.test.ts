@@ -17,6 +17,7 @@ function read(rel: string) {
 const TERMS = read('src/app/(public)/terms/page.tsx');
 const PRIVACY = read('src/app/(public)/privacy/page.tsx');
 const CONTACT = read('src/app/(public)/contact/page.tsx');
+const DATA_DELETION = read('src/app/(public)/data-deletion/page.tsx');
 const LEGAL_LAYOUT = read('src/components/public/LegalLayout.tsx');
 const LANDING = read('src/app/(public)/page.tsx');
 
@@ -109,18 +110,62 @@ describe('Contact page', () => {
   });
 });
 
+describe('Data Deletion page', () => {
+  it('exists and exports a default page component', () => {
+    expect(DATA_DELETION).toMatch(/export default function DataDeletionPage/);
+  });
+  it('uses the canonical title format "Data Deletion | Squadpitch"', () => {
+    expect(DATA_DELETION).toContain("title: 'Data Deletion | Squadpitch'");
+  });
+  it('names the data controller as Squadpitch LLC', () => {
+    expect(DATA_DELETION).toContain('Squadpitch LLC');
+  });
+  it('includes the privacy email', () => {
+    expect(DATA_DELETION).toContain('privacy@squadpitch.com');
+  });
+  it('mentions the canonical "Data Deletion Request" subject line', () => {
+    expect(DATA_DELETION).toContain('Data Deletion Request');
+  });
+  it('explains the social-platform revocation path generically', () => {
+    expect(DATA_DELETION).toMatch(/connected apps/i);
+    expect(DATA_DELETION).toMatch(/revoke/i);
+  });
+  it('lists what may be retained (legal / billing / security / fraud / disputes / backups)', () => {
+    expect(DATA_DELETION).toMatch(/legal obligations/i);
+    expect(DATA_DELETION).toMatch(/tax/i);
+    expect(DATA_DELETION).toMatch(/billing/i);
+    expect(DATA_DELETION).toMatch(/security/i);
+    expect(DATA_DELETION).toMatch(/fraud/i);
+    expect(DATA_DELETION).toMatch(/dispute/i);
+    expect(DATA_DELETION).toMatch(/backup/i);
+  });
+  it('cross-links /privacy, /terms, and /contact', () => {
+    expect(DATA_DELETION).toContain('href="/privacy"');
+    expect(DATA_DELETION).toContain('href="/terms"');
+    expect(DATA_DELETION).toContain('href="/contact"');
+  });
+});
+
+describe('Privacy → Data Deletion cross-link', () => {
+  it('Privacy Policy points users to /data-deletion for the deletion walkthrough', () => {
+    expect(PRIVACY).toContain('/data-deletion');
+  });
+});
+
 describe('Footers — public site', () => {
-  it('LegalLayout footer exposes Terms, Privacy, Contact, and the LLC copyright', () => {
+  it('LegalLayout footer exposes Terms, Privacy, Contact, Data Deletion, and the LLC copyright', () => {
     expect(LEGAL_LAYOUT).toContain('href="/terms"');
     expect(LEGAL_LAYOUT).toContain('href="/privacy"');
     expect(LEGAL_LAYOUT).toContain('href="/contact"');
+    expect(LEGAL_LAYOUT).toContain('href="/data-deletion"');
     expect(LEGAL_LAYOUT).toMatch(/Squadpitch LLC\. All rights reserved\./);
   });
 
-  it('Landing-page footer exposes Terms, Privacy, Contact, and the LLC copyright', () => {
+  it('Landing-page footer exposes Terms, Privacy, Contact, Data Deletion, and the LLC copyright', () => {
     expect(LANDING).toContain('href="/terms"');
     expect(LANDING).toContain('href="/privacy"');
     expect(LANDING).toContain('href="/contact"');
+    expect(LANDING).toContain('href="/data-deletion"');
     expect(LANDING).toMatch(/Squadpitch LLC\. All rights reserved\./);
   });
 });
