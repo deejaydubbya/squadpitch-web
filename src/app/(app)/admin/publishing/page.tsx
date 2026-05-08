@@ -9,10 +9,11 @@ import {
   Image,
   ExternalLink,
   Send,
+  RefreshCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAdminPublishing } from '@/hooks/useAdmin';
-import type { PublishItem } from '@/hooks/useAdmin';
+import { useAdminPublishing, useAdminMetricsSync } from '@/hooks/useAdmin';
+import type { PublishItem, AdminMetricsSyncResult } from '@/hooks/useAdmin';
 
 const STATUS_OPTIONS = ['', 'PUBLISHED', 'FAILED', 'SCHEDULED'];
 const CHANNEL_OPTIONS = ['', 'INSTAGRAM', 'TIKTOK', 'X', 'LINKEDIN', 'FACEBOOK', 'YOUTUBE'];
@@ -242,6 +243,13 @@ function PublishRow({ item, expanded, onToggle }: { item: PublishItem; expanded:
             </div>
           )}
 
+          {/* Manual metrics sync (admin/dev only — endpoint enforces). */}
+          <MetricsSyncRow
+            draftId={item.id}
+            status={item.status}
+            externalPostId={item.externalPostId ?? null}
+          />
+
           {/* Error */}
           {item.publishError && (
             <div className="rounded-lg border border-accent-red/20 bg-accent-red/5 p-3">
@@ -252,6 +260,86 @@ function PublishRow({ item, expanded, onToggle }: { item: PublishItem; expanded:
               <pre className="text-accent-red text-xs font-mono whitespace-pre-wrap">{item.publishError}</pre>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Metrics sync action ────────────────────────────────────────────
+//
+// Admin/developer-only. Calls POST /api/v1/internal/drafts/:id/metrics/sync
+// with force=true so the operator can re-trigger within the 1h cooldown
+// window for debugging. The endpoint enforces role auth — this UI just
+// guards visibility on the obvious "is it ready to sync" preconditions.
+function MetricsSyncRow({
+  draftId,
+  status,
+  externalPostId,
+}: {
+  draftId: string;
+  status: string;
+  externalPostId: string | null;
+}) {
+  const sync = useAdminMetricsSync();
+
+  const isPublished = status === 'PUBLISHED';
+  const hasExternalId = Boolean(externalPostId);
+  const disabled = !isPublished || !hasExternalId || sync.isPending;
+
+  const disabledReason = !isPublished
+    ? 'Only PUBLISHED drafts can sync metrics.'
+    : !hasExternalId
+      ? 'No external post ID — nothing to sync.'
+      : null;
+
+  const result = sync.data as AdminMetricsSyncResult | undefined;
+
+  return (
+    <div className="rounded-lg border border-white-10 bg-sp-bg p-3 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-white text-xs font-medium">Metrics sync (debug)</div>
+          {disabledReason && (
+            <div className="text-white-40 text-[11px] mt-0.5">{disabledReason}</div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => sync.mutate({ draftId, force: true })}
+          disabled={disabled}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors',
+            disabled
+              ? 'border-white-10 text-white-30 cursor-not-allowed'
+              : 'border-accent-blue/40 text-accent-blue hover:bg-accent-blue/10',
+          )}
+        >
+          <RefreshCcw className={cn('w-3 h-3', sync.isPending && 'animate-spin')} />
+          {sync.isPending ? 'Syncing…' : 'Sync metrics now'}
+        </button>
+      </div>
+
+      {sync.isError && (
+        <div className="rounded border border-accent-red/30 bg-accent-red/10 px-2 py-1.5 text-[11px] text-accent-red">
+          Sync request failed: {(sync.error as Error)?.message ?? 'unknown error'}
+        </div>
+      )}
+
+      {result && (
+        <div
+          className={cn(
+            'rounded border px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap break-all',
+            result.status === 'synced'
+              ? 'border-green-500/30 bg-green-500/10 text-green-300'
+              : result.status === 'skipped'
+                ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300'
+                : 'border-accent-red/30 bg-accent-red/10 text-accent-red',
+          )}
+        >
+          {result.status === 'synced'
+            ? `Synced. raw=${result.rawMetricId ?? '—'} norm=${result.normalizedMetricId ?? '—'} at ${result.lastSyncedAt ?? '—'}`
+            : `${result.status}: ${result.reason ?? 'unknown'}${result.detail ? ` — ${result.detail}` : ''}`}
         </div>
       )}
     </div>

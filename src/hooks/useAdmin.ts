@@ -417,6 +417,40 @@ export function useAdminTechStack(params: Record<string, string>) {
   });
 }
 
+// Internal-only manual metrics sync. Mirrors the debug-safe shape the
+// route returns — no tokens, no provider payloads. status is "synced"
+// on success, "skipped" for prereq fails (cooldown, no_external_id),
+// "failed" for adapter / pipeline errors.
+export interface AdminMetricsSyncResult {
+  ok: boolean;
+  draftId: string;
+  clientId: string;
+  channel: string;
+  externalPostId: string | null;
+  status: 'synced' | 'skipped' | 'failed';
+  reason: string | null;
+  detail: string | null;
+  rawMetricId: string | null;
+  normalizedMetricId: string | null;
+  postMetricsUpdated: boolean;
+  lastSyncedAt: string | null;
+  forceUsed: boolean;
+  durationMs: number;
+}
+
+export function useAdminMetricsSync() {
+  return useMutation({
+    mutationFn: ({ draftId, force = true }: { draftId: string; force?: boolean }) =>
+      apiFetch<AdminMetricsSyncResult>(
+        `internal/drafts/${draftId}/metrics/sync`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ force }),
+        }
+      ),
+  });
+}
+
 export function useAdminPublishing(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.publishing(params),
