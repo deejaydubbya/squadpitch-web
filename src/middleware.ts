@@ -24,6 +24,11 @@ export async function middleware(request: NextRequest) {
     // OAuth callbacks — no auth needed
     if (pathname.startsWith('/oauth/')) return authResponse;
 
+    // Media proxy — no auth (TikTok's PULL_FROM_URL verifier fetches
+    // media without credentials). The route itself only allows our
+    // own Cloudinary cloud, so it can't be used as an open relay.
+    if (pathname.startsWith('/media-proxy/')) return authResponse;
+
     // All other paths require authentication
     const session = await auth0.getSession(request);
     if (!session) {
