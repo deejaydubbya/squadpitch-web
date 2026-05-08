@@ -2,158 +2,334 @@ import type { Metadata } from 'next';
 import { LegalLayout, Section } from '@/components/public/LegalLayout';
 
 export const metadata: Metadata = {
-  title: 'Terms of Service — Squadpitch',
+  title: 'Terms of Service | Squadpitch',
   description:
-    'The terms that apply when you use Squadpitch to generate, schedule, and publish social media content.',
+    'The terms that apply when you use Squadpitch — AI-assisted social media generation, scheduling, publishing, and analytics for real estate agents, small businesses, and teams.',
 };
 
 export default function TermsPage() {
   return (
-    <LegalLayout title="Terms of Service" lastUpdated="May 5, 2026">
+    <LegalLayout title="Terms of Service" lastUpdated="May 8, 2026">
       <p>
-        These terms apply when you use Squadpitch — an AI-powered tool for
-        generating, scheduling, and publishing social media content. By
-        creating an account or using the service you agree to these terms.
-        If you don't, please don't use Squadpitch.
-      </p>
-      <p>
-        Squadpitch is an early-stage product built by a small team. We try
-        to keep these terms practical instead of throwing every
-        legal-warranty word at you. Larger customers with procurement
-        requirements should email{' '}
-        <a href="mailto:support@squadpitch.com" className="text-[#1DBF60] hover:underline">
-          support@squadpitch.com
-        </a>
-        .
+        These Terms of Service (the &quot;Terms&quot;) form a binding agreement
+        between <strong>Squadpitch LLC</strong> (&quot;Squadpitch&quot;,
+        &quot;we&quot;, &quot;us&quot;) and you, the person or entity using
+        the Squadpitch service. By creating an account or using the service
+        you agree to these Terms. If you do not agree, do not use Squadpitch.
       </p>
 
-      <Section heading="What Squadpitch is">
+      <Section heading="1. The service">
         <p>
-          Squadpitch lets you provide a website, listing, or other source
-          material; the platform extracts brand and property data and uses
-          AI to generate captions, hooks, hashtags, and media; you review
-          and approve drafts; Squadpitch publishes them to the social
-          channels you've connected, on the schedule you set.
+          Squadpitch is AI-assisted software that helps real estate agents,
+          small businesses, and teams generate, schedule, publish, and analyze
+          social media content. Typical workflow: you provide source material
+          (a listing URL, website, brand notes, images), Squadpitch extracts
+          and structures it, our AI generates captions, hooks, hashtags, and
+          media, you review and approve the drafts, and Squadpitch publishes
+          them to the social channels you have connected on the schedule you
+          set.
+        </p>
+        <p>
+          Squadpitch is operated from the United States. The product is
+          intended for business use and is not designed for consumers acting
+          outside a trade or profession.
         </p>
       </Section>
 
-      <Section heading="Your account">
+      <Section heading="2. Eligibility and accounts">
         <p>
-          You're responsible for keeping your login secure, for the activity
-          on your account, and for the people you invite into a workspace.
-          Squadpitch is for use by businesses and adults. You must be at
-          least 18 to use the service.
-        </p>
-      </Section>
-
-      <Section heading="Your content and your social accounts">
-        <p>
-          You retain ownership of the content you upload, paste, or generate
-          through Squadpitch. You grant us a license to store, process, and
-          display that content as needed to operate the service for you,
-          including sending it to the third-party AI providers and social
-          platforms you choose to use.
+          You must be at least 18 years old and able to form a binding
+          contract to use Squadpitch. If you are using the service on behalf
+          of an organization, you represent that you have authority to bind
+          that organization to these Terms.
         </p>
         <p>
-          You're responsible for having the rights to anything you upload —
-          listing photos, videos, brand assets — and for following the
-          platform rules of any social channel you connect (Meta, TikTok,
-          Google, X, LinkedIn, etc.).
-        </p>
-      </Section>
-
-      <Section heading="AI-generated output — review before publishing">
-        <p>
-          Squadpitch uses third-party AI models. Output can be wrong,
-          biased, hallucinate facts, or include phrasing you don't want
-          attached to your brand or your listings.{' '}
-          <strong>
-            You are responsible for reviewing every draft before it
-            publishes.
-          </strong>{' '}
-          Autopilot, when enabled, defaults to draft-only mode so a human
-          approves before posting. If you turn on auto-publish modes, that
-          is your decision and your risk.
-        </p>
-        <p>
-          Real estate is regulated. Make sure posts you publish comply with
-          fair-housing rules, MLS rules, and any disclosure requirements
-          that apply to you. Squadpitch is not your compliance check.
-        </p>
-      </Section>
-
-      <Section heading="Acceptable use">
-        <p>Don't use Squadpitch to:</p>
-        <ul className="ml-5 list-disc space-y-1.5">
-          <li>Publish content you don't have the rights to.</li>
-          <li>Spam, mislead, harass, or impersonate other people or brands.</li>
-          <li>Attempt to bypass rate limits or scrape Squadpitch's APIs.</li>
-          <li>Generate or publish content that violates the rules of the social platform you're connecting to, or any applicable law.</li>
-          <li>Probe, scan, or test our systems without permission.</li>
-        </ul>
-        <p>We may suspend or terminate accounts that abuse the service.</p>
-      </Section>
-
-      <Section heading="Billing">
-        <p>
-          Free accounts are free. Paid plans (Solo, Pro, Team, Agency) are
-          billed monthly through Stripe. Your plan limits are described on
-          the pricing page; usage resets at the start of each calendar
-          month. You can upgrade, downgrade, or cancel at any time from
-          Settings → Billing — Stripe handles proration. Cancellations take
-          effect at the end of the current paid period.
-        </p>
-        <p>
-          Refunds are handled case-by-case; reach out via support if
-          something didn't work right.
-        </p>
-      </Section>
-
-      <Section heading="Service availability">
-        <p>
-          We aim to keep Squadpitch up, but we don't promise zero
-          downtime. Third-party providers (Auth0, Stripe, OpenAI, Fal,
-          Meta, etc.) sometimes have outages that affect us. We'll do
-          our best to surface what's broken and recover quickly.
-        </p>
-      </Section>
-
-      <Section heading="No warranties beyond what the law requires">
-        <p>
-          Squadpitch is provided "as is". To the extent allowed by law, we
-          disclaim implied warranties of merchantability, fitness, and
-          non-infringement. Specifically: we don't guarantee that
-          AI-generated content is accurate, on-brand, or appropriate for
-          publishing without your review.
-        </p>
-      </Section>
-
-      <Section heading="Liability">
-        <p>
-          To the extent allowed by law, Squadpitch's total liability to
-          you for any claim related to the service is limited to the
-          amount you paid us in the twelve months before the claim. We
-          aren't liable for indirect, consequential, or lost-profit
-          damages.
-        </p>
-      </Section>
-
-      <Section heading="Changes to these terms">
-        <p>
-          We may update these terms as the product evolves. We'll email
-          you about material changes. Continued use after the update
-          means you accept the new terms.
-        </p>
-      </Section>
-
-      <Section heading="Contact">
-        <p>
-          <a href="mailto:support@squadpitch.com" className="text-[#1DBF60] hover:underline">
+          Authentication is provided by Auth0. You are responsible for
+          keeping your login credentials confidential and for the activity
+          that occurs under your account. Notify us at{' '}
+          <a
+            href="mailto:support@squadpitch.com"
+            className="text-[#1DBF60] hover:underline"
+          >
             support@squadpitch.com
           </a>{' '}
-          — for billing, account, or any other question.
+          if you suspect unauthorized access.
         </p>
       </Section>
+
+      <Section heading="3. Workspaces and team members">
+        <p>
+          Squadpitch organizes work into workspaces. The user who creates a
+          workspace is the workspace owner and is responsible for the people
+          they invite to it, the content stored in it, the social accounts
+          connected to it, and the actions those people take inside it.
+          Removing a member does not delete the content they generated; the
+          workspace owner controls retention.
+        </p>
+      </Section>
+
+      <Section heading="4. Your content; license to operate the service">
+        <p>
+          You retain ownership of the content you upload, paste, or generate
+          through Squadpitch (&quot;Your Content&quot;), including drafts,
+          uploaded images, listing data, brand assets, and generated output
+          you save or publish.
+        </p>
+        <p>
+          You grant Squadpitch a non-exclusive, worldwide, royalty-free
+          license to host, store, transmit, display, copy, modify (only as
+          needed for resizing, encoding, and similar processing), and forward
+          Your Content to the third-party services you choose to use (AI
+          providers, social platforms, hosting / media providers) solely to
+          provide the service to you. You also grant us the right to retain
+          aggregated, de-identified usage data for product analytics and
+          security.
+        </p>
+        <p>
+          You represent that you have the rights, licenses, and consents
+          necessary for everything you upload or paste, including listing
+          photos, videos, brand assets, and any third-party trademarks or
+          copyrighted material.
+        </p>
+      </Section>
+
+      <Section heading="5. AI-generated content — review before publishing">
+        <p>
+          Captions, hooks, hashtags, and images you produce through
+          Squadpitch are generated by third-party AI models. AI output can
+          be inaccurate, biased, infringing, non-compliant with platform or
+          industry rules, or simply off-brand.{' '}
+          <strong>
+            You are solely responsible for reviewing and approving every
+            draft before it publishes.
+          </strong>{' '}
+          Squadpitch makes no representation that AI output is accurate,
+          fit for any particular purpose, original, non-infringing, or
+          compliant with any law, advertising standard, fair-housing
+          requirement, MLS rule, or platform policy.
+        </p>
+        <p>
+          Scheduled / autopilot features default to draft-only mode so a
+          human approves before posting. If you enable an auto-publish mode,
+          you accept that decision and the resulting risk.
+        </p>
+      </Section>
+
+      <Section heading="6. Real estate, fair housing, and platform compliance">
+        <p>
+          Real estate marketing is regulated. If you publish listings or
+          property content through Squadpitch, you are responsible for
+          following the federal Fair Housing Act, state and local
+          fair-housing rules, your MLS rules, brokerage requirements,
+          advertising laws, disclosure requirements, and the rules of every
+          social platform you publish to. Squadpitch is a tool — not a
+          compliance check.
+        </p>
+      </Section>
+
+      <Section heading="7. Connected social accounts and third-party platforms">
+        <p>
+          Squadpitch lets you connect third-party social platforms (such as
+          Meta&apos;s Facebook and Instagram, TikTok, X, LinkedIn, YouTube,
+          Google Business Profile) and cloud storage services (such as
+          Google Drive, Dropbox) via OAuth. When you connect an account,
+          Squadpitch stores an encrypted access token (and refresh token,
+          where issued) and basic profile metadata so we can publish on your
+          behalf and read engagement data for the analytics you see in
+          Squadpitch.
+        </p>
+        <p>
+          Each connected platform is operated by its own provider with its
+          own terms and policies. We do not control whether a platform will
+          accept, publish, continue to display, or moderate any post. We do
+          not guarantee that a connected platform&apos;s API will continue
+          to support every feature we use today; if a platform changes or
+          removes an API, the corresponding Squadpitch feature may change
+          or stop working.
+        </p>
+        <p>
+          You may disconnect any connected account at any time from
+          Settings → Channels. Disconnecting deletes the stored token. Some
+          historical posts may remain on the connected platform after you
+          disconnect — manage those through the platform itself.
+        </p>
+      </Section>
+
+      <Section heading="8. Subscriptions, billing, trials, and cancellations">
+        <p>
+          Squadpitch offers a free tier and paid plans (currently Solo, Pro,
+          Team, and Agency). Paid plans are billed monthly through Stripe.
+          You authorize Stripe to charge the payment method on file at the
+          beginning of each billing cycle, and you authorize us to update
+          plan status based on what Stripe reports.
+        </p>
+        <p>
+          Plan limits — including monthly post / image / video / generation
+          quotas, workspace counts, and team-member counts — are described
+          on the public pricing page. Limits reset at the start of each
+          calendar month. Overage above your plan&apos;s limits is blocked
+          rather than billed unless we expressly tell you otherwise.
+        </p>
+        <p>
+          You may upgrade, downgrade, or cancel at any time from Settings →
+          Billing. Stripe handles proration. Cancellations take effect at
+          the end of the current paid period. Refunds are evaluated case-by-
+          case at our discretion; reach out to{' '}
+          <a
+            href="mailto:support@squadpitch.com"
+            className="text-[#1DBF60] hover:underline"
+          >
+            support@squadpitch.com
+          </a>{' '}
+          if something didn&apos;t work as intended.
+        </p>
+        <p>
+          Prices are exclusive of any applicable taxes, which are your
+          responsibility.
+        </p>
+      </Section>
+
+      <Section heading="9. Acceptable use">
+        <p>You agree not to:</p>
+        <ul className="ml-5 list-disc space-y-1.5">
+          <li>Publish content you do not have the rights to publish.</li>
+          <li>Spam, mislead, harass, or impersonate other people or brands.</li>
+          <li>
+            Use Squadpitch to generate or publish content that violates the
+            terms of any connected social platform, any law (including
+            advertising, fair-housing, securities, and consumer protection
+            laws), or any rights of a third party.
+          </li>
+          <li>
+            Attempt to bypass rate limits, scrape Squadpitch&apos;s APIs,
+            reverse engineer the service, or share access credentials.
+          </li>
+          <li>
+            Probe, scan, or test the vulnerability of our systems without
+            our prior written permission.
+          </li>
+          <li>
+            Use the service to develop a competing product or to train a
+            machine-learning model.
+          </li>
+        </ul>
+        <p>
+          We may suspend or terminate accounts that violate this section,
+          with or without notice depending on the severity.
+        </p>
+      </Section>
+
+      <Section heading="10. Suspension and termination">
+        <p>
+          We may suspend or terminate access to the service if you breach
+          these Terms, if your payment method fails, if a connected
+          platform demands it, or if continued operation creates legal or
+          security risk for us or other users. You may terminate at any time
+          by canceling and deleting your account; see the Privacy Policy for
+          how to request data deletion.
+        </p>
+        <p>
+          Sections that by their nature should survive termination
+          (intellectual property ownership, indemnification, limitation of
+          liability, governing law, dispute resolution) survive.
+        </p>
+      </Section>
+
+      <Section heading="11. Squadpitch intellectual property">
+        <p>
+          Squadpitch, the Squadpitch logo, the design of the application,
+          and all software making up the service are owned by Squadpitch
+          LLC. Nothing in these Terms transfers any ownership of our
+          intellectual property to you. You may use the service only as
+          permitted by these Terms.
+        </p>
+      </Section>
+
+      <Section heading="12. Service availability and disclaimers">
+        <p>
+          THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS
+          AVAILABLE&quot;. TO THE FULLEST EXTENT PERMITTED BY APPLICABLE
+          LAW, SQUADPITCH DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED,
+          INCLUDING WITHOUT LIMITATION IMPLIED WARRANTIES OF
+          MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+          NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE
+          UNINTERRUPTED, ERROR-FREE, OR SECURE; THAT AI-GENERATED OUTPUT
+          WILL BE ACCURATE, ORIGINAL, OR COMPLIANT; OR THAT ANY CONNECTED
+          PLATFORM WILL ACCEPT, PUBLISH, OR CONTINUE TO HOST CONTENT
+          PUBLISHED THROUGH US.
+        </p>
+      </Section>
+
+      <Section heading="13. Limitation of liability">
+        <p>
+          TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, SQUADPITCH
+          LLC&apos;S AGGREGATE LIABILITY FOR ANY CLAIM ARISING OUT OF OR
+          RELATED TO THE SERVICE WILL NOT EXCEED THE GREATER OF (A) THE
+          AMOUNT YOU PAID SQUADPITCH IN THE TWELVE MONTHS BEFORE THE EVENT
+          GIVING RISE TO THE CLAIM, OR (B) ONE HUNDRED U.S. DOLLARS. WE WILL
+          NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
+          OR EXEMPLARY DAMAGES, INCLUDING LOST PROFITS, LOST REVENUE, LOST
+          DATA, REPUTATIONAL HARM, OR THIRD-PARTY PLATFORM CONSEQUENCES,
+          EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+          THESE LIMITATIONS APPLY EVEN IF A REMEDY FAILS OF ITS ESSENTIAL
+          PURPOSE.
+        </p>
+      </Section>
+
+      <Section heading="14. Indemnification">
+        <p>
+          You will defend, indemnify, and hold harmless Squadpitch LLC and
+          its officers, employees, and agents from and against any
+          third-party claim, demand, loss, or expense (including reasonable
+          attorneys&apos; fees) arising out of or related to (i) Your
+          Content, including content you publish through Squadpitch; (ii)
+          your use of the service in violation of these Terms or applicable
+          law; or (iii) your violation of the terms of any connected
+          platform.
+        </p>
+      </Section>
+
+      <Section heading="15. Governing law and dispute resolution">
+        <p>
+          These Terms are governed by the laws of the State of Ohio, USA,
+          without regard to conflict-of-laws principles. The parties consent
+          to the exclusive jurisdiction of the state and federal courts
+          located in Hamilton County, Ohio for any dispute that cannot be
+          resolved informally, except that either party may seek injunctive
+          relief in any court of competent jurisdiction.
+        </p>
+      </Section>
+
+      <Section heading="16. Changes to these Terms">
+        <p>
+          We may update these Terms as the product evolves. Material changes
+          will be communicated by email to the address on your account or
+          through an in-product notice. Continued use after the effective
+          date of the updated Terms constitutes acceptance.
+        </p>
+      </Section>
+
+      <Section heading="17. Contact">
+        <p>
+          Questions about these Terms or the service:{' '}
+          <a
+            href="mailto:support@squadpitch.com"
+            className="text-[#1DBF60] hover:underline"
+          >
+            support@squadpitch.com
+          </a>
+          .
+        </p>
+        <p className="text-sm text-gray-500">
+          Squadpitch LLC · Ohio, USA
+        </p>
+      </Section>
+
+      <p className="rounded-md border border-gray-200 bg-gray-50 p-4 text-xs text-gray-500">
+        These Terms are a strong production draft prepared by Squadpitch and
+        should be reviewed by a qualified attorney admitted in your
+        jurisdiction before paid launch. They are not legal advice.
+      </p>
     </LegalLayout>
   );
 }

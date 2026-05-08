@@ -655,11 +655,16 @@ function SiteFooter() {
           <Link href="/terms" className="hover:text-gray-700">
             Terms
           </Link>
+          <Link href="/contact" className="hover:text-gray-700">
+            Contact
+          </Link>
           <Link href={LOGIN_HREF} className="hover:text-gray-700">
             Log in
           </Link>
         </div>
-        <div className="text-xs text-gray-400">© {new Date().getFullYear()} Squadpitch</div>
+        <div className="text-xs text-gray-400">
+          © {new Date().getFullYear()} Squadpitch LLC. All rights reserved.
+        </div>
       </div>
     </footer>
   );

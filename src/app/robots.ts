@@ -10,7 +10,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/privacy', '/terms', '/help', '/sms-consent'],
+        allow: ['/', '/privacy', '/terms', '/contact', '/help', '/sms-consent'],
         // Authenticated app surfaces and API routes are not for indexing.
         disallow: [
           '/auth/',
