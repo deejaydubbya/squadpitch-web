@@ -2,6 +2,12 @@ app = "squadpitch-web"
 primary_region = "ord"
 
 [build]
+  [build.args]
+    # NEXT_PUBLIC_* must be inlined during `next build`. Fly secrets
+    # aren't available at build time, so the demo flag travels here.
+    # Set to "true" while serving Meta App Review reviewers; flip to
+    # "false" (or remove the line) before unrelated production deploys.
+    NEXT_PUBLIC_META_APP_REVIEW_DEMO = "true"
 
 [http_service]
   internal_port = 3000
