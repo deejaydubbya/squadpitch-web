@@ -118,6 +118,7 @@ export default function AnalyticsPage() {
       {/* Meta App Review demo header (only renders when NEXT_PUBLIC_META_APP_REVIEW_DEMO=true) */}
       <MetaAppReviewBanner />
       <ConnectedMetaAccountsCard
+        clientId={params.clientId}
         lastSyncedAt={data?.syncStatus?.lastSyncedAt ?? null}
       />
       {data && <MetaPlatformPerformanceCards platformBreakdown={data.platformBreakdown} />}

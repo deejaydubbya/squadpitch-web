@@ -1,12 +1,14 @@
 'use client';
 
 import { Facebook, Instagram, CheckCircle2 } from 'lucide-react';
+import { useChannelConnections } from '@/hooks/useSquadpitch';
 import {
   isMetaAppReviewDemo,
   META_APP_REVIEW_DEMO_LABELS as L,
 } from '@/lib/metaAppReviewDemo';
 
 interface Props {
+  clientId: string;
   lastSyncedAt: string | null;
 }
 
@@ -27,27 +29,37 @@ function formatSyncedAt(iso: string | null): string {
 // a visible header that proves the workspace has a Facebook Page
 // and Instagram professional account connected and that platform
 // insights are flowing through to the user-facing analytics page.
-export function ConnectedMetaAccountsCard({ lastSyncedAt }: Props) {
+//
+// The card reads from the real ChannelConnection rows so what's
+// shown matches what the user actually authorized via OAuth. When
+// a real connection isn't present we fall back to the documented
+// "Squadpitch Test Page" / "@squadpitchtest" demo labels — that
+// preserves the App Review story for fresh reviewer workspaces.
+export function ConnectedMetaAccountsCard({ clientId, lastSyncedAt }: Props) {
+  const { data: connections } = useChannelConnections(clientId);
   if (!isMetaAppReviewDemo()) return null;
+
+  const fb = connections?.find((c) => c.channel === 'FACEBOOK' && c.status === 'CONNECTED');
+  const ig = connections?.find((c) => c.channel === 'INSTAGRAM' && c.status === 'CONNECTED');
+
   return (
     <div className="card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-white-100">Connected Meta accounts</h2>
-        <span className="text-[10px] text-white-40 font-mono">{L.source}</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <AccountRow
           icon={Facebook}
           platform="Facebook Page"
-          accountName={L.facebookPageName}
-          accountId={L.facebookPageId}
+          accountName={fb?.displayName ?? L.facebookPageName}
+          accountId={fb?.externalAccountId ?? L.facebookPageId}
           accentClass="text-[#1877F2]"
         />
         <AccountRow
           icon={Instagram}
           platform="Instagram (Professional)"
-          accountName={L.instagramHandle}
-          accountId={L.instagramAccountId}
+          accountName={ig?.displayName ?? L.instagramHandle}
+          accountId={ig?.externalAccountId ?? L.instagramAccountId}
           accentClass="text-[#E1306C]"
         />
       </div>

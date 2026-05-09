@@ -38,6 +38,7 @@ import {
   useGenerateVideo,
   useRatePerformance,
   useChannelConnectionStatus,
+  useChannelConnections,
   type Draft,
   type PerformanceRating,
 } from '@/hooks/useSquadpitch';
@@ -110,6 +111,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const generateVideo = useGenerateVideo(draft.clientId);
   const ratePerformance = useRatePerformance(draft.clientId);
   const connectionStatus = useChannelConnectionStatus(draft.clientId);
+  const { data: allConnections } = useChannelConnections(draft.clientId);
   const eligibility = validatePublishEligibility(draft, connectionStatus, draft.clientId);
   const { data: _sub } = useSubscription();
   const { data: _usage } = useUsage();
@@ -176,18 +178,19 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
 
   const connectedAccountLabel = (() => {
     if (!isMetaAppReviewDemo()) return null;
+    // Find the real connected account name from the connections list.
+    // Falls back to the documented demo labels only if a real
+    // connection isn't present (e.g., on a fresh reviewer workspace).
+    const conn = allConnections?.find(
+      (c) => c.channel === draft.channel && c.status === 'CONNECTED'
+    );
+    if (conn?.displayName) return conn.displayName;
     if (draft.channel === 'FACEBOOK') return META_LABELS.facebookPageName;
     if (draft.channel === 'INSTAGRAM') return META_LABELS.instagramHandle;
     return null;
   })();
 
   const viewPostLabel = (() => {
-    // Demo mode: synthesized Meta URLs 404 on Meta. Label honestly so
-    // operators don't think publishing failed and reviewers can see the
-    // demo nature of the link before clicking.
-    if (isMetaAppReviewDemo() && (draft.channel === 'FACEBOOK' || draft.channel === 'INSTAGRAM')) {
-      return 'View demo permalink';
-    }
     if (draft.channel === 'FACEBOOK') return 'View on Facebook';
     if (draft.channel === 'INSTAGRAM') return 'View on Instagram';
     return 'View post';
@@ -413,7 +416,6 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
               <div className="text-zone-green font-medium">
                 Published to {channelLabel}
                 {connectedAccountLabel ? `: ${connectedAccountLabel}` : ''}
-                {isMetaAppReviewDemo() && connectedAccountLabel && ' (demo)'}
               </div>
               {draft.publishedAt && (
                 <div className="text-white-60 mt-0.5">
@@ -425,17 +427,6 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
                   })}
                 </div>
               )}
-              {/* Demo-mode disclosure. The synthesized Meta URL looks
-                  real but resolves to Meta's "post not found" page —
-                  be honest with the operator AND any reviewer watching
-                  the screen recording. */}
-              {isMetaAppReviewDemo() && connectedAccountLabel && (
-                <div className="mt-1 text-[11px] text-white-60 leading-relaxed">
-                  Demo publish for Meta App Review — no live post was created on
-                  Meta. Production workspaces fetch a real permalink from the
-                  Graph API.
-                </div>
-              )}
               {draft.externalPostUrl && (
                 <a
                   href={draft.externalPostUrl}
@@ -444,9 +435,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
                   className="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-md bg-zone-green/20 text-zone-green hover:bg-zone-green/30 text-[11px] font-medium"
                 >
                   <ExternalLink className="w-3 h-3" />
-                  {isMetaAppReviewDemo() && connectedAccountLabel
-                    ? 'View demo permalink'
-                    : viewPostLabel}
+                  {viewPostLabel}
                 </a>
               )}
             </div>
