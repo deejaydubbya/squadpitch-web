@@ -20,9 +20,20 @@ const ALL_CHANNELS: Channel[] = [
   'TIKTOK',
   'X',
   'LINKEDIN',
+  'LINKEDIN_ORGANIZATION_PAGE',
   'FACEBOOK',
   'YOUTUBE',
+  'PINTEREST',
 ];
+
+const CHANNEL_LABELS: Partial<Record<Channel, string>> = {
+  LINKEDIN: 'LinkedIn (Personal)',
+  LINKEDIN_ORGANIZATION_PAGE: 'LinkedIn (Organization)',
+};
+
+function channelLabel(ch: Channel): string {
+  return CHANNEL_LABELS[ch] ?? ch;
+}
 
 interface Row {
   channel: Channel;
@@ -127,8 +138,8 @@ export function ChannelSettingsTable({ clientId }: Props) {
                   }
                   className="w-4 h-4 accent-accent-green-110"
                 />
-                <span className="text-sm font-medium text-white-100 font-mono">
-                  {row.channel}
+                <span className="text-sm font-medium text-white-100">
+                  {channelLabel(row.channel)}
                 </span>
               </label>
 
