@@ -206,154 +206,273 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
               {data.body || '(no body)'}
             </p>
 
-            {/* Meta App Review: connected-account / platform metrics block.
-                Renders before the internal score block so reviewers see
-                platform metrics first. */}
-            {isMetaAppReviewDemo() && metaConnectedAccount(data.channel) && (
-              <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] uppercase tracking-wider text-blue-300/80 font-medium">
-                    Platform performance
-                  </p>
-                  <span className="text-[10px] text-white-40 font-mono">{META_LABELS.source}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                  <KV label="Platform" value={data.channel} />
-                  <KV label="Connected account" value={metaConnectedAccount(data.channel) ?? '—'} />
-                  {data.externalPostId && (
-                    <KV label="Post ID" value={data.externalPostId} mono />
+            {/* ── Meta App Review: dominant platform-metrics section.
+                When demo mode is on AND the post is FB or IG, this is
+                the primary block — internal Squadpitch scoring drops
+                to a clearly-labeled secondary section below. ───── */}
+            {(() => {
+              const isMeta =
+                isMetaAppReviewDemo() && metaConnectedAccount(data.channel) !== null;
+              const showInline = data.metrics && !isMeta; // suppress duplicate generic grid in Meta mode
+              return (
+                <>
+                  {isMeta && (
+                    <section className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
+                      <header className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-blue-200">
+                          Meta performance metrics
+                        </h3>
+                        <span className="text-[10px] text-white-40 font-mono">
+                          {META_LABELS.source}
+                        </span>
+                      </header>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                        <KV label="Platform" value={data.channel} />
+                        <KV
+                          label="Connected account"
+                          value={metaConnectedAccount(data.channel) ?? '—'}
+                        />
+                        {data.metrics?.lastSyncedAt && (
+                          <KV
+                            label="Last synced"
+                            value={formatDate(data.metrics.lastSyncedAt)}
+                          />
+                        )}
+                        {data.externalPostId && (
+                          <KV label="Post ID" value={data.externalPostId} mono />
+                        )}
+                        {data.externalPostUrl && (
+                          <div className="col-span-1 sm:col-span-2 flex items-center gap-1 min-w-0">
+                            <span className="text-white-40 shrink-0">Permalink:</span>
+                            <a
+                              href={data.externalPostUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:underline font-mono truncate"
+                            >
+                              {data.externalPostUrl}
+                            </a>
+                            <ExternalLink className="w-3 h-3 text-white-40 shrink-0" />
+                          </div>
+                        )}
+                      </div>
+
+                      {data.metrics && (
+                        <div className="pt-3 border-t border-blue-500/15 space-y-3">
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                            <MetricCell
+                              label="Reach"
+                              value={data.metrics.reach}
+                              delta={data.growth?.reachDelta}
+                            />
+                            <MetricCell
+                              label="Impressions"
+                              value={data.metrics.impressions}
+                              delta={data.growth?.impressionsDelta}
+                            />
+                            <MetricCell
+                              label="Engagements"
+                              value={data.metrics.engagements}
+                              delta={data.growth?.engagementsDelta}
+                            />
+                            <MetricCell
+                              label="Engagement rate"
+                              value={engagementRatePct(data.metrics)}
+                            />
+                            <MetricCell label="Likes" value={data.metrics.likes} />
+                            <MetricCell label="Comments" value={data.metrics.comments} />
+                            <MetricCell label="Shares" value={data.metrics.shares} />
+                            {data.channel === 'INSTAGRAM' && (
+                              <MetricCell label="Saves" value={data.metrics.saves} />
+                            )}
+                            <MetricCell
+                              label="Clicks"
+                              value={data.metrics.clicks}
+                              delta={data.growth?.clicksDelta}
+                            />
+                          </div>
+                          {data.growth && (
+                            <div className="flex justify-end">
+                              <GrowthPeriod growth={data.growth} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <p className="text-[10px] text-white-40">
+                        Demo data shown for Meta App Review. Production workspaces fetch
+                        these metrics live from Meta&apos;s Graph API using the
+                        permissions Squadpitch is requesting.
+                      </p>
+                    </section>
                   )}
-                  {data.externalPostUrl && (
-                    <div className="col-span-2 flex items-center gap-1 text-[11px]">
-                      <span className="text-white-40">Permalink:</span>
-                      <a
-                        href={data.externalPostUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-400 hover:underline font-mono truncate"
-                      >
-                        {data.externalPostUrl}
-                      </a>
-                      <ExternalLink className="w-3 h-3 text-white-40 shrink-0" />
+
+                  {/* ── Internal Squadpitch insights ─────────────── */}
+                  <section
+                    className={
+                      isMeta
+                        ? 'pt-4 border-t border-white-10 space-y-3'
+                        : 'space-y-3'
+                    }
+                  >
+                    {isMeta && (
+                      <h3 className="text-[11px] font-semibold text-white-60 uppercase tracking-wider">
+                        Internal Squadpitch insights
+                      </h3>
+                    )}
+
+                    {/* Composite score with explicit label */}
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-[11px] text-white-60 uppercase tracking-wider">
+                        Internal content score
+                      </span>
+                      <span className="text-2xl font-bold text-white-100">
+                        {data.scoreBreakdown.compositeScore}
+                      </span>
+                      <ScoreBadge
+                        score={data.scoreBreakdown.compositeScore}
+                        variant="composite"
+                      />
                     </div>
-                  )}
-                  {data.metrics?.lastSyncedAt && (
-                    <KV label="Last synced" value={formatDate(data.metrics.lastSyncedAt)} />
-                  )}
-                </div>
-                {data.metrics && (
-                  <div className="pt-1 grid grid-cols-4 gap-3 border-t border-blue-500/15">
-                    <MetricCell label="Reach" value={data.metrics.reach} />
-                    <MetricCell label="Impressions" value={data.metrics.impressions} />
-                    <MetricCell label="Engagements" value={data.metrics.engagements} />
-                    <MetricCell label="Engagement rate" value={engagementRatePct(data.metrics)} />
-                  </div>
-                )}
-              </div>
-            )}
 
-            {/* Score breakdown */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold text-white-100">
-                  {data.scoreBreakdown.compositeScore}
-                </span>
-                <ScoreBadge score={data.scoreBreakdown.compositeScore} variant="composite" />
-              </div>
+                    <div className="flex items-center gap-2">
+                      <ScoreBadge
+                        score={data.scoreBreakdown.qualityScore}
+                        variant="quality"
+                        showLabel
+                      />
+                      {data.scoreBreakdown.observedScore != null && (
+                        <ScoreBadge
+                          score={data.scoreBreakdown.observedScore}
+                          variant="observed"
+                          showLabel
+                        />
+                      )}
+                    </div>
 
-              <div className="flex items-center gap-2">
-                <ScoreBadge score={data.scoreBreakdown.qualityScore} variant="quality" showLabel />
-                {data.scoreBreakdown.observedScore != null && (
-                  <ScoreBadge score={data.scoreBreakdown.observedScore} variant="observed" showLabel />
-                )}
-              </div>
+                    <div className="space-y-2">
+                      {data.scoreBreakdown.components.engagement && (
+                        <ProgressBar
+                          label="Engagement"
+                          component={data.scoreBreakdown.components.engagement}
+                          maxWeight={data.scoreBreakdown.components.engagement.weight}
+                        />
+                      )}
+                      <ProgressBar
+                        label="Quality"
+                        component={data.scoreBreakdown.components.quality}
+                        maxWeight={data.scoreBreakdown.components.quality.weight}
+                      />
+                      <ProgressBar
+                        label="Consistency"
+                        component={data.scoreBreakdown.components.consistency}
+                        maxWeight={data.scoreBreakdown.components.consistency.weight}
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                {data.scoreBreakdown.components.engagement && (
-                  <ProgressBar
-                    label="Engagement"
-                    component={data.scoreBreakdown.components.engagement}
-                    maxWeight={data.scoreBreakdown.components.engagement.weight}
-                  />
-                )}
-                <ProgressBar
-                  label="Quality"
-                  component={data.scoreBreakdown.components.quality}
-                  maxWeight={data.scoreBreakdown.components.quality.weight}
-                />
-                <ProgressBar
-                  label="Consistency"
-                  component={data.scoreBreakdown.components.consistency}
-                  maxWeight={data.scoreBreakdown.components.consistency.weight}
-                />
-              </div>
+                    <p className="text-[11px] text-white-40 font-mono">
+                      {data.scoreBreakdown.explanation}
+                    </p>
 
-              <p className="text-[11px] text-white-40 font-mono">
-                {data.scoreBreakdown.explanation}
-              </p>
-            </div>
+                    {/* Benchmarks */}
+                    {data.benchmarkComparison && (
+                      <div className="border-t border-white-10 pt-3 space-y-1.5">
+                        <p className="text-[10px] text-white-40 uppercase tracking-wider mb-2">
+                          vs Your Benchmarks
+                        </p>
+                        <BenchmarkLine
+                          label="vs Workspace avg"
+                          cmp={data.benchmarkComparison.vsWorkspace.score}
+                        />
+                        <BenchmarkLine
+                          label={`vs ${data.channel} avg`}
+                          cmp={data.benchmarkComparison.vsChannel.score}
+                        />
+                        {data.benchmarkComparison.vsContentType && (
+                          <BenchmarkLine
+                            label="vs Content type avg"
+                            cmp={data.benchmarkComparison.vsContentType.score}
+                          />
+                        )}
+                      </div>
+                    )}
 
-            {/* Benchmark comparison */}
-            {data.benchmarkComparison && (
-              <div className="border-t border-white-10 pt-3 space-y-1.5">
-                <p className="text-[10px] text-white-40 uppercase tracking-wider mb-2">vs Your Benchmarks</p>
-                <BenchmarkLine label="vs Workspace avg" cmp={data.benchmarkComparison.vsWorkspace.score} />
-                <BenchmarkLine label={`vs ${data.channel} avg`} cmp={data.benchmarkComparison.vsChannel.score} />
-                {data.benchmarkComparison.vsContentType && (
-                  <BenchmarkLine label="vs Content type avg" cmp={data.benchmarkComparison.vsContentType.score} />
-                )}
-              </div>
-            )}
+                    {/* Classification tags */}
+                    {data.insight && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {data.insight.contentType && <Tag>{data.insight.contentType}</Tag>}
+                        {data.insight.hookType && <Tag>{data.insight.hookType}</Tag>}
+                        {data.insight.sentiment && <Tag>{data.insight.sentiment}</Tag>}
+                        {data.insight.lengthBucket && <Tag>{data.insight.lengthBucket}</Tag>}
+                        {data.insight.mediaType && <Tag>{data.insight.mediaType}</Tag>}
+                        {data.insight.postingTimeBucket && (
+                          <Tag>{data.insight.postingTimeBucket}</Tag>
+                        )}
+                      </div>
+                    )}
 
-            {/* Classification tags */}
-            {data.insight && (
-              <div className="flex flex-wrap gap-1.5">
-                {data.insight.contentType && <Tag>{data.insight.contentType}</Tag>}
-                {data.insight.hookType && <Tag>{data.insight.hookType}</Tag>}
-                {data.insight.sentiment && <Tag>{data.insight.sentiment}</Tag>}
-                {data.insight.lengthBucket && <Tag>{data.insight.lengthBucket}</Tag>}
-                {data.insight.mediaType && <Tag>{data.insight.mediaType}</Tag>}
-                {data.insight.postingTimeBucket && <Tag>{data.insight.postingTimeBucket}</Tag>}
-              </div>
-            )}
+                    {/* Generic 8-cell metrics grid — only outside Meta mode
+                        (where the dominant Meta block already shows them) */}
+                    {showInline && (
+                      <div className="py-3 border-t border-white-10">
+                        {data.growth && (
+                          <div className="flex justify-end mb-2">
+                            <GrowthPeriod growth={data.growth} />
+                          </div>
+                        )}
+                        <div className="grid grid-cols-4 gap-3">
+                          <MetricCell
+                            label="Impressions"
+                            value={data.metrics!.impressions}
+                            delta={data.growth?.impressionsDelta}
+                          />
+                          <MetricCell
+                            label="Reach"
+                            value={data.metrics!.reach}
+                            delta={data.growth?.reachDelta}
+                          />
+                          <MetricCell
+                            label="Engagements"
+                            value={data.metrics!.engagements}
+                            delta={data.growth?.engagementsDelta}
+                          />
+                          <MetricCell
+                            label="Clicks"
+                            value={data.metrics!.clicks}
+                            delta={data.growth?.clicksDelta}
+                          />
+                          <MetricCell label="Saves" value={data.metrics!.saves} />
+                          <MetricCell label="Shares" value={data.metrics!.shares} />
+                          <MetricCell label="Comments" value={data.metrics!.comments} />
+                          <MetricCell label="Likes" value={data.metrics!.likes} />
+                        </div>
+                      </div>
+                    )}
 
-            {/* Metrics grid with growth deltas */}
-            {data.metrics && (
-              <div className="py-3 border-t border-white-10">
-                {data.growth && (
-                  <div className="flex justify-end mb-2">
-                    <GrowthPeriod growth={data.growth} />
-                  </div>
-                )}
-                <div className="grid grid-cols-4 gap-3">
-                  <MetricCell label="Impressions" value={data.metrics.impressions} delta={data.growth?.impressionsDelta} />
-                  <MetricCell label="Reach" value={data.metrics.reach} delta={data.growth?.reachDelta} />
-                  <MetricCell label="Engagements" value={data.metrics.engagements} delta={data.growth?.engagementsDelta} />
-                  <MetricCell label="Clicks" value={data.metrics.clicks} delta={data.growth?.clicksDelta} />
-                  <MetricCell label="Saves" value={data.metrics.saves} />
-                  <MetricCell label="Shares" value={data.metrics.shares} />
-                  <MetricCell label="Comments" value={data.metrics.comments} />
-                  <MetricCell label="Likes" value={data.metrics.likes} />
-                </div>
-              </div>
-            )}
-
-            {/* Recommendation tags */}
-            {data.insight?.recommendationTags && data.insight.recommendationTags.length > 0 && (
-              <div className="border-t border-white-10 pt-3">
-                <p className="text-[10px] text-white-40 uppercase tracking-wider mb-2">Recommendations</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {data.insight.recommendationTags.map((tag: string, i: number) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 rounded-full bg-blue-900/30 text-[10px] text-blue-400 font-mono"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+                    {/* Recommendations */}
+                    {data.insight?.recommendationTags &&
+                      data.insight.recommendationTags.length > 0 && (
+                        <div className="border-t border-white-10 pt-3">
+                          <p className="text-[10px] text-white-40 uppercase tracking-wider mb-2">
+                            Recommendations
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {data.insight.recommendationTags.map((tag: string, i: number) => (
+                              <span
+                                key={i}
+                                className="px-2 py-0.5 rounded-full bg-blue-900/30 text-[10px] text-blue-400 font-mono"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                  </section>
+                </>
+              );
+            })()}
 
             {/* Collapsible metric history */}
             <div className="border-t border-white-10 pt-3">
