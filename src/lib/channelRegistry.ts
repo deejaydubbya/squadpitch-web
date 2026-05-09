@@ -71,7 +71,22 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
   },
   LINKEDIN: {
     channel: 'LINKEDIN',
-    label: 'LinkedIn',
+    // Relabeled from "LinkedIn" to disambiguate from the new
+    // Organization Page channel below. Existing LINKEDIN connections
+    // are unchanged on the backend — only the user-facing label moves.
+    label: 'LinkedIn Personal Profile',
+    requiresConnection: true,
+    requiresMedia: false,
+    requiresVideo: false,
+    prefersVideo: false,
+    preferredVideoAspectRatio: '16:9',
+    videoDurationLimits: { minSec: 3, maxSec: 600, recommendedSec: 10 },
+    supportsTextOnly: true,
+    maxCaptionLength: 3000,
+  },
+  LINKEDIN_ORGANIZATION_PAGE: {
+    channel: 'LINKEDIN_ORGANIZATION_PAGE',
+    label: 'LinkedIn Organization Page',
     requiresConnection: true,
     requiresMedia: false,
     requiresVideo: false,

@@ -12,6 +12,7 @@ export type Channel =
   | 'TIKTOK'
   | 'X'
   | 'LINKEDIN'
+  | 'LINKEDIN_ORGANIZATION_PAGE'
   | 'FACEBOOK'
   | 'YOUTUBE'
   | 'PINTEREST'
@@ -2124,6 +2125,50 @@ export function useStartOAuth(clientId: string) {
         `workspaces/${clientId}/connections/${channel}/oauth/start`,
         { method: 'POST', body: JSON.stringify({}) }
       ),
+  });
+}
+
+// ── LinkedIn Organization Page picker ────────────────────────────────
+//
+// Two-step flow surfaced via dedicated endpoints — see
+// squadpitch-api/domains/studio/studio.routes.js (LINKEDIN_ORGANIZATION_PAGE
+// orgs / select). The org-picker UI calls useLinkedinOrganizationPages
+// after the OAuth callback succeeds, then useSelectLinkedinOrganization
+// once the user chooses one.
+
+export interface LinkedinOrganizationPage {
+  id: string;
+  urn: string;
+  name: string;
+  vanityName: string | null;
+  logoUrl: string | null;
+}
+
+export function useLinkedinOrganizationPages(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ['linkedin-org-pages', clientId ?? ''],
+    queryFn: () =>
+      apiFetch<{ orgs: LinkedinOrganizationPage[]; message?: string }>(
+        `workspaces/${clientId}/connections/LINKEDIN_ORGANIZATION_PAGE/orgs`
+      ),
+    enabled: Boolean(clientId),
+    // Don't auto-refetch — this is shown only inside a picker modal
+    // and we want a stable list during selection.
+    staleTime: 60_000,
+  });
+}
+
+export function useSelectLinkedinOrganization(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { organizationId: string; organizationName?: string }) =>
+      apiFetch<{ connection: ChannelConnection }>(
+        `workspaces/${clientId}/connections/LINKEDIN_ORGANIZATION_PAGE/orgs/select`,
+        { method: 'POST', body: JSON.stringify(input) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+    },
   });
 }
 

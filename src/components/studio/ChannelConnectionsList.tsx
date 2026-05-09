@@ -29,6 +29,7 @@ const CHANNELS: Channel[] = [
   'FACEBOOK',
   'TIKTOK',
   'LINKEDIN',
+  'LINKEDIN_ORGANIZATION_PAGE',
   'X',
   'YOUTUBE',
 ];

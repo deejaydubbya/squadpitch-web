@@ -21,6 +21,7 @@ const CHANNEL_COLORS: Record<Channel, string> = {
   TIKTOK: 'bg-cyan-500/20 text-cyan-400',
   X: 'bg-white-20 text-white-60',
   LINKEDIN: 'bg-blue-500/20 text-blue-400',
+  LINKEDIN_ORGANIZATION_PAGE: 'bg-blue-500/20 text-blue-400',
   FACEBOOK: 'bg-blue-600/20 text-blue-300',
   YOUTUBE: 'bg-red-500/20 text-red-400',
   PINTEREST: 'bg-red-600/20 text-red-300',

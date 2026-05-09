@@ -40,7 +40,12 @@ const CHANNEL_META: Record<
 > = {
   INSTAGRAM: { label: 'Instagram', icon: Instagram, real: true },
   TIKTOK: { label: 'TikTok', icon: Music2, real: true },
-  LINKEDIN: { label: 'LinkedIn', icon: Linkedin, real: true },
+  LINKEDIN: { label: 'LinkedIn Personal Profile', icon: Linkedin, real: true },
+  LINKEDIN_ORGANIZATION_PAGE: {
+    label: 'LinkedIn Organization Page',
+    icon: Linkedin,
+    real: true,
+  },
   X: { label: 'X', icon: Twitter, real: true },
   FACEBOOK: { label: 'Facebook', icon: Facebook, real: true },
   YOUTUBE: { label: 'YouTube', icon: Youtube, real: true },
