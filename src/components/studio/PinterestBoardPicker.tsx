@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Pin, Loader2, AlertTriangle, Lock, Globe } from 'lucide-react';
+import { X, Pin, Loader2, AlertTriangle, Lock, Globe, Plus } from 'lucide-react';
 import {
   usePinterestBoards,
   useSelectPinterestBoard,
+  useCreatePinterestBoard,
 } from '@/hooks/useSquadpitch';
 import { cn } from '@/lib/utils';
 
@@ -17,7 +18,10 @@ interface Props {
 export function PinterestBoardPicker({ clientId, currentBoardId, onClose }: Props) {
   const { data, isLoading, error } = usePinterestBoards(clientId);
   const select = useSelectPinterestBoard(clientId);
+  const create = useCreatePinterestBoard(clientId);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newBoardName, setNewBoardName] = useState('');
 
   const boards = data?.boards ?? [];
   const isCurrentSelection =
@@ -30,6 +34,21 @@ export function PinterestBoardPicker({ clientId, currentBoardId, onClose }: Prop
       {
         onSuccess: () => onClose(),
         onSettled: () => setPendingId(null),
+      }
+    );
+  };
+
+  const handleCreate = () => {
+    const name = newBoardName.trim();
+    if (!name) return;
+    create.mutate(
+      { name },
+      {
+        onSuccess: ({ board }) => {
+          setNewBoardName('');
+          setCreateOpen(false);
+          handlePick(board.id, board.name);
+        },
       }
     );
   };
@@ -73,13 +92,15 @@ export function PinterestBoardPicker({ clientId, currentBoardId, onClose }: Prop
             </div>
           )}
 
-          {!isLoading && !error && boards.length === 0 && (
-            <div className="text-sm text-white-60 py-6 text-center">
-              No Pinterest boards found.
-              <br />
-              <span className="text-xs text-white-40">
-                Create a board on Pinterest, then close this and reopen it.
-              </span>
+          {!isLoading && !error && boards.length === 0 && !createOpen && (
+            <div className="text-sm text-white-60 py-4 text-center space-y-2">
+              <div>No Pinterest boards found on this account.</div>
+              <button
+                onClick={() => setCreateOpen(true)}
+                className="text-xs px-3 py-1.5 rounded-md bg-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/30 inline-flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Create one now
+              </button>
             </div>
           )}
 
@@ -131,10 +152,64 @@ export function PinterestBoardPicker({ clientId, currentBoardId, onClose }: Prop
             </div>
           )}
 
-          {select.error && (
+          {createOpen && (
+            <div className="mt-3 p-3 rounded-lg border border-white-10 bg-white-5 space-y-2">
+              <div className="text-xs text-white-60 font-medium">Create a new board</div>
+              <input
+                autoFocus
+                type="text"
+                value={newBoardName}
+                onChange={(e) => setNewBoardName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreate();
+                  if (e.key === 'Escape') setCreateOpen(false);
+                }}
+                placeholder="Board name (e.g., Listings)"
+                className="w-full px-2 py-1.5 rounded bg-sp-surface border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+                disabled={create.isPending}
+              />
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setCreateOpen(false);
+                    setNewBoardName('');
+                  }}
+                  disabled={create.isPending}
+                  className="text-xs px-3 py-1.5 rounded-md text-white-60 hover:bg-white-10 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreate}
+                  disabled={create.isPending || !newBoardName.trim()}
+                  className="text-xs px-3 py-1.5 rounded-md bg-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/30 inline-flex items-center gap-1 disabled:opacity-50"
+                >
+                  {create.isPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Plus className="w-3 h-3" />
+                  )}
+                  Create &amp; pick
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!createOpen && boards.length > 0 && (
+            <button
+              onClick={() => setCreateOpen(true)}
+              className="mt-2 text-xs text-white-40 hover:text-white-60 inline-flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" /> Create new board
+            </button>
+          )}
+
+          {(select.error || create.error) && (
             <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-accent-red/10 text-accent-red text-xs">
               <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>{(select.error as Error).message}</span>
+              <span>
+                {((select.error || create.error) as Error).message}
+              </span>
             </div>
           )}
         </div>

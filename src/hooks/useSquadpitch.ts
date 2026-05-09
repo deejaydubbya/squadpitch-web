@@ -2212,6 +2212,24 @@ export function useSelectPinterestBoard(clientId: string) {
   });
 }
 
+// Create a Pinterest board via the API. Sandbox-mode escape hatch:
+// Pinterest's sandbox host has no UI for creating boards, so trial
+// apps can't otherwise seed a destination. Production / Standard
+// access apps can also use this if they want — there's no harm.
+export function useCreatePinterestBoard(clientId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; description?: string }) =>
+      apiFetch<{ board: PinterestBoard }>(
+        `workspaces/${clientId}/connections/PINTEREST/boards`,
+        { method: 'POST', body: JSON.stringify(input) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pinterest-boards', clientId ?? ''] });
+    },
+  });
+}
+
 export function useCompleteOAuth() {
   const qc = useQueryClient();
   return useMutation({
