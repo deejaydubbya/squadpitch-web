@@ -2172,6 +2172,46 @@ export function useSelectLinkedinOrganization(clientId: string) {
   });
 }
 
+// ── Pinterest board picker ───────────────────────────────────────────
+//
+// Mirrors the LinkedIn Organization Page two-step pattern. After the
+// Pinterest OAuth callback succeeds the connection is CONNECTED but
+// has no destination board set; the picker UI calls usePinterestBoards
+// to list boards then useSelectPinterestBoard to persist the choice.
+
+export interface PinterestBoard {
+  id: string;
+  name: string;
+  description: string | null;
+  privacy: string | null;
+}
+
+export function usePinterestBoards(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ['pinterest-boards', clientId ?? ''],
+    queryFn: () =>
+      apiFetch<{ boards: PinterestBoard[]; message?: string }>(
+        `workspaces/${clientId}/connections/PINTEREST/boards`
+      ),
+    enabled: Boolean(clientId),
+    staleTime: 60_000,
+  });
+}
+
+export function useSelectPinterestBoard(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { boardId: string; boardName?: string }) =>
+      apiFetch<{ connection: ChannelConnection }>(
+        `workspaces/${clientId}/connections/PINTEREST/boards/select`,
+        { method: 'POST', body: JSON.stringify(input) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+    },
+  });
+}
+
 export function useCompleteOAuth() {
   const qc = useQueryClient();
   return useMutation({

@@ -111,13 +111,15 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
   PINTEREST: {
     channel: 'PINTEREST',
     label: 'Pinterest',
-    comingSoon: true,
+    // Promoted from "coming soon" — image Pin publishing is now
+    // supported. Video Pins are not implemented yet (see
+    // squadpitch-api/.../publishing/channelAdapters/pinterest.adapter.js).
     requiresConnection: true,
     requiresMedia: true,
     requiresVideo: false,
     prefersVideo: false,
     supportsTextOnly: false,
-    maxCaptionLength: 500,
+    maxCaptionLength: 500, // /v5/pins description cap
   },
   THREADS: {
     channel: 'THREADS',

@@ -49,7 +49,7 @@ const CHANNEL_META: Record<
   X: { label: 'X', icon: Twitter, real: true },
   FACEBOOK: { label: 'Facebook', icon: Facebook, real: true },
   YOUTUBE: { label: 'YouTube', icon: Youtube, real: true },
-  PINTEREST: { label: 'Pinterest', icon: Pin, real: false },
+  PINTEREST: { label: 'Pinterest', icon: Pin, real: true },
   THREADS: { label: 'Threads', icon: AtSign, real: false },
   REDDIT: { label: 'Reddit', icon: Hash, real: false },
 };

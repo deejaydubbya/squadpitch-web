@@ -30,15 +30,12 @@ const CHANNELS: Channel[] = [
   'TIKTOK',
   'LINKEDIN',
   'LINKEDIN_ORGANIZATION_PAGE',
+  'PINTEREST',
   'X',
   'YOUTUBE',
 ];
 
-const COMING_SOON_CHANNELS: Channel[] = [
-  'PINTEREST',
-  'THREADS',
-  'REDDIT',
-];
+const COMING_SOON_CHANNELS: Channel[] = ['THREADS', 'REDDIT'];
 
 function resolveRecommendationTier(
   channel: Channel,
