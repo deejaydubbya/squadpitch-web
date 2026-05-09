@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Instagram,
   Music2,
@@ -24,6 +25,7 @@ import {
 } from '@/hooks/useSquadpitch';
 import { useOAuthPopup } from '@/hooks/useOAuthPopup';
 import { cn } from '@/lib/utils';
+import { PinterestBoardPicker } from './PinterestBoardPicker';
 
 export type ChannelRecommendationTier = 'primary' | 'secondary' | 'optional';
 
@@ -85,6 +87,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   const Icon = meta.icon;
   const oauthPopup = useOAuthPopup(clientId);
   const disconnect = useDisconnectChannel(clientId);
+  const [pinterestPickerOpen, setPinterestPickerOpen] = useState(false);
 
   const isConnected = connection && connection.status === 'CONNECTED';
   const isBroken =
@@ -92,6 +95,19 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
     (connection.status === 'EXPIRED' ||
       connection.status === 'ERROR' ||
       connection.status === 'REVOKED');
+
+  // Pinterest board ids are numeric. Right after OAuth, externalAccountId
+  // is the username; the user must pick a board before publishing works.
+  const pinterestNeedsBoard =
+    channel === 'PINTEREST' &&
+    isConnected &&
+    !!connection?.externalAccountId &&
+    !/^\d+$/.test(connection.externalAccountId);
+  const pinterestHasBoard =
+    channel === 'PINTEREST' &&
+    isConnected &&
+    !!connection?.externalAccountId &&
+    /^\d+$/.test(connection.externalAccountId);
 
   const handleConnect = () => oauthPopup.connect(channel);
 
@@ -182,6 +198,30 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               <span>{errorMessage}</span>
             </div>
           )}
+
+          {pinterestNeedsBoard && (
+            <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-zone-yellow/10 text-zone-yellow text-xs">
+              <div className="flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>Pick a board so Squadpitch knows where to publish Pins.</span>
+              </div>
+              <button
+                onClick={() => setPinterestPickerOpen(true)}
+                className="text-[11px] font-medium px-2 py-1 rounded-md bg-zone-yellow/20 hover:bg-zone-yellow/30"
+              >
+                Pick board
+              </button>
+            </div>
+          )}
+
+          {pinterestHasBoard && (
+            <button
+              onClick={() => setPinterestPickerOpen(true)}
+              className="mt-1 text-[11px] text-white-40 hover:text-white-60 underline-offset-2 hover:underline"
+            >
+              Change board
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 flex-shrink-0">
@@ -221,6 +261,14 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
           )}
         </div>
       </div>
+
+      {pinterestPickerOpen && (
+        <PinterestBoardPicker
+          clientId={clientId}
+          currentBoardId={connection?.externalAccountId ?? null}
+          onClose={() => setPinterestPickerOpen(false)}
+        />
+      )}
     </div>
   );
 }
