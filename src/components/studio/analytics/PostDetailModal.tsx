@@ -5,6 +5,16 @@ import { X, ExternalLink, Loader2, ChevronDown, ChevronRight } from 'lucide-reac
 import { usePostDetail, usePostMetricHistory } from '@/hooks/useSquadpitch';
 import type { ScoreComponent, MetricGrowth, BenchmarkComparison } from '@/hooks/useSquadpitch';
 import { ScoreBadge } from './ScoreBadge';
+import {
+  isMetaAppReviewDemo,
+  META_APP_REVIEW_DEMO_LABELS as META_LABELS,
+} from '@/lib/metaAppReviewDemo';
+
+function metaConnectedAccount(channel: string): string | null {
+  if (channel === 'FACEBOOK') return META_LABELS.facebookPageName;
+  if (channel === 'INSTAGRAM') return META_LABELS.instagramHandle;
+  return null;
+}
 
 interface Props {
   clientId: string;
@@ -85,18 +95,45 @@ function DeltaBadge({ value }: { value: number }) {
   );
 }
 
-function MetricCell({ label, value, delta }: { label: string; value: number | null; delta?: number }) {
+function MetricCell({
+  label,
+  value,
+  delta,
+}: {
+  label: string;
+  value: number | string | null;
+  delta?: number;
+}) {
+  const display =
+    value == null
+      ? '—'
+      : typeof value === 'number'
+        ? value.toLocaleString()
+        : value;
   return (
     <div className="text-center">
       <div className="flex items-center justify-center gap-1">
-        <p className="text-sm font-semibold text-white-100 tabular-nums">
-          {value != null ? value.toLocaleString() : '—'}
-        </p>
+        <p className="text-sm font-semibold text-white-100 tabular-nums">{display}</p>
         {delta != null && <DeltaBadge value={delta} />}
       </div>
       <p className="text-[10px] text-white-40 uppercase tracking-wider">{label}</p>
     </div>
   );
+}
+
+function KV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center gap-1 min-w-0">
+      <span className="text-white-40 shrink-0">{label}:</span>
+      <span className={`text-white-80 truncate ${mono ? 'font-mono' : ''}`}>{value}</span>
+    </div>
+  );
+}
+
+function engagementRatePct(metrics: { engagementRate: number | null } | null | undefined): string | null {
+  if (!metrics) return null;
+  if (metrics.engagementRate == null) return null;
+  return `${(metrics.engagementRate * 100).toFixed(2)}%`;
 }
 
 function GrowthPeriod({ growth }: { growth: MetricGrowth }) {
@@ -168,6 +205,52 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
             <p className="text-sm text-white-80 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
               {data.body || '(no body)'}
             </p>
+
+            {/* Meta App Review: connected-account / platform metrics block.
+                Renders before the internal score block so reviewers see
+                platform metrics first. */}
+            {isMetaAppReviewDemo() && metaConnectedAccount(data.channel) && (
+              <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] uppercase tracking-wider text-blue-300/80 font-medium">
+                    Platform performance
+                  </p>
+                  <span className="text-[10px] text-white-40 font-mono">{META_LABELS.source}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                  <KV label="Platform" value={data.channel} />
+                  <KV label="Connected account" value={metaConnectedAccount(data.channel) ?? '—'} />
+                  {data.externalPostId && (
+                    <KV label="Post ID" value={data.externalPostId} mono />
+                  )}
+                  {data.externalPostUrl && (
+                    <div className="col-span-2 flex items-center gap-1 text-[11px]">
+                      <span className="text-white-40">Permalink:</span>
+                      <a
+                        href={data.externalPostUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:underline font-mono truncate"
+                      >
+                        {data.externalPostUrl}
+                      </a>
+                      <ExternalLink className="w-3 h-3 text-white-40 shrink-0" />
+                    </div>
+                  )}
+                  {data.metrics?.lastSyncedAt && (
+                    <KV label="Last synced" value={formatDate(data.metrics.lastSyncedAt)} />
+                  )}
+                </div>
+                {data.metrics && (
+                  <div className="pt-1 grid grid-cols-4 gap-3 border-t border-blue-500/15">
+                    <MetricCell label="Reach" value={data.metrics.reach} />
+                    <MetricCell label="Impressions" value={data.metrics.impressions} />
+                    <MetricCell label="Engagements" value={data.metrics.engagements} />
+                    <MetricCell label="Engagement rate" value={engagementRatePct(data.metrics)} />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Score breakdown */}
             <div className="space-y-3">

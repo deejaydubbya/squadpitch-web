@@ -435,6 +435,7 @@ export interface PostDetailMetrics {
   comments: number;
   likes: number;
   engagementRate: number | null;
+  lastSyncedAt: string | null;
 }
 
 export interface PostDetailInsight {
@@ -500,6 +501,7 @@ export interface PostDetail {
   mediaType: string | null;
   mediaUrl: string | null;
   externalPostUrl: string | null;
+  externalPostId: string | null;
   metrics: PostDetailMetrics | null;
   insight: PostDetailInsight | null;
   scoreBreakdown: ScoreBreakdown;

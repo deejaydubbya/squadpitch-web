@@ -43,6 +43,8 @@ import { DataTypePerformanceChart } from '@/components/studio/analytics/DataType
 import { BlueprintPerformanceChart } from '@/components/studio/analytics/BlueprintPerformanceChart';
 import { TopDataItemsList, UnusedDataItemsList } from '@/components/studio/analytics/TopDataItemsList';
 import { BenchmarkSummary } from '@/components/studio/analytics/BenchmarkSummary';
+import { MetaAppReviewBanner } from '@/components/studio/analytics/MetaAppReviewBanner';
+import { ConnectedMetaAccountsCard } from '@/components/studio/analytics/ConnectedMetaAccountsCard';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -111,6 +113,12 @@ export default function AnalyticsPage() {
         </div>
         <RangeSelector value={range} onChange={setRange} />
       </div>
+
+      {/* Meta App Review demo header (only renders when NEXT_PUBLIC_META_APP_REVIEW_DEMO=true) */}
+      <MetaAppReviewBanner />
+      <ConnectedMetaAccountsCard
+        lastSyncedAt={data?.syncStatus?.lastSyncedAt ?? null}
+      />
 
       {isLoading && (
         <div className="flex items-center gap-2 py-6">
