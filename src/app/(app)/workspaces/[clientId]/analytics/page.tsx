@@ -45,6 +45,7 @@ import { TopDataItemsList, UnusedDataItemsList } from '@/components/studio/analy
 import { BenchmarkSummary } from '@/components/studio/analytics/BenchmarkSummary';
 import { MetaAppReviewBanner } from '@/components/studio/analytics/MetaAppReviewBanner';
 import { ConnectedMetaAccountsCard } from '@/components/studio/analytics/ConnectedMetaAccountsCard';
+import { MetaPlatformPerformanceCards } from '@/components/studio/analytics/MetaPlatformPerformanceCards';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ export default function AnalyticsPage() {
       <ConnectedMetaAccountsCard
         lastSyncedAt={data?.syncStatus?.lastSyncedAt ?? null}
       />
+      {data && <MetaPlatformPerformanceCards platformBreakdown={data.platformBreakdown} />}
 
       {isLoading && (
         <div className="flex items-center gap-2 py-6">

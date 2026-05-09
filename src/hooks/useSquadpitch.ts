@@ -369,6 +369,8 @@ export interface PlatformStat {
   avgEngagementRate: number | null;
   avgScore: number | null;
   totalReach: number | null;
+  totalImpressions: number | null;
+  totalEngagements: number | null;
 }
 
 export interface TrendPoint {
