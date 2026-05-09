@@ -217,59 +217,73 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
               return (
                 <>
                   {isMeta && (
-                    <section className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
-                      <header className="flex items-center justify-between">
+                    <>
+                      {/* ── 1. Connected Meta account / source block ── */}
+                      <section className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-2">
                         <h3 className="text-sm font-semibold text-blue-200">
-                          Meta performance metrics
+                          {data.channel === 'INSTAGRAM'
+                            ? 'Instagram professional account'
+                            : 'Facebook Page'}
                         </h3>
-                        <span className="text-[10px] text-white-40 font-mono">
-                          {META_LABELS.source}
-                        </span>
-                      </header>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
-                        <KV label="Platform" value={data.channel} />
-                        <KV
-                          label="Connected account"
-                          value={metaConnectedAccount(data.channel) ?? '—'}
-                        />
-                        {data.metrics?.lastSyncedAt && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
                           <KV
-                            label="Last synced"
-                            value={formatDate(data.metrics.lastSyncedAt)}
+                            label="Platform"
+                            value={
+                              data.channel === 'INSTAGRAM'
+                                ? 'Instagram professional account'
+                                : 'Facebook Page'
+                            }
                           />
-                        )}
-                        {data.externalPostId && (
-                          <KV label="Post ID" value={data.externalPostId} mono />
-                        )}
-                        {data.externalPostUrl && (
-                          <div className="col-span-1 sm:col-span-2 flex items-center gap-1 min-w-0">
-                            <span className="text-white-40 shrink-0">Permalink:</span>
-                            <a
-                              href={data.externalPostUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:underline font-mono truncate"
-                            >
-                              {data.externalPostUrl}
-                            </a>
-                            <ExternalLink className="w-3 h-3 text-white-40 shrink-0" />
-                          </div>
-                        )}
-                      </div>
-
-                      {data.metrics && (
-                        <div className="pt-3 border-t border-blue-500/15 space-y-3">
-                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                            <MetricCell
-                              label="Reach"
-                              value={data.metrics.reach}
-                              delta={data.growth?.reachDelta}
+                          <KV
+                            label="Connected account"
+                            value={metaConnectedAccount(data.channel) ?? '—'}
+                          />
+                          <KV label="Source" value={META_LABELS.source} />
+                          {data.metrics?.lastSyncedAt && (
+                            <KV
+                              label="Last synced"
+                              value={formatDate(data.metrics.lastSyncedAt)}
                             />
+                          )}
+                          {data.externalPostId && (
+                            <KV label="Post ID" value={data.externalPostId} mono />
+                          )}
+                          {data.externalPostUrl && (
+                            <div className="col-span-1 sm:col-span-2 flex items-center gap-1 min-w-0">
+                              <span className="text-white-40 shrink-0">Permalink:</span>
+                              <a
+                                href={data.externalPostUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:underline font-mono truncate"
+                              >
+                                {data.externalPostUrl}
+                              </a>
+                              <ExternalLink className="w-3 h-3 text-white-40 shrink-0" />
+                            </div>
+                          )}
+                        </div>
+                      </section>
+
+                      {/* ── 2. Meta performance metrics ── */}
+                      {data.metrics && (
+                        <section className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
+                          <header className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-blue-200">
+                              Meta performance metrics
+                            </h3>
+                            {data.growth && <GrowthPeriod growth={data.growth} />}
+                          </header>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                             <MetricCell
                               label="Impressions"
                               value={data.metrics.impressions}
                               delta={data.growth?.impressionsDelta}
+                            />
+                            <MetricCell
+                              label="Reach"
+                              value={data.metrics.reach}
+                              delta={data.growth?.reachDelta}
                             />
                             <MetricCell
                               label="Engagements"
@@ -277,35 +291,29 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
                               delta={data.growth?.engagementsDelta}
                             />
                             <MetricCell
-                              label="Engagement rate"
-                              value={engagementRatePct(data.metrics)}
-                            />
-                            <MetricCell label="Likes" value={data.metrics.likes} />
-                            <MetricCell label="Comments" value={data.metrics.comments} />
-                            <MetricCell label="Shares" value={data.metrics.shares} />
-                            {data.channel === 'INSTAGRAM' && (
-                              <MetricCell label="Saves" value={data.metrics.saves} />
-                            )}
-                            <MetricCell
                               label="Clicks"
                               value={data.metrics.clicks}
                               delta={data.growth?.clicksDelta}
                             />
+                            {data.channel === 'INSTAGRAM' && (
+                              <MetricCell label="Saves" value={data.metrics.saves} />
+                            )}
+                            <MetricCell label="Shares" value={data.metrics.shares} />
+                            <MetricCell label="Comments" value={data.metrics.comments} />
+                            <MetricCell label="Likes" value={data.metrics.likes} />
+                            <MetricCell
+                              label="Engagement rate"
+                              value={engagementRatePct(data.metrics)}
+                            />
                           </div>
-                          {data.growth && (
-                            <div className="flex justify-end">
-                              <GrowthPeriod growth={data.growth} />
-                            </div>
-                          )}
-                        </div>
+                          <p className="text-[10px] text-white-40">
+                            Demo data shown for Meta App Review. Production workspaces fetch
+                            these metrics live from Meta&apos;s Graph API using the
+                            permissions Squadpitch is requesting.
+                          </p>
+                        </section>
                       )}
-
-                      <p className="text-[10px] text-white-40">
-                        Demo data shown for Meta App Review. Production workspaces fetch
-                        these metrics live from Meta&apos;s Graph API using the
-                        permissions Squadpitch is requesting.
-                      </p>
-                    </section>
+                    </>
                   )}
 
                   {/* ── Internal Squadpitch insights ─────────────── */}
