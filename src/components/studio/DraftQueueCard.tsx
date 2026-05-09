@@ -43,6 +43,10 @@ import {
 } from '@/hooks/useSquadpitch';
 import { validatePublishEligibility } from '@/lib/publishValidator';
 import { interpretPublishError } from '@/lib/publishErrorMessage';
+import {
+  isMetaAppReviewDemo,
+  META_APP_REVIEW_DEMO_LABELS as META_LABELS,
+} from '@/lib/metaAppReviewDemo';
 import { getChannelLabel, getChannelRequirementHint } from '@/lib/channelRegistry';
 import { useSubscription, useUsage } from '@/hooks/useBilling';
 import { isAtOrAboveTier } from '@/lib/tierConfig';
@@ -72,6 +76,8 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showMediaSwap, setShowMediaSwap] = useState(false);
   const [generatingMedia, setGeneratingMedia] = useState(false);
+  const [showPublishedToast, setShowPublishedToast] = useState(false);
+  const [showScheduledToast, setShowScheduledToast] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clear polling when media arrives or component unmounts
@@ -146,6 +152,46 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       onSuccess: () => {
         setShowSchedule(false);
         setScheduleDate('');
+        setShowScheduledToast(true);
+        setTimeout(() => setShowScheduledToast(false), 8000);
+      },
+    });
+  };
+
+  // Channel-specific copy used for the success banner + the
+  // post-permalink CTA. For FB/IG we show the connected account name
+  // (Squadpitch Test Page / @squadpitchtest under Meta App Review demo)
+  // so reviewers can clearly read where the post landed.
+  const channelLabel = (() => {
+    if (draft.channel === 'FACEBOOK') return 'Facebook Page';
+    if (draft.channel === 'INSTAGRAM') return 'Instagram';
+    if (draft.channel === 'LINKEDIN') return 'LinkedIn';
+    if (draft.channel === 'LINKEDIN_ORGANIZATION_PAGE') return 'LinkedIn Organization Page';
+    if (draft.channel === 'TIKTOK') return 'TikTok';
+    if (draft.channel === 'PINTEREST') return 'Pinterest';
+    if (draft.channel === 'YOUTUBE') return 'YouTube';
+    if (draft.channel === 'X') return 'X';
+    return draft.channel;
+  })();
+
+  const connectedAccountLabel = (() => {
+    if (!isMetaAppReviewDemo()) return null;
+    if (draft.channel === 'FACEBOOK') return META_LABELS.facebookPageName;
+    if (draft.channel === 'INSTAGRAM') return META_LABELS.instagramHandle;
+    return null;
+  })();
+
+  const viewPostLabel = (() => {
+    if (draft.channel === 'FACEBOOK') return 'View on Facebook';
+    if (draft.channel === 'INSTAGRAM') return 'View on Instagram';
+    return 'View post';
+  })();
+
+  const handlePublish = () => {
+    publish.mutate({
+      onSuccess: () => {
+        setShowPublishedToast(true);
+        setTimeout(() => setShowPublishedToast(false), 8000);
       },
     });
   };
@@ -351,6 +397,69 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         )}
       </div>
 
+      {/* Just-published success banner. Stays visible for 8s after publish
+          succeeds so screen recordings clearly capture the success state. */}
+      {showPublishedToast && draft.status === 'PUBLISHED' && (
+        <div className="border-t border-white-10 px-4 py-3 bg-zone-green/10">
+          <div className="flex items-start gap-2">
+            <Check className="w-4 h-4 text-zone-green flex-shrink-0 mt-0.5" />
+            <div className="text-xs flex-1 min-w-0">
+              <div className="text-zone-green font-medium">
+                Published to {channelLabel}
+                {connectedAccountLabel ? `: ${connectedAccountLabel}` : ''}
+              </div>
+              {draft.publishedAt && (
+                <div className="text-white-60 mt-0.5">
+                  {new Date(draft.publishedAt).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </div>
+              )}
+              {draft.externalPostUrl && (
+                <a
+                  href={draft.externalPostUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-md bg-zone-green/20 text-zone-green hover:bg-zone-green/30 text-[11px] font-medium"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  {viewPostLabel}
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Just-scheduled success banner. */}
+      {showScheduledToast && draft.status === 'SCHEDULED' && (
+        <div className="border-t border-white-10 px-4 py-3 bg-zone-blue/10">
+          <div className="flex items-start gap-2">
+            <Calendar className="w-4 h-4 text-zone-blue flex-shrink-0 mt-0.5" />
+            <div className="text-xs flex-1 min-w-0">
+              <div className="text-zone-blue font-medium">
+                Scheduled for {channelLabel}
+                {connectedAccountLabel ? `: ${connectedAccountLabel}` : ''}
+              </div>
+              {draft.scheduledFor && (
+                <div className="text-white-60 mt-0.5">
+                  Will publish{' '}
+                  {new Date(draft.scheduledFor).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPublishError && (() => {
         const friendly = interpretPublishError({
           publishError: draft.publishError,
@@ -486,6 +595,27 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
             <Calendar className="w-3 h-3" /> Schedule
           </button>
         )}
+        {/* Inline Publish button — surfaced from the overflow menu so the
+            FB/IG demo flow has a visible primary action to click. */}
+        {canPublish && draft.status !== 'PUBLISHED' && (
+          <button
+            onClick={handlePublish}
+            disabled={publish.isPending}
+            className="text-xs px-2.5 py-1 rounded-md bg-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/30 flex items-center gap-1 disabled:opacity-60"
+          >
+            {publish.isPending ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Publishing to {channelLabel}…
+              </>
+            ) : (
+              <>
+                <Send className="w-3 h-3" />
+                Publish now
+              </>
+            )}
+          </button>
+        )}
         {draft.status === 'PUBLISHED' && draft.externalPostUrl && (
           <a
             href={draft.externalPostUrl}
@@ -494,7 +624,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
             className="text-xs px-2.5 py-1 rounded-md bg-white-10 text-white-80 hover:bg-white-20 flex items-center gap-1"
           >
             <ExternalLink className="w-3 h-3" />
-            View post
+            {viewPostLabel}
           </a>
         )}
 
