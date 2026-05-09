@@ -24,33 +24,40 @@ function formatRate(n: number | null): string {
 }
 
 // Side-by-side platform performance cards for Facebook Page and
-// Instagram professional account. Renders only in Meta App Review
-// demo mode — gives the reviewer an unmistakable view of Meta-flavored
-// metrics before they encounter any internal Squadpitch scoring.
+// Instagram professional account. Renders in either demo mode
+// (reviewer-facing seeded data) or production (real Graph API
+// metrics). The source-label and account-label swap based on demo
+// mode so a reviewer always sees a clearly-labeled "test data" tag
+// while production users see "Source: Meta API".
 export function MetaPlatformPerformanceCards({ platformBreakdown }: Props) {
-  if (!isMetaAppReviewDemo()) return null;
-
   const fb = platformBreakdown.find((p) => p.channel === 'FACEBOOK') ?? null;
   const ig = platformBreakdown.find((p) => p.channel === 'INSTAGRAM') ?? null;
-  if (!fb && !ig) return null;
+  const hasFb = fb && fb.postCount > 0;
+  const hasIg = ig && ig.postCount > 0;
+  if (!hasFb && !hasIg) return null;
+
+  const demo = isMetaAppReviewDemo();
+  const sourceLabel = demo ? L.source : 'Source: Meta API';
 
   return (
     <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      {fb && (
+      {hasFb && (
         <PlatformCard
           icon={Facebook}
           accentClass="text-[#1877F2]"
           headline="Facebook Page performance"
-          accountLabel={L.facebookPageName}
+          accountLabel={demo ? L.facebookPageName : 'Connected Facebook Page'}
+          sourceLabel={sourceLabel}
           stat={fb}
         />
       )}
-      {ig && (
+      {hasIg && (
         <PlatformCard
           icon={Instagram}
           accentClass="text-[#E1306C]"
           headline="Instagram performance"
-          accountLabel={L.instagramHandle}
+          accountLabel={demo ? L.instagramHandle : 'Connected Instagram account'}
+          sourceLabel={sourceLabel}
           stat={ig}
         />
       )}
@@ -63,12 +70,14 @@ function PlatformCard({
   accentClass,
   headline,
   accountLabel,
+  sourceLabel,
   stat,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   accentClass: string;
   headline: string;
   accountLabel: string;
+  sourceLabel: string;
   stat: PlatformStat;
 }) {
   return (
@@ -87,7 +96,7 @@ function PlatformCard({
         <Stat label="Engagements" value={formatNumber(stat.totalEngagements)} />
         <Stat label="Avg engagement rate" value={formatRate(stat.avgEngagementRate)} colSpan={2} />
       </div>
-      <p className="text-[10px] text-white-40">{L.source}</p>
+      <p className="text-[10px] text-white-40">{sourceLabel}</p>
     </div>
   );
 }

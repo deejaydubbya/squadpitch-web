@@ -46,6 +46,8 @@ import { BenchmarkSummary } from '@/components/studio/analytics/BenchmarkSummary
 import { MetaAppReviewBanner } from '@/components/studio/analytics/MetaAppReviewBanner';
 import { ConnectedMetaAccountsCard } from '@/components/studio/analytics/ConnectedMetaAccountsCard';
 import { MetaPlatformPerformanceCards } from '@/components/studio/analytics/MetaPlatformPerformanceCards';
+import { MetaInsightsSyncButton } from '@/components/studio/analytics/MetaInsightsSyncButton';
+import { MetaAppReviewChecksButton } from '@/components/studio/analytics/MetaAppReviewChecksButton';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -121,6 +123,8 @@ export default function AnalyticsPage() {
         clientId={params.clientId}
         lastSyncedAt={data?.syncStatus?.lastSyncedAt ?? null}
       />
+      <MetaInsightsSyncButton clientId={params.clientId} />
+      <MetaAppReviewChecksButton clientId={params.clientId} />
       {data && <MetaPlatformPerformanceCards platformBreakdown={data.platformBreakdown} />}
 
       {isLoading && (

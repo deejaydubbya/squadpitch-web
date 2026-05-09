@@ -1812,6 +1812,71 @@ export function useSyncMetrics(clientId: string) {
   });
 }
 
+export interface SyncMetaInsightsResult {
+  totalCandidates: number;
+  synced: number;
+  skipped: number;
+  failed: number;
+  errors: {
+    draftId: string;
+    channel: string;
+    reason: string;
+    detail: string | null;
+  }[];
+}
+
+export function useSyncMetaInsights(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<SyncMetaInsightsResult>(
+        `workspaces/${clientId}/metrics/sync-meta`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.analytics(clientId) });
+      qc.invalidateQueries({
+        queryKey: [...squadpitchKeys.all, 'client', clientId, 'analytics-overview'],
+      });
+    },
+  });
+}
+
+// ── Meta App Review API check tool — TEMPORARY ──────────────────────
+// Mirrors the backend POST /api/v1/workspaces/:id/dev/meta/app-review-checks.
+// Delete this hook (and SyncMetaAppReviewCheckResult) when the
+// App Review tool is retired.
+
+export interface MetaAppReviewCheckResult {
+  scope: 'read_insights' | 'instagram_manage_insights';
+  attempted: boolean;
+  success: boolean;
+  endpoint: string;
+  metrics: string[];
+  errorCode: string | null;
+  message: string;
+}
+
+export interface MetaAppReviewChecksResponse {
+  facebook: MetaAppReviewCheckResult;
+  instagram: MetaAppReviewCheckResult;
+  tokenScopes: {
+    facebook: string[] | null;
+    instagram: string[] | null;
+  };
+  nextSteps: string[];
+}
+
+export function useMetaAppReviewChecks(clientId: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<MetaAppReviewChecksResponse>(
+        `workspaces/${clientId}/dev/meta/app-review-checks`,
+        { method: 'POST' },
+      ),
+  });
+}
+
 export function usePostDetail(clientId: string | undefined, postId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.postDetail(clientId ?? '', postId ?? ''),
