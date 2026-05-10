@@ -31,11 +31,12 @@ const CHANNELS: Channel[] = [
   'LINKEDIN',
   'LINKEDIN_ORGANIZATION_PAGE',
   'PINTEREST',
+  'THREADS',
   'X',
   'YOUTUBE',
 ];
 
-const COMING_SOON_CHANNELS: Channel[] = ['THREADS', 'REDDIT'];
+const COMING_SOON_CHANNELS: Channel[] = ['REDDIT'];
 
 function resolveRecommendationTier(
   channel: Channel,

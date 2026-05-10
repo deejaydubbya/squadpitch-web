@@ -124,11 +124,14 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
   THREADS: {
     channel: 'THREADS',
     label: 'Threads',
-    comingSoon: true,
+    // Promoted from "coming soon" — text + image + video publishing
+    // is wired via the threads.adapter.js / threads.metrics.js stack.
     requiresConnection: true,
     requiresMedia: false,
     requiresVideo: false,
     prefersVideo: false,
+    preferredVideoAspectRatio: '9:16',
+    videoDurationLimits: { minSec: 1, maxSec: 300, recommendedSec: 10 },
     supportsTextOnly: true,
     maxCaptionLength: 500,
   },

@@ -1877,6 +1877,49 @@ export function useMetaAppReviewChecks(clientId: string) {
   });
 }
 
+// ── Threads replies ─────────────────────────────────────────────────
+// Mirrors the backend POST /api/v1/drafts/:id/threads/replies endpoint.
+
+export interface ThreadsReply {
+  replyId: string;
+  text: string | null;
+  author: string | null;
+  timestamp: string | null;
+  permalink: string | null;
+  hidden: boolean;
+}
+
+export interface ThreadsRepliesResponse {
+  draftId: string;
+  threadId: string;
+  fetchedAt: string;
+  replies: ThreadsReply[];
+}
+
+export function useThreadsReplies(draftId: string | undefined) {
+  return useQuery({
+    queryKey: ['threadsReplies', draftId],
+    queryFn: () =>
+      apiFetch<ThreadsRepliesResponse>(`drafts/${draftId}/threads/replies`),
+    enabled: Boolean(draftId),
+    staleTime: 30_000,
+  });
+}
+
+export function useSetThreadsReplyHidden(draftId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ replyId, hide }: { replyId: string; hide: boolean }) =>
+      apiFetch<{ replyId: string; hidden: boolean; success: boolean }>(
+        `drafts/${draftId}/threads/replies/${replyId}/visibility`,
+        { method: 'POST', body: JSON.stringify({ hide }) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['threadsReplies', draftId] });
+    },
+  });
+}
+
 export function usePostDetail(clientId: string | undefined, postId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.postDetail(clientId ?? '', postId ?? ''),

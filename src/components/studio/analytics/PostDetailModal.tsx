@@ -5,6 +5,7 @@ import { X, ExternalLink, Loader2, ChevronDown, ChevronRight } from 'lucide-reac
 import { usePostDetail, usePostMetricHistory } from '@/hooks/useSquadpitch';
 import type { ScoreComponent, MetricGrowth, BenchmarkComparison } from '@/hooks/useSquadpitch';
 import { ScoreBadge } from './ScoreBadge';
+import { ThreadsRepliesSection } from './ThreadsRepliesSection';
 import {
   isMetaAppReviewDemo,
   META_APP_REVIEW_DEMO_LABELS as META_LABELS,
@@ -205,6 +206,11 @@ export function PostDetailModal({ clientId, postId, onClose }: Props) {
             <p className="text-sm text-white-80 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
               {data.body || '(no body)'}
             </p>
+
+            {/* Threads replies — only renders when channel === 'THREADS' */}
+            {data.externalPostId && (
+              <ThreadsRepliesSection draftId={postId} channel={data.channel} />
+            )}
 
             {/* ── Meta App Review: dominant platform-metrics section.
                 When demo mode is on AND the post is FB or IG, this is
