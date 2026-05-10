@@ -24,11 +24,29 @@ const ALL_CHANNELS: Channel[] = [
   'FACEBOOK',
   'YOUTUBE',
   'PINTEREST',
+  'THREADS',
 ];
 
 const CHANNEL_LABELS: Partial<Record<Channel, string>> = {
   LINKEDIN: 'LinkedIn (Personal)',
   LINKEDIN_ORGANIZATION_PAGE: 'LinkedIn (Organization)',
+};
+
+// Per-channel platform hard limits — shown as the placeholder so the
+// user can see what the generator will enforce by default. Mirrors
+// squadpitch-api/domains/studio/channelLimits.js — keep in sync.
+// A user-saved override on the row beats this; leaving the field
+// blank means the backend uses this default.
+const DEFAULT_MAX_CHARS_BY_CHANNEL: Partial<Record<Channel, number>> = {
+  INSTAGRAM: 2200,
+  TIKTOK: 2200,
+  X: 280,
+  LINKEDIN: 3000,
+  LINKEDIN_ORGANIZATION_PAGE: 3000,
+  FACEBOOK: 63206,
+  YOUTUBE: 5000,
+  PINTEREST: 500,
+  THREADS: 500,
 };
 
 function channelLabel(ch: Channel): string {
@@ -148,8 +166,17 @@ export function ChannelSettingsTable({ clientId }: Props) {
                 min="0"
                 value={row.maxChars}
                 onChange={(e) => updateRow(idx, { maxChars: e.target.value })}
-                placeholder="max chars"
-                className="w-28 px-2 py-1.5 rounded bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110"
+                placeholder={
+                  DEFAULT_MAX_CHARS_BY_CHANNEL[row.channel] != null
+                    ? `${DEFAULT_MAX_CHARS_BY_CHANNEL[row.channel]} (default)`
+                    : 'max chars'
+                }
+                title={
+                  DEFAULT_MAX_CHARS_BY_CHANNEL[row.channel] != null
+                    ? `Platform default: ${DEFAULT_MAX_CHARS_BY_CHANNEL[row.channel]}. Leave blank to use it; type a value to enforce a tighter cap.`
+                    : 'Maximum characters per post (body + hashtags combined)'
+                }
+                className="w-32 px-2 py-1.5 rounded bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110"
                 disabled={!row.isEnabled}
               />
 
