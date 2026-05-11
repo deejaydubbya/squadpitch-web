@@ -60,7 +60,7 @@ function SiteHeader() {
           aria-label="Squadpitch home"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/squadpitch-logo.png" alt="Squadpitch" className="h-28 w-auto sm:h-40" />
+          <img src="/squadpitch-logo.png" alt="Squadpitch" className="h-14 w-auto sm:h-16 md:h-20" />
         </Link>
 
         <nav className="hidden items-center gap-7 text-sm font-medium text-gray-600 md:flex">
