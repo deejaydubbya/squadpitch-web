@@ -637,7 +637,7 @@ function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-10 text-sm text-gray-500 sm:flex-row sm:px-6">
         <div className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/squadpitch-logo.png" alt="Squadpitch" className="h-9 w-auto" />
+          <img src="/squadpitch-logo.png" alt="Squadpitch" className="h-16 w-auto" />
         </div>
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <a href="#demo" className="hover:text-gray-700">
