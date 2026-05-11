@@ -73,14 +73,35 @@ export function PostMediaStrip({
                     </span>
                   </div>
                   {resolved.url && (
-                    <img
-                      src={resolved.url}
-                      alt={resolved.label}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                    // For videos, render a <video> with preload="metadata"
+                    // so the browser shows the first frame as poster.
+                    // <img> can't render an .mp4 — if the backend didn't
+                    // generate a separate thumbnail jpg (or it's
+                    // missing), the <img> errors out and the fallback
+                    // alert-circle icon shows instead. Using <video>
+                    // here works regardless of whether the URL is the
+                    // raw video or a derived poster.
+                    resolved.isVideo ? (
+                      <video
+                        src={resolved.url}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLVideoElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={resolved.url}
+                        alt={resolved.label}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )
                   )}
                   {resolved.isVideo && (
                     thumbSize === 'sm' ? (

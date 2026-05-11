@@ -1710,7 +1710,17 @@ function PostReviewItem({
                   {withUrls.map(({ id, reason, thumb }) => (
                     <div key={id} className="flex flex-col items-center gap-0.5 shrink-0">
                       <div className="w-10 h-10 rounded border border-accent-green-110/30 bg-white-5 overflow-hidden">
-                        <img src={thumb.url!} alt={thumb.label} className="w-full h-full object-cover" />
+                        {thumb.isVideo ? (
+                          <video
+                            src={thumb.url!}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img src={thumb.url!} alt={thumb.label} className="w-full h-full object-cover" />
+                        )}
                       </div>
                       {reason && (
                         <span className="text-[8px] text-white-40 leading-tight max-w-[60px] text-center truncate" title={reason}>

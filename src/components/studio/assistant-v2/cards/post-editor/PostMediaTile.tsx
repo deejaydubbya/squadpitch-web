@@ -47,17 +47,32 @@ export function PostMediaTile({
         <ImageIcon className="w-3 h-3 text-white-20" />
       </div>
 
-      {/* Thumbnail */}
+      {/* Thumbnail — use <video> for video assets so the browser
+          renders the first frame as poster (an <img> can't display
+          an .mp4 and would error out to the fallback icon). */}
       {resolved.url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={resolved.url}
-          alt={resolved.label}
-          className="absolute inset-0 w-full h-full object-cover"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
+        resolved.isVideo ? (
+          <video
+            src={resolved.url}
+            muted
+            playsInline
+            preload="metadata"
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLVideoElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={resolved.url}
+            alt={resolved.label}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        )
       )}
 
       {/* Pending spinner overlay */}
