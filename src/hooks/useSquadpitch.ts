@@ -5186,6 +5186,20 @@ export function useSaveCampaignDrafts(clientId: string) {
       schedulePreset?: SchedulePreset;
       addToPlanner?: boolean;
       mediaAssetIds?: string[];
+      // ISO date (YYYY-MM-DD) the user confirmed in the schedule
+      // review step. When omitted, backend defaults to "today" so
+      // legacy callers keep working.
+      startDate?: string | null;
+      // Per-post slot overrides. Used by the backend to spread
+      // posts based on the user's actual chosen channel-day pairs
+      // rather than evenly across a fixed preset window.
+      slots?: Array<{
+        channel: string;
+        campaignDay: number;
+        label?: string;
+        slotType?: string;
+        angle?: string;
+      }>;
     }) =>
       apiFetch<SaveCampaignDraftsResult>(
         `workspaces/${clientId}/listing-campaign/save-drafts`,

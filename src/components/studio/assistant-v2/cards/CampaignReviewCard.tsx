@@ -184,6 +184,13 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   const [editedPosts, setEditedPosts] = useState<Map<number, string>>(new Map());
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
   const [savedAssetCount, setSavedAssetCount] = useState(0);
+  // Tracks whether the saved state should read "scheduled" or "saved
+  // as drafts" — set from the addToPlanner flag at save time.
+  const [savedAsScheduled, setSavedAsScheduled] = useState(false);
+  // Confirmation modal for Approve & Schedule. Shows the user the
+  // exact schedule summary (count, channels, dates) before any
+  // database writes happen.
+  const [scheduleConfirmOpen, setScheduleConfirmOpen] = useState(false);
 
   // Post ordering — tracks original indices
   const [postOrder, setPostOrder] = useState<number[]>(() => posts.map((_, i) => i));
@@ -823,6 +830,20 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         dataItemId: result.dataItemId,
         addToPlanner,
         mediaAssetIds: allMediaAssetIds.length > 0 ? allMediaAssetIds : undefined,
+        // Pass the user's confirmed schedule through so the backend
+        // honors the chosen start date + slot positions instead of
+        // re-deriving from a generic preset starting "today".
+        startDate: session.campaignStartDate ?? undefined,
+        slots:
+          session.slots.length > 0
+            ? session.slots.map((s) => ({
+                channel: s.channel,
+                campaignDay: s.campaignDay,
+                label: s.label,
+                slotType: s.slotType,
+                angle: s.angle,
+              }))
+            : undefined,
       },
       {
         onSuccess: (data) => {
@@ -844,6 +865,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
           setPhase('saved');
           setSavedCampaignId(data.campaignId);
           setSavedAssetCount(attached);
+          setSavedAsScheduled(addToPlanner);
         },
         onError: () => {
           setPhase('reviewing');
@@ -908,20 +930,29 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     );
   }
 
-  // Saved state
+  // Saved state — copy depends on whether scheduling actually
+  // happened. Scheduled posts hit the publisher worker once
+  // scheduledFor passes; drafts sit untouched until the user opens
+  // the planner.
   if (phase === 'saved') {
     const totalSelectedMedia = posts.reduce((sum, _, i) => sum + getPostImageIds(i).length, 0);
     const mediaMissing = totalSelectedMedia > 0 && savedAssetCount === 0;
+    const headline = savedAsScheduled
+      ? `Campaign scheduled — ${posts.length} post${posts.length === 1 ? '' : 's'} queued for publishing`
+      : `Campaign saved as draft${posts.length === 1 ? '' : 's'} — ${posts.length} post${posts.length === 1 ? '' : 's'}`;
+    const subhead = savedAsScheduled
+      ? 'Posts will publish automatically at their scheduled times per your connected channel permissions.'
+      : 'Posts are saved as drafts. Open the planner to schedule them whenever you’re ready.';
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2 p-3 rounded-lg bg-accent-green-110/10 border border-accent-green-110/20">
           <CheckCircle2 className="w-4 h-4 text-accent-green-110" />
           <div>
             <p className="text-xs font-medium text-white-100">
-              Campaign saved — {posts.length} posts queued
-              {savedAssetCount > 0 && ` with ${savedAssetCount} image(s) attached`}
+              {headline}
+              {savedAssetCount > 0 && ` (${savedAssetCount} image${savedAssetCount === 1 ? '' : 's'} attached)`}
             </p>
-            <p className="text-[10px] text-white-40">Optimized for your audience</p>
+            <p className="text-[10px] text-white-40">{subhead}</p>
             <Link
               href={`/workspaces/${clientId}/planner${savedCampaignId ? `?campaignId=${savedCampaignId}` : ''}`}
               className="text-[11px] text-accent-green-110 hover:underline"
@@ -957,6 +988,22 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   // Review state
   return (
     <div className="space-y-3">
+      {/* Schedule confirmation modal — shows the user the exact
+          schedule summary before any DB writes happen. Triggered by
+          the Approve & Schedule button below. */}
+      {scheduleConfirmOpen && (
+        <ScheduleConfirmModal
+          posts={posts}
+          startDate={session.campaignStartDate ?? null}
+          slots={session.slots}
+          onCancel={() => setScheduleConfirmOpen(false)}
+          onConfirm={() => {
+            setScheduleConfirmOpen(false);
+            handleSave(true);
+          }}
+        />
+      )}
+
       {/* Pre-save validation dialog */}
       {validationIssues && (
         <div className="rounded-lg border border-accent-orange/30 bg-accent-orange/5 p-3 space-y-2">
@@ -1257,11 +1304,15 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       {/* Actions — sticky footer */}
       <div className="flex items-center gap-2 flex-wrap pt-2 sticky bottom-0 bg-sp-bg/95 backdrop-blur-sm pb-2 -mb-2 z-10 border-t border-white-5">
         <button
-          onClick={() => handleSave(true)}
+          // Primary action — opens the schedule-confirm modal, which
+          // (on confirm) calls handleSave(true). Scheduling sets
+          // Draft.scheduledFor and status=SCHEDULED; the publish
+          // worker picks them up at scheduledFor.
+          onClick={() => setScheduleConfirmOpen(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90 transition-colors"
         >
           <Check className="w-3 h-3" />
-          Approve & Queue
+          Approve & Schedule
         </button>
         <button
           onClick={() => handleSave(false)}
@@ -1965,4 +2016,117 @@ function PostReviewItem({
       )}
     </div>
   );
+}
+
+// ── Schedule confirmation modal ──────────────────────────────────────────
+//
+// Shown when the user clicks "Approve & Schedule". Summarizes the
+// exact schedule — count, channels, date range, start, cadence — so
+// the user can confirm before we set Draft.scheduledFor and let the
+// publish worker take over.
+
+interface ScheduleConfirmModalProps {
+  posts: CampaignPost[];
+  startDate: string | null;
+  slots: AssistantSessionState['slots'];
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function ScheduleConfirmModal({
+  posts,
+  startDate,
+  slots,
+  onCancel,
+  onConfirm,
+}: ScheduleConfirmModalProps) {
+  const channels = Array.from(new Set(posts.map((p) => p.channel))).filter(Boolean);
+  const maxDay = Math.max(1, ...posts.map((p) => p.campaignDay ?? 1));
+  const cadenceDays = Math.max(1, maxDay);
+  const formattedStart = formatDateForDisplay(startDate);
+  const formattedEnd = formatDateForDisplay(addDaysIso(startDate, cadenceDays - 1));
+  // Cadence summary: prefer slot count over post count when slots
+  // were chosen explicitly (single-channel campaigns sometimes have
+  // more posts than slots due to A/B variants).
+  const cadenceCount = slots.length > 0 ? slots.length : posts.length;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-sp-bg/80 backdrop-blur-sm p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div className="w-full max-w-md rounded-xl border border-white-10 bg-sp-surface p-4 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-white-100">Schedule this campaign?</h3>
+          <p className="text-[11px] text-white-40 mt-0.5">
+            Review the schedule before we set it. You can edit individual posts in the planner.
+          </p>
+        </div>
+        <dl className="space-y-1.5 text-[11px]">
+          <SummaryRow label="Posts" value={`${cadenceCount} post${cadenceCount === 1 ? '' : 's'}`} />
+          <SummaryRow
+            label="Channels"
+            value={channels.length > 0 ? channels.join(', ') : '—'}
+          />
+          <SummaryRow label="Start date" value={formattedStart} />
+          <SummaryRow label="End date" value={formattedEnd} />
+          <SummaryRow
+            label="Cadence"
+            value={`${cadenceCount} post${cadenceCount === 1 ? '' : 's'} over ${cadenceDays} day${cadenceDays === 1 ? '' : 's'}`}
+          />
+        </dl>
+        <p className="text-[10px] text-white-40 leading-relaxed">
+          Posts will publish automatically at their scheduled times, subject to your connected channel permissions. You can pause, edit, or unschedule any post from the planner.
+        </p>
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90 transition-colors"
+          >
+            <Check className="w-3 h-3" />
+            Confirm & Schedule
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-white-40">{label}</dt>
+      <dd className="text-white-100 font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function formatDateForDisplay(iso: string | null): string {
+  if (!iso) return 'Today';
+  // Accepts YYYY-MM-DD or full ISO. Render as e.g. "Jan 15, 2026".
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T10:00:00Z` : iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function addDaysIso(iso: string | null, days: number): string | null {
+  const base = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T10:00:00Z`) : new Date();
+  if (Number.isNaN(base.getTime())) return null;
+  const next = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+  return next.toISOString().slice(0, 10);
 }
