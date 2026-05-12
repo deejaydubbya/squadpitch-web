@@ -86,6 +86,7 @@ export function ConversationalShell({
     handleCardSelection,
     requestRevision,
     reset,
+    postAssistantText,
   } = useConversationalAssistant(clientId, client?.industryKey ?? undefined);
 
   // ── Synchronous prefill: mode + source type + idea/guidance + campaign type + channels
@@ -197,7 +198,9 @@ export function ConversationalShell({
       if (!item) {
         // Graceful miss — the source picker will appear naturally
         // because campaignSourceType=property is set but
-        // selectedPropertyId is not.
+        // selectedPropertyId is not. Post a one-line notice so the
+        // user knows why the deep-link didn't pre-populate.
+        postAssistantText("I couldn't find that listing, so choose one below.");
         return;
       }
       handleCardSelection(
@@ -211,7 +214,11 @@ export function ConversationalShell({
       if (!dataItems) return;
       const item = dataItems.find((d) => d.id === prefill.sourceId);
       setSourceResolved(true);
-      if (!item) return;
+      if (!item) {
+        // Same graceful-miss pattern as the property branch.
+        postAssistantText("I couldn't find that content asset, so choose one below.");
+        return;
+      }
       if (prefill.mode === 'campaign') {
         handleCardSelection(
           {
@@ -246,6 +253,7 @@ export function ConversationalShell({
     session.campaignDataItemId,
     session.quickPostDataItemId,
     handleCardSelection,
+    postAssistantText,
   ]);
 
   return (

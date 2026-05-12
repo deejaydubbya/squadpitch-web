@@ -664,6 +664,21 @@ export function useConversationalAssistant(workspaceId?: string | null, industry
     setInitialized(false);
   }, []);
 
+  /**
+   * Append a one-off assistant_text message to the conversation.
+   * Used by the shell to surface non-blocking notices (e.g. a
+   * prefilled sourceId that couldn't be resolved) without going
+   * through the parser. Does not advance the conversation or
+   * change session state.
+   */
+  const postAssistantText = useCallback((text: string) => {
+    if (!text || !text.trim()) return;
+    dispatchConversation({
+      type: 'ADD_MESSAGE',
+      payload: buildAssistantText(text.trim()),
+    });
+  }, []);
+
   return {
     session,
     conversation,
@@ -674,6 +689,7 @@ export function useConversationalAssistant(workspaceId?: string | null, industry
     handleCardSelection,
     requestRevision,
     reset,
+    postAssistantText,
     dispatch: dispatchSession,
   };
 }
