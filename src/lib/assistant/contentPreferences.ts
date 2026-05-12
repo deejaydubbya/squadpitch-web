@@ -5,8 +5,89 @@ import type {
   PreferredCadence,
   MediaOrderPreference,
 } from '@/hooks/useSquadpitch';
-import type { AssistantCampaignType, SessionMemory } from './types';
+import type {
+  AssistantCampaignType,
+  CampaignSourceType,
+  SessionMemory,
+} from './types';
 import { DEFAULT_CHANNELS_BY_CAMPAIGN_TYPE } from './defaults';
+
+// ── Packed default-campaign-type format ─────────────────────────────
+//
+// `ContentPreferences.defaultCampaignType` is a single string column,
+// but we want to let users configure a different default per source
+// type (property / data_item / idea). To avoid a schema change for
+// MVP, we encode the three values into one string:
+//
+//   "property:just_listed|data_item:educational|idea:lead_generation"
+//
+// Order of entries does not matter. Unknown keys, malformed entries,
+// and empty values are dropped silently — the assistant treats a
+// missing source-specific default as "fall back to the static
+// default", so silent drops are safe.
+//
+// These helpers are the single source of truth for the format.
+// Anything that writes or reads `defaultCampaignType` must go
+// through them so the format can evolve without churn.
+
+const VALID_SOURCE_KEYS: readonly CampaignSourceType[] = [
+  'property',
+  'data_item',
+  'idea',
+];
+
+function isValidSourceKey(key: string): key is CampaignSourceType {
+  return (VALID_SOURCE_KEYS as readonly string[]).includes(key);
+}
+
+export type DefaultCampaignTypeMap = Partial<Record<CampaignSourceType, string>>;
+
+export function packDefaultCampaignTypes(map: DefaultCampaignTypeMap): string | null {
+  const parts: string[] = [];
+  for (const key of VALID_SOURCE_KEYS) {
+    const raw = map[key];
+    if (typeof raw !== 'string') continue;
+    const value = raw.trim();
+    if (!value) continue;
+    // The campaign-type value itself can't contain our delimiters.
+    // Strip them defensively so a stray ':' or '|' from a future
+    // adapter doesn't corrupt the encoding.
+    const safe = value.replace(/[:|]/g, '');
+    if (!safe) continue;
+    parts.push(`${key}:${safe}`);
+  }
+  return parts.length > 0 ? parts.join('|') : null;
+}
+
+export function unpackDefaultCampaignTypes(
+  packed: string | null | undefined,
+): DefaultCampaignTypeMap {
+  const out: DefaultCampaignTypeMap = {};
+  if (!packed || typeof packed !== 'string') return out;
+  for (const part of packed.split('|')) {
+    const colon = part.indexOf(':');
+    if (colon <= 0) continue;
+    const rawKey = part.slice(0, colon).trim();
+    const value = part.slice(colon + 1).trim();
+    if (!value) continue;
+    if (!isValidSourceKey(rawKey)) continue;
+    out[rawKey] = value;
+  }
+  return out;
+}
+
+/**
+ * Resolve the per-source default campaign type for the assistant.
+ * Returns null when the user hasn't set a default for that source —
+ * caller is expected to fall through to its own static default.
+ */
+export function getDefaultCampaignTypeForSource(
+  packed: string | null | undefined,
+  source: CampaignSourceType,
+): string | null {
+  const map = unpackDefaultCampaignTypes(packed);
+  return map[source] ?? null;
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 // Content Preferences — Utility layer

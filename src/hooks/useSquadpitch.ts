@@ -3559,8 +3559,7 @@ export function useContentPreferences(clientId: string | undefined) {
       apiFetch<{ preferences: ContentPreferences }>(
         `workspaces/${clientId}/content-preferences`,
       ).then((r) => r.preferences),
-    // Backend route not yet implemented
-    enabled: false,
+    enabled: !!clientId,
   });
 }
 
