@@ -823,14 +823,59 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       conversionErrors,
     });
 
+    // Build the propertyData-shaped object per source type. The save
+    // endpoint historically required propertyData (validates it
+    // exists + is an object), so we synthesize a minimal one for
+    // content-asset and idea campaigns. The backend uses sourceType
+    // (passed separately below) to pick the right campaign name +
+    // attribution; propertyData here is just the carrier blob.
+    const sourceType = session.campaignSourceType ?? 'property';
+    let savePropertyData: Record<string, unknown> | null;
+    if (sourceType === 'property') {
+      savePropertyData = session.propertyData;
+    } else if (sourceType === 'data_item') {
+      const itemJson = (session.campaignDataItemData ?? {}) as Record<string, unknown>;
+      savePropertyData = {
+        ...itemJson,
+        title: session.campaignDataItemTitle ?? (itemJson.title as string | undefined) ?? 'Content Asset',
+        _dataItemType: session.campaignDataItemType ?? null,
+      };
+    } else {
+      savePropertyData = {
+        title: 'Custom campaign idea',
+        idea: session.campaignIdea ?? '',
+      };
+    }
+
     saveMutation.mutate(
       {
         campaign: { ...result.campaign, posts: finalPosts },
-        propertyData: session.propertyData,
+        propertyData: savePropertyData,
         campaignType: (session.campaignType as CampaignType) ?? undefined,
-        dataItemId: result.dataItemId,
+        // dataItemId — for property campaigns this is the listing's
+        // WorkspaceDataItem id; for content-asset campaigns it's the
+        // selected asset's id; for idea campaigns it's undefined.
+        dataItemId:
+          sourceType === 'data_item'
+            ? session.campaignDataItemId ?? undefined
+            : result.dataItemId,
         addToPlanner,
         mediaAssetIds: allMediaAssetIds.length > 0 ? allMediaAssetIds : undefined,
+        // Source attribution — lets the backend build a smart
+        // campaign name (no more "Listing Campaign" for non-property
+        // sources) and persist source metadata for Planner display.
+        sourceType,
+        sourceTitle:
+          sourceType === 'property'
+            ? (session.propertyData?.address as string | undefined) ??
+              (session.propertyData?.title as string | undefined) ??
+              null
+            : sourceType === 'data_item'
+              ? session.campaignDataItemTitle ?? null
+              : null,
+        sourceDataItemType:
+          sourceType === 'data_item' ? session.campaignDataItemType ?? null : null,
+        campaignIdea: sourceType === 'idea' ? session.campaignIdea ?? null : null,
         // Pass the user's confirmed schedule through so the backend
         // honors the chosen start date + slot positions instead of
         // re-deriving from a generic preset starting "today".

@@ -5200,6 +5200,14 @@ export function useSaveCampaignDrafts(clientId: string) {
         slotType?: string;
         angle?: string;
       }>;
+      // Source attribution. Lets the backend pick a source-aware
+      // campaign name + persist source metadata so Planner /
+      // Dashboard can display "Source: Content Asset", etc.
+      sourceType?: 'property' | 'data_item' | 'idea';
+      sourceTitle?: string | null;
+      sourceDataItemType?: string | null;
+      /** Raw idea text when sourceType=idea (used for campaign naming) */
+      campaignIdea?: string | null;
     }) =>
       apiFetch<SaveCampaignDraftsResult>(
         `workspaces/${clientId}/listing-campaign/save-drafts`,
