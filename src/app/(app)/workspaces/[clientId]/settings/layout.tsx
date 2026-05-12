@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 const tabs = [
   { label: 'General', suffix: '' },
   { label: 'Brand', suffix: '/brand' },
+  { label: 'Content Sources', suffix: '/content-sources' },
   { label: 'Create Preferences', suffix: '/create-preferences' },
   { label: 'Scheduling Defaults', suffix: '/scheduling-defaults' },
   { label: 'Channels', suffix: '/channels' },

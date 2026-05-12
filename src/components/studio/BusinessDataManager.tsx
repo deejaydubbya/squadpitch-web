@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Plus,
   Search,
@@ -82,11 +83,50 @@ interface Props {
   clientId: string;
 }
 
+// All DataItemTypes — used to validate the `?type=` deep-link param
+// from Settings → Content Sources.
+const ALL_DATA_ITEM_TYPES: ReadonlySet<DataItemType> = new Set<DataItemType>([
+  'TESTIMONIAL',
+  'CASE_STUDY',
+  'PRODUCT_LAUNCH',
+  'PROMOTION',
+  'STATISTIC',
+  'MILESTONE',
+  'FAQ',
+  'TEAM_SPOTLIGHT',
+  'INDUSTRY_NEWS',
+  'EVENT',
+  'PROPERTY',
+  'CUSTOM',
+]);
+
 export function BusinessDataManager({ clientId }: Props) {
   const { data: client } = useClient(clientId);
   const isRE = client?.industryKey === 'real_estate';
   const bdLabels = useBusinessDataLabels(clientId);
-  const [typeFilter, setTypeFilter] = useState<DataItemType | ''>('');
+  const searchParams = useSearchParams();
+  // Pre-fill the type filter from `?type=…` on first land so the
+  // Settings → Content Sources "Manage Testimonials" deep-links
+  // open this page already filtered. Only applies on mount; user
+  // toggling the chip after that owns the state.
+  const initialType = (() => {
+    const raw = searchParams.get('type');
+    if (!raw) return '' as const;
+    return ALL_DATA_ITEM_TYPES.has(raw as DataItemType)
+      ? (raw as DataItemType)
+      : ('' as const);
+  })();
+  const [typeFilter, setTypeFilter] = useState<DataItemType | ''>(initialType);
+  // Keep `?type=` in sync with browser back/forward so a return to
+  // /data?type=PROPERTY still lands on the right filter even if the
+  // component is already mounted (Next router keeps state by default).
+  useEffect(() => {
+    const raw = searchParams.get('type');
+    if (!raw) return;
+    if (ALL_DATA_ITEM_TYPES.has(raw as DataItemType)) {
+      setTypeFilter(raw as DataItemType);
+    }
+  }, [searchParams]);
   const [statusFilter, setStatusFilter] = useState<DataItemStatus>('ACTIVE');
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
