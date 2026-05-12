@@ -154,7 +154,7 @@ export function PropertyCard({ item, clientId, onArchive, onClick }: Props) {
           onClick={handleCreateCampaign}
           className="flex items-center gap-1.5 text-xs font-medium text-accent-green-110 hover:text-accent-green-130 transition-colors"
         >
-          Create Campaign <ArrowRight className="w-3 h-3" />
+          New Campaign <ArrowRight className="w-3 h-3" />
         </button>
         <button
           onClick={handleArchive}

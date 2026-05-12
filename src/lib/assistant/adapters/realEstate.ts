@@ -506,7 +506,7 @@ export const realEstateAdapter: IndustryAdapter = {
         description: 'Select property photos — exterior/cover photos work best as lead images',
       },
       schedule_review: {
-        description: 'Review and adjust the posting schedule for your listing campaign',
+        description: 'Review and adjust the posting schedule for your property campaign',
       },
     },
     quickPostRequiresItem: false,
