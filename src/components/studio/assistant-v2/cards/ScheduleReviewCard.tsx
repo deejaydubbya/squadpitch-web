@@ -156,7 +156,15 @@ export function ScheduleReviewCard({ session, clientId, onSelection }: Props) {
   const [localSlots, setLocalSlots] = useState<CampaignSlotConfig[]>([]);
   const [startDate, setStartDate] = useState<string>(session.campaignStartDate ?? todayISO());
 
-  // Rebuild slots when cadence changes
+  // Plan 10: honor preferences.defaultCampaignLength (3/5/7) as the
+  // initial slot count when the user has set it. We pass it through
+  // to both schedule builders, which trim/expand around the
+  // existing 5-slot presets while keeping phase ordering. The user
+  // can still add/remove slots manually after the card renders;
+  // this only seeds the initial shape.
+  const preferredCampaignLength = contentPreferences?.defaultCampaignLength ?? null;
+
+  // Rebuild slots when cadence (or preferred length) changes
   useEffect(() => {
     if (activeCadenceKey === 'suggested' && scheduleRec) {
       setLocalSlots(scheduleRec.slots);
@@ -164,23 +172,28 @@ export function ScheduleReviewCard({ session, clientId, onSelection }: Props) {
       // Use strategy phases with selected cadence
       const cadenceKey = activeCadenceKey as CampaignCadenceKey;
       if (CAMPAIGN_CADENCES[cadenceKey]) {
-        const built = buildSlotsFromStrategy(scheduleRec.phases, cadenceKey, session.channels);
+        const built = buildSlotsFromStrategy(
+          scheduleRec.phases,
+          cadenceKey,
+          session.channels,
+          preferredCampaignLength,
+        );
         setLocalSlots(built);
       } else {
         // Unknown key — fall back to legacy preset
         const preset = SEQUENCE_PRESETS.find((p) => p.key === activeCadenceKey)
           ?? SEQUENCE_PRESETS.find((p) => p.key === (CADENCE_TO_LEGACY_PRESET[activeCadenceKey as CampaignCadenceKey] ?? activeCadenceKey))
           ?? SEQUENCE_PRESETS[0];
-        setLocalSlots(buildSlotsForChannels(preset, session.channels));
+        setLocalSlots(buildSlotsForChannels(preset, session.channels, preferredCampaignLength));
       }
     } else {
       // Legacy path — use old presets
       const legacyKey = CADENCE_TO_LEGACY_PRESET[activeCadenceKey as CampaignCadenceKey] ?? activeCadenceKey;
       const preset = SEQUENCE_PRESETS.find((p) => p.key === legacyKey) ?? SEQUENCE_PRESETS[0];
-      const built = buildSlotsForChannels(preset, session.channels);
+      const built = buildSlotsForChannels(preset, session.channels, preferredCampaignLength);
       setLocalSlots(built);
     }
-  }, [activeCadenceKey, session.channels, scheduleRec, hasStrategyRec]);
+  }, [activeCadenceKey, session.channels, scheduleRec, hasStrategyRec, preferredCampaignLength]);
 
   const handleDayChange = (idx: number, day: number) => {
     setLocalSlots((prev) => prev.map((s, i) => i === idx ? { ...s, campaignDay: day } : s));
@@ -284,21 +297,21 @@ export function ScheduleReviewCard({ session, clientId, onSelection }: Props) {
         />
       </div>
 
-      {/* Plan 07 — Scheduling Defaults hint.
-          Honest about the partial enforcement: the preference is
-          surfaced for visibility but the publishing scheduler
-          still anchors to the campaign start date at a fixed
-          time. Day-of-week filtering and per-slot time-of-day
-          land in a follow-up. */}
+      {/* Scheduling Defaults are now enforced at save-drafts time —
+          scheduled dates are bumped to the next allowed day-of-week
+          and anchored at the preferred posting time in the
+          workspace timezone. The user can still override per slot
+          via the date picker above and the per-row day controls
+          below. */}
       {(postingDaysHint || postingTimeHint) && (
         <p className="text-[10px] text-white-40">
-          Your scheduling defaults:{' '}
+          Defaults applied:{' '}
           {postingDaysHint && <span className="text-white-60">{postingDaysHint}</span>}
           {postingDaysHint && postingTimeHint && ' · '}
           {postingTimeHint && <span className="text-white-60">{postingTimeHint}</span>}
           {' · '}
           <span className="text-white-30">
-            saved — not yet enforced by the scheduler
+            change per-slot below to override
           </span>
         </p>
       )}

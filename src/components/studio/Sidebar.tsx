@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -9,8 +8,6 @@ import {
   BarChart3,
   Settings,
   CalendarDays,
-  ChevronDown,
-  ChevronRight,
   ArrowLeft,
   Briefcase,
   Activity,
@@ -35,7 +32,6 @@ export function Sidebar({ client }: Props) {
   const base = `/workspaces/${client.id}`;
 
   const isSettingsRoute = pathname.startsWith(`${base}/settings`);
-  const [settingsOpen, setSettingsOpen] = useState(isSettingsRoute);
   const { data: usage } = useUsage();
   const { data: campaignStats } = useAutopilotCampaignStats(client.id);
   const autopilotBadgeCount = (campaignStats?.pendingCount ?? 0) + (campaignStats?.readyCount ?? 0);
@@ -60,14 +56,6 @@ export function Sidebar({ client }: Props) {
     { href: `${base}/data`, icon: Database, label: 'Data' },
     { href: `${base}/media`, icon: ImageIcon, label: 'Media' },
     { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics' },
-  ];
-
-  const settingsItems = [
-    { href: `${base}/settings/brand`, label: 'Brand' },
-    { href: `${base}/settings/channels`, label: 'Channels' },
-    { href: `${base}/settings/integrations`, label: 'Integrations' },
-    { href: `${base}/settings/notifications`, label: 'Notifications' },
-    { href: `${base}/settings/billing`, label: 'Billing' },
   ];
 
   const isActive = (href: string, exact?: boolean) => {
@@ -184,57 +172,21 @@ export function Sidebar({ client }: Props) {
         {/* Divider */}
         <div className="border-t border-white-10 my-3" />
 
-        {/* Settings section */}
-        <button
-          onClick={() => setSettingsOpen((v) => !v)}
+        {/* Settings — flat link; sub-nav lives inside the settings
+            page itself (settings/layout.tsx) to avoid two places
+            owning the same list. */}
+        <Link
+          href={`${base}/settings`}
           className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full',
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
             isSettingsRoute
               ? 'bg-accent-green-110/15 text-accent-green-110'
               : 'text-white-60 hover:bg-white-5 hover:text-white-100'
           )}
         >
           <Settings className="w-4.5 h-4.5" />
-          <span className="flex-1 text-left">Settings</span>
-          {settingsOpen ? (
-            <ChevronDown className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronRight className="w-3.5 h-3.5" />
-          )}
-        </button>
-
-        {settingsOpen && (
-          <div className="ml-4 pl-4 border-l border-white-10 space-y-0.5">
-            <Link
-              href={`${base}/settings`}
-              className={cn(
-                'block px-3 py-2 rounded-lg text-sm transition-colors',
-                pathname === `${base}/settings`
-                  ? 'text-accent-green-110 bg-accent-green-110/10'
-                  : 'text-white-40 hover:text-white-100 hover:bg-white-5'
-              )}
-            >
-              Workspace
-            </Link>
-            {settingsItems.map((item) => {
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'block px-3 py-2 rounded-lg text-sm transition-colors',
-                    active
-                      ? 'text-accent-green-110 bg-accent-green-110/10'
-                      : 'text-white-40 hover:text-white-100 hover:bg-white-5'
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        )}
+          Settings
+        </Link>
       </nav>
 
       {/* Bottom */}

@@ -169,7 +169,7 @@ export default function SchedulingDefaultsPage() {
 
         <Field
           label="Default campaign length"
-          hint="How many posts to suggest by default for a new campaign. Saved now — the schedule presets that consume this default are landing in a follow-up."
+          hint="How many posts new campaigns start with. You can still add or remove slots manually."
         >
           <ButtonGroup
             value={String(form.defaultCampaignLength ?? '')}
@@ -210,18 +210,14 @@ export default function SchedulingDefaultsPage() {
       <section className="card p-5 space-y-5">
         <h3 className="text-sm font-semibold text-white-100">Posting window</h3>
 
-        {/* Honest about the current state: these fields persist
-            correctly and the assistant surfaces them as visible
-            defaults, but the save-drafts route still hardcodes
-            10:00 UTC and doesn't filter scheduled dates by
-            day-of-week. Full enforcement is a follow-up. */}
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-300">
-          Preferred days and time are saved and shown as hints during
-          campaign scheduling, but the publishing scheduler doesn&apos;t
-          fully enforce them yet — scheduled posts still anchor to
-          the campaign start date at a fixed time. Full enforcement
-          (per-slot day-of-week + your preferred time in the workspace
-          timezone) is coming in a follow-up.
+        {/* Honored at save-drafts time: scheduled posts land at the
+            preferred time in the workspace timezone and get bumped
+            forward to the next allowed day-of-week. Users can
+            still adjust per-slot dates manually in the Schedule
+            Review card. */}
+        <div className="rounded-lg border border-white-10 bg-white-5 px-3 py-2 text-[11px] text-white-50">
+          Campaigns will default to these days and times unless you
+          change the schedule for a specific campaign.
         </div>
 
         <Field
