@@ -19,7 +19,12 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
-import { useChannelSettings, type Channel } from '@/hooks/useSquadpitch';
+import {
+  useChannelSettings,
+  useContentPreferences,
+  type Channel,
+} from '@/hooks/useSquadpitch';
+import { POSTING_DAY_OPTIONS } from '@/lib/assistant/contentPreferences';
 import { useCampaignIntelligence } from '@/hooks/useCampaignIntelligence';
 import { CHANNEL_REGISTRY } from '@/lib/channelRegistry';
 import {
@@ -70,6 +75,24 @@ const CADENCE_OPTIONS: { key: CampaignCadenceKey; label: string; description: st
 
 export function ScheduleReviewCard({ session, clientId, onSelection }: Props) {
   const { data: channelSettings } = useChannelSettings(clientId);
+  const { data: contentPreferences } = useContentPreferences(clientId);
+
+  // Plan 07 — Scheduling Defaults visibility hint.
+  // The save-drafts route currently hardcodes 10:00 UTC for the
+  // scheduled time, and per-slot day-of-week selection isn't
+  // wired yet. Until that's plumbed end-to-end, we surface the
+  // user's saved preference here so they know it's live in
+  // settings and will be honored once the backend lands. Treat
+  // as a soft hint, not a binding constraint.
+  const postingDaysHint = useMemo(() => {
+    const days = contentPreferences?.preferredPostingDays ?? [];
+    if (days.length === 0) return null;
+    const labels = POSTING_DAY_OPTIONS
+      .filter((d) => days.includes(d.value))
+      .map((d) => d.short);
+    return labels.join(', ');
+  }, [contentPreferences?.preferredPostingDays]);
+  const postingTimeHint = contentPreferences?.preferredPostingTime ?? null;
 
   const connectedChannels: Channel[] = useMemo(() => {
     if (!channelSettings) return [];
@@ -260,6 +283,25 @@ export function ScheduleReviewCard({ session, clientId, onSelection }: Props) {
           className="px-2 py-1 bg-white-5 border border-white-10 rounded text-[11px] text-white-100 focus:outline-none focus:border-accent-green-110"
         />
       </div>
+
+      {/* Plan 07 — Scheduling Defaults hint.
+          Honest about the partial enforcement: the preference is
+          surfaced for visibility but the publishing scheduler
+          still anchors to the campaign start date at a fixed
+          time. Day-of-week filtering and per-slot time-of-day
+          land in a follow-up. */}
+      {(postingDaysHint || postingTimeHint) && (
+        <p className="text-[10px] text-white-40">
+          Your scheduling defaults:{' '}
+          {postingDaysHint && <span className="text-white-60">{postingDaysHint}</span>}
+          {postingDaysHint && postingTimeHint && ' · '}
+          {postingTimeHint && <span className="text-white-60">{postingTimeHint}</span>}
+          {' · '}
+          <span className="text-white-30">
+            saved — not yet enforced by the scheduler
+          </span>
+        </p>
+      )}
 
       {/* Slot table — drag to reorder */}
       <div className="rounded-lg border border-white-10 overflow-hidden text-xs">

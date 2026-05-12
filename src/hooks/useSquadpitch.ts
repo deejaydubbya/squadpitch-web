@@ -187,6 +187,8 @@ export interface Client {
   status: ClientStatus;
   logoUrl: string | null;
   industryKey: string | null;
+  /** IANA timezone — e.g. "America/New_York". Defaults to "UTC". */
+  timezone?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -1364,6 +1366,8 @@ export interface CreateClientInput {
   logoUrl?: string | null;
   industryKey?: string;
   status?: ClientStatus;
+  /** IANA timezone, e.g. "America/New_York". Only present on updates. */
+  timezone?: string;
 }
 
 export function useCreateClient() {
@@ -3519,10 +3523,31 @@ export function useConvertAutopilotCampaign(clientId: string) {
 
 // ── Content Preferences ──────────────────────────────────────────────────
 
-export type PreferredTone = 'professional' | 'casual' | 'witty' | 'inspirational' | 'urgent' | 'luxury';
+export type PreferredTone =
+  | 'professional'
+  | 'casual'
+  | 'witty'
+  | 'inspirational'
+  | 'urgent'
+  | 'luxury'
+  | 'friendly'
+  | 'educational';
 export type PreferredCtaStyle = 'direct' | 'soft' | 'question' | 'urgency' | 'none';
 export type PreferredCadence = 'aggressive' | 'balanced' | 'luxury';
 export type MediaOrderPreference = 'exterior_first' | 'hero_first' | 'ai_recommended' | 'manual';
+
+// Plan 07 — additional defaults.
+export type DefaultContentMode = 'campaign' | 'single_post';
+export type DefaultSource = 'property' | 'data_item' | 'idea';
+export type ContentGoal = 'growth' | 'engagement' | 'sales';
+export type DefaultCtaPreference =
+  | 'dm_me'
+  | 'schedule_consult'
+  | 'visit_website'
+  | 'call_now'
+  | 'custom';
+export type PostingDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type DefaultCampaignLength = 3 | 5 | 7;
 
 export interface ContentPreferences {
   clientId: string;
@@ -3548,6 +3573,19 @@ export interface ContentPreferences {
 
   // Content bucket default
   defaultContentBucket: string | null;
+
+  // ── Plan 07 — Create Preferences additions
+  defaultContentMode: DefaultContentMode | null;
+  defaultSource: DefaultSource | null;
+  preferredContentGoals: ContentGoal[];
+  defaultCtaPreference: DefaultCtaPreference | null;
+  defaultCtaCustom: string | null;
+
+  // ── Plan 07 — Scheduling Defaults
+  defaultCampaignLength: DefaultCampaignLength | null;
+  preferredPostingDays: PostingDay[];
+  /** "HH:mm" — interpreted in Client.timezone. */
+  preferredPostingTime: string | null;
 
   updatedAt: string;
 }

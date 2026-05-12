@@ -8,6 +8,7 @@ const tabs = [
   { label: 'General', suffix: '' },
   { label: 'Brand', suffix: '/brand' },
   { label: 'Create Preferences', suffix: '/create-preferences' },
+  { label: 'Scheduling Defaults', suffix: '/scheduling-defaults' },
   { label: 'Channels', suffix: '/channels' },
   { label: 'Integrations', suffix: '/integrations' },
   { label: 'Notifications', suffix: '/notifications' },

@@ -17,13 +17,24 @@ import {
   useContentPreferences,
   useUpdateContentPreferences,
   type Channel,
+  type ContentGoal,
   type ContentPreferences,
+  type DefaultContentMode,
+  type DefaultCtaPreference,
+  type DefaultSource,
   type PreferredCadence,
   type PreferredCtaStyle,
+  type PreferredTone,
 } from '@/hooks/useSquadpitch';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import {
+  CADENCE_OPTIONS,
+  CONTENT_GOAL_OPTIONS,
+  CONTENT_MODE_OPTIONS,
+  CTA_PREFERENCE_OPTIONS,
+  DEFAULT_SOURCE_OPTIONS,
+  TONE_OPTIONS,
   packDefaultCampaignTypes,
   unpackDefaultCampaignTypes,
 } from '@/lib/assistant/contentPreferences';
@@ -43,18 +54,6 @@ const CHANNEL_OPTIONS: Array<{ value: Channel; label: string }> = [
   { value: 'YOUTUBE', label: 'YouTube' },
   { value: 'PINTEREST', label: 'Pinterest' },
   { value: 'THREADS', label: 'Threads' },
-];
-
-// Cadence labels carry the campaign-length signal too — the
-// schedulePresets table maps each cadence to a length (Fast≈7d,
-// Standard≈10d, Extended≈14d). The spec asks for a separate
-// "campaign length" picker but the underlying column doesn't
-// exist yet, so we collapse the two into cadence for MVP. See the
-// implementation report for the follow-up to split them.
-const CADENCE_OPTIONS: Array<{ value: PreferredCadence; label: string; description: string }> = [
-  { value: 'aggressive', label: 'Fast', description: 'Front-loaded — ~7 days' },
-  { value: 'balanced', label: 'Standard', description: 'Even pacing — ~10 days' },
-  { value: 'luxury', label: 'Extended', description: 'Slow build — ~14+ days' },
 ];
 
 const PROPERTY_CAMPAIGN_TYPES = [
@@ -116,6 +115,13 @@ interface FormState {
   defaultContentBucket: string | null;
   alwaysRequireReview: boolean;
   autoGenerateMedia: boolean;
+  // Plan 07 additions
+  defaultContentMode: DefaultContentMode | null;
+  defaultSource: DefaultSource | null;
+  preferredContentGoals: ContentGoal[];
+  preferredTone: PreferredTone | null;
+  defaultCtaPreference: DefaultCtaPreference | null;
+  defaultCtaCustom: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -129,6 +135,12 @@ const EMPTY_FORM: FormState = {
   defaultContentBucket: null,
   alwaysRequireReview: true,
   autoGenerateMedia: false,
+  defaultContentMode: null,
+  defaultSource: null,
+  preferredContentGoals: [],
+  preferredTone: null,
+  defaultCtaPreference: null,
+  defaultCtaCustom: '',
 };
 
 // The DB has a single `defaultCampaignType` column. We let the user
@@ -150,6 +162,12 @@ function preferencesToForm(prefs: ContentPreferences | null | undefined): FormSt
     defaultContentBucket: prefs.defaultContentBucket,
     alwaysRequireReview: prefs.alwaysRequireReview,
     autoGenerateMedia: prefs.autoGenerateMedia,
+    defaultContentMode: prefs.defaultContentMode,
+    defaultSource: prefs.defaultSource,
+    preferredContentGoals: prefs.preferredContentGoals ?? [],
+    preferredTone: prefs.preferredTone,
+    defaultCtaPreference: prefs.defaultCtaPreference,
+    defaultCtaCustom: prefs.defaultCtaCustom ?? '',
   };
 }
 
@@ -184,6 +202,16 @@ export default function CreatePreferencesSettingsPage() {
         defaultContentBucket: form.defaultContentBucket,
         alwaysRequireReview: form.alwaysRequireReview,
         autoGenerateMedia: form.autoGenerateMedia,
+        // Plan 07
+        defaultContentMode: form.defaultContentMode,
+        defaultSource: form.defaultSource,
+        preferredContentGoals: form.preferredContentGoals,
+        preferredTone: form.preferredTone,
+        defaultCtaPreference: form.defaultCtaPreference,
+        defaultCtaCustom:
+          form.defaultCtaPreference === 'custom'
+            ? form.defaultCtaCustom.trim() || null
+            : null,
       },
       { onSuccess: () => setSavedAt(Date.now()) },
     );
@@ -209,6 +237,78 @@ export default function CreatePreferencesSettingsPage() {
           a choice yet. You can always override these per session.
         </p>
       </div>
+
+      {/* Section 0 — Defaults */}
+      <section className="card p-5 space-y-5">
+        <h3 className="text-sm font-semibold text-white-100">Defaults</h3>
+
+        <Field
+          label="Default content mode"
+          hint="What Create should start on when you open it without a deep link."
+        >
+          <ButtonGroup
+            value={form.defaultContentMode ?? ''}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                defaultContentMode: (v || null) as DefaultContentMode | null,
+              }))
+            }
+            options={[{ value: '', label: 'No default — show picker' }, ...CONTENT_MODE_OPTIONS]}
+          />
+        </Field>
+
+        <Field
+          label="Default source"
+          hint="Which kind of source should the assistant start from."
+        >
+          <ButtonGroup
+            value={form.defaultSource ?? ''}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                defaultSource: (v || null) as DefaultSource | null,
+              }))
+            }
+            options={[{ value: '', label: 'No default — ask each time' }, ...DEFAULT_SOURCE_OPTIONS]}
+          />
+        </Field>
+
+        <Field
+          label="Content goals"
+          hint="What you're optimizing for. Influences hook + CTA suggestions."
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {CONTENT_GOAL_OPTIONS.map((g) => {
+              const isOn = form.preferredContentGoals.includes(g.value);
+              return (
+                <button
+                  key={g.value}
+                  type="button"
+                  onClick={() =>
+                    setForm((f) => ({
+                      ...f,
+                      preferredContentGoals: isOn
+                        ? f.preferredContentGoals.filter((x) => x !== g.value)
+                        : [...f.preferredContentGoals, g.value],
+                    }))
+                  }
+                  title={g.description}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors border',
+                    isOn
+                      ? 'bg-accent-green-110/15 text-accent-green-110 border-accent-green-110/30'
+                      : 'bg-white-5 text-white-60 border-white-10 hover:bg-white-10',
+                  )}
+                >
+                  {isOn && <Check className="w-3 h-3" />}
+                  {g.label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      </section>
 
       {/* Section 1 — Channels */}
       <section className="card p-5 space-y-5">
@@ -325,7 +425,30 @@ export default function CreatePreferencesSettingsPage() {
       <section className="card p-5 space-y-5">
         <h3 className="text-sm font-semibold text-white-100">Content style</h3>
 
-        <Field label="Default CTA style">
+        <Field label="Preferred tone" hint="Overall voice the assistant should match.">
+          <ButtonGroup
+            value={form.preferredTone ?? ''}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                preferredTone: (v || null) as PreferredTone | null,
+              }))
+            }
+            options={[
+              { value: '', label: 'No default' },
+              ...TONE_OPTIONS.map((t) => ({
+                value: t.value,
+                label: t.label,
+                description: t.description,
+              })),
+            ]}
+          />
+        </Field>
+
+        <Field
+          label="Default CTA style"
+          hint="How the CTA is written. Independent of which action it points to."
+        >
           <ButtonGroup
             value={form.preferredCtaStyle ?? ''}
             onChange={(v) =>
@@ -336,6 +459,37 @@ export default function CreatePreferencesSettingsPage() {
             }
             options={[{ value: '', label: 'No default' }, ...CTA_OPTIONS]}
           />
+        </Field>
+
+        <Field
+          label="Default CTA action"
+          hint="Which action the CTA should drive."
+        >
+          <ButtonGroup
+            value={form.defaultCtaPreference ?? ''}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                defaultCtaPreference: (v || null) as DefaultCtaPreference | null,
+              }))
+            }
+            options={[
+              { value: '', label: 'No default' },
+              ...CTA_PREFERENCE_OPTIONS.map((c) => ({ value: c.value, label: c.label })),
+            ]}
+          />
+          {form.defaultCtaPreference === 'custom' && (
+            <input
+              type="text"
+              value={form.defaultCtaCustom}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, defaultCtaCustom: e.target.value }))
+              }
+              maxLength={140}
+              placeholder='e.g. "Apply by Friday for early-bird pricing"'
+              className="mt-2 w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+            />
+          )}
         </Field>
 
         <Field label="Default content bucket">

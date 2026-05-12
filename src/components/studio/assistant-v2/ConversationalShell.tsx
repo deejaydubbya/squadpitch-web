@@ -272,6 +272,8 @@ export function ConversationalShell({
   // cleared. URL prefill, prior user picks, and mid-session edits
   // all win over the saved defaults.
   const { data: preferences } = useContentPreferences(clientId);
+  const appliedDefaultMode = useRef(false);
+  const appliedDefaultSource = useRef(false);
   const appliedCampaignType = useRef(false);
   const appliedCampaignChannels = useRef(false);
   const appliedCadence = useRef(false);
@@ -279,13 +281,71 @@ export function ConversationalShell({
   const appliedContentBucket = useRef(false);
   useEffect(() => {
     if (!preferences) return;
-    if (!session.mode) return;
     // Don't compete with the URL-prefill effect — wait until it
     // has already applied any synchronous fields it owns.
     if (prefill?.mode && !appliedRef.current) return;
 
     const actions: AssistantAction[] = [];
     const notes: string[] = [];
+
+    // ── Default content mode
+    //
+    // Fires once on first land when neither URL intent nor a
+    // user pick has set a mode yet. We deliberately do NOT
+    // override an already-set mode (URL prefill or user click
+    // wins). The user can still hit "Start over" to pick a
+    // different mode.
+    if (
+      !appliedDefaultMode.current &&
+      !session.mode &&
+      !prefill?.mode &&
+      preferences.defaultContentMode
+    ) {
+      appliedDefaultMode.current = true;
+      // The Create Preferences setting uses 'campaign' | 'single_post';
+      // the session-level AssistantMode is 'campaign' | 'quick_post'.
+      // Map across the boundary.
+      const sessionMode =
+        preferences.defaultContentMode === 'campaign' ? 'campaign' : 'quick_post';
+      actions.push({ type: 'SET_MODE', payload: sessionMode });
+      notes.push(
+        `Mode: ${sessionMode === 'campaign' ? 'Campaign' : 'Single Post'}`,
+      );
+    }
+
+    // The remaining branches only make sense once a mode exists.
+    // Apply the SET_MODE side effect immediately so the rest of
+    // the effect (which keys off session.mode) can run on the
+    // next render rather than waiting another tick.
+    if (!session.mode && actions.length === 0) return;
+
+    // ── Default source
+    //
+    // After mode is set, pre-pick the source if the user has
+    // configured one and hasn't already chosen.
+    if (
+      !appliedDefaultSource.current &&
+      preferences.defaultSource &&
+      session.mode
+    ) {
+      if (session.mode === 'campaign' && !session.campaignSourceType) {
+        appliedDefaultSource.current = true;
+        actions.push({
+          type: 'SET_CAMPAIGN_SOURCE_TYPE',
+          payload: preferences.defaultSource,
+        });
+        notes.push(`Source: ${preferences.defaultSource}`);
+      } else if (session.mode === 'quick_post' && !session.quickPostSource) {
+        // Quick post source enum is 'data' | 'idea' — map
+        // property and content_asset preferences both to 'data'
+        // (the picker further down filters by item type).
+        const quickPostSource =
+          preferences.defaultSource === 'idea' ? 'idea' : 'data';
+        appliedDefaultSource.current = true;
+        actions.push({ type: 'SET_QUICK_POST_SOURCE', payload: quickPostSource });
+        notes.push(`Source: ${quickPostSource}`);
+      }
+    }
 
     // ── Campaign mode
     if (session.mode === 'campaign') {
@@ -391,6 +451,10 @@ export function ConversationalShell({
     prefill?.mode,
     handleCardSelection,
   ]);
+  // Note: `session.mode` and `session.quickPostSource` appear in
+  // the deps above, so the SET_MODE / SET_QUICK_POST_SOURCE
+  // branches re-evaluate naturally as the session evolves — no
+  // extra deps needed for the Plan 07 additions.
 
   return (
     <div className="flex h-screen overflow-hidden">

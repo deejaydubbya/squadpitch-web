@@ -1,6 +1,12 @@
 import type {
   Channel,
+  ContentGoal,
   ContentPreferences,
+  DefaultCampaignLength,
+  DefaultContentMode,
+  DefaultCtaPreference,
+  DefaultSource,
+  PostingDay,
   PreferredTone,
   PreferredCadence,
   MediaOrderPreference,
@@ -226,6 +232,27 @@ export function buildPreferencesContext(
     parts.push(`Primary channels: ${preferences.preferredChannels.join(', ')}`);
   }
 
+  // Plan 07 — distinguish writing style (preferredCtaStyle, above)
+  // from the literal CTA action template the user has chosen. Both
+  // can be present; the writer should use the template wording in
+  // the requested style.
+  const ctaPhrase = resolveCtaPhrase(
+    preferences.defaultCtaPreference,
+    preferences.defaultCtaCustom,
+  );
+  if (ctaPhrase) {
+    parts.push(`Preferred CTA action: "${ctaPhrase}"`);
+  }
+
+  // Content goals: surfaces what the user is optimizing for so the
+  // model can lean copy toward awareness / engagement hooks /
+  // conversion-oriented CTAs as appropriate.
+  if (preferences.preferredContentGoals.length > 0) {
+    parts.push(
+      `Content goals: ${preferences.preferredContentGoals.join(', ')}`,
+    );
+  }
+
   return parts.length > 0 ? parts.join('\n') : null;
 }
 
@@ -233,11 +260,13 @@ export function buildPreferencesContext(
 
 export const TONE_OPTIONS: Array<{ value: PreferredTone; label: string; description: string }> = [
   { value: 'professional', label: 'Professional', description: 'Clean, authoritative, business-focused' },
-  { value: 'casual', label: 'Casual', description: 'Friendly, approachable, conversational' },
+  { value: 'friendly', label: 'Friendly', description: 'Warm, welcoming, approachable' },
+  { value: 'casual', label: 'Casual', description: 'Relaxed, conversational, easygoing' },
   { value: 'witty', label: 'Witty', description: 'Clever, playful, attention-grabbing' },
   { value: 'inspirational', label: 'Inspirational', description: 'Motivating, aspirational, uplifting' },
   { value: 'urgent', label: 'Urgent', description: 'Time-sensitive, action-driven, compelling' },
   { value: 'luxury', label: 'Luxury', description: 'Sophisticated, exclusive, premium' },
+  { value: 'educational', label: 'Educational', description: 'Informative, teaching-focused, clear' },
 ];
 
 export const CTA_STYLE_OPTIONS: Array<{ value: string; label: string; description: string }> = [
@@ -249,8 +278,12 @@ export const CTA_STYLE_OPTIONS: Array<{ value: string; label: string; descriptio
 ];
 
 export const CADENCE_OPTIONS: Array<{ value: PreferredCadence; label: string; description: string }> = [
-  { value: 'aggressive', label: 'Fast', description: 'Front-loaded posts for maximum early impact' },
-  { value: 'balanced', label: 'Standard', description: 'Even pacing over about a week' },
+  // DB stores the original values (aggressive/balanced/luxury); we
+  // only relabel for display so existing data and assistant code
+  // paths stay untouched. Spec 07 calls these Fast / Balanced /
+  // Extended in product surface.
+  { value: 'aggressive', label: 'Fast', description: 'Front-loaded — most posts in the first few days' },
+  { value: 'balanced', label: 'Balanced', description: 'Even pacing over about a week' },
   { value: 'luxury', label: 'Extended', description: 'Slow build over 10+ days for sustained storytelling' },
 ];
 
@@ -259,4 +292,70 @@ export const MEDIA_ORDER_OPTIONS: Array<{ value: MediaOrderPreference; label: st
   { value: 'hero_first', label: 'Cover Photo First', description: 'Use the highest-quality image regardless of type' },
   { value: 'ai_recommended', label: 'AI Recommended', description: 'Let the system pick optimal ordering' },
   { value: 'manual', label: 'Manual', description: 'Always let me choose the order' },
+];
+
+// ── Plan 07 — Create Preferences option sets ────────────────────────
+//
+// Single source of truth for value sets that appear in the settings
+// page, the assistant prompt context, and any future surfaces (e.g.
+// dashboard quick filters). Keep this module pure — no React or
+// API imports — so it can be used from both client and server code.
+
+export const CONTENT_MODE_OPTIONS: Array<{ value: DefaultContentMode; label: string; description: string }> = [
+  { value: 'campaign', label: 'Campaign', description: 'Multi-post connected campaign by default' },
+  { value: 'single_post', label: 'Single Post', description: 'One-off posts by default' },
+];
+
+export const DEFAULT_SOURCE_OPTIONS: Array<{ value: DefaultSource; label: string; description: string }> = [
+  { value: 'property', label: 'Property / Listing', description: 'Start from a property in your data' },
+  { value: 'data_item', label: 'Content asset', description: 'Start from a saved content asset' },
+  { value: 'idea', label: 'Idea', description: 'Start from a freeform prompt' },
+];
+
+export const CONTENT_GOAL_OPTIONS: Array<{ value: ContentGoal; label: string; description: string }> = [
+  { value: 'growth', label: 'Growth', description: 'Reach new audiences and grow followers' },
+  { value: 'engagement', label: 'Engagement', description: 'Drive comments, shares, and conversations' },
+  { value: 'sales', label: 'Sales', description: 'Move prospects toward bookings / purchases' },
+];
+
+export const CTA_PREFERENCE_OPTIONS: Array<{
+  value: DefaultCtaPreference;
+  label: string;
+  /** Phrase the assistant should use in the post body. */
+  template: string;
+}> = [
+  { value: 'dm_me', label: 'DM me', template: 'DM me to learn more' },
+  { value: 'schedule_consult', label: 'Schedule a consultation', template: 'Schedule a consultation' },
+  { value: 'visit_website', label: 'Visit website', template: 'Visit our website' },
+  { value: 'call_now', label: 'Call now', template: 'Call now' },
+  { value: 'custom', label: 'Custom', template: '' },
+];
+
+/** Resolve the actual CTA phrase from a preference value + optional custom text. */
+export function resolveCtaPhrase(
+  pref: DefaultCtaPreference | null | undefined,
+  custom: string | null | undefined,
+): string | null {
+  if (!pref) return null;
+  if (pref === 'custom') return custom?.trim() || null;
+  const option = CTA_PREFERENCE_OPTIONS.find((o) => o.value === pref);
+  return option?.template || null;
+}
+
+// ── Plan 07 — Scheduling Defaults option sets ───────────────────────
+
+export const POSTING_DAY_OPTIONS: Array<{ value: PostingDay; short: string; full: string }> = [
+  { value: 'mon', short: 'Mon', full: 'Monday' },
+  { value: 'tue', short: 'Tue', full: 'Tuesday' },
+  { value: 'wed', short: 'Wed', full: 'Wednesday' },
+  { value: 'thu', short: 'Thu', full: 'Thursday' },
+  { value: 'fri', short: 'Fri', full: 'Friday' },
+  { value: 'sat', short: 'Sat', full: 'Saturday' },
+  { value: 'sun', short: 'Sun', full: 'Sunday' },
+];
+
+export const CAMPAIGN_LENGTH_OPTIONS: Array<{ value: DefaultCampaignLength; label: string }> = [
+  { value: 3, label: '3 posts' },
+  { value: 5, label: '5 posts' },
+  { value: 7, label: '7 posts' },
 ];
