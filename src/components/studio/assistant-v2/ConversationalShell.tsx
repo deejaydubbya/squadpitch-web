@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { useClient } from '@/hooks/useSquadpitch';
 import { useConversationalAssistant } from '@/hooks/useConversationalAssistant';
@@ -9,9 +10,17 @@ import { SummaryPanel } from './SummaryPanel';
 
 interface Props {
   clientId: string;
+  // When set, the shell will auto-select this mode on mount as if the
+  // user had picked it from the Mode card. Used by /create when the
+  // user clicks Campaign or Single Post on the entry screen — the
+  // assistant skips its own mode-select card and goes straight to
+  // the next prompt. Re-running the auto-select on remount is
+  // guarded so a user who manually changes mode mid-session isn't
+  // forced back.
+  initialMode?: 'campaign' | 'quick_post';
 }
 
-export function ConversationalShell({ clientId }: Props) {
+export function ConversationalShell({ clientId, initialMode }: Props) {
   const { data: client } = useClient(clientId);
   const {
     session,
@@ -23,6 +32,22 @@ export function ConversationalShell({ clientId }: Props) {
     requestRevision,
     reset,
   } = useConversationalAssistant(clientId, client?.industryKey ?? undefined);
+
+  // Auto-apply initialMode once per mount when the session has no
+  // mode yet. Re-firing is blocked by both `appliedRef` (once-per-
+  // mount) and the `!session.mode` guard (no clobber on a session
+  // that's already past the mode pick).
+  const appliedRef = useRef(false);
+  useEffect(() => {
+    if (appliedRef.current) return;
+    if (!initialMode) return;
+    if (session.mode) return;
+    appliedRef.current = true;
+    handleCardSelection(
+      { type: 'SET_MODE', payload: initialMode },
+      initialMode === 'campaign' ? 'Mode: Campaign' : 'Mode: Single Post',
+    );
+  }, [initialMode, session.mode, handleCardSelection]);
 
   return (
     <div className="flex h-screen overflow-hidden">
