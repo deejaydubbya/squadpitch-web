@@ -187,6 +187,109 @@ export function mapSessionToQuickPostInput(
   };
 }
 
+// ── Source-aware campaign readiness ────────────────────────────────
+//
+// The GenerationCard's "Generate Campaign" button used to disable on
+// `!session.propertyData` regardless of source type — wrong for
+// content-asset and idea campaigns where there's no propertyData by
+// design. This helper returns the FIRST missing required field with
+// a user-facing reason string so the button + tooltip can stay
+// honest across all three campaign source paths.
+
+export type CampaignReadinessMissingField =
+  | 'campaignSourceType'
+  | 'property'
+  | 'campaignDataItem'
+  | 'campaignIdea'
+  | 'campaignType'
+  | 'channels'
+  | 'media'
+  | 'schedule';
+
+export interface CampaignReadiness {
+  ready: boolean;
+  /** First missing required field, in priority order. null when ready. */
+  missingField: CampaignReadinessMissingField | null;
+  /** User-facing message for the disabled tooltip / helper text. */
+  reason: string | null;
+}
+
+export function getCampaignReadiness(session: AssistantSessionState): CampaignReadiness {
+  if (session.mode !== 'campaign') {
+    // This helper is campaign-specific; non-campaign sessions are
+    // marked ready by default so we never accidentally disable a
+    // single-post Generate button via this path.
+    return { ready: true, missingField: null, reason: null };
+  }
+
+  const src = session.campaignSourceType;
+  if (!src) {
+    return {
+      ready: false,
+      missingField: 'campaignSourceType',
+      reason: 'Pick a source (property, content asset, or idea) to enable generation.',
+    };
+  }
+
+  // Source-specific value check. The disabled message names the
+  // actual source the user picked so it never says "select a
+  // listing" for an idea campaign.
+  if (src === 'property' && !session.selectedPropertyId) {
+    return {
+      ready: false,
+      missingField: 'property',
+      reason: 'Select a listing to enable generation.',
+    };
+  }
+  if (src === 'data_item' && !session.campaignDataItemId) {
+    return {
+      ready: false,
+      missingField: 'campaignDataItem',
+      reason: 'Select a content asset to enable generation.',
+    };
+  }
+  if (src === 'idea' && (!session.campaignIdea || session.campaignIdea.trim() === '')) {
+    return {
+      ready: false,
+      missingField: 'campaignIdea',
+      reason: 'Describe your campaign idea to enable generation.',
+    };
+  }
+
+  if (!session.campaignType) {
+    return {
+      ready: false,
+      missingField: 'campaignType',
+      reason: 'Choose a campaign type to enable generation.',
+    };
+  }
+  if (session.channels.length === 0) {
+    return {
+      ready: false,
+      missingField: 'channels',
+      reason: 'Choose at least one channel to enable generation.',
+    };
+  }
+  // Media decision = either picked media OR explicitly acknowledged
+  // the media step (e.g. typed "skip media").
+  if (session.selectedMediaIds.length === 0 && session.mediaAcknowledged !== true) {
+    return {
+      ready: false,
+      missingField: 'media',
+      reason: 'Choose media or skip media to continue.',
+    };
+  }
+  if (session.slots.length === 0) {
+    return {
+      ready: false,
+      missingField: 'schedule',
+      reason: 'Confirm the schedule to enable generation.',
+    };
+  }
+
+  return { ready: true, missingField: null, reason: null };
+}
+
 /**
  * Validates that session has all required fields for generation.
  * Same as isReadyToGenerate but returns specific missing fields.

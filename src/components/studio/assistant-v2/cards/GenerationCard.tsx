@@ -27,7 +27,11 @@ import {
   type MediaAsset,
 } from '@/hooks/useSquadpitch';
 import { usePreferencesContext } from '@/hooks/useContentPreferences';
-import { mapSessionToCampaignInput, mapSessionToQuickPostInput } from '@/lib/assistant/conversation/sessionToGeneration';
+import {
+  mapSessionToCampaignInput,
+  mapSessionToQuickPostInput,
+  getCampaignReadiness,
+} from '@/lib/assistant/conversation/sessionToGeneration';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { AssetPreviewModal } from './AssetPreviewModal';
 import { normalizeMediaIdsForSave } from '@/lib/assistant/media/normalizeMedia';
@@ -94,24 +98,41 @@ function CampaignGeneration({ session, clientId, onSelection }: Props) {
     const days = slotCount > 0 ? Math.max(...session.slots.map((s) => s.campaignDay)) : 0;
     const channels = Array.from(new Set(session.slots.map((s) => s.channel)));
 
+    // Source-aware readiness — used to be hardcoded
+    // `!session.propertyData`, which wrongly disabled the button for
+    // content-asset and idea campaigns. Now disables on the first
+    // missing required field for the active source type and shows a
+    // matching reason.
+    const readiness = getCampaignReadiness(session);
+
+    // Build a per-source summary suffix so "5 posts across 7 days
+    // on INSTAGRAM" reads honestly for non-property campaigns too.
+    let sourceSuffix = '';
+    if (session.campaignSourceType === 'data_item' && session.campaignDataItemTitle) {
+      sourceSuffix = ` using ${session.campaignDataItemTitle}`;
+    } else if (session.campaignSourceType === 'idea') {
+      sourceSuffix = ' from your campaign idea';
+    }
+
     return (
       <div className="space-y-2">
         {slotCount > 0 && (
           <p className="text-[11px] text-white-40">
             {slotCount} connected posts across {days} days on {channels.join(', ')}
+            {sourceSuffix}
           </p>
         )}
         <button
           onClick={handleGenerate}
-          disabled={!session.propertyData}
+          disabled={!readiness.ready}
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title={!session.propertyData ? 'Select a listing above to enable generation' : undefined}
+          title={readiness.reason ?? undefined}
         >
           <Sparkles className="w-4 h-4" />
           Generate Campaign
         </button>
-        {!session.propertyData && (
-          <p className="text-[10px] text-white-30">Select a listing above to enable generation</p>
+        {readiness.reason && (
+          <p className="text-[10px] text-white-30">{readiness.reason}</p>
         )}
       </div>
     );
