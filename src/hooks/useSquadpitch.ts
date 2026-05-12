@@ -5006,11 +5006,23 @@ export function useGenerateListingCampaign(clientId: string) {
 export function useRegeneratePost(clientId: string) {
   return useMutation({
     mutationFn: (payload: {
+      // For non-property sources the caller still passes a
+      // propertyData-shaped object (synthesized from the data
+      // item or idea — same contract as the save-drafts hook)
+      // so backend validation passes; sourceType tells the
+      // prompt builder how to frame the context.
       propertyData: Record<string, unknown>;
       campaignType?: CampaignType;
       slot: { channel: string; day: number; label: string; angle?: string };
       campaignSummary?: string[];
       imageContext?: CampaignImageContext[];
+      // Source attribution. Backend defaults to 'property' when
+      // omitted so legacy callers keep working.
+      sourceType?: 'property' | 'data_item' | 'idea';
+      sourceTitle?: string | null;
+      sourceDataItemType?: string | null;
+      /** Raw idea text when sourceType=idea (propertyData carries it server-side too). */
+      campaignIdea?: string | null;
     }) =>
       apiFetch<{ post: CampaignPost }>(
         `workspaces/${clientId}/listing-campaign/regenerate-post`,
