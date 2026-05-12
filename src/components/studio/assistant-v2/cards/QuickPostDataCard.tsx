@@ -11,6 +11,11 @@ import {
   type ContentBlueprint,
 } from '@/hooks/useSquadpitch';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
+import {
+  CONTENT_ASSET_BUCKETS,
+  filterByBucket,
+  getDataItemPreview,
+} from '@/lib/assistant/dataItemBuckets';
 
 interface Props {
   session: AssistantSessionState;
@@ -29,20 +34,38 @@ export function QuickPostDataCard({ session, clientId, onSelection }: Props) {
   const bdLabels = useBusinessDataLabels(clientId);
 
   const [bucket, setBucket] = useState<SourceBucket>('all');
+  // Sub-bucket inside Content Assets (testimonials, offers, …).
+  // Only relevant when `bucket === 'content_assets'`; ignored
+  // otherwise.
+  const [assetSubBucket, setAssetSubBucket] = useState<string>('all');
   const [selectedDataItem, setSelectedDataItem] = useState<WorkspaceDataItem | null>(null);
   const [selectedBlueprint, setSelectedBlueprint] = useState<ContentBlueprint | null>(null);
   const [dataSearch, setDataSearch] = useState('');
 
   const { data: rawDataItems } = useDataItems(clientId, {
     search: dataSearch.trim() || undefined,
-    limit: 40,
+    limit: 60,
   });
   const dataItems = useMemo(() => {
     if (!rawDataItems) return rawDataItems;
     if (bucket === 'properties') return rawDataItems.filter((i) => i.type === 'PROPERTY');
-    if (bucket === 'content_assets') return rawDataItems.filter((i) => i.type !== 'PROPERTY');
+    if (bucket === 'content_assets') {
+      // Apply sub-bucket filter on top of the non-PROPERTY filter
+      // via the shared filterByBucket helper.
+      return filterByBucket(rawDataItems, assetSubBucket);
+    }
     return rawDataItems;
-  }, [rawDataItems, bucket]);
+  }, [rawDataItems, bucket, assetSubBucket]);
+
+  // Sub-bucket chips: hide buckets with no items so we don't show a
+  // long row of empty filters for sparse workspaces.
+  const visibleAssetBuckets = useMemo(() => {
+    if (!rawDataItems) return CONTENT_ASSET_BUCKETS.slice(0, 1);
+    return CONTENT_ASSET_BUCKETS.filter((b) => {
+      if (b.key === 'all') return true;
+      return filterByBucket(rawDataItems, b.key).length > 0;
+    });
+  }, [rawDataItems]);
   const { data: blueprints } = useBlueprints(
     selectedDataItem ? { applicableType: selectedDataItem.type } : {}
   );
@@ -105,7 +128,12 @@ export function QuickPostDataCard({ session, clientId, onSelection }: Props) {
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setBucket(opt.value)}
+                onClick={() => {
+                  setBucket(opt.value);
+                  // Reset sub-bucket whenever the top-level changes
+                  // so the user isn't surprised by a stale filter.
+                  if (opt.value !== 'content_assets') setAssetSubBucket('all');
+                }}
                 className={cn(
                   'flex-1 py-1 rounded-md text-[11px] font-medium transition-colors',
                   bucket === opt.value
@@ -117,6 +145,29 @@ export function QuickPostDataCard({ session, clientId, onSelection }: Props) {
               </button>
             ))}
           </div>
+
+          {/* Sub-bucket chips appear only when the user has narrowed
+              the top-level to Content Assets. Buckets with no items
+              are filtered out so the row stays scannable. */}
+          {bucket === 'content_assets' && visibleAssetBuckets.length > 1 && (
+            <div className="flex flex-wrap gap-1">
+              {visibleAssetBuckets.map((b) => (
+                <button
+                  key={b.key}
+                  type="button"
+                  onClick={() => setAssetSubBucket(b.key)}
+                  className={cn(
+                    'px-2 py-0.5 rounded-full border text-[10px] font-medium transition-colors',
+                    assetSubBucket === b.key
+                      ? 'bg-accent-green-110 border-accent-green-110 text-sp-surface'
+                      : 'bg-white-5 border-white-10 text-white-60 hover:bg-white-10 hover:text-white-100',
+                  )}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          )}
           <input
             value={dataSearch}
             onChange={(e) => setDataSearch(e.target.value)}
@@ -124,25 +175,33 @@ export function QuickPostDataCard({ session, clientId, onSelection }: Props) {
             className="w-full px-2.5 py-1.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
           />
           {dataItems && dataItems.length > 0 ? (
-            <div className="space-y-1 max-h-36 overflow-y-auto">
-              {dataItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedDataItem(item);
-                    setDataSearch('');
-                  }}
-                  className="w-full text-left p-2 rounded-lg bg-white-5 hover:bg-white-10 transition-colors"
-                >
-                  <span className="text-[10px] text-white-40 uppercase">
-                    {item.type.replace(/_/g, ' ')}
-                  </span>
-                  <p className="text-xs font-medium text-white-100 truncate">
-                    {item.title}
-                  </p>
-                </button>
-              ))}
+            <div className="space-y-1 max-h-44 overflow-y-auto">
+              {dataItems.map((item) => {
+                const preview = getDataItemPreview(item);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedDataItem(item);
+                      setDataSearch('');
+                    }}
+                    className="w-full text-left p-2 rounded-lg bg-white-5 hover:bg-white-10 transition-colors"
+                  >
+                    <span className="text-[10px] text-white-40 uppercase">
+                      {item.type.replace(/_/g, ' ')}
+                    </span>
+                    <p className="text-xs font-medium text-white-100 truncate">
+                      {preview.primary}
+                    </p>
+                    {preview.secondary && (
+                      <p className="text-[11px] text-white-40 truncate">
+                        {preview.secondary}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           ) : dataSearch.trim() ? (
             <p className="text-xs text-white-40 py-2 text-center">No results for &ldquo;{dataSearch.trim()}&rdquo;</p>
