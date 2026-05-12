@@ -69,7 +69,9 @@ export function PropertyCard({ item, clientId, onArchive, onClick }: Props) {
 
   const handleCreateCampaign = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/workspaces/${clientId}/create?mode=campaign&listingId=${item.id}`);
+    router.push(
+      `/workspaces/${clientId}/create?intent=campaign&sourceType=property&sourceId=${item.id}`,
+    );
   };
 
   const handleArchive = (e: React.MouseEvent) => {

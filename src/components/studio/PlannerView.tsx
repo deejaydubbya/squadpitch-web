@@ -466,16 +466,16 @@ export function PlannerView({ clientId }: Props) {
             <BulkApproveButton ids={Array.from(selected)} onDone={clearSelection} />
           )}
           <Link
-            href={`/workspaces/${clientId}/create?mode=single`}
+            href={`/workspaces/${clientId}/create?intent=single_post`}
             className="px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-dark text-xs font-semibold hover:bg-accent-green-110/90 transition-colors"
           >
-            Single Post
+            New Post
           </Link>
           <Link
-            href={`/workspaces/${clientId}/create?mode=campaign`}
+            href={`/workspaces/${clientId}/create?intent=campaign`}
             className="px-3 py-1.5 rounded-lg bg-white-10 text-white-80 text-xs font-semibold hover:bg-white-20 transition-colors"
           >
-            Campaign
+            New Campaign
           </Link>
           {/* Tour replay button */}
           <button
@@ -699,9 +699,23 @@ export function PlannerView({ clientId }: Props) {
         {error && <StatusBanner error={(error as Error).message} />}
 
         {drafts && drafts.length === 0 && !showChecklist && (
-          <div className="card p-8 text-center">
-            <Inbox className="w-8 h-8 text-white-40 mx-auto mb-2" />
+          <div className="card p-8 text-center space-y-3">
+            <Inbox className="w-8 h-8 text-white-40 mx-auto" />
             <p className="text-sm text-white-60">No drafts match this filter.</p>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <Link
+                href={`/workspaces/${clientId}/create?intent=campaign`}
+                className="px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-dark text-xs font-semibold hover:bg-accent-green-110/90 transition-colors"
+              >
+                Create your first campaign with guided setup
+              </Link>
+              <Link
+                href={`/workspaces/${clientId}/create?intent=single_post`}
+                className="px-3 py-1.5 rounded-lg bg-white-10 text-white-80 text-xs font-semibold hover:bg-white-20 transition-colors"
+              >
+                New post
+              </Link>
+            </div>
           </div>
         )}
 

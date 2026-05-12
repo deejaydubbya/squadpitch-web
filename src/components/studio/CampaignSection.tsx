@@ -10,9 +10,23 @@ import {
   Hash,
   ArrowRight,
   Pencil,
+  Home,
+  FileText,
+  Lightbulb,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Draft } from '@/hooks/useSquadpitch';
+import {
+  parseDraftSourceMeta,
+  sourceTypeLabel,
+  sourceTitleForDisplay,
+  createLinkFromSourceMeta,
+} from '@/lib/assistant/draftSourceMeta';
+import {
+  CAMPAIGN_LIFECYCLE_LABELS,
+  CAMPAIGN_LIFECYCLE_STYLES,
+  computeCampaignLifecycle,
+} from '@/lib/assistant/campaignLifecycle';
 import { CampaignOptimizations } from './OptimizationSuggestions';
 import {
   CAMPAIGN_TYPE_LABELS,
@@ -57,6 +71,7 @@ export function CampaignSection({
     let earliest: string | null = null;
     let latest: string | null = null;
     let maxDay = 0;
+    let failedCount = 0;
 
     for (const d of campaignDrafts) {
       channels.add(d.channel);
@@ -68,11 +83,19 @@ export function CampaignSection({
       }
 
       if (d.campaignDay && d.campaignDay > maxDay) maxDay = d.campaignDay;
+      if (d.status === 'FAILED') failedCount += 1;
     }
 
     const channelLabels = Array.from(channels)
       .map((c) => CHANNEL_LABELS[c] ?? c)
       .join(', ');
+
+    // Source attribution lives on each Draft's `warnings` array
+    // (key:value tags written by save-drafts). The first draft is
+    // representative — every draft in a campaign shares the same
+    // attribution tags.
+    const sourceMeta = parseDraftSourceMeta(campaignDrafts[0]?.warnings ?? null);
+    const lifecycle = computeCampaignLifecycle(campaignDrafts);
 
     return {
       name,
@@ -83,6 +106,13 @@ export function CampaignSection({
       channelLabels,
       firstDate: earliest,
       lastDate: latest,
+      sourceMeta,
+      sourceLabel: sourceTypeLabel(sourceMeta.sourceType),
+      sourceTitle: sourceTitleForDisplay(sourceMeta),
+      lifecycle,
+      lifecycleLabel: CAMPAIGN_LIFECYCLE_LABELS[lifecycle],
+      lifecycleStyle: CAMPAIGN_LIFECYCLE_STYLES[lifecycle],
+      failedCount,
     };
   }, [campaignDrafts]);
 
@@ -113,7 +143,23 @@ export function CampaignSection({
     });
   }, [campaignDrafts]);
 
-  const editCampaignUrl = `/workspaces/${clientId}/create?mode=campaign&campaignId=${campaignId}`;
+  // Build the Edit Campaign URL with the new ?intent= contract.
+  // We thread campaignId along so the assistant can opt into a
+  // "regenerate this exact campaign" flow in the future; today the
+  // server-side route just needs sourceType + sourceId.
+  const editCampaignUrl = (() => {
+    const qs = createLinkFromSourceMeta(campaignMeta.sourceMeta);
+    return `/workspaces/${clientId}/create?${qs}&campaignId=${campaignId}`;
+  })();
+
+  const SourceIcon =
+    campaignMeta.sourceMeta.sourceType === 'property'
+      ? Home
+      : campaignMeta.sourceMeta.sourceType === 'data_item'
+        ? FileText
+        : campaignMeta.sourceMeta.sourceType === 'idea'
+          ? Lightbulb
+          : null;
 
   return (
     <div
@@ -138,13 +184,26 @@ export function CampaignSection({
         )}
 
         <div className="flex-1 min-w-0">
-          {/* Row 1: Name + type badge + focus mode badge */}
+          {/* Row 1: Name + type badge + lifecycle chip + focus mode badge */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-white-80 truncate">
               {campaignMeta.name}
             </span>
             <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 shrink-0">
               {campaignMeta.typeLabel}
+            </span>
+            <span
+              className={cn(
+                'text-xs px-1.5 py-0.5 rounded-full shrink-0 font-medium',
+                campaignMeta.lifecycleStyle,
+              )}
+            >
+              {campaignMeta.lifecycleLabel}
+              {campaignMeta.failedCount > 0 && campaignMeta.lifecycle !== 'failed' && (
+                <span className="ml-1 text-red-300">
+                  ({campaignMeta.failedCount} failed)
+                </span>
+              )}
             </span>
             {focusMode && (
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-green-110/15 text-accent-green-110 text-xs font-semibold shrink-0">
@@ -154,7 +213,21 @@ export function CampaignSection({
             )}
           </div>
 
-          {/* Row 2: Stats */}
+          {/* Row 2: Source attribution */}
+          {campaignMeta.sourceLabel && (
+            <div className="flex items-center gap-1.5 mt-1 text-xs text-white-50 min-w-0">
+              {SourceIcon && <SourceIcon className="w-3 h-3 text-white-30 shrink-0" />}
+              <span className="shrink-0">{campaignMeta.sourceLabel}</span>
+              {campaignMeta.sourceTitle && (
+                <>
+                  <span className="text-white-30 shrink-0">\u00B7</span>
+                  <span className="truncate">{campaignMeta.sourceTitle}</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Row 3: Stats */}
           <div className="flex items-center gap-3 mt-1 text-xs text-white-40 flex-wrap">
             <span className="flex items-center gap-1">
               <Hash className="w-3 h-3 text-white-20" />

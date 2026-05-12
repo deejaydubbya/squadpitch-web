@@ -283,7 +283,7 @@ function campaignTooShort(input: OptimizationInput): OptimizationSuggestion | nu
     applyAction: 'navigate',
     applyPayload: {
       type: 'navigate',
-      href: `/workspaces/${input.clientId}/create?mode=campaign&campaignId=${input.campaignId}`,
+      href: `/workspaces/${input.clientId}/create?intent=campaign&campaignId=${input.campaignId}`,
     },
     targetDraftIds: campaignDrafts.map((d) => d.id),
     targetCampaignId: input.campaignId,

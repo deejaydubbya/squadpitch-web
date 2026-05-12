@@ -22,6 +22,17 @@ import {
   type Draft,
 } from '@/hooks/useSquadpitch';
 import type { CampaignGroup } from '@/components/studio/campaignGrouping';
+import {
+  parseDraftSourceMeta,
+  sourceTypeLabel,
+} from '@/lib/assistant/draftSourceMeta';
+import {
+  CAMPAIGN_LIFECYCLE_LABELS,
+  CAMPAIGN_LIFECYCLE_STYLES,
+  computeCampaignLifecycle,
+  nextScheduledDate,
+} from '@/lib/assistant/campaignLifecycle';
+import { cn } from '@/lib/utils';
 
 interface ContentActivitySectionProps {
   drafts: Draft[] | undefined;
@@ -78,16 +89,16 @@ export function ContentActivitySection({
               </p>
               <div className="flex items-center justify-center gap-3">
                 <Link
-                  href={`${base}/create`}
+                  href={`${base}/create?intent=single_post`}
                   className="px-4 py-2.5 rounded-xl bg-accent-green-110 text-sp-dark text-sm font-semibold hover:bg-accent-green-110/90 transition-colors"
                 >
-                  Create a quick post
+                  New post
                 </Link>
                 <Link
-                  href={`${base}/create?mode=campaign`}
+                  href={`${base}/create?intent=campaign`}
                   className="px-4 py-2.5 rounded-xl bg-white-10 text-white-100 text-sm font-semibold hover:bg-white-20 transition-colors"
                 >
-                  {isRE ? 'Create a listing campaign' : 'Create a campaign'}
+                  New campaign
                 </Link>
               </div>
             </div>
@@ -162,21 +173,55 @@ export function ContentActivitySection({
                     </span>
                   </div>
                   <div className="space-y-1.5">
-                    {activeCampaigns.slice(0, 3).map((campaign) => (
-                      <Link
-                        key={campaign.campaignId}
-                        href={`${base}/planner`}
-                        className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white-5 transition-colors group"
-                      >
-                        <span className="text-sm text-white-80 group-hover:text-white-100 transition-colors truncate">
-                          {campaign.campaignName}
-                        </span>
-                        <span className="text-[11px] text-white-30 flex-shrink-0 ml-2">
-                          {campaign.drafts.length} post
-                          {campaign.drafts.length !== 1 ? 's' : ''}
-                        </span>
-                      </Link>
-                    ))}
+                    {activeCampaigns.slice(0, 3).map((campaign) => {
+                      const meta = parseDraftSourceMeta(
+                        campaign.drafts[0]?.warnings ?? null,
+                      );
+                      const lifecycle = computeCampaignLifecycle(campaign.drafts);
+                      const next = nextScheduledDate(campaign.drafts);
+                      const sourceLabel = sourceTypeLabel(meta.sourceType);
+                      return (
+                        <Link
+                          key={campaign.campaignId}
+                          href={`${base}/planner`}
+                          className="flex flex-col gap-1 px-3 py-2 rounded-lg hover:bg-white-5 transition-colors group"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm text-white-80 group-hover:text-white-100 transition-colors truncate">
+                              {campaign.campaignName}
+                            </span>
+                            <span
+                              className={cn(
+                                'shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                                CAMPAIGN_LIFECYCLE_STYLES[lifecycle],
+                              )}
+                            >
+                              {CAMPAIGN_LIFECYCLE_LABELS[lifecycle]}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-white-30">
+                            {sourceLabel && <span>{sourceLabel}</span>}
+                            {sourceLabel && <span className="text-white-20">·</span>}
+                            <span>
+                              {campaign.drafts.length} post
+                              {campaign.drafts.length !== 1 ? 's' : ''}
+                            </span>
+                            {next && (
+                              <>
+                                <span className="text-white-20">·</span>
+                                <span>
+                                  Next{' '}
+                                  {new Date(next).toLocaleDateString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -576,7 +576,9 @@ export function PropertyDetailDrawer({ item, clientId, isOpen, onClose }: Props)
         <div className="px-5 py-3 border-t border-white-10 flex items-center gap-3">
           <button
             onClick={() => {
-              router.push(`/workspaces/${clientId}/create?mode=campaign&listingId=${item.id}`);
+              router.push(
+                `/workspaces/${clientId}/create?intent=campaign&sourceType=property&sourceId=${item.id}`,
+              );
               onClose();
             }}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent-green-110 text-sp-surface font-semibold text-sm hover:bg-accent-green-120 transition-colors"

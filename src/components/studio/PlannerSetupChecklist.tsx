@@ -30,10 +30,10 @@ export function PlannerSetupChecklist({
   const items: ChecklistItem[] = [
     {
       key: 'listing_feed',
-      label: 'Add your properties',
-      description: 'Squadpitch uses your listings to recommend campaigns',
+      label: 'Add a property or content asset',
+      description: 'Sources help Squadpitch recommend better campaigns',
       done: hasListingFeed,
-      href: `/workspaces/${clientId}/create?mode=campaign`,
+      href: `/workspaces/${clientId}/data`,
     },
     {
       key: 'testimonial',
@@ -51,10 +51,10 @@ export function PlannerSetupChecklist({
     },
     {
       key: 'draft',
-      label: 'Approve your first post',
-      description: 'Review a post and approve it to start publishing',
+      label: 'Create your first campaign',
+      description: 'Use guided setup to draft connected posts from a property, asset, or idea',
       done: hasDrafts,
-      href: `/workspaces/${clientId}/planner`,
+      href: `/workspaces/${clientId}/create?intent=campaign`,
     },
   ];
 
@@ -66,10 +66,10 @@ export function PlannerSetupChecklist({
     <div className="card p-5 space-y-4">
       <div>
         <h3 className="text-sm font-semibold text-white-100">
-          Get started with your Planner
+          Get started with Squadpitch
         </h3>
         <p className="text-xs text-white-40 mt-0.5">
-          Complete these steps to create your first marketing plan.
+          A few quick steps to draft your first connected campaign.
           <span className="text-white-60 ml-1 font-medium">
             {completedCount}/{items.length} done
           </span>

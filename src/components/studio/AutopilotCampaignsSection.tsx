@@ -86,16 +86,18 @@ export function AutopilotCampaignsSection({ clientId }: AutopilotCampaignsSectio
     if (!rec) return;
     convertMutation.mutate(id);
     const params = new URLSearchParams();
-    params.set('listingId', rec.listingDataItemId);
-    params.set('type', rec.suggestedCampaignType);
+    params.set('intent', 'campaign');
+    params.set('sourceType', 'property');
+    params.set('sourceId', rec.listingDataItemId);
+    params.set('campaignType', rec.suggestedCampaignType);
     params.set('autopilotRecId', rec.id);
-    router.push(`/workspaces/${clientId}/create?mode=campaign&${params.toString()}`);
+    router.push(`/workspaces/${clientId}/create?${params.toString()}`);
   };
 
   const emptyMessage = (() => {
     switch (activeFilter) {
       case 'needs_review':
-        return 'No campaigns need review. Autopilot will suggest new ones when listing events occur.';
+        return 'No campaigns need review. Autopilot will suggest new ones as activity comes in.';
       case 'approved':
         return 'No approved campaigns yet.';
       case 'dismissed':

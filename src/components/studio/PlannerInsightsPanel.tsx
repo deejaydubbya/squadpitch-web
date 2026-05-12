@@ -94,17 +94,19 @@ export function PlannerInsightsPanel({
               <div className="space-y-2">
                 {campaignSuggestions.map((cs) => {
                   const payload = cs.actionPayload ?? {};
-                  const params = new URLSearchParams();
-                  if (payload.listingDataItemId) params.set('listingId', payload.listingDataItemId);
-                  else if (payload.sourceId) params.set('listingId', payload.sourceId);
-                  if (payload.campaignType) params.set('type', payload.campaignType);
-                  else if (cs.suggestedCampaignType) params.set('type', cs.suggestedCampaignType);
-                  const qs = params.toString();
+                  const params = new URLSearchParams({ intent: 'campaign' });
+                  const propertyId = payload.listingDataItemId ?? payload.sourceId;
+                  if (propertyId) {
+                    params.set('sourceType', 'property');
+                    params.set('sourceId', propertyId);
+                  }
+                  const campaignType = payload.campaignType ?? cs.suggestedCampaignType;
+                  if (campaignType) params.set('campaignType', campaignType);
 
                   return (
                     <Link
                       key={cs.id}
-                      href={`/workspaces/${clientId}/create?mode=campaign${qs ? `&${qs}` : ''}`}
+                      href={`/workspaces/${clientId}/create?${params.toString()}`}
                       className="flex items-center gap-3 p-3 rounded-lg bg-white-5 hover:bg-white-8 border border-white-10 hover:border-purple-400/20 transition-all group"
                     >
                       <div className="flex-1 min-w-0">

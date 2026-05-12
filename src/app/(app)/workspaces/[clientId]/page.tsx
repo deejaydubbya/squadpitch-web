@@ -281,10 +281,26 @@ export default function OverviewPage() {
 
     switch (rec.action) {
       case 'generate_post': {
+        // Recommendation-driven single posts. If the recommendation
+        // points at a specific data item (a property, content asset,
+        // etc.), thread it through as the source so the assistant
+        // can prefill. Otherwise fall back to a guidance-only
+        // single-post intent.
+        const params = new URLSearchParams({ intent: 'single_post' });
         const guidance = rec.metadata?.guidance ?? rec.description;
-        const tmpl = rec.metadata?.templateType;
-        const qs = `guidance=${encodeURIComponent(guidance)}${tmpl ? `&templateType=${encodeURIComponent(tmpl)}` : ''}`;
-        router.push(`${base}/create?${qs}`);
+        if (guidance) params.set('guidance', guidance);
+        if (rec.metadata?.templateType) params.set('templateType', rec.metadata.templateType);
+        if (rec.metadata?.dataItemId || rec.metadata?.listingDataItemId) {
+          const propertyId =
+            rec.metadata?.listingDataItemId ?? rec.metadata?.dataItemId;
+          const isProperty =
+            rec.sourceType === 'listing' ||
+            rec.sourceType === 'property' ||
+            !!rec.metadata?.listingDataItemId;
+          params.set('sourceType', isProperty ? 'property' : 'content_asset');
+          if (propertyId) params.set('sourceId', propertyId);
+        }
+        router.push(`${base}/create?${params.toString()}`);
         break;
       }
       case 'generate_from_data':
@@ -306,11 +322,13 @@ export default function OverviewPage() {
         router.push(`${base}/planner`);
         break;
       case 'listing_campaign': {
-        const params = new URLSearchParams();
-        if (rec.metadata?.listingDataItemId) params.set('listingId', rec.metadata.listingDataItemId);
-        if (rec.metadata?.campaignType) params.set('type', rec.metadata.campaignType);
-        const qs = params.toString();
-        router.push(`${base}/create?mode=campaign${qs ? `&${qs}` : ''}`);
+        const params = new URLSearchParams({ intent: 'campaign' });
+        if (rec.metadata?.listingDataItemId) {
+          params.set('sourceType', 'property');
+          params.set('sourceId', rec.metadata.listingDataItemId);
+        }
+        if (rec.metadata?.campaignType) params.set('campaignType', rec.metadata.campaignType);
+        router.push(`${base}/create?${params.toString()}`);
         break;
       }
       case 'draft_gbp_reply':
@@ -352,30 +370,46 @@ export default function OverviewPage() {
         </p>
       </div>
 
-      {/* ── Campaign Quick Input (RE only) ── */}
-      {isRE && <CampaignInput base={base} />}
+      {/* ── Quick Idea Input ── */}
+      <CampaignInput base={base} />
 
       {/* ── 1. Primary Action — always visible ── */}
-      <Link
-        href={`${base}/create`}
-        className="flex items-center justify-between gap-4 px-5 py-4 rounded-2xl bg-accent-green-110/10 border border-accent-green-110/25 hover:border-accent-green-110/40 transition-all group"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-4 h-4 text-accent-green-110" />
+      <div className="flex flex-col gap-2">
+        <Link
+          href={`${base}/create`}
+          className="flex items-center justify-between gap-4 px-5 py-4 rounded-2xl bg-accent-green-110/10 border border-accent-green-110/25 hover:border-accent-green-110/40 transition-all group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-accent-green-110" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">Create content</p>
+              <p className="text-xs text-white-40 mt-0.5">
+                Create a guided post or campaign from your listings, content assets, or ideas.
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-white">Create new content</p>
-            <p className="text-xs text-white-40 mt-0.5">
-              {isRE ? 'Single post, listing campaign, or AI assistant' : 'Single post or AI assistant'}
-            </p>
-          </div>
+          <span className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold flex-shrink-0 group-hover:bg-accent-green-120 transition-colors">
+            Create Content
+            <ArrowRight className="w-3.5 h-3.5" />
+          </span>
+        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`${base}/create?intent=campaign`}
+            className="px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-white-80 text-xs font-semibold hover:bg-white-10 hover:border-white-20 transition-colors"
+          >
+            New Campaign
+          </Link>
+          <Link
+            href={`${base}/create?intent=single_post`}
+            className="px-3 py-1.5 rounded-lg bg-white-5 border border-white-10 text-white-80 text-xs font-semibold hover:bg-white-10 hover:border-white-20 transition-colors"
+          >
+            New Single Post
+          </Link>
         </div>
-        <span className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold flex-shrink-0 group-hover:bg-accent-green-120 transition-colors">
-          Create
-          <ArrowRight className="w-3.5 h-3.5" />
-        </span>
-      </Link>
+      </div>
 
       {/* ── Post-onboarding checklist (hidden once complete) ── */}
       <PostOnboardingChecklist
@@ -569,7 +603,15 @@ function CampaignInput({ base }: { base: string }) {
   const handleSubmit = () => {
     const trimmed = campaignInput.trim();
     if (!trimmed) return;
-    router.push(`${base}/create?mode=campaign&input=${encodeURIComponent(trimmed)}`);
+    // The assistant can interpret raw URLs (listing import) directly
+    // from the `prompt` param, so we don't need to detect URLs here —
+    // we always pass the input as `prompt` and let the assistant pick
+    // the right source. `sourceType=idea` is the safe default; if the
+    // input is a URL the assistant's input parser will re-route it
+    // into the property-import path on the next step.
+    router.push(
+      `${base}/create?intent=campaign&sourceType=idea&prompt=${encodeURIComponent(trimmed)}`,
+    );
   };
 
   return (
@@ -583,7 +625,7 @@ function CampaignInput({ base }: { base: string }) {
             handleSubmit();
           }
         }}
-        placeholder="Paste a listing URL or describe what you want to promote..."
+        placeholder="Describe what you want to create, paste a listing URL, or mention a saved content asset…"
         className="flex-1 px-4 py-3 rounded-xl bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
       />
       <button
@@ -591,7 +633,7 @@ function CampaignInput({ base }: { base: string }) {
         disabled={!campaignInput.trim()}
         className="px-4 py-3 rounded-xl bg-accent-green-110 text-sp-surface text-sm font-semibold hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
       >
-        Generate Campaign
+        Start Campaign
       </button>
     </div>
   );
