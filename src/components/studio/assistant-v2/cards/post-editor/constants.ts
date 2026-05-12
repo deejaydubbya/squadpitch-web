@@ -1,6 +1,5 @@
 /**
  * Shared CTA preset options used in both Quick Post and Campaign review UIs.
- * Previously duplicated in GenerationCard.tsx and ContentPreview.tsx.
  */
 export const CTA_PRESETS = [
   { label: 'DM me', value: 'DM me for details' },
