@@ -108,6 +108,36 @@ const QP_SOURCE_PATTERNS: Array<{ pattern: RegExp; source: 'data' | 'idea'; conf
   { pattern: /\b(idea|brainstorm|freeform)\b/i, source: 'idea', confidence: 0.7 },
 ];
 
+// ── Campaign Source Patterns ──────────────────────────────────────────────
+//
+// Detects property / content_asset / idea picks for campaign mode.
+// Mirrors the shortcuts the AssistantCommandBar's chip row emits
+// ("use a property", "use a content asset", "start from an idea")
+// so typed and clicked commands behave the same. Only fires when
+// mode=campaign and campaignSourceType is null (or the user is
+// explicitly revising).
+//
+// Order matters — content-asset patterns precede the looser
+// "property" / "idea" matches so "use a content asset" doesn't
+// accidentally hit the property fallback via "asset".
+
+const CAMPAIGN_SOURCE_PATTERNS: Array<{
+  pattern: RegExp;
+  source: 'property' | 'data_item' | 'idea';
+  confidence: number;
+}> = [
+  // Content asset — saved business data / WorkspaceDataItem
+  { pattern: /\b(content\s*asset|saved\s*content|business\s*data|content\s*piece)\b/i, source: 'data_item', confidence: 0.95 },
+  { pattern: /\buse\s*(an?\s*)?(content\s*asset|business\s*data|saved\s*content|asset)\b/i, source: 'data_item', confidence: 0.95 },
+  { pattern: /\bpick\s*(an?\s*)?(content\s*asset|asset)\b/i, source: 'data_item', confidence: 0.9 },
+  // Idea — freeform user text
+  { pattern: /\b(start\s*from\s*(an?\s*)?idea|from\s*(an?\s*)?idea|manual\s*idea|my\s*(own\s*)?idea|describe\s*(it|the\s*campaign|manually))\b/i, source: 'idea', confidence: 0.95 },
+  // Property / listing — last so loose matches don't pre-empt the others
+  { pattern: /\buse\s*(an?\s*)?(property|listing)\b/i, source: 'property', confidence: 0.95 },
+  { pattern: /\bfrom\s*(an?\s*)?(property|listing)\b/i, source: 'property', confidence: 0.9 },
+  { pattern: /\b(property|listing)\b/i, source: 'property', confidence: 0.7 },
+];
+
 // ── Quick Post Content Type Patterns ─────────────────────────────────────
 
 const QP_CONTENT_TYPE_PATTERNS: Array<{ pattern: RegExp; contentType: string; confidence: number }> = [
@@ -174,8 +204,31 @@ export function parseUserInput(
     }
   }
 
-  // ── Detect campaign type ──
   const effectiveMode = session.mode ?? inferredModeFromActions(actions);
+
+  // ── Detect campaign source type ──
+  //
+  // Runs only in campaign mode. Without this block, command-bar
+  // chips ("use a property", "use a content asset", "from an idea")
+  // and typed equivalents would fall through to the unknown-input
+  // fallback even though the UI surfaced them as valid options.
+  if (effectiveMode === 'campaign' && (!session.campaignSourceType || isRevision)) {
+    for (const { pattern, source, confidence: conf } of CAMPAIGN_SOURCE_PATTERNS) {
+      if (pattern.test(text)) {
+        actions.push({ type: 'SET_CAMPAIGN_SOURCE_TYPE', payload: source });
+        const label = source === 'property'
+          ? 'Property / Listing'
+          : source === 'data_item'
+            ? 'Content Asset'
+            : 'Idea';
+        detectedFields.push(`source: ${label}`);
+        confidence['campaignSourceType'] = conf;
+        break;
+      }
+    }
+  }
+
+  // ── Detect campaign type ──
 
   if (!session.campaignType || isRevision) {
     let bestMatch: { value: string; label: string; conf: number } | null = null;

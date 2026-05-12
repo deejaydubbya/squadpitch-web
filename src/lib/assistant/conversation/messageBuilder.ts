@@ -86,10 +86,34 @@ export function buildNextPromptMessage(
         'mode_select'
       );
 
+    case 'campaign_source':
+      // Step inserted between mode-select and the source-specific
+      // picker (property / content-asset / idea). Without this case
+      // the message defaulted to the catch-all "What would you like
+      // to do next?" text bubble and the source card never rendered.
+      return buildInteractivePrompt(
+        `What should this campaign be based on?`,
+        'campaign_source'
+      );
+
     case 'property_select':
       return buildInteractivePrompt(
-        `Which ${t.itemSingular} would you like to create content for?`,
+        session.mode === 'campaign'
+          ? `Which ${t.itemSingular} should this campaign promote?`
+          : `Which ${t.itemSingular} would you like to create content for?`,
         'property_select'
+      );
+
+    case 'campaign_data_item':
+      return buildInteractivePrompt(
+        `Which content asset should this campaign use?`,
+        'campaign_data_item'
+      );
+
+    case 'campaign_idea':
+      return buildInteractivePrompt(
+        `What should this campaign be about?`,
+        'campaign_idea'
       );
 
     case 'campaign_type':
