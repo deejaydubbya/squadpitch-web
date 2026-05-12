@@ -58,7 +58,8 @@ import type { VersionSelection, MediaReplacement } from '@/lib/assistant/types';
 import { computePostStrength, selectBestVersion } from '@/lib/assistant/normalizedPost.scoring';
 import { useGenerateContent } from '@/hooks/useSquadpitch';
 import { buildImproveGuidance, buildMediaGuidance, type TextImproveActionId, type MediaImproveActionId, type PromptContext } from '@/lib/assistant/improveActions';
-import { PostMediaActions } from './PostMediaActions';
+import { PostMediaActions, type SmartVideoStatus } from './PostMediaActions';
+import { SmartVideoOverlay } from './SmartVideoOverlay';
 import { resolveThumbUrl } from '@/lib/assistant/media/resolveThumb';
 
 // ── Auto Mode Helpers ────────────────────────────────────────────────
@@ -1441,6 +1442,13 @@ function PostReviewItem({
   const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
   const [whyExpanded, setWhyExpanded] = useState(false);
   const [personaDismissed, setPersonaDismissed] = useState(false);
+  // Smart Video lifecycle for THIS post only. Scoped to each
+  // PostReviewItem so per-post media state stays isolated — clicking
+  // Create Smart Video on post #2 must never affect post #1.
+  const [smartVideoStatus, setSmartVideoStatus] = useState<SmartVideoStatus | null>(null);
+  // Saved at attach time so the user can revert to the original
+  // image selection.
+  const [preVideoMediaIds, setPreVideoMediaIds] = useState<string[] | null>(null);
   const channelInfo = CHANNEL_REGISTRY[post.channel];
 
   const body = editedBody ?? (selectedVersion === 'B' && post.bodyAlt ? post.bodyAlt : post.body);
@@ -1731,18 +1739,36 @@ function PostReviewItem({
             );
           })()}
 
-          {/* Assigned media */}
-          <PostMediaStrip
-            mediaIds={assignedImageIds}
-            assetMap={assetMap}
-            propertyImages={propertyImages}
-            maxVisible={4}
-            thumbSize="sm"
-            onRemove={(id) => onImageReassign(assignedImageIds.filter((mid) => mid !== id))}
-            onPreview={(asset) => setPreviewAsset(asset)}
-            onTogglePicker={() => setShowImagePicker(!showImagePicker)}
-            emptyLabel="No media assigned"
-          />
+          {/* Assigned media (wrapped so the Smart Video overlay can
+              cover this post's media area while a video is being
+              composed or attached). */}
+          <div className="relative">
+            <PostMediaStrip
+              mediaIds={assignedImageIds}
+              assetMap={assetMap}
+              propertyImages={propertyImages}
+              maxVisible={4}
+              thumbSize="sm"
+              onRemove={(id) => onImageReassign(assignedImageIds.filter((mid) => mid !== id))}
+              onPreview={(asset) => setPreviewAsset(asset)}
+              onTogglePicker={() => setShowImagePicker(!showImagePicker)}
+              emptyLabel="No media assigned"
+            />
+            <SmartVideoOverlay
+              status={smartVideoStatus}
+              onRevert={
+                preVideoMediaIds
+                  ? () => {
+                      onImageReassign(preVideoMediaIds);
+                      setPreVideoMediaIds(null);
+                    }
+                  : undefined
+              }
+              onDismissDone={() =>
+                setSmartVideoStatus((s) => (s?.phase === 'done' ? { ...s, phase: 'idle' } : s))
+              }
+            />
+          </div>
 
           {/* Recommended photos with match reasons */}
           {assignedImageIds.length > 0 && imageMatchReasons && imageMatchReasons.size > 0 && (() => {
@@ -1884,8 +1910,20 @@ function PostReviewItem({
                 cta={cta || null}
                 channel={post.channel}
                 clientId={clientId}
-                onVideoAttached={(asset) => onImageReassign([asset.id])}
+                onVideoAttached={(asset, replaceImages) => {
+                  // Snapshot the pre-attach media so the user can
+                  // revert via the SmartVideoOverlay's "Use original
+                  // images" link if they don't like the swap.
+                  setPreVideoMediaIds(assignedImageIds ?? []);
+                  if (replaceImages) {
+                    onImageReassign([asset.id]);
+                  } else {
+                    const current = assignedImageIds ?? [];
+                    onImageReassign(current.includes(asset.id) ? current : [...current, asset.id]);
+                  }
+                }}
                 onLocalAssetAdded={onLocalAssetAdded}
+                onSmartVideoStatusChange={setSmartVideoStatus}
                 variant="padded"
               />
               {improveState && onTextImprove && onDismissImproveError && (

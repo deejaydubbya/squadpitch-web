@@ -11,13 +11,43 @@ import type { SmartVideoConfig } from '@/lib/video/videoCompositor.types';
 import { VideoPreviewModal } from './VideoPreviewModal';
 import { SmartVideoControlModal } from './SmartVideoControlModal';
 
+// Lifecycle status emitted to parents so they can render their own
+// loading overlay / success banner near the post's media area
+// rather than relying on the tiny button-only state.
+export type SmartVideoUiPhase =
+  | 'idle'
+  | 'generating'
+  | 'ready'
+  | 'attaching'
+  | 'done'
+  | 'error';
+
+export interface SmartVideoStatus {
+  phase: SmartVideoUiPhase;
+  /** Human-readable progress label (e.g. "Encoding video…") */
+  message: string | null;
+  /** Error string when phase === 'error' */
+  error: string | null;
+  /** True while the SmartVideoControlModal is open (don't dim media yet) */
+  controlModalOpen: boolean;
+}
+
 interface VideoGeneratorButtonProps {
   images: VideoImageInput[];
   body: string;
   cta: string | null;
   channel: string;
   clientId: string;
-  onAttached: (asset: MediaAsset) => void;
+  /**
+   * Called when the uploaded video asset is attached to the post.
+   * `replaceImages` reflects the Smart Video preview modal toggle —
+   * when false, the parent should keep existing images and add the
+   * video alongside; when true (default), the parent replaces the
+   * media list with the video alone.
+   */
+  onAttached: (asset: MediaAsset, replaceImages: boolean) => void;
+  /** Optional UI lifecycle callback for parents. */
+  onStatusChange?: (status: SmartVideoStatus) => void;
   disabled?: boolean;
   /** 'compact' matches PostReviewItem, 'padded' matches QuickPostReviewInner */
   variant?: 'compact' | 'padded';
@@ -32,6 +62,7 @@ export function VideoGeneratorButton({
   channel,
   clientId,
   onAttached,
+  onStatusChange,
   disabled,
   variant = 'compact',
   folderId,
@@ -53,6 +84,33 @@ export function VideoGeneratorButton({
     const { supported } = checkBrowserSupport();
     setBrowserSupported(supported);
   }, []);
+
+  // Emit a single UI lifecycle status whenever any of the underlying
+  // signals change. Parents render the loading overlay / success
+  // banner from this — keeps the button itself simple and gives the
+  // user real feedback in the media area.
+  useEffect(() => {
+    if (!onStatusChange) return;
+    const isAttachingNow = upload.isPending;
+    const message = personaPhase || progress?.message || null;
+    let next: SmartVideoStatus;
+    if (attachError) {
+      next = { phase: 'error', message: null, error: attachError, controlModalOpen: showControlModal };
+    } else if (error && phase === 'error') {
+      next = { phase: 'error', message: null, error, controlModalOpen: showControlModal };
+    } else if (attachSuccess) {
+      next = { phase: 'done', message: null, error: null, controlModalOpen: false };
+    } else if (isAttachingNow) {
+      next = { phase: 'attaching', message: 'Attaching to post…', error: null, controlModalOpen: false };
+    } else if (phase === 'compositing' || phase === 'converting' || !!personaPhase) {
+      next = { phase: 'generating', message: message ?? 'Creating Smart Video…', error: null, controlModalOpen: false };
+    } else if (phase === 'done') {
+      next = { phase: 'ready', message: 'Smart Video ready — preview to attach', error: null, controlModalOpen: false };
+    } else {
+      next = { phase: 'idle', message: null, error: null, controlModalOpen: showControlModal };
+    }
+    onStatusChange(next);
+  }, [onStatusChange, phase, progress, personaPhase, upload.isPending, attachError, attachSuccess, error, showControlModal]);
 
   const canGenerate = browserSupported && images.length >= 1 && !disabled;
 
@@ -156,7 +214,11 @@ export function VideoGeneratorButton({
     formData.append('file', file);
     try {
       const asset = await upload.mutateAsync({ formData, assetType: 'video', folderId: folderId ?? undefined });
-      onAttached(asset);
+      // replaceImages comes from the toggle in VideoPreviewModal. When
+      // false, the parent should append the video to its current media
+      // list rather than wiping it. Previously this flag was set in
+      // state but never read — silent UX bug.
+      onAttached(asset, replaceImages);
       setShowModal(false);
       setAttachSuccess(true);
       setTimeout(() => setAttachSuccess(false), 3000);
@@ -164,7 +226,7 @@ export function VideoGeneratorButton({
       console.error('[VideoGenerator] Upload failed:', err);
       setAttachError("Couldn't attach Smart Video. Try again or download it.");
     }
-  }, [result, upload, onAttached, folderId]);
+  }, [result, upload, onAttached, folderId, replaceImages]);
 
   const isLoading = phase === 'compositing' || phase === 'converting' || !!personaPhase;
   const isDisabled = disabled || !browserSupported || images.length < 1;

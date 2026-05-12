@@ -35,7 +35,8 @@ import { draftToNormalized } from '@/lib/assistant/normalizedPost.adapters';
 import { PostEditorCard, PostMediaStrip, PostMediaSelector, MediaPlanBanner, usePostEditorState, useImproveAction, DataAwarenessBadge } from './post-editor';
 import { usePostMediaGeneration } from './post-editor/usePostMediaGeneration';
 import { buildMediaGuidance, type MediaImproveActionId } from '@/lib/assistant/improveActions';
-import { PostMediaActions } from './PostMediaActions';
+import { PostMediaActions, type SmartVideoStatus } from './PostMediaActions';
+import { SmartVideoOverlay } from './SmartVideoOverlay';
 import { PersonaRecommendationBadge } from './PersonaRecommendationBadge';
 
 interface Props {
@@ -355,6 +356,13 @@ function QuickPostReviewInner({
   const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Smart Video lifecycle status — drives the loading overlay and
+  // success banner over the media strip.
+  const [smartVideoStatus, setSmartVideoStatus] = useState<SmartVideoStatus | null>(null);
+  // Saved at attach time so the user can revert to the original
+  // image selection if they don't like the video.
+  const [preVideoMediaIds, setPreVideoMediaIds] = useState<string[] | null>(null);
+
   const handleCopy = () => {
     const fullText = [
       editor.editedBody,
@@ -486,16 +494,32 @@ function QuickPostReviewInner({
         />
       )}
 
-      {/* Media Strip */}
-      <PostMediaStrip
-        mediaIds={mediaIds}
-        assetMap={assetMap}
-        propertyImages={propertyImages}
-        itemImages={itemImages}
-        onRemove={(id) => setMediaIds((prev) => prev.filter((mid) => mid !== id))}
-        onPreview={(asset) => setPreviewAsset(asset)}
-        onTogglePicker={() => setShowMediaPicker(!showMediaPicker)}
-      />
+      {/* Media Strip with Smart Video lifecycle overlay */}
+      <div className="relative">
+        <PostMediaStrip
+          mediaIds={mediaIds}
+          assetMap={assetMap}
+          propertyImages={propertyImages}
+          itemImages={itemImages}
+          onRemove={(id) => setMediaIds((prev) => prev.filter((mid) => mid !== id))}
+          onPreview={(asset) => setPreviewAsset(asset)}
+          onTogglePicker={() => setShowMediaPicker(!showMediaPicker)}
+        />
+        <SmartVideoOverlay
+          status={smartVideoStatus}
+          onRevert={
+            preVideoMediaIds
+              ? () => {
+                  setMediaIds(preVideoMediaIds);
+                  setPreVideoMediaIds(null);
+                }
+              : undefined
+          }
+          onDismissDone={() =>
+            setSmartVideoStatus((s) => (s?.phase === 'done' ? { ...s, phase: 'idle' } : s))
+          }
+        />
+      </div>
       {showMediaPicker && (
         <PostMediaSelector
           clientId={clientId}
@@ -531,8 +555,17 @@ function QuickPostReviewInner({
           cta={editor.editedCta || null}
           channel={draft.channel}
           clientId={clientId}
-          onVideoAttached={(asset) => setMediaIds([asset.id])}
+          onVideoAttached={(asset, replaceImages) => {
+            // Remember pre-attach media so the user can revert.
+            setPreVideoMediaIds(mediaIds);
+            if (replaceImages) {
+              setMediaIds([asset.id]);
+            } else {
+              setMediaIds((prev) => (prev.includes(asset.id) ? prev : [...prev, asset.id]));
+            }
+          }}
           onLocalAssetAdded={(asset) => setLocalAssets((prev) => new Map(prev).set(asset.id, asset))}
+          onSmartVideoStatusChange={setSmartVideoStatus}
           variant="padded"
           copyText={[
             editor.editedBody,

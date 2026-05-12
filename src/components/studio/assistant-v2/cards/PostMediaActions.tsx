@@ -2,9 +2,11 @@
 
 import { useState, useCallback } from 'react';
 import { Copy, Check } from 'lucide-react';
-import { VideoGeneratorButton } from './VideoGeneratorButton';
+import { VideoGeneratorButton, type SmartVideoStatus } from './VideoGeneratorButton';
 import { resolveThumbUrl } from '@/lib/assistant/media/resolveThumb';
 import type { MediaAsset } from '@/hooks/useSquadpitch';
+
+export type { SmartVideoStatus } from './VideoGeneratorButton';
 
 interface PostMediaActionsProps {
   /** Media IDs assigned to this post */
@@ -25,10 +27,17 @@ interface PostMediaActionsProps {
   channel: string;
   /** Client ID for uploads */
   clientId: string;
-  /** Called when Smart Video is attached */
-  onVideoAttached: (asset: MediaAsset) => void;
+  /**
+   * Called when Smart Video is attached. `replaceImages` reflects
+   * the toggle in the Smart Video preview modal — `true` (default)
+   * means swap the post's media list with the video alone; `false`
+   * means add the video while keeping the existing images.
+   */
+  onVideoAttached: (asset: MediaAsset, replaceImages: boolean) => void;
   /** Called to add a locally generated asset to the asset map */
   onLocalAssetAdded?: (asset: MediaAsset) => void;
+  /** Lifecycle status from the Smart Video flow (loading/success/error) */
+  onSmartVideoStatusChange?: (status: SmartVideoStatus) => void;
   /** Button variant */
   variant?: 'compact' | 'padded';
   /** Folder ID for uploaded video */
@@ -53,6 +62,7 @@ export function PostMediaActions({
   clientId,
   onVideoAttached,
   onLocalAssetAdded,
+  onSmartVideoStatusChange,
   variant = 'compact',
   folderId,
   copyText,
@@ -134,10 +144,11 @@ export function PostMediaActions({
         cta={cta}
         channel={channel}
         clientId={clientId}
-        onAttached={(asset) => {
+        onAttached={(asset, replaceImages) => {
           onLocalAssetAdded?.(asset);
-          onVideoAttached(asset);
+          onVideoAttached(asset, replaceImages);
         }}
+        onStatusChange={onSmartVideoStatusChange}
         disabled={videoImages.length < 1}
         variant={variant}
         folderId={folderId ?? mediaIds.map((id) => assetMap.get(id)?.folderId).find((f) => f) ?? null}
