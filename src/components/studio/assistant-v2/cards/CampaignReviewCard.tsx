@@ -38,6 +38,7 @@ import {
 } from '@/hooks/useSquadpitch';
 import { CHANNEL_REGISTRY } from '@/lib/channelRegistry';
 import { usePreferencesContext } from '@/hooks/useContentPreferences';
+import { useContentPreferences } from '@/hooks/useSquadpitch';
 import { useUsage } from '@/hooks/useBilling';
 import { mapSessionToCampaignInput } from '@/lib/assistant/conversation/sessionToGeneration';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
@@ -145,6 +146,13 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   const saveMutation = useSaveCampaignDrafts(clientId);
   const generateMutation = useGenerateListingCampaign(clientId);
   const preferencesContext = usePreferencesContext(clientId);
+  // Read the raw preferences too — `alwaysRequireReview` decides
+  // whether "Save as Drafts" or "Approve & Schedule" is the visual
+  // primary action. The user can still pick either; we only flip
+  // which one gets highlighted so the default action respects the
+  // preference.
+  const { data: contentPreferences } = useContentPreferences(clientId);
+  const alwaysRequireReview = contentPreferences?.alwaysRequireReview ?? true;
   const { data: assetsData } = useAssets(clientId, { status: 'READY' });
   const { data: mediaProfile } = useMediaProfile(clientId);
   const generateMedia = useGenerateMedia(clientId);
@@ -1347,25 +1355,55 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         </div>
       )}
 
-      {/* Actions — sticky footer */}
+      {/* Actions — sticky footer.
+          Button order + styling depends on alwaysRequireReview:
+          - true  → "Save as Drafts" is primary, "Approve & Schedule"
+                    is secondary. Drafts land in the planner queue
+                    for human review before scheduling.
+          - false → "Approve & Schedule" is primary, drafts are
+                    scheduled immediately on save.
+          Both buttons are always available; the preference only
+          changes which one is highlighted as the default action. */}
       <div className="flex items-center gap-2 flex-wrap pt-2 sticky bottom-0 bg-sp-bg/95 backdrop-blur-sm pb-2 -mb-2 z-10 border-t border-white-5">
-        <button
-          // Primary action — opens the schedule-confirm modal, which
-          // (on confirm) calls handleSave(true). Scheduling sets
-          // Draft.scheduledFor and status=SCHEDULED; the publish
-          // worker picks them up at scheduledFor.
-          onClick={() => setScheduleConfirmOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90 transition-colors"
-        >
-          <Check className="w-3 h-3" />
-          Approve & Schedule
-        </button>
-        <button
-          onClick={() => handleSave(false)}
-          className="px-3 py-1.5 rounded-lg text-xs font-medium text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors"
-        >
-          Save as Drafts
-        </button>
+        {alwaysRequireReview ? (
+          <>
+            <button
+              onClick={() => handleSave(false)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90 transition-colors"
+              title="Saves to your planner for review — matches your Always require review preference"
+            >
+              <Check className="w-3 h-3" />
+              Save as Drafts
+            </button>
+            <button
+              onClick={() => setScheduleConfirmOpen(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors"
+            >
+              Approve & Schedule
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              // Primary action — opens the schedule-confirm modal,
+              // which (on confirm) calls handleSave(true).
+              // Scheduling sets Draft.scheduledFor and
+              // status=SCHEDULED; the publish worker picks them up
+              // at scheduledFor.
+              onClick={() => setScheduleConfirmOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-green-110 text-sp-bg hover:bg-accent-green-110/90 transition-colors"
+            >
+              <Check className="w-3 h-3" />
+              Approve & Schedule
+            </button>
+            <button
+              onClick={() => handleSave(false)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white-60 hover:text-white-100 hover:bg-white-5 transition-colors"
+            >
+              Save as Drafts
+            </button>
+          </>
+        )}
         <button
           onClick={() => {
             setAutoAssigned(false);

@@ -89,6 +89,12 @@ export function getDefaultCampaignTypeForSource(
   return map[source] ?? null;
 }
 
+// Spec aliases — the assistant-wiring prompt refers to these names.
+// Keep both exports so existing callers (the settings page) don't
+// need to change and new callers can use the spec-aligned naming.
+export const parseDefaultCampaignTypes = unpackDefaultCampaignTypes;
+export const serializeDefaultCampaignTypes = packDefaultCampaignTypes;
+
 // ══════════════════════════════════════════════════════════════════════════
 // Content Preferences — Utility layer
 //

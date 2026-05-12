@@ -3,7 +3,14 @@
 import { useMemo, useState, useCallback } from 'react';
 import { ImageIcon, Film, Image as ImageLucide, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAssets, useChannelSettings, useMediaProfile, type Channel, type MediaAsset } from '@/hooks/useSquadpitch';
+import {
+  useAssets,
+  useChannelSettings,
+  useContentPreferences,
+  useMediaProfile,
+  type Channel,
+  type MediaAsset,
+} from '@/hooks/useSquadpitch';
 import { useCampaignIntelligence } from '@/hooks/useCampaignIntelligence';
 import { CHANNEL_REGISTRY } from '@/lib/channelRegistry';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
@@ -71,6 +78,15 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
   // AI generation availability
   const aiImageAvailable = mediaProfile?.mode === 'BRAND_ASSETS_PLUS_AI' || mediaProfile?.mode === 'AI_CHARACTER';
 
+  // Content Preferences hint — when `autoGenerateMedia` is true and
+  // AI is available, we default the active tab to "Generate" and
+  // surface a banner so the user sees why. We deliberately don't
+  // kick off generation silently — generation has cost/usage
+  // implications that need a confirm click. The preference becomes
+  // a visible default action, not an automatic side effect.
+  const { data: contentPreferences } = useContentPreferences(clientId);
+  const autoGenerateMedia = contentPreferences?.autoGenerateMedia ?? false;
+
   const connectedChannels: Channel[] = useMemo(() => {
     if (!channelSettings) return [];
     return channelSettings.filter((cs) => cs.isEnabled).map((cs) => cs.channel);
@@ -89,9 +105,19 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
     return map;
   }, [mediaRec]);
 
-  // Tab resolution
+  // Tab resolution. When `autoGenerateMedia=true` and the Generate
+  // tab is available and the user hasn't already picked media, jump
+  // them straight to Generate so generating-from-content is the
+  // primary action surfaced.
   const tabs = useMemo(() => resolveTabs(session, aiImageAvailable), [session, aiImageAvailable]);
-  const [activeTab, setActiveTab] = useState<TabId>(() => resolveDefaultTab(tabs));
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    const noPriorMedia =
+      !session.mediaAcknowledged && session.selectedMediaIds.length === 0;
+    if (autoGenerateMedia && aiImageAvailable && noPriorMedia) {
+      return 'generate';
+    }
+    return resolveDefaultTab(tabs);
+  });
 
   // Selection state
   const [selected, setSelected] = useState<Set<string>>(() => new Set(session.selectedMediaIds));
@@ -264,6 +290,19 @@ export function MediaSelectCard({ session, clientId, onSelection }: Props) {
         onRemove={handleRemove}
         onToggleHero={toggleHero}
       />
+
+      {/* Auto-generate-media preference banner — only when the user
+          has the preference set, AI is available, and nothing has
+          been selected yet. Stays visible so the user can switch to
+          a different tab if they prefer; we don't kick off
+          generation automatically (cost/usage confirmation needs to
+          happen inside MediaTabGenerate). */}
+      {autoGenerateMedia && aiImageAvailable && selected.size === 0 && !session.mediaAcknowledged && (
+        <div className="rounded-lg border border-accent-green-110/20 bg-accent-green-110/5 px-3 py-2 text-[11px] text-accent-green-110">
+          Your preferences default to generating media when none is
+          attached. Click <span className="font-semibold">Generate</span> to start, or pick a different tab.
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex gap-1 overflow-x-auto pb-0.5">

@@ -33,6 +33,12 @@ interface Props {
   ready: boolean;
   hasGenerationResult: boolean;
   onSend: (text: string) => void;
+  /**
+   * Saved-preference channel order. When provided, channel chips
+   * appear in this order so a user's preferred network shows up
+   * first instead of the hardcoded Instagram-then-Facebook list.
+   */
+  preferredChannels?: readonly string[];
 }
 
 export function AssistantCommandBar({
@@ -40,6 +46,7 @@ export function AssistantCommandBar({
   ready,
   hasGenerationResult,
   onSend,
+  preferredChannels,
 }: Props) {
   const helperLabel = useMemo(
     () => getContextualHelperLabel(session, ready, hasGenerationResult),
@@ -50,8 +57,8 @@ export function AssistantCommandBar({
     [session, ready, hasGenerationResult],
   );
   const chips = useMemo(
-    () => getContextualChips(session, ready, hasGenerationResult),
-    [session, ready, hasGenerationResult],
+    () => getContextualChips(session, ready, hasGenerationResult, preferredChannels),
+    [session, ready, hasGenerationResult, preferredChannels],
   );
   const examples = useMemo(
     () => getContextualExamples(session, ready, hasGenerationResult),

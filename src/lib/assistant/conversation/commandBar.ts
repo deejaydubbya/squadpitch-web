@@ -174,6 +174,13 @@ export function getContextualChips(
   session: AssistantSessionState,
   ready: boolean,
   hasGenerationResult: boolean,
+  /**
+   * Optional: when set, reorders the channel chips so the user's
+   * preferred channels appear first. Channels not in the
+   * preferred list fall through in their static order. No effect
+   * on other steps.
+   */
+  preferredChannels?: readonly string[],
 ): CommandBarChip[] {
   const step = resolveStep(session, ready, hasGenerationResult);
 
@@ -198,13 +205,27 @@ export function getContextualChips(
       ];
 
     case 'channels':
-    case 'quickPostChannel':
-      return [
-        { label: 'Instagram', command: 'use Instagram' },
-        { label: 'Facebook', command: 'use Facebook' },
-        { label: 'LinkedIn', command: 'use LinkedIn' },
-        { label: 'TikTok', command: 'use TikTok' },
+    case 'quickPostChannel': {
+      const baseChips: Array<{ label: string; command: string; key: string }> = [
+        { key: 'INSTAGRAM', label: 'Instagram', command: 'use Instagram' },
+        { key: 'FACEBOOK', label: 'Facebook', command: 'use Facebook' },
+        { key: 'LINKEDIN', label: 'LinkedIn', command: 'use LinkedIn' },
+        { key: 'TIKTOK', label: 'TikTok', command: 'use TikTok' },
       ];
+      if (!preferredChannels || preferredChannels.length === 0) {
+        return baseChips.map(({ label, command }) => ({ label, command }));
+      }
+      // Stable-sort by preferred-list index. Channels not in the
+      // preferred list keep their original order after the sorted
+      // block.
+      const indexOf = (key: string) => {
+        const i = preferredChannels.indexOf(key);
+        return i === -1 ? Number.POSITIVE_INFINITY : i;
+      };
+      return [...baseChips]
+        .sort((a, b) => indexOf(a.key) - indexOf(b.key))
+        .map(({ label, command }) => ({ label, command }));
+    }
 
     case 'campaignType': {
       // Property campaigns get listing-specific chips; data-item /

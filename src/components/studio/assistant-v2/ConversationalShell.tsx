@@ -2,13 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
-import { useClient, useDataItems, useProperties } from '@/hooks/useSquadpitch';
+import {
+  useClient,
+  useContentPreferences,
+  useDataItems,
+  useProperties,
+} from '@/hooks/useSquadpitch';
 import { useConversationalAssistant } from '@/hooks/useConversationalAssistant';
 import { MessageThread } from './MessageThread';
 import { AssistantCommandBar } from './AssistantCommandBar';
 import { SummaryPanel } from './SummaryPanel';
 import type { AssistantAction, AssistantCampaignType } from '@/lib/assistant/types';
 import type { Channel } from '@/hooks/useSquadpitch';
+import { getDefaultCampaignTypeForSource } from '@/lib/assistant/contentPreferences';
 
 // Prefill payload passed in by the /create route from the parsed
 // query contract (see lib/assistant/createRouteParams.ts). Every
@@ -256,6 +262,136 @@ export function ConversationalShell({
     postAssistantText,
   ]);
 
+  // ── ContentPreferences defaults
+  //
+  // Seeds the session with the user's saved preferences once
+  // they've loaded. Each preference uses its own one-shot ref so
+  // the effect can run multiple times as the session evolves
+  // (mode picks → source pick → channel pick) without re-applying
+  // a default that's already been set or that the user explicitly
+  // cleared. URL prefill, prior user picks, and mid-session edits
+  // all win over the saved defaults.
+  const { data: preferences } = useContentPreferences(clientId);
+  const appliedCampaignType = useRef(false);
+  const appliedCampaignChannels = useRef(false);
+  const appliedCadence = useRef(false);
+  const appliedQuickPostChannel = useRef(false);
+  const appliedContentBucket = useRef(false);
+  useEffect(() => {
+    if (!preferences) return;
+    if (!session.mode) return;
+    // Don't compete with the URL-prefill effect — wait until it
+    // has already applied any synchronous fields it owns.
+    if (prefill?.mode && !appliedRef.current) return;
+
+    const actions: AssistantAction[] = [];
+    const notes: string[] = [];
+
+    // ── Campaign mode
+    if (session.mode === 'campaign') {
+      // Per-source default campaign type — fires once the source
+      // picker has resolved so we know which slot of the packed
+      // map to read.
+      if (
+        !appliedCampaignType.current &&
+        session.campaignSourceType &&
+        !session.campaignType
+      ) {
+        const defaultType = getDefaultCampaignTypeForSource(
+          preferences.defaultCampaignType,
+          session.campaignSourceType,
+        );
+        if (defaultType) {
+          appliedCampaignType.current = true;
+          actions.push({
+            type: 'SET_CAMPAIGN_TYPE',
+            payload: defaultType as AssistantCampaignType,
+          });
+          notes.push(`Campaign type: ${defaultType}`);
+        }
+      }
+
+      // Preferred channels — only when the user hasn't typed any.
+      if (
+        !appliedCampaignChannels.current &&
+        session.channels.length === 0 &&
+        preferences.preferredChannels.length > 0
+      ) {
+        appliedCampaignChannels.current = true;
+        actions.push({
+          type: 'SET_CHANNELS',
+          payload: preferences.preferredChannels,
+          source: 'auto',
+        });
+        notes.push(`Channels: ${preferences.preferredChannels.join(', ')}`);
+      }
+
+      // Cadence — stored in memory.preferredPreset so
+      // ScheduleReviewCard reads it on mount.
+      if (
+        !appliedCadence.current &&
+        preferences.preferredCampaignCadence &&
+        !session.memory.preferredPreset
+      ) {
+        appliedCadence.current = true;
+        actions.push({
+          type: 'SET_PREFERRED_PRESET',
+          payload: preferences.preferredCampaignCadence,
+        });
+      }
+    }
+
+    // ── Quick post mode
+    if (session.mode === 'quick_post') {
+      // Default channel — explicit quick-post default wins over the
+      // first preferred channel.
+      if (!appliedQuickPostChannel.current && !session.quickPostChannel) {
+        const channel =
+          preferences.defaultQuickPostChannel ??
+          preferences.preferredChannels[0] ??
+          null;
+        if (channel) {
+          appliedQuickPostChannel.current = true;
+          actions.push({ type: 'SET_QUICK_POST_CHANNEL', payload: channel });
+          notes.push(`Channel: ${channel}`);
+        }
+      }
+
+      // Content bucket — soft hint for idea-based quick posts.
+      if (
+        !appliedContentBucket.current &&
+        session.quickPostSource === 'idea' &&
+        !session.quickPostContentType &&
+        preferences.defaultContentBucket
+      ) {
+        appliedContentBucket.current = true;
+        actions.push({
+          type: 'SET_QUICK_POST_CONTENT_TYPE',
+          payload: preferences.defaultContentBucket,
+        });
+        notes.push(`Content bucket: ${preferences.defaultContentBucket}`);
+      }
+    }
+
+    if (actions.length === 0) return;
+    handleCardSelection(
+      actions,
+      `Applied your defaults — ${notes.join(' · ')}`,
+    );
+  }, [
+    preferences,
+    session.mode,
+    session.campaignSourceType,
+    session.campaignType,
+    session.channels.length,
+    session.memory.preferredPreset,
+    session.quickPostChannel,
+    session.quickPostContentType,
+    session.quickPostSource,
+    prefill?.mode,
+    handleCardSelection,
+  ]);
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Main chat area */}
@@ -298,6 +434,7 @@ export function ConversationalShell({
             ready={ready}
             hasGenerationResult={session.generationResult != null}
             onSend={sendMessage}
+            preferredChannels={preferences?.preferredChannels}
           />
         </div>
       </div>
