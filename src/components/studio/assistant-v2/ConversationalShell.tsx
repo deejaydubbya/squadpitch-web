@@ -5,7 +5,7 @@ import { RotateCcw } from 'lucide-react';
 import { useClient } from '@/hooks/useSquadpitch';
 import { useConversationalAssistant } from '@/hooks/useConversationalAssistant';
 import { MessageThread } from './MessageThread';
-import { ChatInput } from './ChatInput';
+import { AssistantCommandBar } from './AssistantCommandBar';
 import { SummaryPanel } from './SummaryPanel';
 
 interface Props {
@@ -81,17 +81,16 @@ export function ConversationalShell({ clientId, initialMode }: Props) {
           onCardSelection={handleCardSelection}
         />
 
-        {/* Input — fixed at bottom */}
+        {/* Command bar — fixed at bottom.
+            Provides per-step helper label, contextual chips, Examples
+            popover, and the existing typed input. Chips fire through
+            sendMessage so typed and clicked commands behave the same. */}
         <div className="shrink-0">
-          <ChatInput
+          <AssistantCommandBar
+            session={session}
+            ready={ready}
+            hasGenerationResult={session.generationResult != null}
             onSend={sendMessage}
-            placeholder={
-              ready
-                ? session.mode === 'quick_post'
-                  ? 'Ready to generate your post. Type anything to adjust.'
-                  : 'Ready to generate your campaign. Type anything to adjust.'
-                : 'Type your instructions or use the options above...'
-            }
           />
         </div>
       </div>

@@ -33,7 +33,10 @@ export function ChatInput({ onSend, placeholder = 'Type a message...', disabled 
   };
 
   return (
-    <div className="flex items-end gap-2 p-3 border-t border-white-10 bg-sp-card">
+    // No border/bg here — the AssistantCommandBar wrapper now owns
+    // the bottom-bar chrome (border-top + bg + helper rows). If
+    // someone wants ChatInput standalone they can wrap it.
+    <div className="flex items-end gap-2 px-3 pb-3 pt-1">
       <textarea
         ref={inputRef}
         value={value}

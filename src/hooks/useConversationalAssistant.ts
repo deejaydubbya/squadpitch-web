@@ -6,6 +6,7 @@ import { INITIAL_SESSION, INITIAL_MEMORY } from '@/lib/assistant/defaults';
 import type { ChatMessage, ConversationState, MessageStatus } from '@/lib/assistant/conversation/types';
 import { resolveNextPrompts, isReadyToGenerate, getStateSummary, getCompletionStatus } from '@/lib/assistant/conversation/stateResolver';
 import { parseUserInput, resolvePropertyFromText } from '@/lib/assistant/conversation/inputParser';
+import { getUnknownInputSuggestions } from '@/lib/assistant/conversation/commandBar';
 import { useProperties } from '@/hooks/useSquadpitch';
 import { SEQUENCE_PRESETS, buildSlotsForChannels } from '@/lib/assistant/schedulePresets';
 import {
@@ -564,14 +565,22 @@ export function useConversationalAssistant(workspaceId?: string | null, industry
         dispatchConversation({ type: 'ADD_MESSAGE', payload: confirmMsg });
         advanceConversation(updatedSession);
       } else {
-        // Re-prompt
+        // Nothing matched. Surface contextual suggestions tied to
+        // the current step instead of a generic "I didn't catch
+        // that" — teaches users what the input is for.
         const nextPrompts = resolveNextPrompts(session);
+        const suggestions = getUnknownInputSuggestions(
+          session,
+          isReadyToGenerate(session),
+          session.generationResult != null,
+        );
+        const suggestionLine =
+          suggestions.length > 0 ? ` You can try: ${suggestions.join(', ')}.` : '';
+        const hint = buildAssistantText(`I didn't catch that.${suggestionLine}`);
+        dispatchConversation({ type: 'ADD_MESSAGE', payload: hint });
         if (nextPrompts.length > 0) {
           const reprompt = buildNextPromptMessage(nextPrompts[0], session);
           dispatchConversation({ type: 'ADD_MESSAGE', payload: reprompt });
-        } else {
-          const hint = buildAssistantText(`I didn't catch that. You can type instructions or use the options above.`);
-          dispatchConversation({ type: 'ADD_MESSAGE', payload: hint });
         }
       }
     }

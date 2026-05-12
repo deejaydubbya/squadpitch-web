@@ -81,6 +81,14 @@ const CONTEXTUAL_MEDIA_PATTERNS: Array<{ pattern: RegExp; intent: string; label:
   { pattern: /\b(only\s*)?(interior|inside|indoor)/i, intent: 'select_property', label: 'Using interior photos' },
   { pattern: /\b(property|listing)\s*(photo|image|picture)/i, intent: 'select_property', label: 'Using property photos' },
   { pattern: /\buse\s*(the\s*)?(property|listing)\s*(photo|image|picture)/i, intent: 'select_property', label: 'Using property photos' },
+  // "use the best photos" / "use the best 3 photos" / "use first 5
+  // photos" — surfaced by the command bar's media chips. We treat
+  // these as "acknowledge the step" since the picker UI is what
+  // actually populates selectedMediaIds; saying "best photos" is a
+  // soft hint that the user wants the assistant to pick, not a
+  // multi-image selection action.
+  { pattern: /\buse\s*(the\s*)?(best|top|good)\s*(\d+\s*)?(image|photo|picture|media)s?/i, intent: 'select_all', label: 'Using the best available photos' },
+  { pattern: /\buse\s*(the\s*)?first\s*(\d+\s*)?(image|photo|picture|media)s?/i, intent: 'select_all', label: 'Using the first available photos' },
 ];
 
 // ── Contextual Schedule Patterns (when current step is slots) ────────────
