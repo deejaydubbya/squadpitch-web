@@ -6,6 +6,9 @@ import type { ChatMessage, CardType } from '@/lib/assistant/conversation/types';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { ModeCard } from './cards/ModeCard';
 import { CampaignTypeCard } from './cards/CampaignTypeCard';
+import { CampaignSourceCard } from './cards/CampaignSourceCard';
+import { CampaignDataItemCard } from './cards/CampaignDataItemCard';
+import { CampaignIdeaCard } from './cards/CampaignIdeaCard';
 import { PropertySelectCard } from './cards/PropertySelectCard';
 import { ChannelSelectCard } from './cards/ChannelSelectCard';
 import { MediaSelectCard } from './cards/MediaSelectCard';
@@ -152,10 +155,16 @@ function CardRenderer({
   switch (cardType) {
     case 'mode_select':
       return <ModeCard onSelection={onSelection} />;
+    case 'campaign_source':
+      return <CampaignSourceCard session={session} onSelection={onSelection} />;
     case 'campaign_type':
       return <CampaignTypeCard session={session} onSelection={onSelection} />;
     case 'property_select':
       return <PropertySelectCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'campaign_data_item':
+      return <CampaignDataItemCard session={session} clientId={clientId} onSelection={onSelection} />;
+    case 'campaign_idea':
+      return <CampaignIdeaCard session={session} onSelection={onSelection} />;
     case 'channel_select':
       return <ChannelSelectCard session={session} clientId={clientId} onSelection={onSelection} />;
     case 'media_select':

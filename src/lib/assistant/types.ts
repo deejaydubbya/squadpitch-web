@@ -37,11 +37,34 @@ export type AssistantMode = 'campaign' | 'quick_post';
 
 export type IndustryKey = 'real_estate' | (string & {});
 
-export type AssistantCampaignType =
+// Property-specific (real estate) campaign types.
+export type PropertyCampaignType =
   | 'just_listed'
   | 'open_house'
   | 'price_drop'
+  | 'just_sold'
+  | 'listing_spotlight'
+  // Legacy value still emitted by older sessions and the RE adapter
+  // until it's migrated to listing_spotlight. Treat as a synonym.
   | 'general_promotion';
+
+// Generic cross-industry campaign types (for content-asset and idea
+// sources where listing-specific framings don't apply).
+export type GenericCampaignType =
+  | 'awareness'
+  | 'lead_generation'
+  | 'educational'
+  | 'promotion_offer'
+  | 'social_proof'
+  | 'event_announcement';
+
+// The session stores either flavor as a plain string — the campaign
+// type is just an enum key the prompt builder branches on.
+export type AssistantCampaignType = PropertyCampaignType | GenericCampaignType;
+
+// What is this campaign / single post based on? Decides which picker
+// the assistant shows next and which campaign-type options appear.
+export type CampaignSourceType = 'property' | 'data_item' | 'idea';
 
 export type ScheduleMode = 'ai_proposed' | 'manual';
 
@@ -104,9 +127,23 @@ export interface AssistantSessionState {
   industryKey: IndustryKey;
   workspaceId: string | null;
 
-  // Property
+  // Campaign / single-post source
+  // What is this content based on? Drives which picker shows next
+  // and which campaign-type options appear.
+  campaignSourceType: CampaignSourceType | null;
+
+  // Property source (real-estate listings + any data item with type=PROPERTY)
   selectedPropertyId: string | null;
   propertyData: Record<string, unknown> | null;
+
+  // Content-asset source (non-property WorkspaceDataItem)
+  campaignDataItemId: string | null;
+  campaignDataItemTitle: string | null;
+  campaignDataItemType: string | null;
+  campaignDataItemData: Record<string, unknown> | null;
+
+  // Idea source — user describes the campaign in their own words
+  campaignIdea: string | null;
 
   // Campaign config
   campaignType: AssistantCampaignType | null;
@@ -163,8 +200,14 @@ export interface MediaOption {
 
 export type AssistantAction =
   | { type: 'SET_MODE'; payload: AssistantMode }
+  | { type: 'SET_CAMPAIGN_SOURCE_TYPE'; payload: CampaignSourceType }
   | { type: 'SET_PROPERTY'; payload: { id: string; data: Record<string, unknown> } }
   | { type: 'CLEAR_PROPERTY' }
+  | {
+      type: 'SET_CAMPAIGN_DATA_ITEM';
+      payload: { id: string; title: string; itemType: string; data: Record<string, unknown> } | null;
+    }
+  | { type: 'SET_CAMPAIGN_IDEA'; payload: string | null }
   | { type: 'SET_CAMPAIGN_TYPE'; payload: AssistantCampaignType }
   | { type: 'SET_CHANNELS'; payload: Channel[]; source?: 'user' | 'auto' }
   | { type: 'SET_SCHEDULE_MODE'; payload: ScheduleMode }

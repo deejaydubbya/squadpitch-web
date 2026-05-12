@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { getAdapterSafe } from '@/lib/assistant/adapterRegistry';
 import { recommendCampaignType } from '@/lib/assistant/campaignIntelligence';
+import { getCampaignTypeOptions } from '@/lib/assistant/defaults';
 
 interface Props {
   session: AssistantSessionState;
@@ -15,17 +16,25 @@ interface Props {
 export function CampaignTypeCard({ session, onSelection }: Props) {
   const adapter = useMemo(() => getAdapterSafe(session.industryKey), [session.industryKey]);
 
-  // Get intelligence recommendation if property data is available
+  // Intelligence recommendation only applies to property-sourced
+  // campaigns — recommendCampaignType examines fields (price/status/
+  // openHouseAt) that only exist on property dataJson.
   const recommendation = useMemo(() => {
+    if (session.campaignSourceType !== 'property') return null;
     if (!session.propertyData) return null;
     try {
       return recommendCampaignType(session.propertyData, adapter);
     } catch {
       return null;
     }
-  }, [session.propertyData, adapter]);
+  }, [session.campaignSourceType, session.propertyData, adapter]);
 
-  const campaignTypes = adapter.campaignTypes;
+  // Property → adapter's industry-specific types.
+  // Content asset / idea → generic cross-industry types.
+  const campaignTypes = useMemo(
+    () => getCampaignTypeOptions(session.industryKey, session.campaignSourceType),
+    [session.industryKey, session.campaignSourceType],
+  );
 
   return (
     <div className="space-y-2">

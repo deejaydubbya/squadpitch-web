@@ -1,4 +1,4 @@
-import type { AssistantSessionState } from '../types';
+import type { AssistantSessionState, CampaignSourceType } from '../types';
 import type { CampaignType, DraftKind, Channel, CampaignImageContext } from '@/hooks/useSquadpitch';
 import { CAMPAIGN_PHASES } from '../campaignStrategy';
 import type { CampaignPhaseKey } from '../campaignStrategy.types';
@@ -9,7 +9,22 @@ import type { CampaignPhaseKey } from '../campaignStrategy.types';
  * Chat history is never consulted.
  */
 export interface CampaignGenerationInput {
+  /**
+   * The canonical context object passed to the prompt builder. Shape
+   * depends on sourceType:
+   *  - property: the listing's dataJson (address/price/etc.)
+   *  - data_item: { title, type, summary, ...item.dataJson }
+   *  - idea:    { title: 'Custom idea', idea: <user text> }
+   * Backend treats this as opaque input + reads `sourceType` to know
+   * how to frame the prompt.
+   */
   propertyData: Record<string, unknown>;
+  /**
+   * What kind of source this campaign is built from. Backend prompts
+   * differ for property (listing-aware framing) vs data_item/idea
+   * (generic content campaign framing).
+   */
+  sourceType?: CampaignSourceType;
   campaignType?: CampaignType;
   dataItemId?: string;
   slots: Array<{
@@ -50,24 +65,60 @@ export function mapSessionToCampaignInput(
   session: AssistantSessionState,
   preferencesContext?: string | null
 ): CampaignGenerationInput | null {
-  if (!session.propertyData) return null;
   if (!session.campaignType) return null;
   if (session.slots.length === 0) return null;
 
-  // Build imageContext from property photos for AI imageHint assignment
-  const images = session.propertyData.images as Array<{ url?: string; label?: string; description?: string }> | undefined;
-  const imageContext: CampaignImageContext[] | undefined =
-    Array.isArray(images) && images.length > 0
-      ? images.slice(0, 8).map((img, i) => ({
-          label: img.label || `photo_${i + 1}`,
-          description: img.description || '',
-        }))
-      : undefined;
+  // Resolve the source-derived context object that we send to the
+  // backend as `propertyData`. Default to property for legacy
+  // sessions that haven't picked a source type yet.
+  const sourceType: CampaignSourceType = session.campaignSourceType ?? 'property';
+  let sourceData: Record<string, unknown> | null = null;
+  let dataItemId: string | undefined;
+
+  if (sourceType === 'property') {
+    if (!session.propertyData) return null;
+    sourceData = session.propertyData;
+    dataItemId = session.selectedPropertyId ?? undefined;
+  } else if (sourceType === 'data_item') {
+    if (!session.campaignDataItemId) return null;
+    const item = session.campaignDataItemData ?? {};
+    sourceData = {
+      ...item,
+      title: session.campaignDataItemTitle ?? (item as { title?: unknown }).title ?? 'Content Asset',
+      _dataItemType: session.campaignDataItemType ?? null,
+    };
+    dataItemId = session.campaignDataItemId;
+  } else {
+    // idea
+    if (!session.campaignIdea) return null;
+    sourceData = {
+      title: 'Custom campaign idea',
+      idea: session.campaignIdea,
+    };
+  }
+
+  // Build imageContext from property photos for AI imageHint
+  // assignment. Only applicable when source is a property (data
+  // items / ideas don't carry an `images` array).
+  let imageContext: CampaignImageContext[] | undefined;
+  if (sourceType === 'property') {
+    const images = sourceData?.images as
+      | Array<{ url?: string; label?: string; description?: string }>
+      | undefined;
+    imageContext =
+      Array.isArray(images) && images.length > 0
+        ? images.slice(0, 8).map((img, i) => ({
+            label: img.label || `photo_${i + 1}`,
+            description: img.description || '',
+          }))
+        : undefined;
+  }
 
   return {
-    propertyData: session.propertyData,
+    propertyData: sourceData!,
+    sourceType,
     campaignType: session.campaignType as CampaignType,
-    dataItemId: session.selectedPropertyId ?? undefined,
+    dataItemId,
     slots: session.slots.map((s) => {
       const phaseKey = s.angle as CampaignPhaseKey | undefined;
       const phaseDef = phaseKey && CAMPAIGN_PHASES[phaseKey] ? CAMPAIGN_PHASES[phaseKey] : null;
@@ -151,7 +202,16 @@ export function validateSessionForGeneration(session: AssistantSessionState): {
   }
 
   if (session.mode === 'campaign') {
-    if (!session.selectedPropertyId) missing.push('property');
+    const src = session.campaignSourceType;
+    if (!src) {
+      missing.push('campaignSourceType');
+    } else if (src === 'property' && !session.selectedPropertyId) {
+      missing.push('property');
+    } else if (src === 'data_item' && !session.campaignDataItemId) {
+      missing.push('campaignDataItem');
+    } else if (src === 'idea' && !session.campaignIdea) {
+      missing.push('campaignIdea');
+    }
     if (!session.campaignType) missing.push('campaignType');
     if (session.channels.length === 0) missing.push('channels');
     if (session.slots.length === 0) missing.push('schedule');

@@ -35,8 +35,7 @@ export function PropertySelectCard({ session, clientId, onSelection }: Props) {
         <div className="space-y-1">
           <p className="text-sm font-medium text-white-80">No {t.itemPlural} yet</p>
           <p className="text-xs text-white-40 max-w-[260px]">
-            To create a listing campaign, you need at least one {t.itemSingular} in your library.
-            Add {t.itemPlural} from the Data page first.
+            To build a campaign around a {t.itemSingular}, add at least one to your library — or go back and pick a Content Asset / Idea instead.
           </p>
         </div>
         <Link

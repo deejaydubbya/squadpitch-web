@@ -20,8 +20,17 @@ export const INITIAL_SESSION: AssistantSessionState = {
   industryKey: 'real_estate',
   workspaceId: null,
 
+  campaignSourceType: null,
+
   selectedPropertyId: null,
   propertyData: null,
+
+  campaignDataItemId: null,
+  campaignDataItemTitle: null,
+  campaignDataItemType: null,
+  campaignDataItemData: null,
+
+  campaignIdea: null,
 
   campaignType: null,
   channels: [],
@@ -52,7 +61,9 @@ export const INITIAL_SESSION: AssistantSessionState = {
 
 // ── Default Channels ─────────────────────────────────────────────────────
 
-export const DEFAULT_CHANNELS_BY_CAMPAIGN_TYPE: Record<AssistantCampaignType, Channel[]> = {
+// Partial — callers fall back to the adapter table or
+// GENERIC_DEFAULT_CHANNELS below when a key is missing.
+export const DEFAULT_CHANNELS_BY_CAMPAIGN_TYPE: Partial<Record<AssistantCampaignType, Channel[]>> = {
   just_listed: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'YOUTUBE'],
   open_house: ['INSTAGRAM', 'FACEBOOK', 'YOUTUBE'],
   price_drop: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
@@ -88,12 +99,73 @@ export const CAMPAIGN_TYPE_OPTIONS: Array<{
   },
 ];
 
+// ── Generic Cross-Industry Campaign Type Options ────────────────────────
+// Shown when the campaign source is a Content Asset or an Idea
+// (i.e. anything other than a property/listing). Industry-agnostic.
+
+export const GENERIC_CAMPAIGN_TYPE_OPTIONS: CampaignTypeOption[] = [
+  {
+    value: 'awareness',
+    label: 'Awareness Campaign',
+    description: 'Build top-of-funnel attention for a topic, brand, or offer',
+  },
+  {
+    value: 'lead_generation',
+    label: 'Lead Generation Campaign',
+    description: 'Drive sign-ups, inquiries, or DM conversations',
+  },
+  {
+    value: 'educational',
+    label: 'Educational Campaign',
+    description: 'Teach your audience something useful in a sequence',
+  },
+  {
+    value: 'promotion_offer',
+    label: 'Promotion / Offer Campaign',
+    description: 'Highlight a deal, discount, or limited-time offer',
+  },
+  {
+    value: 'social_proof',
+    label: 'Testimonial / Social Proof Campaign',
+    description: 'Spotlight reviews, results, or case studies',
+  },
+  {
+    value: 'event_announcement',
+    label: 'Event / Announcement Campaign',
+    description: 'Promote an upcoming event or company news',
+  },
+];
+
+// Default channel sets for the generic types (mirrors the
+// per-adapter table above; conservative picks that work for most
+// industries).
+export const GENERIC_DEFAULT_CHANNELS: Record<string, Channel[]> = {
+  awareness: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
+  lead_generation: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
+  educational: ['INSTAGRAM', 'LINKEDIN', 'YOUTUBE'],
+  promotion_offer: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
+  social_proof: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
+  event_announcement: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'],
+};
+
 // ── Adapter-Aware Helpers ───────────────────────────────────────────────
 
-export function getCampaignTypeOptions(industryKey: string = 'real_estate'): CampaignTypeOption[] {
-  return getAdapter(industryKey).campaignTypes;
+export function getCampaignTypeOptions(
+  industryKey: string = 'real_estate',
+  sourceType: 'property' | 'data_item' | 'idea' | null = 'property',
+): CampaignTypeOption[] {
+  // Property source → adapter's industry-specific types (just_listed
+  // etc. for real estate). Anything else → generic cross-industry list.
+  if (sourceType === 'property') {
+    return getAdapter(industryKey).campaignTypes;
+  }
+  return GENERIC_CAMPAIGN_TYPE_OPTIONS;
 }
 
 export function getDefaultChannels(campaignType: string, industryKey: string = 'real_estate'): Channel[] {
-  return getAdapter(industryKey).defaultChannelsByCampaignType[campaignType] ?? [];
+  return (
+    getAdapter(industryKey).defaultChannelsByCampaignType[campaignType] ??
+    GENERIC_DEFAULT_CHANNELS[campaignType] ??
+    []
+  );
 }

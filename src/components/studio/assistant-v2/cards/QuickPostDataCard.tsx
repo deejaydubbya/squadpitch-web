@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -18,17 +18,31 @@ interface Props {
   onSelection: (action: AssistantAction | AssistantAction[], confirmationText: string) => void;
 }
 
+// Top-level bucket picker so users can filter the data-item list
+// by source type. Defaults to "all" — switching to "properties" or
+// "content_assets" filters the list client-side without changing the
+// data we fetch from the server. Cheap and clear.
+type SourceBucket = 'all' | 'properties' | 'content_assets';
+
 export function QuickPostDataCard({ session, clientId, onSelection }: Props) {
+  void session;
   const bdLabels = useBusinessDataLabels(clientId);
 
+  const [bucket, setBucket] = useState<SourceBucket>('all');
   const [selectedDataItem, setSelectedDataItem] = useState<WorkspaceDataItem | null>(null);
   const [selectedBlueprint, setSelectedBlueprint] = useState<ContentBlueprint | null>(null);
   const [dataSearch, setDataSearch] = useState('');
 
-  const { data: dataItems } = useDataItems(clientId, {
+  const { data: rawDataItems } = useDataItems(clientId, {
     search: dataSearch.trim() || undefined,
-    limit: 20,
+    limit: 40,
   });
+  const dataItems = useMemo(() => {
+    if (!rawDataItems) return rawDataItems;
+    if (bucket === 'properties') return rawDataItems.filter((i) => i.type === 'PROPERTY');
+    if (bucket === 'content_assets') return rawDataItems.filter((i) => i.type !== 'PROPERTY');
+    return rawDataItems;
+  }, [rawDataItems, bucket]);
   const { data: blueprints } = useBlueprints(
     selectedDataItem ? { applicableType: selectedDataItem.type } : {}
   );
@@ -80,6 +94,29 @@ export function QuickPostDataCard({ session, clientId, onSelection }: Props) {
         </div>
       ) : (
         <>
+          <div className="flex gap-1 p-0.5 rounded-lg bg-white-5 border border-white-10">
+            {(
+              [
+                { value: 'all', label: 'All' },
+                { value: 'properties', label: 'Properties' },
+                { value: 'content_assets', label: 'Content Assets' },
+              ] as Array<{ value: SourceBucket; label: string }>
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setBucket(opt.value)}
+                className={cn(
+                  'flex-1 py-1 rounded-md text-[11px] font-medium transition-colors',
+                  bucket === opt.value
+                    ? 'bg-accent-green-110 text-sp-surface'
+                    : 'text-white-60 hover:text-white-100',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <input
             value={dataSearch}
             onChange={(e) => setDataSearch(e.target.value)}

@@ -1,6 +1,7 @@
 import type { AssistantSessionState, FieldStatus } from '../types';
 import type { ResolvedPrompt, CardType, Step } from './types';
 import { getAdapterSafe } from '../adapterRegistry';
+import { GENERIC_CAMPAIGN_TYPE_OPTIONS } from '../defaults';
 
 // ── Field Definition ────────────────────────────────────────────────
 
@@ -40,6 +41,19 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
     isComplete: (s) => s.mode !== null,
   },
   {
+    field: 'campaignSourceType',
+    cardType: 'campaign_source',
+    priority: 5,
+    label: 'Source',
+    displayValue: (s) => {
+      if (s.campaignSourceType === 'property') return 'Property / Listing';
+      if (s.campaignSourceType === 'data_item') return 'Content Asset';
+      if (s.campaignSourceType === 'idea') return 'From an idea';
+      return null;
+    },
+    isComplete: (s) => s.campaignSourceType !== null,
+  },
+  {
     field: 'selectedPropertyId',
     cardType: 'property_select',
     priority: 10,
@@ -63,6 +77,28 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
         || 'Selected';
     },
     isComplete: (s) => s.selectedPropertyId !== null,
+    isRelevant: (s) => s.campaignSourceType === 'property',
+  },
+  {
+    field: 'campaignDataItemId',
+    cardType: 'campaign_data_item',
+    priority: 10,
+    label: 'Content Asset',
+    displayValue: (s) => s.campaignDataItemTitle ?? (s.campaignDataItemId ? 'Selected' : null),
+    isComplete: (s) => s.campaignDataItemId !== null,
+    isRelevant: (s) => s.campaignSourceType === 'data_item',
+  },
+  {
+    field: 'campaignIdea',
+    cardType: 'campaign_idea',
+    priority: 10,
+    label: 'Idea',
+    displayValue: (s) => {
+      if (!s.campaignIdea) return null;
+      return s.campaignIdea.length > 60 ? s.campaignIdea.slice(0, 60) + '…' : s.campaignIdea;
+    },
+    isComplete: (s) => s.campaignIdea !== null && s.campaignIdea.trim().length > 0,
+    isRelevant: (s) => s.campaignSourceType === 'idea',
   },
   {
     field: 'campaignType',
@@ -71,8 +107,15 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
     label: 'Campaign Type',
     displayValue: (s) => {
       if (!s.campaignType) return null;
+      // The current type can be either an adapter-specific
+      // (property) value or a generic cross-industry value, so look in
+      // both lists.
       const adapter = getAdapterSafe(s.industryKey);
-      return adapter.campaignTypes.find((ct) => ct.value === s.campaignType)?.label ?? s.campaignType;
+      const fromAdapter = adapter.campaignTypes.find((ct) => ct.value === s.campaignType);
+      if (fromAdapter) return fromAdapter.label;
+      const fromGeneric = GENERIC_CAMPAIGN_TYPE_OPTIONS.find((ct) => ct.value === s.campaignType);
+      if (fromGeneric) return fromGeneric.label;
+      return s.campaignType;
     },
     isComplete: (s) => s.campaignType !== null,
   },
@@ -301,10 +344,13 @@ export function getStateSummary(session: AssistantSessionState): SummaryItem[] {
 
 const STEP_MESSAGES: Record<string, (session: AssistantSessionState) => string> = {
   mode: () => "What would you like to create?",
+  campaignSourceType: () => "What should this campaign be based on?",
   selectedPropertyId: (s) => {
     const t = getAdapterSafe(s.industryKey).terminology;
-    return `Which ${t.itemSingular} is this for?`;
+    return `Which ${t.itemSingular} should this campaign promote?`;
   },
+  campaignDataItemId: () => "Which content asset should this campaign use?",
+  campaignIdea: () => "What should this campaign be about?",
   campaignType: () => "What type of campaign should we create?",
   channels: () => "Which channels do you want to post on?",
   quickPostSource: () => "Do you want to use your data or start from an idea?",

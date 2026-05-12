@@ -31,10 +31,53 @@ function sessionReducerCore(
   switch (action.type) {
     case 'SET_MODE':
       return { ...INITIAL_SESSION, mode: action.payload, workspaceId: state.workspaceId, industryKey: state.industryKey, memory: state.memory };
+    case 'SET_CAMPAIGN_SOURCE_TYPE':
+      // Changing the source type always clears every downstream source
+      // value — switching from property to idea (or vice versa) should
+      // never leak stale picks. The campaignType is also cleared since
+      // its options depend on source type.
+      return {
+        ...state,
+        campaignSourceType: action.payload,
+        selectedPropertyId: null,
+        propertyData: null,
+        campaignDataItemId: null,
+        campaignDataItemTitle: null,
+        campaignDataItemType: null,
+        campaignDataItemData: null,
+        campaignIdea: null,
+        campaignType: null,
+      };
     case 'SET_PROPERTY':
-      return { ...state, selectedPropertyId: action.payload.id, propertyData: action.payload.data };
+      // When the user picks a property via the campaign source path,
+      // auto-set campaignSourceType so the resolver doesn't try to
+      // re-ask. Existing call sites that fire SET_PROPERTY without
+      // first picking a source still work — sourceType backfills.
+      return {
+        ...state,
+        selectedPropertyId: action.payload.id,
+        propertyData: action.payload.data,
+        campaignSourceType: state.campaignSourceType ?? 'property',
+      };
     case 'CLEAR_PROPERTY':
       return { ...state, selectedPropertyId: null, propertyData: null };
+    case 'SET_CAMPAIGN_DATA_ITEM':
+      return {
+        ...state,
+        campaignDataItemId: action.payload?.id ?? null,
+        campaignDataItemTitle: action.payload?.title ?? null,
+        campaignDataItemType: action.payload?.itemType ?? null,
+        campaignDataItemData: action.payload?.data ?? null,
+        // Backfill so an SET_CAMPAIGN_DATA_ITEM without an earlier
+        // source pick still lands in the data-item flow.
+        campaignSourceType: action.payload ? (state.campaignSourceType ?? 'data_item') : state.campaignSourceType,
+      };
+    case 'SET_CAMPAIGN_IDEA':
+      return {
+        ...state,
+        campaignIdea: action.payload,
+        campaignSourceType: action.payload ? (state.campaignSourceType ?? 'idea') : state.campaignSourceType,
+      };
     case 'SET_CAMPAIGN_TYPE':
       return { ...state, campaignType: action.payload };
     case 'SET_CHANNELS': {
@@ -237,8 +280,22 @@ function conversationReducer(
 const FIELD_DEPENDENCIES: Record<string, string[]> = {
   // Mode change resets everything (reducer already handles via INITIAL_SESSION)
   mode: ['campaignType', 'channels', 'slots', 'quickPostChannel', 'quickPostSource', 'selectedMediaIds'],
+  // Changing source type clears every potential source value + campaign
+  // type (since the type options depend on source).
+  campaignSourceType: [
+    'selectedPropertyId',
+    'campaignDataItemId',
+    'campaignIdea',
+    'campaignType',
+    'selectedMediaIds',
+    'slots',
+  ],
   // Changing property invalidates media selections and generated output
   selectedPropertyId: ['selectedMediaIds', 'slots'],
+  // Changing the picked data item invalidates downstream selections
+  campaignDataItemId: ['selectedMediaIds', 'slots'],
+  // Idea text changes invalidate slots (schedule may depend on it)
+  campaignIdea: ['slots'],
   // Changing campaign type invalidates schedule and generated output
   campaignType: ['slots'],
   // Changing channels may invalidate schedule (different channel mix)
@@ -617,6 +674,9 @@ export function useConversationalAssistant(workspaceId?: string | null, industry
 function actionToFieldName(action: AssistantAction): string | null {
   switch (action.type) {
     case 'SET_MODE': return 'mode';
+    case 'SET_CAMPAIGN_SOURCE_TYPE': return 'campaignSourceType';
+    case 'SET_CAMPAIGN_DATA_ITEM': return 'campaignDataItemId';
+    case 'SET_CAMPAIGN_IDEA': return 'campaignIdea';
     case 'SET_CAMPAIGN_TYPE': return 'campaignType';
     case 'SET_CHANNELS': return 'channels';
     case 'SET_PROPERTY': return 'selectedPropertyId';
@@ -635,7 +695,10 @@ function actionToFieldName(action: AssistantAction): string | null {
 function fieldToCardType(field: string): import('@/lib/assistant/conversation/types').CardType | null {
   const map: Record<string, import('@/lib/assistant/conversation/types').CardType> = {
     mode: 'mode_select',
+    campaignSourceType: 'campaign_source',
     selectedPropertyId: 'property_select',
+    campaignDataItemId: 'campaign_data_item',
+    campaignIdea: 'campaign_idea',
     campaignType: 'campaign_type',
     channels: 'channel_select',
     quickPostSource: 'quick_post_source',
@@ -753,6 +816,10 @@ function getClearAction(field: string): AssistantAction | null {
     case 'channels': return { type: 'SET_CHANNELS', payload: [], source: 'auto' };
     case 'slots': return { type: 'SET_SLOTS', payload: [] };
     case 'selectedMediaIds': return { type: 'SET_MEDIA', payload: [] };
+    case 'campaignType': return { type: 'SET_CAMPAIGN_TYPE', payload: null as any };
+    case 'selectedPropertyId': return { type: 'CLEAR_PROPERTY' };
+    case 'campaignDataItemId': return { type: 'SET_CAMPAIGN_DATA_ITEM', payload: null };
+    case 'campaignIdea': return { type: 'SET_CAMPAIGN_IDEA', payload: null };
     case 'quickPostSource': return { type: 'SET_QUICK_POST_SOURCE', payload: null as any };
     case 'quickPostChannel': return { type: 'SET_QUICK_POST_CHANNEL', payload: null as any };
     case 'quickPostDataItemId': return { type: 'SET_QUICK_POST_DATA_ITEM', payload: null };

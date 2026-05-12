@@ -4985,6 +4985,11 @@ export function useGenerateListingCampaign(clientId: string) {
   return useMutation({
     mutationFn: (payload: {
       propertyData: Record<string, unknown>;
+      // The frontend's campaign source picker emits this so the
+      // backend can branch its prompt (property vs content asset vs
+      // freeform idea). Defaults server-side to 'property' for
+      // legacy clients that don't send it.
+      sourceType?: 'property' | 'data_item' | 'idea';
       campaignType?: CampaignType;
       dataItemId?: string;
       imageContext?: CampaignImageContext[];

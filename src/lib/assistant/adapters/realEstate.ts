@@ -23,10 +23,15 @@ function formatPrice(n: number): string {
 }
 
 function formatCampaignLabel(type: AssistantCampaignType): string {
-  const labels: Record<AssistantCampaignType, string> = {
+  // Partial — only the property types we actually use here have
+  // human labels. Generic types are routed to the generic options
+  // list (see defaults.ts), so this function isn't called for them.
+  const labels: Partial<Record<AssistantCampaignType, string>> = {
     just_listed: 'Just Listed',
     open_house: 'Open House',
     price_drop: 'Price Drop',
+    just_sold: 'Just Sold',
+    listing_spotlight: 'Listing Spotlight',
     general_promotion: 'General Promotion',
   };
   return labels[type] ?? type;
@@ -37,6 +42,10 @@ function formatCampaignLabel(type: AssistantCampaignType): string {
 function recommendCampaignType(
   propertyData: Record<string, unknown>,
 ): CampaignTypeRecommendation {
+  // Only the property types the heuristic actually returns. Other
+  // adapter types (just_sold, listing_spotlight, generic) are not
+  // produced by this rules engine — they're picked manually by the
+  // user from the campaign-type card.
   const allTypes: AssistantCampaignType[] = ['just_listed', 'open_house', 'price_drop', 'general_promotion'];
 
   // Rule 1: Open house date in the future
@@ -508,13 +517,18 @@ export const realEstateAdapter: IndustryAdapter = {
     { value: 'just_listed', label: 'Just Listed', description: 'Announce a new listing across multiple channels' },
     { value: 'open_house', label: 'Open House', description: 'Promote an upcoming open house event' },
     { value: 'price_drop', label: 'Price Drop', description: 'Highlight a price reduction to drive urgency' },
-    { value: 'general_promotion', label: 'General Promotion', description: 'Spotlight a listing with flexible messaging' },
+    { value: 'just_sold', label: 'Just Sold', description: 'Celebrate a closing and reinforce social proof' },
+    { value: 'listing_spotlight', label: 'Listing Spotlight', description: 'Flexible feature campaign for a listing with no specific trigger' },
   ],
 
   defaultChannelsByCampaignType: {
     just_listed: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'YOUTUBE'] as Channel[],
     open_house: ['INSTAGRAM', 'FACEBOOK', 'YOUTUBE'] as Channel[],
     price_drop: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'] as Channel[],
+    just_sold: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'] as Channel[],
+    listing_spotlight: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'YOUTUBE'] as Channel[],
+    // Legacy synonym for listing_spotlight — kept so existing sessions
+    // and the strategy resolver below don't 404 on the old key.
     general_promotion: ['INSTAGRAM', 'FACEBOOK', 'LINKEDIN', 'YOUTUBE'] as Channel[],
   },
 
