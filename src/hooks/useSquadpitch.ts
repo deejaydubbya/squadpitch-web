@@ -42,6 +42,33 @@ export type DraftStatus =
   | 'REJECTED'
   | 'FAILED';
 
+export type CampaignStatus =
+  | 'DRAFT'
+  | 'PENDING_REVIEW'
+  | 'SCHEDULED'
+  | 'PUBLISHING'
+  | 'PUBLISHED'
+  | 'ARCHIVED'
+  | 'FAILED';
+
+export interface Campaign {
+  id: string;
+  clientId: string;
+  name: string;
+  campaignType: string;
+  sourceType: 'property' | 'data_item' | 'idea' | null;
+  sourceDataItemId: string | null;
+  sourceTitle: string | null;
+  campaignIdea: string | null;
+  status: CampaignStatus;
+  startsAt: string | null;
+  endsAt: string | null;
+  metadataJson: Record<string, unknown> | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface BrandProfile {
   clientId: string;
   description: string | null;
@@ -1291,6 +1318,10 @@ export const squadpitchKeys = {
   drafts: (filters?: Record<string, unknown>) =>
     [...squadpitchKeys.all, 'drafts', filters ?? {}] as const,
   draft: (id: string) => [...squadpitchKeys.all, 'draft', id] as const,
+  campaigns: (clientId: string, filters?: Record<string, unknown>) =>
+    [...squadpitchKeys.all, 'client', clientId, 'campaigns', filters ?? {}] as const,
+  campaign: (id: string) =>
+    [...squadpitchKeys.all, 'campaign', id] as const,
   assets: (clientId: string, filters?: Record<string, unknown>) =>
     [...squadpitchKeys.all, 'client', clientId, 'assets', filters ?? {}] as const,
   asset: (id: string) => [...squadpitchKeys.all, 'asset', id] as const,
@@ -2891,6 +2922,44 @@ export function useGeneratePostFromAsset(clientId: string) {
       qc.invalidateQueries({ queryKey: squadpitchKeys.assets(clientId) });
       qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
     },
+  });
+}
+
+// ── Campaigns ─────────────────────────────────────────────────────────
+//
+// First-class Campaign rows live alongside Drafts. The Planner
+// still groups by `Draft.campaignId` today (back-compat); these
+// hooks let surfaces that want canonical campaign metadata
+// (Planner header, Dashboard active campaigns, future Sites/Ads
+// modules) read it directly.
+
+export interface CampaignFilters {
+  status?: CampaignStatus;
+}
+
+export function useCampaigns(
+  clientId: string | undefined,
+  filters: CampaignFilters = {},
+) {
+  const query = new URLSearchParams();
+  if (filters.status) query.set('status', filters.status);
+  const qs = query.toString();
+  return useQuery({
+    queryKey: squadpitchKeys.campaigns(clientId ?? '', filters as Record<string, unknown>),
+    queryFn: () =>
+      apiFetch<{ campaigns: Campaign[] }>(
+        `workspaces/${clientId}/campaigns${qs ? `?${qs}` : ''}`,
+      ).then((r) => r.campaigns),
+    enabled: !!clientId,
+  });
+}
+
+export function useCampaign(id: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.campaign(id ?? ''),
+    queryFn: () =>
+      apiFetch<{ campaign: Campaign }>(`campaigns/${id}`).then((r) => r.campaign),
+    enabled: !!id,
   });
 }
 

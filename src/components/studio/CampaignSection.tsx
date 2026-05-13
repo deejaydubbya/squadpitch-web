@@ -15,7 +15,7 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type Draft } from '@/hooks/useSquadpitch';
+import { type Draft, useCampaign } from '@/hooks/useSquadpitch';
 import {
   parseDraftSourceMeta,
   sourceTypeLabel,
@@ -61,10 +61,21 @@ export function CampaignSection({
   onExitFocusMode,
   highlighted = false,
 }: CampaignSectionProps) {
+  // ── Canonical Campaign row (Plan 02-02 — first-class Campaign).
+  // When the row exists we prefer its metadata over the Draft
+  // denorm fields. Drafts still drive grouping (campaignDrafts
+  // already arrives reduced from groupDraftsByCampaign) and slot
+  // ordering; this hook just lets us show the canonical
+  // name/source/status if it's been promoted. Fallback to the
+  // Draft denorm fields keeps everything working when the
+  // Campaign row hasn't loaded yet or doesn't exist (legacy
+  // grouped drafts pre-backfill, etc.).
+  const { data: campaign } = useCampaign(campaignId);
+
   // ── Computed campaign metadata ──────────────────────────────────────
   const campaignMeta = useMemo(() => {
-    const name = campaignDrafts[0]?.campaignName || 'Unnamed Campaign';
-    const type = campaignDrafts[0]?.campaignType || 'just_listed';
+    const name = campaign?.name ?? campaignDrafts[0]?.campaignName ?? 'Unnamed Campaign';
+    const type = campaign?.campaignType ?? campaignDrafts[0]?.campaignType ?? 'just_listed';
     const postCount = campaignDrafts.length;
 
     const channels = new Set<string>();
@@ -90,11 +101,21 @@ export function CampaignSection({
       .map((c) => CHANNEL_LABELS[c] ?? c)
       .join(', ');
 
-    // Source attribution lives on each Draft's `warnings` array
-    // (key:value tags written by save-drafts). The first draft is
-    // representative — every draft in a campaign shares the same
-    // attribution tags.
-    const sourceMeta = parseDraftSourceMeta(campaignDrafts[0]?.warnings ?? null);
+    // Source attribution: prefer the canonical Campaign row when
+    // it's loaded. Fall back to the per-draft warnings tags
+    // parser for legacy groups and pre-load renders.
+    const parsedFromWarnings = parseDraftSourceMeta(
+      campaignDrafts[0]?.warnings ?? null,
+    );
+    const sourceMeta = campaign
+      ? {
+          ...parsedFromWarnings,
+          sourceType: campaign.sourceType ?? parsedFromWarnings.sourceType,
+          sourceTitle: campaign.sourceTitle ?? parsedFromWarnings.sourceTitle,
+          dataItemId: campaign.sourceDataItemId ?? parsedFromWarnings.dataItemId,
+          campaignIdea: campaign.campaignIdea ?? parsedFromWarnings.campaignIdea,
+        }
+      : parsedFromWarnings;
     const lifecycle = computeCampaignLifecycle(campaignDrafts);
 
     return {
@@ -114,7 +135,7 @@ export function CampaignSection({
       lifecycleStyle: CAMPAIGN_LIFECYCLE_STYLES[lifecycle],
       failedCount,
     };
-  }, [campaignDrafts]);
+  }, [campaignDrafts, campaign]);
 
   // ── Group drafts by campaignDay ─────────────────────────────────────
   const dayGroups = useMemo(() => {
