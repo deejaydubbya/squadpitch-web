@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useParams, usePathname } from 'next/navigation';
-import { AlertTriangle, Menu, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { Sidebar } from '@/components/studio/Sidebar';
+import { WorkspaceMobileHeader } from '@/components/studio/WorkspaceMobileHeader';
 import { useClient } from '@/hooks/useSquadpitch';
 import { UsageLimitProvider } from '@/components/billing/UsageLimitGuard';
 
@@ -15,14 +15,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const params = useParams<{ clientId: string }>();
   const clientId = params.clientId;
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  // Close mobile sidebar on route change
-  const prevPathRef = { current: pathname };
-  if (prevPathRef.current !== pathname) {
-    prevPathRef.current = pathname;
-    if (mobileOpen) setMobileOpen(false);
-  }
 
   const { data: client, isLoading, error } = useClient(clientId);
 
@@ -95,47 +87,25 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — persistent on lg+ */}
       <div className="hidden lg:block">
         <Sidebar client={client} />
       </div>
 
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-sp-card border border-white-10 text-white-60 hover:text-white-100"
-        aria-label="Open menu"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile-only header + drawer. Owns the hamburger,
+            sticky top bar, and slide-in nav. Hidden on lg+ via
+            its own internal lg:hidden classes. */}
+        <WorkspaceMobileHeader client={client} />
 
-      {/* Mobile sidebar overlay */}
-      {mobileOpen && (
-        <>
-          <div
-            className="lg:hidden fixed inset-0 z-40 bg-black/60"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="lg:hidden fixed inset-y-0 left-0 z-50 w-64">
-            <Sidebar client={client} />
-            <button
-              onClick={() => setMobileOpen(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-white-40 hover:text-white-100 hover:bg-white-10"
-              aria-label="Close menu"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+            <UsageLimitProvider clientId={clientId}>
+              {children}
+            </UsageLimitProvider>
           </div>
-        </>
-      )}
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-16 lg:pt-8">
-          <UsageLimitProvider clientId={clientId}>
-            {children}
-          </UsageLimitProvider>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
