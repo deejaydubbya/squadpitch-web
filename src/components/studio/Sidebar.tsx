@@ -14,10 +14,13 @@ import {
   Database,
   Zap,
   ImageIcon,
+  Globe,
+  Inbox as InboxIcon,
+  Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
-import { useAutopilotCampaignStats } from '@/hooks/useSquadpitch';
+import { useAutopilotCampaignStats, useSuiteFlags } from '@/hooks/useSquadpitch';
 import { useUsage } from '@/hooks/useBilling';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { NotificationBell } from './NotificationBell';
@@ -35,6 +38,16 @@ export function Sidebar({ client }: Props) {
   const { data: usage } = useUsage();
   const { data: campaignStats } = useAutopilotCampaignStats(client.id);
   const autopilotBadgeCount = (campaignStats?.pendingCount ?? 0) + (campaignStats?.readyCount ?? 0);
+  // Suite-module flags. While the query is loading we render
+  // nothing so workspaces without access never see the entry
+  // even briefly. Flag state is cached for 5 min so this is a
+  // one-time hit per session.
+  const { data: suiteFlags } = useSuiteFlags(client.id);
+  const suiteItems = [
+    suiteFlags?.sites && { href: `${base}/sites`, icon: Globe, label: 'Sites' },
+    suiteFlags?.inbox && { href: `${base}/inbox`, icon: InboxIcon, label: 'Inbox' },
+    suiteFlags?.ads && { href: `${base}/ads`, icon: Megaphone, label: 'Ads' },
+  ].filter(Boolean) as Array<{ href: string; icon: typeof Globe; label: string }>;
 
 
   const statusClass =
@@ -150,6 +163,31 @@ export function Sidebar({ client }: Props) {
             </Link>
           );
         })}
+
+        {/* ── Suite ── (flag-gated) */}
+        {suiteItems.length > 0 && (
+          <>
+            <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">Suite</p>
+            {suiteItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    active
+                      ? 'bg-accent-green-110/15 text-accent-green-110'
+                      : 'text-white-60 hover:bg-white-5 hover:text-white-100'
+                  )}
+                >
+                  <item.icon className="w-4.5 h-4.5" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </>
+        )}
 
         {/* Divider */}
         <div className="border-t border-white-10 my-3" />

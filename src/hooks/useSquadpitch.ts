@@ -1322,6 +1322,8 @@ export const squadpitchKeys = {
     [...squadpitchKeys.all, 'client', clientId, 'campaigns', filters ?? {}] as const,
   campaign: (id: string) =>
     [...squadpitchKeys.all, 'campaign', id] as const,
+  suiteFlags: (clientId: string) =>
+    [...squadpitchKeys.all, 'client', clientId, 'suite-flags'] as const,
   assets: (clientId: string, filters?: Record<string, unknown>) =>
     [...squadpitchKeys.all, 'client', clientId, 'assets', filters ?? {}] as const,
   asset: (id: string) => [...squadpitchKeys.all, 'asset', id] as const,
@@ -2960,6 +2962,37 @@ export function useCampaign(id: string | undefined) {
     queryFn: () =>
       apiFetch<{ campaign: Campaign }>(`campaigns/${id}`).then((r) => r.campaign),
     enabled: !!id,
+  });
+}
+
+// ── Suite Feature Flags ───────────────────────────────────────────────
+//
+// Workspace-scoped read of the three suite-module flags. Backed by
+// GET /workspaces/:id/suite-flags which calls configService.evaluateFlag
+// for each on the server (per-workspace targeting + global enablement
+// + rollout percentages all handled there).
+//
+// Returns booleans + a single isLoading. Callers use the booleans
+// to gate sidebar entries and route shells; loading state is
+// treated as "off" by callers so a slow flag fetch doesn't flash
+// the placeholder visible.
+
+export interface SuiteFlags {
+  sites: boolean;
+  inbox: boolean;
+  ads: boolean;
+}
+
+export function useSuiteFlags(clientId: string | undefined) {
+  return useQuery({
+    queryKey: squadpitchKeys.suiteFlags(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<SuiteFlags>(`workspaces/${clientId}/suite-flags`),
+    enabled: !!clientId,
+    // Suite flags don't change often — cache for the page session
+    // and refetch on workspace change. Avoids flashing the
+    // "Coming Soon" copy on every navigation.
+    staleTime: 5 * 60 * 1000,
   });
 }
 
