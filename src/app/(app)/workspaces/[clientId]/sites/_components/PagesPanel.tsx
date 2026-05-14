@@ -321,11 +321,11 @@ function StatusBadge({ status }: { status: PageStatus }) {
       </span>
     );
   }
-  if (status === 'ARCHIVED') {
+  if (status === 'UNPUBLISHED') {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-white-40">
         <Circle className="w-3.5 h-3.5" />
-        Archived
+        Unpublished
       </span>
     );
   }

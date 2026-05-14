@@ -47,6 +47,8 @@ import {
   type Block,
   type LeadForm,
   type SitePage,
+  type SiteSourceType,
+  type SitePageGoal,
 } from '@/hooks/useSites';
 import { ApiError } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
@@ -77,6 +79,27 @@ const BLOCK_PALETTE: { type: Block['type']; label: string; Icon: typeof TypeIcon
   { type: 'lead_form', label: 'Lead form', Icon: ClipboardList },
 ];
 
+// Mirrors the SiteSourceType enum. Used in the source-attribution
+// badge so the user sees "Campaign" rather than the raw enum value.
+const SOURCE_TYPE_LABEL: Record<SiteSourceType, string> = {
+  CAMPAIGN: 'Campaign',
+  PROPERTY: 'Property',
+  DATA_ITEM: 'Content asset',
+  IDEA: 'Idea',
+};
+
+// Mirrors the SitePageGoal enum. Order matches the rough funnel:
+// lead capture → listing → offer → event → consultation. The
+// dashboard reads from this single source so adding a goal in
+// Prisma + this file is enough to surface it.
+const PAGE_GOAL_OPTIONS: { value: SitePageGoal; label: string }[] = [
+  { value: 'LEAD_CAPTURE', label: 'Lead capture' },
+  { value: 'LISTING', label: 'Listing / property promotion' },
+  { value: 'OFFER', label: 'Offer / promotion' },
+  { value: 'EVENT', label: 'Event / open house' },
+  { value: 'CONSULTATION', label: 'Consultation booking' },
+];
+
 function makeBlock(type: Block['type']): Block {
   switch (type) {
     case 'hero':
@@ -98,6 +121,8 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
   const [slug, setSlug] = useState(page.slug);
   const [seoTitle, setSeoTitle] = useState(page.seoTitle ?? '');
   const [seoDescription, setSeoDescription] = useState(page.seoDescription ?? '');
+  const [pageGoal, setPageGoal] = useState<SitePage['pageGoal']>(page.pageGoal);
+  const [noIndex, setNoIndex] = useState<boolean>(page.noIndex);
   const [items, setItems] = useState<IndexedBlock[]>(() => indexBlocks(page.blocksJson));
   const [showAdder, setShowAdder] = useState(false);
   const [showSeo, setShowSeo] = useState(false);
@@ -114,6 +139,8 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
     setSlug(page.slug);
     setSeoTitle(page.seoTitle ?? '');
     setSeoDescription(page.seoDescription ?? '');
+    setPageGoal(page.pageGoal);
+    setNoIndex(page.noIndex);
     setItems(indexBlocks(page.blocksJson));
   }, [page.updatedAt, page.id]);
   /* eslint-disable-next-line react-hooks/exhaustive-deps */
@@ -170,6 +197,8 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
         slug: slug.trim(),
         seoTitle: seoTitle.trim() || null,
         seoDescription: seoDescription.trim() || null,
+        pageGoal,
+        noIndex,
         blocksJson,
       });
       setSaveStatus('saved');
@@ -191,6 +220,8 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
         slug: slug.trim(),
         seoTitle: seoTitle.trim() || null,
         seoDescription: seoDescription.trim() || null,
+        pageGoal,
+        noIndex,
         blocksJson,
       });
       await publishPage.mutateAsync();
@@ -297,16 +328,55 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
           </div>
         )}
 
-        <div>
-          <label className="block text-xs font-medium text-white-50 uppercase tracking-wider mb-1.5">
-            Internal description
-          </label>
-          <input
-            className="input"
-            placeholder="What's this page for? Only visible to your team."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
+        {page.sourceType && (
+          <div className="flex items-center gap-2 text-xs text-white-50">
+            <span className="text-white-40 uppercase tracking-wider font-medium">
+              Source
+            </span>
+            <span className="px-2 py-0.5 rounded-md bg-white-5 border border-white-10 text-white-70 font-medium">
+              {SOURCE_TYPE_LABEL[page.sourceType]}
+            </span>
+            {page.sourceId && (
+              <span className="font-mono text-[10px] text-white-30 truncate max-w-[200px]">
+                {page.sourceId}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-white-50 uppercase tracking-wider mb-1.5">
+              Internal description
+            </label>
+            <input
+              className="input"
+              placeholder="What's this page for? Only visible to your team."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-white-50 uppercase tracking-wider mb-1.5">
+              Page goal
+            </label>
+            <select
+              className="input"
+              value={pageGoal ?? ''}
+              onChange={(e) =>
+                setPageGoal(
+                  (e.target.value || null) as SitePage['pageGoal'],
+                )
+              }
+            >
+              <option value="">— Not set —</option>
+              {PAGE_GOAL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <details className="group">
@@ -347,6 +417,23 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
                   maxLength={400}
                 />
               </div>
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={noIndex}
+                  onChange={(e) => setNoIndex(e.target.checked)}
+                  className="mt-0.5 accent-accent-green-110"
+                />
+                <span className="text-sm">
+                  <span className="text-white-80 font-medium">
+                    Hide from search engines
+                  </span>
+                  <span className="block text-xs text-white-50 mt-0.5">
+                    Emits <code className="text-white-70">noindex,nofollow</code> in the
+                    page metadata. Use for unlisted / share-by-link-only pages.
+                  </span>
+                </span>
+              </label>
             </div>
           )}
         </details>
@@ -426,7 +513,7 @@ function StatusPill({ status }: { status: SitePage['status'] }) {
   const styles: Record<SitePage['status'], string> = {
     PUBLISHED: 'bg-accent-green-110/15 text-accent-green-110',
     DRAFT: 'bg-amber-300/15 text-amber-300',
-    ARCHIVED: 'bg-white-10 text-white-40',
+    UNPUBLISHED: 'bg-white-10 text-white-40',
   };
   return (
     <span

@@ -5,9 +5,21 @@ import { apiFetch } from '@/lib/apiFetch';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type SiteStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
-export type PageStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
-export type SubmissionStatus = 'NEW' | 'RESOLVED' | 'SPAM';
+// Mirrors the Prisma enums. Earlier Phase C had ARCHIVED / RESOLVED
+// here but the actual DB enums use UNPUBLISHED / PROCESSED — the
+// dashboard would have 500'd the first time a user tried to flip
+// either status. Fixed alongside the source-aware metadata add.
+export type SiteStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
+export type PageStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
+export type SubmissionStatus = 'NEW' | 'PROCESSED' | 'SPAM';
+
+export type SiteSourceType = 'CAMPAIGN' | 'PROPERTY' | 'DATA_ITEM' | 'IDEA';
+export type SitePageGoal =
+  | 'LEAD_CAPTURE'
+  | 'LISTING'
+  | 'OFFER'
+  | 'EVENT'
+  | 'CONSULTATION';
 
 export type FormFieldType =
   | 'text'
@@ -66,6 +78,10 @@ export interface SitePage {
   status: PageStatus;
   blocksJson: Block[];
   campaignId: string | null;
+  sourceType: SiteSourceType | null;
+  sourceId: string | null;
+  pageGoal: SitePageGoal | null;
+  noIndex: boolean;
   heroImageId: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
@@ -83,6 +99,10 @@ export interface PageListItem {
   description: string | null;
   status: PageStatus;
   campaignId: string | null;
+  sourceType: SiteSourceType | null;
+  sourceId: string | null;
+  pageGoal: SitePageGoal | null;
+  noIndex: boolean;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -182,6 +202,10 @@ export interface CreatePageInput {
   title: string;
   description?: string;
   blocksJson?: Block[];
+  sourceType?: SiteSourceType | null;
+  sourceId?: string | null;
+  pageGoal?: SitePageGoal | null;
+  noIndex?: boolean;
 }
 
 export function useCreatePage(clientId: string) {
@@ -205,6 +229,10 @@ export type UpdatePageInput = Partial<{
   status: PageStatus;
   blocksJson: Block[];
   campaignId: string | null;
+  sourceType: SiteSourceType | null;
+  sourceId: string | null;
+  pageGoal: SitePageGoal | null;
+  noIndex: boolean;
   heroImageId: string | null;
   seoTitle: string | null;
   seoDescription: string | null;

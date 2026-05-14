@@ -30,7 +30,7 @@ interface SubmissionsPanelProps {
 const STATUS_FILTERS: { value: SubmissionStatus | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'All' },
   { value: 'NEW', label: 'New' },
-  { value: 'RESOLVED', label: 'Resolved' },
+  { value: 'PROCESSED', label: 'Processed' },
   { value: 'SPAM', label: 'Spam' },
 ];
 
@@ -155,11 +155,11 @@ function PreviewLine({ data }: { data: Record<string, unknown> }) {
 }
 
 function StatusBadge({ status }: { status: SubmissionStatus }) {
-  if (status === 'RESOLVED') {
+  if (status === 'PROCESSED') {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-accent-green-110">
         <CheckCircle2 className="w-3.5 h-3.5" />
-        Resolved
+        Processed
       </span>
     );
   }
@@ -255,7 +255,7 @@ function SubmissionDetail({ clientId, submission, onClose }: DetailProps) {
               Status
             </h4>
             <div className="flex flex-wrap gap-2">
-              {(['NEW', 'RESOLVED', 'SPAM'] as SubmissionStatus[]).map((s) => (
+              {(['NEW', 'PROCESSED', 'SPAM'] as SubmissionStatus[]).map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -270,7 +270,7 @@ function SubmissionDetail({ clientId, submission, onClose }: DetailProps) {
                       : 'border border-white-15 text-white-70 hover:text-white-100 hover:bg-white-10',
                   )}
                 >
-                  {s === 'NEW' ? 'Mark new' : s === 'RESOLVED' ? 'Resolved' : 'Spam'}
+                  {s === 'NEW' ? 'Mark new' : s === 'PROCESSED' ? 'Processed' : 'Spam'}
                 </button>
               ))}
             </div>
