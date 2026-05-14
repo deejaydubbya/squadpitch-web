@@ -27,9 +27,11 @@ import {
   useDismissRecommendation,
   useIntegrationStatus,
   useListingSources,
+  useSuiteFlags,
   type DashboardRecommendation,
   type DashboardRecommendationsResponse,
 } from '@/hooks/useSquadpitch';
+import { useInboxStats } from '@/hooks/useInbox';
 import { useGenericIntegrations } from '@/hooks/useIntegrations';
 import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
 import { AutopilotStatusCard } from '@/components/studio/AutopilotStatusCard';
@@ -69,6 +71,9 @@ export default function OverviewPage() {
   const { data: recommendations } = useDashboardRecommendations(clientId);
   const { data: integrationStatus } = useIntegrationStatus(clientId);
   const { data: listingData } = useListingSources(clientId);
+  const { data: suiteFlags } = useSuiteFlags(clientId);
+  // Only poll inbox stats if the workspace has the inbox module on.
+  const { data: inboxStats } = useInboxStats(clientId, Boolean(suiteFlags?.inbox));
   const { data: genericIntegrations } = useGenericIntegrations();
   const { data: subscription } = useSubscription();
   const currentTier = subscription?.tier ?? 'FREE';
@@ -125,6 +130,15 @@ export default function OverviewPage() {
   // Needs-attention counters
   const attentionItems = useMemo(() => {
     const items: { label: string; count: number; href: string; accent: string }[] = [];
+    const newLeads = inboxStats?.unreadCount ?? 0;
+    if (suiteFlags?.inbox && newLeads > 0) {
+      items.push({
+        label: newLeads === 1 ? 'New lead' : 'New leads',
+        count: newLeads,
+        href: `${base}/inbox`,
+        accent: 'text-blue-400',
+      });
+    }
     const pending = analytics?.byStatus?.PENDING_REVIEW ?? 0;
     if (pending > 0) {
       items.push({ label: 'Needs review', count: pending, href: `${base}/planner`, accent: 'text-yellow-400' });
@@ -141,7 +155,7 @@ export default function OverviewPage() {
       items.push({ label: 'Channel(s) not connected', count: disconnectedCount, href: `${base}/settings/channels`, accent: 'text-orange-400' });
     }
     return items;
-  }, [analytics, allDrafts, base, disconnectedCount]);
+  }, [analytics, allDrafts, base, disconnectedCount, inboxStats, suiteFlags]);
 
   // Top recommendation (1 high-confidence rec, not duplicating Next Actions)
   const topRecommendation = useMemo(() => {
