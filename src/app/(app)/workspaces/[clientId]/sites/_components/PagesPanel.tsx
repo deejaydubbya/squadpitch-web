@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Circle,
   AlertCircle,
+  Wand2,
 } from 'lucide-react';
 import {
   usePages,
@@ -82,14 +83,23 @@ export function PagesPanel({ clientId, clientSlug }: PagesPanelProps) {
           . Drafts are private; publish to make them reachable.
         </p>
         {!creating && (
-          <button
-            type="button"
-            className="btn btn-primary text-sm inline-flex items-center gap-1.5"
-            onClick={() => setCreating(true)}
-          >
-            <Plus className="w-4 h-4" />
-            New page
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/workspaces/${clientId}/sites/new`}
+              className="btn btn-primary text-sm inline-flex items-center gap-1.5"
+            >
+              <Wand2 className="w-4 h-4" />
+              Generate with AI
+            </Link>
+            <button
+              type="button"
+              className="btn btn-ghost border border-white-15 text-sm inline-flex items-center gap-1.5"
+              onClick={() => setCreating(true)}
+            >
+              <Plus className="w-4 h-4" />
+              Blank page
+            </button>
+          </div>
         )}
       </div>
 

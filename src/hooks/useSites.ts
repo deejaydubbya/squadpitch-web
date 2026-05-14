@@ -9,8 +9,8 @@ import { apiFetch } from '@/lib/apiFetch';
 // here but the actual DB enums use UNPUBLISHED / PROCESSED — the
 // dashboard would have 500'd the first time a user tried to flip
 // either status. Fixed alongside the source-aware metadata add.
-export type SiteStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
-export type PageStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
+export type SiteStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED' | 'ARCHIVED';
+export type PageStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED' | 'ARCHIVED';
 export type SubmissionStatus = 'NEW' | 'PROCESSED' | 'SPAM';
 
 export type SiteSourceType = 'CAMPAIGN' | 'PROPERTY' | 'DATA_ITEM' | 'IDEA';
@@ -218,6 +218,39 @@ export function useCreatePage(clientId: string) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: sitesKeys.pages(clientId) });
+    },
+  });
+}
+
+// ── AI page generation ──────────────────────────────────────────────────
+
+export interface GeneratePageInput {
+  sourceType: SiteSourceType;
+  sourceId?: string;
+  pageGoal: SitePageGoal;
+  customPrompt?: string;
+}
+
+/**
+ * Generate + persist a SitePage in one call. The API creates the
+ * LeadForm (if the generated page uses one) and the SitePage as
+ * DRAFT, then returns the new page so the caller can route into
+ * the editor.
+ */
+export function useGeneratePageFromSource(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: GeneratePageInput) =>
+      apiFetch<{ page: SitePage; generation: { model: string } }>(
+        `${base(clientId)}/pages/from-source`,
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: sitesKeys.pages(clientId) });
+      qc.invalidateQueries({ queryKey: sitesKeys.forms(clientId) });
     },
   });
 }

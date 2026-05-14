@@ -514,6 +514,7 @@ function StatusPill({ status }: { status: SitePage['status'] }) {
     PUBLISHED: 'bg-accent-green-110/15 text-accent-green-110',
     DRAFT: 'bg-amber-300/15 text-amber-300',
     UNPUBLISHED: 'bg-white-10 text-white-40',
+    ARCHIVED: 'bg-white-5 text-white-30',
   };
   return (
     <span
