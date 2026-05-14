@@ -212,6 +212,29 @@ export function usePages(clientId: string | undefined) {
   });
 }
 
+/**
+ * Filter the workspace's pages to those generated from a specific
+ * source (campaign / property / data_item). Used by the "Create
+ * landing page" action in CampaignSection / PropertyDetailDrawer
+ * / DataItemCard to decide whether to show "Create" vs "View".
+ *
+ * Client-side filter against the existing pages query — keeps it
+ * cheap (one fetch shared across the dashboard) and avoids a new
+ * API surface for what's a sub-100 row lookup.
+ */
+export function useSitePagesForSource(
+  clientId: string | undefined,
+  sourceType: SiteSourceType | null | undefined,
+  sourceId: string | null | undefined,
+) {
+  const { data: pages, isLoading } = usePages(clientId);
+  const matches =
+    sourceType && sourceId && pages
+      ? pages.filter((p) => p.sourceType === sourceType && p.sourceId === sourceId)
+      : [];
+  return { matches, isLoading };
+}
+
 export function usePage(clientId: string | undefined, pageId: string | undefined) {
   return useQuery({
     queryKey: sitesKeys.page(clientId ?? '', pageId ?? ''),

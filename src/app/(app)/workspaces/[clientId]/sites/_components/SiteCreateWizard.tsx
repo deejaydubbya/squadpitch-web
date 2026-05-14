@@ -42,6 +42,13 @@ import { cn } from '@/lib/utils';
 
 interface SiteCreateWizardProps {
   clientId: string;
+  // Deep-link seeds. When set, the wizard auto-advances past the
+  // steps the caller has already chosen — e.g. clicking
+  // "Create landing page" on a property card lands you on
+  // step 3 (goal picker) with the property pre-selected.
+  initialSourceType?: SiteSourceType | null;
+  initialSourceId?: string | null;
+  initialPageGoal?: SitePageGoal | null;
 }
 
 interface DataItem {
@@ -111,16 +118,33 @@ const GOAL_OPTIONS: { value: SitePageGoal; label: string; description: string }[
   },
 ];
 
-export function SiteCreateWizard({ clientId }: SiteCreateWizardProps) {
+export function SiteCreateWizard({
+  clientId,
+  initialSourceType = null,
+  initialSourceId = null,
+  initialPageGoal = null,
+}: SiteCreateWizardProps) {
   const router = useRouter();
   const generate = useGeneratePageFromSource(clientId);
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [sourceType, setSourceType] = useState<SiteSourceType | null>(null);
-  const [sourceId, setSourceId] = useState<string | null>(null);
+  // Determine the initial step based on which seeds were provided.
+  // - sourceType + sourceId + pageGoal → step 3 (just confirm + generate)
+  // - sourceType only → step 2 (let user pick the specific source)
+  // - nothing → step 1 (default)
+  const initialStep: 1 | 2 | 3 = initialPageGoal
+    ? 3
+    : initialSourceType
+      ? 2
+      : 1;
+
+  const [step, setStep] = useState<1 | 2 | 3>(initialStep);
+  const [sourceType, setSourceType] = useState<SiteSourceType | null>(
+    initialSourceType,
+  );
+  const [sourceId, setSourceId] = useState<string | null>(initialSourceId);
   const [ideaPrompt, setIdeaPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
-  const [pageGoal, setPageGoal] = useState<SitePageGoal | null>(null);
+  const [pageGoal, setPageGoal] = useState<SitePageGoal | null>(initialPageGoal);
   const [error, setError] = useState<string | null>(null);
 
   function goBack() {

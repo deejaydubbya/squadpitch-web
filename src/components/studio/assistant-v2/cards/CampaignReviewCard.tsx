@@ -1007,12 +1007,22 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
               {savedAssetCount > 0 && ` (${savedAssetCount} image${savedAssetCount === 1 ? '' : 's'} attached)`}
             </p>
             <p className="text-[10px] text-white-40">{subhead}</p>
-            <Link
-              href={`/workspaces/${clientId}/planner${savedCampaignId ? `?campaignId=${savedCampaignId}` : ''}`}
-              className="text-[11px] text-accent-green-110 hover:underline"
-            >
-              View in Planner &rarr;
-            </Link>
+            <div className="flex items-center gap-3 mt-0.5">
+              <Link
+                href={`/workspaces/${clientId}/planner${savedCampaignId ? `?campaignId=${savedCampaignId}` : ''}`}
+                className="text-[11px] text-accent-green-110 hover:underline"
+              >
+                View in Planner &rarr;
+              </Link>
+              {savedCampaignId && (
+                <Link
+                  href={`/workspaces/${clientId}/sites/new?sourceType=CAMPAIGN&sourceId=${savedCampaignId}&pageGoal=LEAD_CAPTURE`}
+                  className="text-[11px] text-accent-green-110 hover:underline"
+                >
+                  Build landing page &rarr;
+                </Link>
+              )}
+            </div>
           </div>
         </div>
         {mediaMissing && (

@@ -34,6 +34,7 @@ import { useGenericIntegrations } from '@/hooks/useIntegrations';
 import { groupDraftsByCampaign } from '@/components/studio/campaignGrouping';
 import { AutopilotStatusCard } from '@/components/studio/AutopilotStatusCard';
 import { ContentActivitySection } from '@/components/studio/ContentActivitySection';
+import { RecentSitesWidget } from '@/components/sites/RecentSitesWidget';
 import { PostOnboardingChecklist } from '@/components/studio/PostOnboardingChecklist';
 import { deriveActivationState } from '@/lib/activationState';
 import { useSubscription, useUsage } from '@/hooks/useBilling';
@@ -455,6 +456,10 @@ export default function OverviewPage() {
 
       {/* ── 4. Autopilot Status ── */}
       <AutopilotStatusCard clientId={clientId} base={base} />
+
+      {/* ── Recent landing pages (auto-hides when flag is off
+          or workspace has no pages yet) ── */}
+      <RecentSitesWidget clientId={clientId} base={base} />
 
       {/* ── 5. Content & Campaigns ── */}
       <ContentActivitySection

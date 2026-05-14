@@ -35,6 +35,7 @@ import {
   formatDayHeader,
 } from './campaignConstants';
 import { DraftQueueCard } from './DraftQueueCard';
+import { CreateLandingPageAction } from '@/components/sites/CreateLandingPageAction';
 
 interface CampaignSectionProps {
   clientId: string;
@@ -278,6 +279,15 @@ export function CampaignSection({
             <Pencil className="w-3 h-3" />
             Edit Campaign
           </Link>
+          <CreateLandingPageAction
+            clientId={clientId}
+            sourceType="CAMPAIGN"
+            sourceId={campaignId}
+            pageGoal="LEAD_CAPTURE"
+            variant="link"
+            createLabel="Create page"
+            viewLabel="View page"
+          />
           {focusMode && onExitFocusMode && (
             <button
               onClick={onExitFocusMode}

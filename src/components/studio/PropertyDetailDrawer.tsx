@@ -7,6 +7,7 @@ import {
   ExternalLink, Calendar, Save, Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CreateLandingPageAction } from '@/components/sites/CreateLandingPageAction';
 import {
   useUpdateDataItem,
   useUploadAsset,
@@ -585,6 +586,13 @@ export function PropertyDetailDrawer({ item, clientId, isOpen, onClose }: Props)
           >
             New Campaign <ArrowRight className="w-4 h-4" />
           </button>
+          <CreateLandingPageAction
+            clientId={clientId}
+            sourceType="PROPERTY"
+            sourceId={item.id}
+            pageGoal="LISTING"
+            variant="button-ghost"
+          />
         </div>
       </div>
     </div>

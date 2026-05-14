@@ -3,6 +3,7 @@
 import { Wand2, Archive, Pencil, BarChart3, TrendingUp, TrendingDown, Minus, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceDataItem, DataItemType } from '@/hooks/useSquadpitch';
+import { CreateLandingPageAction } from '@/components/sites/CreateLandingPageAction';
 
 const TYPE_COLORS: Record<DataItemType, string> = {
   TESTIMONIAL: 'bg-blue-500/20 text-blue-400',
@@ -50,6 +51,8 @@ interface Props {
   onEdit: () => void;
   onArchive: () => void;
   onGenerate: () => void;
+  /** When set, renders the "Create / View landing page" action. */
+  clientId?: string;
 }
 
 export function DataItemCard({
@@ -59,6 +62,7 @@ export function DataItemCard({
   onEdit,
   onArchive,
   onGenerate,
+  clientId,
 }: Props) {
   const badge = getPerformanceBadge(item.performance?.avgEngagement);
   const imageUrl = (item.dataJson as Record<string, unknown>)?.imageUrl as string | undefined;
@@ -129,6 +133,15 @@ export function DataItemCard({
           >
             <Wand2 className="w-3.5 h-3.5" />
           </button>
+          {clientId && (
+            <CreateLandingPageAction
+              clientId={clientId}
+              sourceType={item.type === 'PROPERTY' ? 'PROPERTY' : 'DATA_ITEM'}
+              sourceId={item.id}
+              pageGoal={item.type === 'PROPERTY' ? 'LISTING' : 'LEAD_CAPTURE'}
+              variant="icon"
+            />
+          )}
         </div>
       </div>
 

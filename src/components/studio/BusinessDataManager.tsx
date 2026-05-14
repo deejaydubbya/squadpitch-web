@@ -485,6 +485,7 @@ export function BusinessDataManager({ clientId }: Props) {
                   <DataItemCard
                     key={item.id}
                     item={item}
+                    clientId={clientId}
                     selected={selectedIds.has(item.id)}
                     onSelect={() => toggleSelect(item.id)}
                     onEdit={() => setEditItem(item)}
@@ -502,6 +503,7 @@ export function BusinessDataManager({ clientId }: Props) {
             <DataItemCard
               key={item.id}
               item={item}
+              clientId={clientId}
               selected={selectedIds.has(item.id)}
               onSelect={() => toggleSelect(item.id)}
               onEdit={() => setEditItem(item)}
