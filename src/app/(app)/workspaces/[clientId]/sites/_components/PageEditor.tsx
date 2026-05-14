@@ -22,6 +22,11 @@ import {
   MousePointerClick,
   ClipboardList,
   ChevronDown,
+  Images,
+  List,
+  Quote,
+  HelpCircle,
+  Phone,
 } from 'lucide-react';
 import {
   DndContext,
@@ -75,8 +80,13 @@ const BLOCK_PALETTE: { type: Block['type']; label: string; Icon: typeof TypeIcon
   { type: 'hero', label: 'Hero', Icon: TypeIcon },
   { type: 'paragraph', label: 'Paragraph', Icon: AlignLeft },
   { type: 'image', label: 'Image', Icon: ImageIcon },
+  { type: 'gallery', label: 'Gallery', Icon: Images },
+  { type: 'key_details', label: 'Key details', Icon: List },
+  { type: 'testimonial', label: 'Testimonial', Icon: Quote },
+  { type: 'faq', label: 'FAQ', Icon: HelpCircle },
   { type: 'cta', label: 'Call to action', Icon: MousePointerClick },
   { type: 'lead_form', label: 'Lead form', Icon: ClipboardList },
+  { type: 'contact', label: 'Contact', Icon: Phone },
 ];
 
 // Mirrors the SiteSourceType enum. Used in the source-attribution
@@ -112,6 +122,16 @@ function makeBlock(type: Block['type']): Block {
       return { type, label: 'Get in touch', href: 'https://' };
     case 'lead_form':
       return { type, formId: '' };
+    case 'gallery':
+      return { type, imageUrls: [], layout: 'grid' };
+    case 'key_details':
+      return { type, heading: 'Key details', items: [{ label: '', value: '' }] };
+    case 'testimonial':
+      return { type, quote: '', author: '', role: '' };
+    case 'faq':
+      return { type, heading: 'Frequently asked', items: [{ question: '', answer: '' }] };
+    case 'contact':
+      return { type, heading: 'Get in touch', phone: '', email: '', address: '' };
   }
 }
 
@@ -709,6 +729,291 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
           </p>
         )}
       </Field>
+    );
+  }
+
+  if (block.type === 'gallery') {
+    return (
+      <div className="space-y-3">
+        <Field label="Layout">
+          <select
+            className="input"
+            value={block.layout ?? 'grid'}
+            onChange={(e) =>
+              onChange({
+                layout: e.target.value as 'grid' | 'carousel',
+              } as Partial<Block>)
+            }
+          >
+            <option value="grid">Grid</option>
+            <option value="carousel">Carousel</option>
+          </select>
+        </Field>
+        <Field label="Image URLs (one per line)">
+          <textarea
+            className="input min-h-[120px] resize-y font-mono text-xs"
+            value={block.imageUrls.join('\n')}
+            onChange={(e) =>
+              onChange({
+                imageUrls: e.target.value
+                  .split('\n')
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              } as Partial<Block>)
+            }
+            placeholder={'https://...\nhttps://...'}
+          />
+        </Field>
+      </div>
+    );
+  }
+
+  if (block.type === 'key_details') {
+    return (
+      <div className="space-y-3">
+        <Field label="Heading (optional)">
+          <input
+            className="input"
+            value={block.heading ?? ''}
+            onChange={(e) =>
+              onChange({ heading: e.target.value } as Partial<Block>)
+            }
+            maxLength={120}
+          />
+        </Field>
+        <div className="space-y-2">
+          {block.items.map((item, idx) => (
+            <div key={idx} className="grid grid-cols-12 gap-2">
+              <input
+                className="input col-span-4"
+                placeholder="Label"
+                value={item.label}
+                onChange={(e) =>
+                  onChange({
+                    items: block.items.map((it, i) =>
+                      i === idx ? { ...it, label: e.target.value } : it,
+                    ),
+                  } as Partial<Block>)
+                }
+                maxLength={80}
+              />
+              <input
+                className="input col-span-7"
+                placeholder="Value"
+                value={item.value}
+                onChange={(e) =>
+                  onChange({
+                    items: block.items.map((it, i) =>
+                      i === idx ? { ...it, value: e.target.value } : it,
+                    ),
+                  } as Partial<Block>)
+                }
+                maxLength={240}
+              />
+              <button
+                type="button"
+                className="col-span-1 p-2 rounded text-white-30 hover:text-accent-red hover:bg-accent-red/10"
+                onClick={() =>
+                  onChange({
+                    items: block.items.filter((_, i) => i !== idx),
+                  } as Partial<Block>)
+                }
+                aria-label="Remove detail"
+              >
+                <Trash2 className="w-3.5 h-3.5 mx-auto" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="text-xs font-medium text-accent-green-110 hover:underline inline-flex items-center gap-1"
+            onClick={() =>
+              onChange({
+                items: [...block.items, { label: '', value: '' }],
+              } as Partial<Block>)
+            }
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add detail
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === 'testimonial') {
+    return (
+      <div className="space-y-3">
+        <Field label="Quote">
+          <textarea
+            className="input min-h-[100px] resize-y"
+            value={block.quote}
+            onChange={(e) =>
+              onChange({ quote: e.target.value } as Partial<Block>)
+            }
+            maxLength={800}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Author">
+            <input
+              className="input"
+              value={block.author ?? ''}
+              onChange={(e) =>
+                onChange({ author: e.target.value } as Partial<Block>)
+              }
+              maxLength={120}
+              placeholder="Jane Doe"
+            />
+          </Field>
+          <Field label="Role / title">
+            <input
+              className="input"
+              value={block.role ?? ''}
+              onChange={(e) =>
+                onChange({ role: e.target.value } as Partial<Block>)
+              }
+              maxLength={120}
+              placeholder="First-time homebuyer"
+            />
+          </Field>
+        </div>
+        <Field label="Headshot URL (optional)">
+          <input
+            className="input font-mono text-xs"
+            value={block.imageUrl ?? ''}
+            onChange={(e) =>
+              onChange({ imageUrl: e.target.value || undefined } as Partial<Block>)
+            }
+            placeholder="https://..."
+          />
+        </Field>
+      </div>
+    );
+  }
+
+  if (block.type === 'faq') {
+    return (
+      <div className="space-y-3">
+        <Field label="Heading (optional)">
+          <input
+            className="input"
+            value={block.heading ?? ''}
+            onChange={(e) =>
+              onChange({ heading: e.target.value } as Partial<Block>)
+            }
+            maxLength={120}
+          />
+        </Field>
+        <div className="space-y-3">
+          {block.items.map((item, idx) => (
+            <div key={idx} className="space-y-2 border border-white-10 rounded-xl p-3">
+              <input
+                className="input text-sm"
+                placeholder="Question"
+                value={item.question}
+                onChange={(e) =>
+                  onChange({
+                    items: block.items.map((it, i) =>
+                      i === idx ? { ...it, question: e.target.value } : it,
+                    ),
+                  } as Partial<Block>)
+                }
+                maxLength={240}
+              />
+              <textarea
+                className="input min-h-[80px] text-sm resize-y"
+                placeholder="Answer"
+                value={item.answer}
+                onChange={(e) =>
+                  onChange({
+                    items: block.items.map((it, i) =>
+                      i === idx ? { ...it, answer: e.target.value } : it,
+                    ),
+                  } as Partial<Block>)
+                }
+                maxLength={2000}
+              />
+              <button
+                type="button"
+                className="text-xs text-white-40 hover:text-accent-red inline-flex items-center gap-1"
+                onClick={() =>
+                  onChange({
+                    items: block.items.filter((_, i) => i !== idx),
+                  } as Partial<Block>)
+                }
+              >
+                <Trash2 className="w-3 h-3" />
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="text-xs font-medium text-accent-green-110 hover:underline inline-flex items-center gap-1"
+            onClick={() =>
+              onChange({
+                items: [...block.items, { question: '', answer: '' }],
+              } as Partial<Block>)
+            }
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Q&amp;A
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === 'contact') {
+    return (
+      <div className="space-y-3">
+        <Field label="Heading">
+          <input
+            className="input"
+            value={block.heading ?? ''}
+            onChange={(e) =>
+              onChange({ heading: e.target.value } as Partial<Block>)
+            }
+            maxLength={120}
+            placeholder="Get in touch"
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Phone">
+            <input
+              className="input"
+              value={block.phone ?? ''}
+              onChange={(e) =>
+                onChange({ phone: e.target.value } as Partial<Block>)
+              }
+              maxLength={40}
+              placeholder="+1 555 555 5555"
+            />
+          </Field>
+          <Field label="Email">
+            <input
+              type="email"
+              className="input"
+              value={block.email ?? ''}
+              onChange={(e) =>
+                onChange({ email: e.target.value } as Partial<Block>)
+              }
+              placeholder="hello@example.com"
+            />
+          </Field>
+        </div>
+        <Field label="Address">
+          <textarea
+            className="input min-h-[60px] resize-y"
+            value={block.address ?? ''}
+            onChange={(e) =>
+              onChange({ address: e.target.value } as Partial<Block>)
+            }
+            maxLength={400}
+          />
+        </Field>
+      </div>
     );
   }
 

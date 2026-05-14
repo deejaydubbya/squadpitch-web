@@ -61,12 +61,37 @@ export interface Site {
   updatedAt: string;
 }
 
+export interface KeyDetailItem {
+  label: string;
+  value: string;
+}
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+export interface SocialLink {
+  label: string;
+  url: string;
+}
+
 export type Block =
   | { type: 'hero'; headline?: string; subheadline?: string; imageId?: string; imageUrl?: string }
   | { type: 'paragraph'; body?: string }
   | { type: 'image'; imageId?: string; imageUrl?: string; alt?: string; caption?: string }
   | { type: 'cta'; label: string; href: string }
-  | { type: 'lead_form'; formId: string };
+  | { type: 'lead_form'; formId: string }
+  | { type: 'gallery'; imageUrls: string[]; layout?: 'grid' | 'carousel' }
+  | { type: 'key_details'; heading?: string; items: KeyDetailItem[] }
+  | { type: 'testimonial'; quote: string; author?: string; role?: string; imageUrl?: string }
+  | { type: 'faq'; heading?: string; items: FaqItem[] }
+  | {
+      type: 'contact';
+      heading?: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      socials?: SocialLink[];
+    };
 
 export interface SitePage {
   id: string;
