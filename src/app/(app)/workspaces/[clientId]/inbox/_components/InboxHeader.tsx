@@ -1,0 +1,105 @@
+'use client';
+
+// Top-of-page header for the Inbox. Title + subtitle on the left,
+// four stat pills on the right (Unread / Open / Spam / Total).
+// On screens narrower than md the pills wrap below the title.
+
+import { Inbox as InboxIcon } from 'lucide-react';
+import { useInboxStats, type InboxStats } from '@/hooks/useInbox';
+import { cn } from '@/lib/utils';
+
+interface InboxHeaderProps {
+  clientId: string;
+}
+
+export function InboxHeader({ clientId }: InboxHeaderProps) {
+  const { data: stats } = useInboxStats(clientId);
+
+  return (
+    <header className="px-4 sm:px-6 pt-4 pb-3 border-b border-white-10 bg-sp-bg">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-accent-green-110/15 text-accent-green-110 flex items-center justify-center shrink-0">
+            <InboxIcon className="w-4.5 h-4.5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-base font-bold text-white-100 leading-tight">Inbox</h1>
+            <p className="text-xs text-white-50 mt-0.5 leading-snug">
+              Manage leads from your landing pages, forms, and future message
+              channels.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <StatPill
+            label="Unread"
+            value={stats?.unreadCount}
+            tone={stats && stats.unreadCount > 0 ? 'accent' : 'muted'}
+            primary
+          />
+          <StatPill label="Open" value={stats?.openCount} tone="default" />
+          <StatPill
+            label="Spam"
+            value={stats?.spamCount}
+            tone={stats && stats.spamCount > 0 ? 'warn' : 'muted'}
+            hideOnSmall
+          />
+          <StatPill
+            label="Total"
+            value={stats?.totalCount}
+            tone="muted"
+            hideOnSmall
+          />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+interface StatPillProps {
+  label: string;
+  value: number | undefined;
+  tone: 'accent' | 'default' | 'muted' | 'warn';
+  /** Always visible — the Unread pill is the load-bearing one. */
+  primary?: boolean;
+  /** Collapse on narrow screens to keep the header scannable. */
+  hideOnSmall?: boolean;
+}
+
+function StatPill({ label, value, tone, primary, hideOnSmall }: StatPillProps) {
+  const toneClass =
+    tone === 'accent'
+      ? 'bg-accent-green-110/15 text-accent-green-110 border-accent-green-110/30'
+      : tone === 'warn'
+        ? 'bg-amber-400/10 text-amber-200 border-amber-400/30'
+        : tone === 'muted'
+          ? 'bg-white-5 text-white-50 border-white-10'
+          : 'bg-white-5 text-white-90 border-white-15';
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-baseline gap-2 px-3 py-1.5 rounded-lg border',
+        toneClass,
+        hideOnSmall && 'hidden md:inline-flex',
+      )}
+    >
+      <span
+        className={cn(
+          'text-sm font-bold tabular-nums',
+          primary && (value ?? 0) > 0 && 'text-accent-green-110',
+        )}
+      >
+        {value ?? '—'}
+      </span>
+      <span className="text-[10px] uppercase tracking-wider font-medium">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// Convenience re-export for callers that want the raw type without
+// importing the hook module.
+export type { InboxStats };

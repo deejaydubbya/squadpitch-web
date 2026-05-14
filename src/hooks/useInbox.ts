@@ -100,16 +100,36 @@ export interface InboxConversationListRow {
   messages: Pick<InboxMessage, 'id' | 'body' | 'party' | 'createdAt'>[];
 }
 
+// Lean shapes returned by getConversation — whitelisted on the
+// server side; never expose blocksJson/themeJson here.
+export interface InboxPageSummary {
+  id: string;
+  title: string;
+  slug: string;
+  status: string;
+}
+
+export interface InboxCampaignSummary {
+  id: string;
+  name: string;
+  campaignType: string;
+  status: string;
+}
+
 export interface InboxConversationDetail extends InboxConversationListRow {
   contact: InboxContact;
   messages: InboxMessage[];
   notes: InboxNote[];
   aiReplies: InboxAiSuggestion[];
+  page: InboxPageSummary | null;
+  campaign: InboxCampaignSummary | null;
 }
 
 export interface InboxStats {
   unreadCount: number;
   openCount: number;
+  spamCount: number;
+  totalCount: number;
 }
 
 // ── Query keys ───────────────────────────────────────────────────────────
