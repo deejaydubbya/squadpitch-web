@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Globe,
   Target,
+  User,
 } from 'lucide-react';
 import {
   useInboxConversation,
@@ -45,15 +46,16 @@ interface ConversationDetailProps {
   conversationId: string;
   /** Mobile back arrow handler — desktop ignores. */
   onBack?: () => void;
-  /** Rendered to the right of the header for the sidebar trigger on mobile. */
-  rightAction?: React.ReactNode;
+  /** Open the contact / lead details slide-over. Required since the
+   *  contact info has no permanent column anymore. */
+  onOpenDetails: () => void;
 }
 
 export function ConversationDetail({
   clientId,
   conversationId,
   onBack,
-  rightAction,
+  onOpenDetails,
 }: ConversationDetailProps) {
   const { data, isLoading, error } = useInboxConversation(clientId, conversationId);
   const updateConv = useUpdateConversation(clientId);
@@ -142,7 +144,7 @@ export function ConversationDetail({
         conv={conv}
         clientId={clientId}
         onBack={onBack}
-        rightAction={rightAction}
+        onOpenDetails={onOpenDetails}
         onPatch={(patch) =>
           updateConv.mutate({ conversationId: conv.id, patch })
         }
@@ -194,7 +196,7 @@ interface HeaderProps {
   conv: Conversation;
   clientId: string;
   onBack?: () => void;
-  rightAction?: React.ReactNode;
+  onOpenDetails: () => void;
   onPatch: (patch: { status?: ConversationStatus; spam?: boolean }) => void;
   patchPending: boolean;
   onAddNote: () => void;
@@ -204,7 +206,7 @@ function DetailHeader({
   conv,
   clientId,
   onBack,
-  rightAction,
+  onOpenDetails,
   onPatch,
   patchPending,
   onAddNote,
@@ -266,7 +268,18 @@ function DetailHeader({
             pending={patchPending}
             tone={conv.spam ? 'active' : 'default'}
           />
-          {rightAction}
+          {/* Divider keeps the lead-details affordance visually
+              distinct from the conversation-state actions. */}
+          <span className="hidden sm:inline-block w-px h-5 bg-white-10 mx-0.5" />
+          <button
+            type="button"
+            onClick={onOpenDetails}
+            className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-white-15 text-white-80 hover:text-white-100 hover:bg-white-10 hover:border-white-20 transition-colors inline-flex items-center gap-1.5"
+            title="Open lead details"
+          >
+            <User className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Lead details</span>
+          </button>
         </div>
       </div>
 

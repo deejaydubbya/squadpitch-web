@@ -6,7 +6,8 @@
 // state, clearer empty state.
 
 import { useState } from 'react';
-import { Inbox as InboxIcon, Search } from 'lucide-react';
+import Link from 'next/link';
+import { Inbox as InboxIcon, Search, ArrowRight } from 'lucide-react';
 import {
   useInboxConversations,
   type ConversationStatus,
@@ -104,7 +105,10 @@ export function ConversationList({
           <div className="p-6 text-xs text-white-50">Loading conversations…</div>
         )}
         {!isLoading && rows.length === 0 && (
-          <EmptyState filter={search ? 'search' : showSpam ? 'spam' : status} />
+          <EmptyState
+            clientId={clientId}
+            filter={search ? 'search' : showSpam ? 'spam' : status}
+          />
         )}
         {!isLoading && rows.length > 0 && (
           <ul className="divide-y divide-white-10">
@@ -162,7 +166,13 @@ function FilterPill({ active, onClick, tone = 'default', children }: FilterPillP
   );
 }
 
-function EmptyState({ filter }: { filter: 'search' | 'spam' | ConversationStatus | 'ALL' }) {
+function EmptyState({
+  clientId,
+  filter,
+}: {
+  clientId: string;
+  filter: 'search' | 'spam' | ConversationStatus | 'ALL';
+}) {
   const copy =
     filter === 'search'
       ? {
@@ -188,6 +198,10 @@ function EmptyState({ filter }: { filter: 'search' | 'spam' | ConversationStatus
                 title: 'No leads yet',
                 body: 'Publish a SquadSite with a lead form and submissions will appear here.',
               };
+  // Only the default "no leads at all" state gets the Sites CTA —
+  // it's the actionable case. Search / spam / closed states are
+  // about the current filter, not about needing to set up Sites.
+  const showSitesCta = filter !== 'search' && filter !== 'spam' && filter !== 'CLOSED' && filter !== 'PENDING';
   return (
     <div className="px-6 py-10 text-center space-y-2">
       <InboxIcon className="w-7 h-7 text-white-30 mx-auto" />
@@ -195,6 +209,15 @@ function EmptyState({ filter }: { filter: 'search' | 'spam' | ConversationStatus
       <p className="text-xs text-white-50 leading-relaxed max-w-[28ch] mx-auto">
         {copy.body}
       </p>
+      {showSitesCta && (
+        <Link
+          href={`/workspaces/${clientId}/sites`}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-green-110 hover:text-accent-green-100 transition-colors pt-1"
+        >
+          Manage Sites
+          <ArrowRight className="w-3 h-3" />
+        </Link>
+      )}
     </div>
   );
 }

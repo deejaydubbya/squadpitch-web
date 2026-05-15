@@ -22,6 +22,7 @@ import {
   Archive,
   ShieldAlert,
   ExternalLink,
+  X,
 } from 'lucide-react';
 import {
   useUpdateConversation,
@@ -38,6 +39,9 @@ import {
 interface ContactSidebarProps {
   clientId: string;
   conversation: InboxConversationDetail;
+  /** When provided, renders a sticky close button at the top of the
+   *  pane — used when the sidebar is rendered inside a slide-over. */
+  onClose?: () => void;
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -48,7 +52,11 @@ const STATUS_TONE: Record<string, string> = {
   ARCHIVED: 'text-white-40 bg-white-10',
 };
 
-export function ContactSidebar({ clientId, conversation }: ContactSidebarProps) {
+export function ContactSidebar({
+  clientId,
+  conversation,
+  onClose,
+}: ContactSidebarProps) {
   const contact = conversation.contact;
   const update = useUpdateConversation(clientId);
 
@@ -57,8 +65,21 @@ export function ContactSidebar({ clientId, conversation }: ContactSidebarProps) 
   const olderSubmissions = submissions.slice(1);
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto bg-sp-bg">
-      <div className="p-4 space-y-3">
+    <div className="flex flex-col h-full bg-sp-bg min-h-0">
+      {onClose && (
+        <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white-10 bg-sp-bg">
+          <h2 className="text-sm font-semibold text-white-100">Lead details</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-white-50 hover:text-white-100 hover:bg-white-10"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      <div className="p-4 space-y-3 flex-1 overflow-y-auto">
         <ContactCard contact={contact} />
         <SourceCard conversation={conversation} clientId={clientId} />
         {latestSubmission && <FormAnswersCard submission={latestSubmission} />}
