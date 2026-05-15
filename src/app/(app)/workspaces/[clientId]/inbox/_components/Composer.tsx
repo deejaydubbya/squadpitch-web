@@ -21,8 +21,15 @@ import {
   Settings,
   Mail,
   Lock,
+  MessageSquare,
+  MessageCircle,
+  Star,
 } from 'lucide-react';
-import type { ReplyCapabilities } from '@/hooks/useInbox';
+import type {
+  ReplyActionDescriptor,
+  ReplyActionId,
+  ReplyCapabilities,
+} from '@/hooks/useInbox';
 import { cn } from '@/lib/utils';
 
 export type ComposerMode = 'email' | 'reply' | 'note';
@@ -39,6 +46,12 @@ interface ComposerProps {
   fromSuggestion: boolean;
   /** Server-resolved capabilities — drives which tabs are enabled. */
   capabilities: ReplyCapabilities;
+  /** Full channel-aware action list from the server. The three
+   *  primary tabs (email / reply / note) still drive the active
+   *  composer, but the extras (SMS / comment / DM / review) are
+   *  rendered as disabled chips so the UI is honest about what's
+   *  possible — never a misleading send button. */
+  availableActions?: ReplyActionDescriptor[];
   /** Inline error from the most recent submit (e.g. provider failed). */
   sendError?: string | null;
 }
@@ -53,6 +66,7 @@ export function Composer({
   pending,
   fromSuggestion,
   capabilities,
+  availableActions = [],
   sendError = null,
 }: ComposerProps) {
   const isEmail = mode === 'email';
@@ -62,6 +76,21 @@ export function Composer({
   const emailDisabledReason = capabilities.email.available
     ? null
     : capabilities.email.reason ?? 'Email is not available for this conversation.';
+
+  // Other-channel actions the server says are theoretically possible
+  // for this conversation (based on provider) but aren't a primary
+  // tab. None send today; they render as disabled chips with the
+  // server's reason — turns "missing button" into a deliberate
+  // "Connect <provider>" affordance.
+  const EXTRA_ACTION_IDS: ReplyActionId[] = [
+    'SEND_SMS',
+    'REPLY_PUBLIC_COMMENT',
+    'REPLY_DM',
+    'REPLY_REVIEW',
+  ];
+  const extraActions = availableActions.filter((a) =>
+    EXTRA_ACTION_IDS.includes(a.action),
+  );
 
   return (
     <div className="card p-0 overflow-hidden">
@@ -207,6 +236,23 @@ export function Composer({
           </Link>
         </div>
       )}
+
+      {/* Other-channel chips — render the server's view of what's
+          *theoretically* possible for this conversation's provider
+          (SMS, public-comment reply, DM, review reply). All disabled
+          today; the chip's tooltip carries the server's "Connect X"
+          reason. The point is to be honest about what isn't wired
+          rather than silently hide the affordance. */}
+      {extraActions.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap px-3 py-2 border-t border-white-10 bg-white-3 text-[11px] text-white-50">
+          <span className="uppercase tracking-wider text-white-40 mr-1">
+            Other channels
+          </span>
+          {extraActions.map((a) => (
+            <ExtraActionChip key={a.action} action={a} clientId={clientId} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -253,5 +299,51 @@ function SegButton({
       {icon}
       {children}
     </button>
+  );
+}
+
+// Disabled-only chip rendering one of the secondary channel
+// actions (SMS, comment, DM, review). Tooltip text is the server's
+// own reason string — no client-side guessing about what's
+// missing. When requiresConfig is true we link to Settings so the
+// user can actually fix it.
+const EXTRA_ACTION_ICONS: Record<string, React.ReactNode> = {
+  SEND_SMS: <MessageSquare className="w-3 h-3" />,
+  REPLY_PUBLIC_COMMENT: <MessageCircle className="w-3 h-3" />,
+  REPLY_DM: <MessageSquare className="w-3 h-3" />,
+  REPLY_REVIEW: <Star className="w-3 h-3" />,
+};
+
+function ExtraActionChip({
+  action,
+  clientId,
+}: {
+  action: ReplyActionDescriptor;
+  clientId: string;
+}) {
+  const icon = EXTRA_ACTION_ICONS[action.action] ?? <Lock className="w-3 h-3" />;
+  // Reason from the server — always populated when available=false,
+  // which is the only case extras land in this UI.
+  const tooltip = action.reason ?? 'Not connected yet.';
+  return (
+    <span
+      title={tooltip}
+      className={cn(
+        'inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-medium',
+        'border-white-10 text-white-50 bg-white-5 cursor-not-allowed',
+      )}
+    >
+      {icon}
+      <span>{action.label}</span>
+      {action.requiresConfig && (
+        <Link
+          href={`/workspaces/${clientId}/settings/integrations`}
+          onClick={(e) => e.stopPropagation()}
+          className="text-white-40 hover:text-white-90 underline decoration-dotted underline-offset-2 ml-0.5"
+        >
+          Connect
+        </Link>
+      )}
+    </span>
   );
 }

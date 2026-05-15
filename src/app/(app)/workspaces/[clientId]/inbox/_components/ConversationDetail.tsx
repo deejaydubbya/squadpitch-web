@@ -293,6 +293,7 @@ export function ConversationDetail({
               note: { available: true, reason: null },
             }
           }
+          availableActions={conv.availableReplyActions ?? []}
           sendError={sendError}
         />
       </div>

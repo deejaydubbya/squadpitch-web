@@ -50,6 +50,49 @@ export interface ReplyCapabilities {
   note: ReplyCapability;
 }
 
+// Channel-aware action types mirrored from
+// squadpitch-api/domains/inbox/inbox.replyActions.js. Provider
+// columns may extend this set later (REPLY_PUBLIC_COMMENT for
+// social, REPLY_REVIEW for GBP/FB, etc.).
+export type ReplyActionId =
+  | 'SEND_EMAIL'
+  | 'SEND_SMS'
+  | 'REPLY_PUBLIC_COMMENT'
+  | 'REPLY_DM'
+  | 'REPLY_REVIEW'
+  | 'LOG_EXTERNAL_REPLY'
+  | 'INTERNAL_NOTE';
+
+export interface ReplyActionDescriptor {
+  action: ReplyActionId;
+  label: string;
+  available: boolean;
+  reason: string | null;
+  /** True when the action needs workspace-level provider config
+   *  (e.g. Postmark or Twilio creds) before it can ever go live —
+   *  drives "Connect <provider>" copy in the UI. False when the
+   *  blocker is per-conversation (e.g. lead has no phone). */
+  requiresConfig: boolean;
+}
+
+export type ConversationProvider =
+  | 'SQUADSITES'
+  | 'EMAIL'
+  | 'SMS'
+  | 'FACEBOOK'
+  | 'INSTAGRAM'
+  | 'GOOGLE_BUSINESS'
+  | 'YOUTUBE'
+  | 'LINKEDIN'
+  | 'X'
+  | 'TIKTOK'
+  | 'THREADS'
+  | 'PINTEREST'
+  | 'WEB_CHAT'
+  | 'MANUAL';
+
+export type MessageVisibility = 'PUBLIC' | 'PRIVATE' | 'INTERNAL';
+
 export interface InboxContact {
   id: string;
   clientId: string;
@@ -83,6 +126,11 @@ export interface InboxMessage {
   providerMessageId: string | null;
   errorReason: string | null;
   lastAttemptedAt: string | null;
+  // Privacy framing — drives composer rendering + AI prompt filtering.
+  visibility: MessageVisibility;
+  // Public-surface link (social comment URL, etc.). Null for direct
+  // channels (email/SMS/form submissions).
+  sourceUrl: string | null;
   createdAt: string;
 }
 
@@ -151,7 +199,16 @@ export interface InboxConversationDetail extends InboxConversationListRow {
   aiReplies: InboxAiSuggestion[];
   page: InboxPageSummary | null;
   campaign: InboxCampaignSummary | null;
+  /** Legacy 3-tab capability shape — kept for back-compat. New
+   *  surface lives on availableReplyActions. */
   replyCapabilities: ReplyCapabilities;
+  /** Channel-aware action list, server-derived per spinstr07. */
+  availableReplyActions: ReplyActionDescriptor[];
+  /** Per-network provider for the conversation. SQUADSITES for
+   *  every form-intake conversation; EMAIL when the inbound email
+   *  webhook created the thread without a prior form. */
+  provider: ConversationProvider;
+  externalThreadId: string | null;
 }
 
 export interface InboxStats {
