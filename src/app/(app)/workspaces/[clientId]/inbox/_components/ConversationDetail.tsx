@@ -29,6 +29,7 @@ import {
   useUpdateConversation,
   useCreateNote,
   useLogManualMessage,
+  useSendInboxEmail,
   type InboxConversationDetail as Conversation,
   type InboxMessage,
   type InboxAiSuggestion,
@@ -61,6 +62,7 @@ export function ConversationDetail({
   const updateConv = useUpdateConversation(clientId);
   const logMessage = useLogManualMessage(clientId, conversationId);
   const createNote = useCreateNote(clientId, conversationId);
+  const sendEmail = useSendInboxEmail(clientId, conversationId);
 
   // Mark read whenever a new unread conversation is opened. Stamp the
   // last-message id so we don't re-fire on every re-render while the
@@ -77,6 +79,9 @@ export function ConversationDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id, data?.unread]);
 
+  // Default composer mode is "email" when the conversation supports
+  // it (real outbound). Otherwise fall back to "reply" (log-only).
+  // The user can always switch tabs explicitly.
   const [composerMode, setComposerMode] = useState<ComposerMode>('reply');
   const [composerBody, setComposerBody] = useState('');
   const [fromSuggestionId, setFromSuggestionId] = useState<string | null>(null);
@@ -84,6 +89,23 @@ export function ConversationDetail({
   // suggestion text isn't duplicated alongside the now-filled
   // composer. Resets when the external reply is logged.
   const [aiCollapsed, setAiCollapsed] = useState(false);
+  // Inline send error so users see what failed instead of an opaque
+  // "request failed" — Postmark rejections, rate-limit, etc.
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // Promote the email tab to default the first time the data
+  // arrives if email is available. Stamp the conversation id so a
+  // subsequent capability change for the same conversation doesn't
+  // override an explicit user tab switch.
+  const defaultedForId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    if (defaultedForId.current === data.id) return;
+    defaultedForId.current = data.id;
+    if (data.replyCapabilities?.email.available) {
+      setComposerMode('email');
+    }
+  }, [data?.id, data?.replyCapabilities?.email.available]);
 
   // The first inbound FORM_SUBMISSION gets hero rendering; subsequent
   // CONTACT messages fall back to the standard bubble layout. Computed
@@ -115,7 +137,25 @@ export function ConversationDetail({
   const handleSubmit = () => {
     const body = composerBody.trim();
     if (!body) return;
-    if (composerMode === 'reply') {
+    setSendError(null);
+    if (composerMode === 'email') {
+      sendEmail.mutate(
+        {
+          body,
+          fromSuggestionId: fromSuggestionId ?? undefined,
+        },
+        {
+          onSuccess: () => {
+            setComposerBody('');
+            setFromSuggestionId(null);
+            setAiCollapsed(false);
+          },
+          onError: (err) => {
+            setSendError(err instanceof ApiError ? err.message : 'Send failed');
+          },
+        },
+      );
+    } else if (composerMode === 'reply') {
       logMessage.mutate(
         {
           body,
@@ -140,7 +180,12 @@ export function ConversationDetail({
   };
 
   const handleUseSuggestion = (suggestion: InboxAiSuggestion) => {
-    setComposerMode('reply');
+    // Prefer the real send channel if it's available — the user
+    // almost certainly meant to send, not log.
+    const nextMode: ComposerMode = conv.replyCapabilities?.email.available
+      ? 'email'
+      : 'reply';
+    setComposerMode(nextMode);
     setComposerBody(suggestion.body);
     setFromSuggestionId(suggestion.id);
   };
@@ -189,13 +234,24 @@ export function ConversationDetail({
           mode={composerMode}
           onModeChange={(m) => {
             setComposerMode(m);
+            setSendError(null);
             if (m === 'note') setFromSuggestionId(null);
           }}
           body={composerBody}
           onBodyChange={setComposerBody}
           onSubmit={handleSubmit}
-          pending={logMessage.isPending || createNote.isPending}
+          pending={
+            sendEmail.isPending || logMessage.isPending || createNote.isPending
+          }
           fromSuggestion={Boolean(fromSuggestionId)}
+          capabilities={
+            conv.replyCapabilities ?? {
+              email: { available: false, reason: 'Loading…' },
+              logExternal: { available: true, reason: null },
+              note: { available: true, reason: null },
+            }
+          }
+          sendError={sendError}
         />
       </div>
     </div>

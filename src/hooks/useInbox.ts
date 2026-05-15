@@ -26,7 +26,19 @@ export type MessageChannel =
   | 'SMS'
   | 'SOCIAL_DM'
   | 'MANUAL_LOG';
+export type MessageDeliveryStatus = 'DRAFT' | 'SENDING' | 'SENT' | 'FAILED';
 export type ReplyTone = 'professional' | 'friendly' | 'concise';
+
+export interface ReplyCapability {
+  available: boolean;
+  reason: string | null;
+}
+
+export interface ReplyCapabilities {
+  email: ReplyCapability;
+  logExternal: ReplyCapability;
+  note: ReplyCapability;
+}
 
 export interface InboxContact {
   id: string;
@@ -55,6 +67,12 @@ export interface InboxMessage {
   externalMessageId: string | null;
   authorUserId: string | null;
   fromSuggestionId: string | null;
+  // Outbound delivery lifecycle. Null for legacy thread events
+  // (FORM_SUBMISSION, MANUAL_LOG) that didn't go through a provider.
+  deliveryStatus: MessageDeliveryStatus | null;
+  providerMessageId: string | null;
+  errorReason: string | null;
+  lastAttemptedAt: string | null;
   createdAt: string;
 }
 
@@ -123,6 +141,7 @@ export interface InboxConversationDetail extends InboxConversationListRow {
   aiReplies: InboxAiSuggestion[];
   page: InboxPageSummary | null;
   campaign: InboxCampaignSummary | null;
+  replyCapabilities: ReplyCapabilities;
 }
 
 export interface InboxStats {
@@ -268,6 +287,40 @@ export function useLogManualMessage(clientId: string, conversationId: string) {
     mutationFn: (input: ManualMessageInput) =>
       apiFetch<{ message: InboxMessage }>(
         `${base(clientId)}/conversations/${conversationId}/messages/manual`,
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
+// ── Send email (real outbound) ───────────────────────────────────────────
+//
+// First real send channel. Backed by Postmark on the API side and
+// capability-gated — the route returns 412 if the lead has no email
+// or the provider isn't configured. Never call this without first
+// checking conversation.replyCapabilities.email.available.
+
+export interface SendEmailInput {
+  body: string;
+  subject?: string;
+  fromSuggestionId?: string;
+}
+
+export function useSendInboxEmail(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SendEmailInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/send-email`,
         {
           method: 'POST',
           body: JSON.stringify(input),
