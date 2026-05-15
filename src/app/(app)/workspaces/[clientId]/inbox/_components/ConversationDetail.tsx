@@ -80,6 +80,10 @@ export function ConversationDetail({
   const [composerMode, setComposerMode] = useState<ComposerMode>('reply');
   const [composerBody, setComposerBody] = useState('');
   const [fromSuggestionId, setFromSuggestionId] = useState<string | null>(null);
+  // AI panel collapses to a compact strip after "Use this" so the
+  // suggestion text isn't duplicated alongside the now-filled
+  // composer. Resets when the external reply is logged.
+  const [aiCollapsed, setAiCollapsed] = useState(false);
 
   // The first inbound FORM_SUBMISSION gets hero rendering; subsequent
   // CONTACT messages fall back to the standard bubble layout. Computed
@@ -122,6 +126,9 @@ export function ConversationDetail({
           onSuccess: () => {
             setComposerBody('');
             setFromSuggestionId(null);
+            // After a successful log, reset the AI panel so the next
+            // suggestion starts from the full default view.
+            setAiCollapsed(false);
           },
         },
       );
@@ -170,11 +177,15 @@ export function ConversationDetail({
           onUseSuggestion={handleUseSuggestion}
           disabled={!hasInbound}
           contextLabel={buildContextLabel(conv)}
+          collapsed={aiCollapsed}
+          onCollapse={() => setAiCollapsed(true)}
+          onExpand={() => setAiCollapsed(false)}
         />
       </div>
 
       <div className="border-t border-white-10 px-4 sm:px-6 py-3 bg-sp-bg">
         <Composer
+          clientId={clientId}
           mode={composerMode}
           onModeChange={(m) => {
             setComposerMode(m);

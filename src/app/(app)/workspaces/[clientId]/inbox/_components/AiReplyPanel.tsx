@@ -4,9 +4,22 @@
 // most recent inbound message. Never auto-sends; "Use this" hands
 // the body back to the parent so it can pre-fill the composer and
 // stamp fromSuggestionId on the next manual-log call.
+//
+// After "Use this" the panel collapses to a compact strip so the
+// full suggestion text isn't shown twice (once here, once in the
+// composer). The parent controls the collapsed flag so it can be
+// reset when the external reply is logged.
 
 import { useState } from 'react';
-import { Sparkles, Copy, Check, AlertCircle, RotateCw } from 'lucide-react';
+import {
+  Sparkles,
+  Copy,
+  Check,
+  AlertCircle,
+  RotateCw,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import {
   useGenerateAiReply,
   type InboxAiSuggestion,
@@ -32,6 +45,16 @@ interface AiReplyPanelProps {
    *  property). Renders as a "Using context:" line so the user can trust
    *  the suggestion is grounded. Omit when there is no source context. */
   contextLabel?: string | null;
+  /** Collapse the panel into a compact "draft added" strip. Used after the
+   *  user clicks "Use this" so the full suggestion isn't shown twice
+   *  (once here, once in the composer). Parent owns the flag so it can
+   *  reset it after the external reply is logged. */
+  collapsed?: boolean;
+  /** Called when the user clicks "Use this" — parent should fill the
+   *  composer AND set collapsed=true. */
+  onCollapse?: () => void;
+  /** Called when the user clicks "Expand" in the collapsed state. */
+  onExpand?: () => void;
 }
 
 export function AiReplyPanel({
@@ -41,6 +64,9 @@ export function AiReplyPanel({
   onUseSuggestion,
   disabled = false,
   contextLabel = null,
+  collapsed = false,
+  onCollapse,
+  onExpand,
 }: AiReplyPanelProps) {
   const [tone, setTone] = useState<ReplyTone>('professional');
   const [copied, setCopied] = useState(false);
@@ -65,6 +91,51 @@ export function AiReplyPanel({
     }
   };
 
+  const handleUse = (s: InboxAiSuggestion) => {
+    onUseSuggestion(s);
+    onCollapse?.();
+  };
+
+  const handleRegenerate = () => {
+    if (onExpand) onExpand();
+    generate.mutate({ tone });
+  };
+
+  // Compact strip — shown after "Use this" so the suggestion text isn't
+  // duplicated alongside the now-filled composer.
+  if (collapsed && suggestion) {
+    return (
+      <div className="card px-3 py-2 flex items-center gap-2">
+        <Sparkles className="w-3.5 h-3.5 text-accent-green-110 shrink-0" />
+        <span className="text-xs text-white-80 min-w-0 flex-1 truncate">
+          AI draft added to composer
+        </span>
+        <button
+          type="button"
+          onClick={handleRegenerate}
+          disabled={generate.isPending}
+          className={cn(
+            'text-xs font-medium px-2 py-1 rounded text-white-70 hover:bg-white-10 inline-flex items-center gap-1',
+            generate.isPending && 'opacity-50 cursor-not-allowed',
+          )}
+        >
+          <RotateCw
+            className={cn('w-3 h-3', generate.isPending && 'animate-spin')}
+          />
+          {generate.isPending ? 'Regenerating…' : 'Regenerate'}
+        </button>
+        <button
+          type="button"
+          onClick={onExpand}
+          className="text-xs font-medium px-2 py-1 rounded text-white-70 hover:bg-white-10 inline-flex items-center gap-1"
+        >
+          <ChevronDown className="w-3 h-3" />
+          Expand
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="card p-4 space-y-3">
       <div className="flex items-start gap-3">
@@ -78,6 +149,17 @@ export function AiReplyPanel({
             voice.
           </p>
         </div>
+        {suggestion && onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="p-1 rounded text-white-40 hover:text-white-100 hover:bg-white-10"
+            title="Collapse"
+            aria-label="Collapse"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {contextLabel && (
@@ -121,7 +203,7 @@ export function AiReplyPanel({
           <div className="flex items-center gap-1 pt-2 border-t border-white-10">
             <button
               type="button"
-              onClick={() => onUseSuggestion(suggestion)}
+              onClick={() => handleUse(suggestion)}
               className="text-xs font-semibold px-3 py-1.5 rounded-md bg-accent-green-110 text-sp-bg hover:bg-accent-green-100 inline-flex items-center gap-1.5"
             >
               <Check className="w-3 h-3" />
