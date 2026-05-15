@@ -74,6 +74,10 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
   const contentType = request.headers.get('content-type');
   if (contentType) headers['content-type'] = contentType;
   headers['authorization'] = `Bearer ${token}`;
+  // Forward Idempotency-Key (RFC 5789-style) so callers can dedupe
+  // POSTs across browser retries. Currently used by Inbox send-email.
+  const idempotencyKey = request.headers.get('idempotency-key');
+  if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
 
   const body = request.method !== 'GET' && request.method !== 'HEAD'
     ? await request.arrayBuffer()

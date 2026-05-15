@@ -313,17 +313,23 @@ export interface SendEmailInput {
   body: string;
   subject?: string;
   fromSuggestionId?: string;
+  // Fresh UUID minted by the composer on each Send click. Lets a
+  // retried POST (double-click, network retry, server-restart-mid-call)
+  // return the existing Message instead of firing a duplicate send.
+  // Optional for type-safety, but the composer always supplies one.
+  idempotencyKey?: string;
 }
 
 export function useSendInboxEmail(clientId: string, conversationId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: SendEmailInput) =>
+    mutationFn: ({ idempotencyKey, ...body }: SendEmailInput) =>
       apiFetch<{ message: InboxMessage }>(
         `${base(clientId)}/conversations/${conversationId}/send-email`,
         {
           method: 'POST',
-          body: JSON.stringify(input),
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
         },
       ),
     onSuccess: () => {

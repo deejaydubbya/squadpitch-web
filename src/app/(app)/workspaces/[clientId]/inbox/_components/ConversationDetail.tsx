@@ -139,10 +139,20 @@ export function ConversationDetail({
     if (!body) return;
     setSendError(null);
     if (composerMode === 'email') {
+      // Mint a fresh idempotency key per Send click. Pure browser
+      // randomUUID — no PII, no server roundtrip. A double-click or
+      // network retry on this exact mutate call will reuse the key
+      // (React Query keeps the same input on retry) and the API
+      // returns the existing Message instead of a duplicate send.
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       sendEmail.mutate(
         {
           body,
           fromSuggestionId: fromSuggestionId ?? undefined,
+          idempotencyKey,
         },
         {
           onSuccess: () => {
@@ -179,6 +189,32 @@ export function ConversationDetail({
     }
   };
 
+  // Retry a FAILED outbound email. Re-sends the prior body with a
+  // FRESH idempotency key (the failed attempt already burned its
+  // key — reusing it would short-circuit back to the same FAILED
+  // Message). Whether the user sees the new row or the old one
+  // depends on how the API handles repeated failed sends; for now
+  // we just kick off a brand-new attempt.
+  const handleRetryFailedEmail = (failed: InboxMessage) => {
+    setSendError(null);
+    const idempotencyKey =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    sendEmail.mutate(
+      {
+        body: failed.body,
+        fromSuggestionId: failed.fromSuggestionId ?? undefined,
+        idempotencyKey,
+      },
+      {
+        onError: (err) => {
+          setSendError(err instanceof ApiError ? err.message : 'Retry failed');
+        },
+      },
+    );
+  };
+
   const handleUseSuggestion = (suggestion: InboxAiSuggestion) => {
     // Prefer the real send channel if it's available — the user
     // almost certainly meant to send, not log.
@@ -213,7 +249,12 @@ export function ConversationDetail({
           />
         )}
 
-        <ThreadTimeline conversation={conv} skipMessageId={heroMessageId} />
+        <ThreadTimeline
+          conversation={conv}
+          skipMessageId={heroMessageId}
+          onRetryFailedEmail={handleRetryFailedEmail}
+          retryPending={sendEmail.isPending}
+        />
 
         <AiReplyPanel
           clientId={clientId}
@@ -451,10 +492,14 @@ function SourceStrip({ conv, clientId }: { conv: Conversation; clientId: string 
 function ThreadTimeline({
   conversation,
   skipMessageId,
+  onRetryFailedEmail,
+  retryPending,
 }: {
   conversation: Conversation;
   /** Message id rendered as a LeadCard above — exclude from the timeline so it doesn't double-render. */
   skipMessageId: string | null;
+  onRetryFailedEmail: (message: InboxMessage) => void;
+  retryPending: boolean;
 }) {
   type Entry =
     | { kind: 'message'; at: string; data: InboxMessage }
@@ -480,7 +525,12 @@ function ThreadTimeline({
     <ul className="space-y-3">
       {entries.map((entry) =>
         entry.kind === 'message' ? (
-          <MessageBubble key={`m-${entry.data.id}`} message={entry.data} />
+          <MessageBubble
+            key={`m-${entry.data.id}`}
+            message={entry.data}
+            onRetry={onRetryFailedEmail}
+            retryPending={retryPending}
+          />
         ) : (
           <NoteBubble key={`n-${entry.data.id}`} note={entry.data} />
         ),
@@ -489,7 +539,15 @@ function ThreadTimeline({
   );
 }
 
-function MessageBubble({ message }: { message: InboxMessage }) {
+function MessageBubble({
+  message,
+  onRetry,
+  retryPending,
+}: {
+  message: InboxMessage;
+  onRetry: (message: InboxMessage) => void;
+  retryPending: boolean;
+}) {
   const isContact = message.party === 'CONTACT';
   const isSystem = message.party === 'SYSTEM';
 
@@ -501,6 +559,12 @@ function MessageBubble({ message }: { message: InboxMessage }) {
     );
   }
 
+  // Delivery state for outbound real-channel sends. Only EMAIL (and
+  // future SMS/social) carry a meaningful lifecycle; FORM_SUBMISSION
+  // and MANUAL_LOG come back with null deliveryStatus.
+  const isFailed = !isContact && message.deliveryStatus === 'FAILED';
+  const isSending = !isContact && message.deliveryStatus === 'SENDING';
+
   return (
     <li className={cn('flex', isContact ? 'justify-start' : 'justify-end')}>
       <div
@@ -508,11 +572,13 @@ function MessageBubble({ message }: { message: InboxMessage }) {
           'max-w-[80%] rounded-2xl px-3.5 py-2.5 space-y-1',
           isContact
             ? 'bg-white-10 text-white-90 rounded-tl-sm'
-            : 'bg-accent-green-110/15 text-white-100 rounded-tr-sm border border-accent-green-110/20',
+            : isFailed
+              ? 'bg-amber-400/10 text-white-100 rounded-tr-sm border border-amber-400/40'
+              : 'bg-accent-green-110/15 text-white-100 rounded-tr-sm border border-accent-green-110/20',
         )}
       >
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.body}</p>
-        <div className="flex items-center gap-2 text-[10px] text-white-40 pt-1">
+        <div className="flex items-center gap-2 text-[10px] text-white-40 pt-1 flex-wrap">
           <span>{formatDateTime(message.createdAt)}</span>
           {message.channel && (
             <>
@@ -522,10 +588,50 @@ function MessageBubble({ message }: { message: InboxMessage }) {
               </span>
             </>
           )}
+          {isSending && (
+            <>
+              <span>·</span>
+              <span className="uppercase tracking-wider text-white-50">Sending…</span>
+            </>
+          )}
+          {isFailed && (
+            <>
+              <span>·</span>
+              <span className="uppercase tracking-wider text-amber-300 font-medium">
+                Failed
+              </span>
+            </>
+          )}
         </div>
+        {isFailed && (
+          <div className="flex items-start justify-between gap-2 pt-1 border-t border-amber-400/20 mt-1">
+            <p className="text-[11px] text-amber-200/80 leading-snug flex-1 min-w-0">
+              {message.errorReason
+                ? `Send failed: ${truncateReason(message.errorReason)}`
+                : 'Send failed. Try again or check provider settings.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => onRetry(message)}
+              disabled={retryPending}
+              className={cn(
+                'text-[11px] font-semibold px-2 py-1 rounded-md inline-flex items-center gap-1 transition-colors shrink-0',
+                'bg-amber-400/20 text-amber-100 hover:bg-amber-400/30 border border-amber-400/30',
+                retryPending && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              {retryPending ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
+        )}
       </div>
     </li>
   );
+}
+
+function truncateReason(reason: string): string {
+  const stripped = reason.replace(/^\d+:\s*/, '');
+  return stripped.length > 160 ? `${stripped.slice(0, 157)}…` : stripped;
 }
 
 function NoteBubble({
