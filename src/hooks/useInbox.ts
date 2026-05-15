@@ -33,6 +33,11 @@ export type MessageChannel =
   | 'MANUAL_LOG';
 export type MessageDeliveryStatus = 'DRAFT' | 'SENDING' | 'SENT' | 'FAILED';
 export type ReplyTone = 'professional' | 'friendly' | 'concise';
+// AI reply channel framing — drives the system prompt:
+//   email — outbound email draft (greeting + sign-off-ready)
+//   reply — logged-external paste (brief, no greeting)
+//   note  — internal team note (third-person, no greeting)
+export type AiReplyChannel = 'email' | 'reply' | 'note';
 
 export interface ReplyCapability {
   available: boolean;
@@ -390,7 +395,7 @@ export function useUpdateContact(clientId: string) {
 export function useGenerateAiReply(clientId: string, conversationId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { tone?: ReplyTone } = {}) =>
+    mutationFn: (input: { tone?: ReplyTone; channel?: AiReplyChannel } = {}) =>
       apiFetch<{ suggestion: InboxAiSuggestion }>(
         `${base(clientId)}/conversations/${conversationId}/ai-reply`,
         {

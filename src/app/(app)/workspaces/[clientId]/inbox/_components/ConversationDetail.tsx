@@ -263,6 +263,7 @@ export function ConversationDetail({
           onUseSuggestion={handleUseSuggestion}
           disabled={!hasInbound}
           contextLabel={buildContextLabel(conv)}
+          channel={composerMode === 'note' ? 'note' : composerMode === 'reply' ? 'reply' : 'email'}
           collapsed={aiCollapsed}
           onCollapse={() => setAiCollapsed(true)}
           onExpand={() => setAiCollapsed(false)}

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import {
   useGenerateAiReply,
+  type AiReplyChannel,
   type InboxAiSuggestion,
   type ReplyTone,
 } from '@/hooks/useInbox';
@@ -45,6 +46,10 @@ interface AiReplyPanelProps {
    *  property). Renders as a "Using context:" line so the user can trust
    *  the suggestion is grounded. Omit when there is no source context. */
   contextLabel?: string | null;
+  /** Which composer surface the user is about to fill — drives the
+   *  AI prompt framing. "email" gets a full reply, "note" gets a
+   *  third-person team note. */
+  channel?: AiReplyChannel;
   /** Collapse the panel into a compact "draft added" strip. Used after the
    *  user clicks "Use this" so the full suggestion isn't shown twice
    *  (once here, once in the composer). Parent owns the flag so it can
@@ -64,6 +69,7 @@ export function AiReplyPanel({
   onUseSuggestion,
   disabled = false,
   contextLabel = null,
+  channel = 'email',
   collapsed = false,
   onCollapse,
   onExpand,
@@ -98,8 +104,17 @@ export function AiReplyPanel({
 
   const handleRegenerate = () => {
     if (onExpand) onExpand();
-    generate.mutate({ tone });
+    generate.mutate({ tone, channel });
   };
+
+  // Button copy reflects the composer surface the suggestion will
+  // land in — so the user knows what kind of draft they're getting.
+  const suggestLabel =
+    channel === 'note'
+      ? 'Suggest internal note'
+      : channel === 'reply'
+        ? 'Suggest reply'
+        : 'Suggest email reply';
 
   // Compact strip — shown after "Use this" so the suggestion text isn't
   // duplicated alongside the now-filled composer.
@@ -226,7 +241,7 @@ export function AiReplyPanel({
             </button>
             <button
               type="button"
-              onClick={() => generate.mutate({ tone })}
+              onClick={() => generate.mutate({ tone, channel })}
               disabled={generate.isPending}
               className={cn(
                 'text-xs font-medium px-2.5 py-1.5 rounded-md text-white-70 hover:bg-white-10 inline-flex items-center gap-1.5 ml-auto',
@@ -252,7 +267,7 @@ export function AiReplyPanel({
       {!suggestion && (
         <button
           type="button"
-          onClick={() => generate.mutate({ tone })}
+          onClick={() => generate.mutate({ tone, channel })}
           disabled={disabled || generate.isPending}
           className={cn(
             'w-full text-xs font-semibold px-3 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors',
@@ -261,7 +276,7 @@ export function AiReplyPanel({
           )}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          {generate.isPending ? 'Generating…' : 'Suggest reply'}
+          {generate.isPending ? 'Generating…' : suggestLabel}
         </button>
       )}
 
