@@ -28,6 +28,10 @@ interface AiReplyPanelProps {
   onUseSuggestion: (suggestion: InboxAiSuggestion) => void;
   /** Disabled when there's no inbound message to reply to. */
   disabled?: boolean;
+  /** Short label describing the context the AI will use (page / campaign /
+   *  property). Renders as a "Using context:" line so the user can trust
+   *  the suggestion is grounded. Omit when there is no source context. */
+  contextLabel?: string | null;
 }
 
 export function AiReplyPanel({
@@ -36,6 +40,7 @@ export function AiReplyPanel({
   latestSuggestion,
   onUseSuggestion,
   disabled = false,
+  contextLabel = null,
 }: AiReplyPanelProps) {
   const [tone, setTone] = useState<ReplyTone>('professional');
   const [copied, setCopied] = useState(false);
@@ -74,6 +79,16 @@ export function AiReplyPanel({
           </p>
         </div>
       </div>
+
+      {contextLabel && (
+        <div className="flex items-start gap-2 text-[11px] text-white-60 bg-accent-green-110/5 border border-accent-green-110/20 rounded-lg px-2.5 py-1.5">
+          <Sparkles className="w-3 h-3 text-accent-green-110 shrink-0 mt-0.5" />
+          <span className="leading-snug">
+            <span className="text-white-40">Using context:</span>{' '}
+            <span className="text-white-90">{contextLabel}</span>
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-1">
         <span className="text-[10px] text-white-40 uppercase tracking-wider mr-1">

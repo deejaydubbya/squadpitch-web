@@ -169,6 +169,7 @@ export function ConversationDetail({
           latestSuggestion={latestSuggestion}
           onUseSuggestion={handleUseSuggestion}
           disabled={!hasInbound}
+          contextLabel={buildContextLabel(conv)}
         />
       </div>
 
@@ -495,4 +496,16 @@ function humanizeChannel(channel: string): string {
   if (channel === 'MANUAL_LOG') return 'logged';
   if (channel === 'SOCIAL_DM') return 'DM';
   return channel.toLowerCase();
+}
+
+// Short summary of what the AI will see, shown in the AI reply panel
+// so the user can trust the suggestion is grounded. Page wins as
+// the primary anchor because that's what the lead actually saw;
+// campaign adds when present.
+function buildContextLabel(conv: Conversation): string | null {
+  const parts: string[] = [];
+  if (conv.page?.title) parts.push(conv.page.title);
+  if (conv.campaign?.name) parts.push(conv.campaign.name);
+  if (parts.length === 0) return null;
+  return parts.join(' · ');
 }
