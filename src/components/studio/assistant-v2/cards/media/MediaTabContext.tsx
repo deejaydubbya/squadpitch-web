@@ -29,7 +29,10 @@ export function MediaTabContext({
   onImagesAvailable,
 }: MediaTabContextProps) {
   const isDataItemMode = session.quickPostSource === 'data' && !!session.quickPostDataItemId;
-  const { data: dataItem } = useDataItem(isDataItemMode ? session.quickPostDataItemId! : undefined);
+  const { data: dataItem } = useDataItem(
+    clientId,
+    isDataItemMode ? session.quickPostDataItemId! : undefined,
+  );
 
   // Build images from property data (campaign mode)
   const propertyImages: SelectableImage[] = useMemo(() => {

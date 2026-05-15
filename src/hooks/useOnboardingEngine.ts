@@ -1464,11 +1464,14 @@ export function useOnboardingEngine() {
     for (let i = 0; i < entries.length; i++) {
       const [id, patch] = entries[i];
       try {
-        const res = await fetch(`/api/proxy/business-data/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patch),
-        });
+        const res = await fetch(
+          `/api/proxy/workspaces/${clientId}/business-data/${id}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+          },
+        );
         if (!res.ok) {
           console.error(`[confirmPropertyReview] PATCH failed for ${id}:`, res.status);
         }
@@ -1744,13 +1747,16 @@ export function useOnboardingEngine() {
 
         if (mergedImages.length > existingImages.length || !dj.imageUrl) {
           try {
-            await fetch(`/api/proxy/business-data/${di.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                dataJson: { ...dj, images: mergedImages, imageUrl: heroUrl },
-              }),
-            });
+            await fetch(
+              `/api/proxy/workspaces/${clientId}/business-data/${di.id}`,
+              {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  dataJson: { ...dj, images: mergedImages, imageUrl: heroUrl },
+                }),
+              },
+            );
           } catch { /* non-critical */ }
         }
       }

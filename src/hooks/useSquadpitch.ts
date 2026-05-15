@@ -3024,11 +3024,15 @@ export function useProperties(clientId: string, filters?: Omit<DataItemFilters, 
   return useDataItems(clientId, { ...filters, type: 'PROPERTY' });
 }
 
-export function useDataItem(id: string | undefined) {
+export function useDataItem(
+  clientId: string | undefined,
+  id: string | undefined,
+) {
   return useQuery({
     queryKey: squadpitchKeys.dataItem(id ?? ''),
-    queryFn: () => apiFetch<WorkspaceDataItem>(`business-data/${id}`),
-    enabled: Boolean(id),
+    queryFn: () =>
+      apiFetch<WorkspaceDataItem>(`workspaces/${clientId}/business-data/${id}`),
+    enabled: Boolean(clientId && id),
   });
 }
 
@@ -3060,10 +3064,13 @@ export function useUpdateDataItem(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: Partial<CreateDataItemInput> & { id: string }) =>
-      apiFetch<WorkspaceDataItem>(`business-data/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      }),
+      apiFetch<WorkspaceDataItem>(
+        `workspaces/${clientId}/business-data/${id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        },
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
@@ -3074,9 +3081,10 @@ export function useArchiveDataItem(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<WorkspaceDataItem>(`business-data/${id}/archive`, {
-        method: 'POST',
-      }),
+      apiFetch<WorkspaceDataItem>(
+        `workspaces/${clientId}/business-data/${id}/archive`,
+        { method: 'POST' },
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
@@ -3087,7 +3095,10 @@ export function useDeleteDataItem(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<{ ok: boolean }>(`business-data/${id}`, { method: 'DELETE' }),
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/business-data/${id}`,
+        { method: 'DELETE' },
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
@@ -3316,15 +3327,18 @@ export function useContentOpportunities(clientId: string) {
   });
 }
 
-export function useItemOpportunities(itemId: string | undefined) {
+export function useItemOpportunities(
+  clientId: string | undefined,
+  itemId: string | undefined,
+) {
   return useQuery({
     queryKey: squadpitchKeys.itemOpportunities(itemId ?? ''),
     queryFn: () =>
       apiFetch<{ opportunities: ItemOpportunity[] }>(
-        `business-data/${itemId}/opportunities`
+        `workspaces/${clientId}/business-data/${itemId}/opportunities`
       ),
     select: (data) => data.opportunities,
-    enabled: Boolean(itemId),
+    enabled: Boolean(clientId && itemId),
   });
 }
 
