@@ -5,7 +5,7 @@
 // except where the underlying API supports the action — actions
 // without an endpoint (e.g. "Mark qualified") render disabled.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Mail,
@@ -18,16 +18,22 @@ import {
   Globe,
   Target,
   Calendar,
-  Award,
   Archive,
   ShieldAlert,
   ExternalLink,
   X,
+  Tag,
+  Plus,
+  Pencil,
 } from 'lucide-react';
 import {
   useUpdateConversation,
+  useUpdateContact,
+  type ContactStatus,
   type InboxConversationDetail,
+  type InboxContact,
 } from '@/hooks/useInbox';
+import { ApiError } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
 import {
   contactHeadline,
@@ -47,10 +53,18 @@ interface ContactSidebarProps {
 const STATUS_TONE: Record<string, string> = {
   NEW: 'text-accent-green-110 bg-accent-green-110/15',
   ENGAGED: 'text-blue-300 bg-blue-300/15',
-  CUSTOMER: 'text-purple-300 bg-purple-300/15',
-  LOST: 'text-white-40 bg-white-10',
+  QUALIFIED: 'text-amber-300 bg-amber-300/15',
+  CONVERTED: 'text-purple-300 bg-purple-300/15',
   ARCHIVED: 'text-white-40 bg-white-10',
 };
+
+const CONTACT_STATUSES: ContactStatus[] = [
+  'NEW',
+  'ENGAGED',
+  'QUALIFIED',
+  'CONVERTED',
+  'ARCHIVED',
+];
 
 export function ContactSidebar({
   clientId,
@@ -59,6 +73,21 @@ export function ContactSidebar({
 }: ContactSidebarProps) {
   const contact = conversation.contact;
   const update = useUpdateConversation(clientId);
+  const updateContact = useUpdateContact(clientId);
+
+  const [contactError, setContactError] = useState<string | null>(null);
+  const patchContact = (
+    patch: Parameters<typeof updateContact.mutate>[0]['patch'],
+  ) => {
+    setContactError(null);
+    updateContact.mutate(
+      { contactId: contact.id, patch },
+      {
+        onError: (err) =>
+          setContactError(err instanceof ApiError ? err.message : 'Update failed'),
+      },
+    );
+  };
 
   const submissions = readSubmissions(contact.enrichmentJson);
   const latestSubmission = submissions[0] ?? null;
@@ -80,7 +109,26 @@ export function ContactSidebar({
         </div>
       )}
       <div className="p-4 space-y-3 flex-1 overflow-y-auto">
-        <ContactCard contact={contact} />
+        <ContactCard
+          contact={contact}
+          onPatch={patchContact}
+          pending={updateContact.isPending}
+        />
+        {contactError && (
+          <div className="card p-3 text-[11px] text-amber-200/90 bg-amber-400/5 border-amber-400/20">
+            {contactError}
+          </div>
+        )}
+        <StatusPickerCard
+          contact={contact}
+          onPatch={patchContact}
+          pending={updateContact.isPending}
+        />
+        <TagsCard
+          contact={contact}
+          onPatch={patchContact}
+          pending={updateContact.isPending}
+        />
         <SourceCard conversation={conversation} clientId={clientId} />
         {latestSubmission && <FormAnswersCard submission={latestSubmission} />}
         {olderSubmissions.length > 0 && (
@@ -109,9 +157,18 @@ export function ContactSidebar({
 
 // ── Cards ───────────────────────────────────────────────────────────────
 
-function ContactCard({ contact }: { contact: InboxConversationDetail['contact'] }) {
+function ContactCard({
+  contact,
+  onPatch,
+  pending,
+}: {
+  contact: InboxConversationDetail['contact'];
+  onPatch: (patch: { name?: string | null; email?: string | null; phone?: string | null }) => void;
+  pending: boolean;
+}) {
   const initials = initialsFromContact(contact);
   const headline = contactHeadline(contact);
+  const [editing, setEditing] = useState(false);
 
   return (
     <div className="card p-4 space-y-3">
@@ -132,36 +189,313 @@ function ContactCard({ contact }: { contact: InboxConversationDetail['contact'] 
             {contact.status.toLowerCase()}
           </span>
         </div>
+        <button
+          type="button"
+          onClick={() => setEditing((e) => !e)}
+          className="p-1.5 rounded-lg text-white-50 hover:text-white-100 hover:bg-white-10 shrink-0"
+          title={editing ? 'Done editing' : 'Edit name, email, phone'}
+        >
+          {editing ? <X className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+        </button>
       </div>
 
-      <div className="space-y-2 pt-1 border-t border-white-10">
-        {contact.email && (
-          <ContactLink
-            icon={<Mail className="w-3.5 h-3.5" />}
-            label={contact.email}
-            href={`mailto:${contact.email}`}
-            copyValue={contact.email}
-          />
-        )}
-        {contact.phone && (
-          <ContactLink
-            icon={<Phone className="w-3.5 h-3.5" />}
-            label={contact.phone}
-            href={`tel:${contact.phone}`}
-            copyValue={contact.phone}
-          />
-        )}
-        {!contact.email && !contact.phone && (
-          <p className="text-xs text-white-40">No contact channels on file.</p>
-        )}
-      </div>
+      {editing ? (
+        <IdentityEditor
+          contact={contact}
+          onPatch={onPatch}
+          pending={pending}
+          onClose={() => setEditing(false)}
+        />
+      ) : (
+        <div className="space-y-2 pt-1 border-t border-white-10">
+          {contact.email && (
+            <ContactLink
+              icon={<Mail className="w-3.5 h-3.5" />}
+              label={contact.email}
+              href={`mailto:${contact.email}`}
+              copyValue={contact.email}
+            />
+          )}
+          {contact.phone && (
+            <ContactLink
+              icon={<Phone className="w-3.5 h-3.5" />}
+              label={contact.phone}
+              href={`tel:${contact.phone}`}
+              copyValue={contact.phone}
+            />
+          )}
+          {!contact.email && !contact.phone && (
+            <p className="text-xs text-white-40">No contact channels on file.</p>
+          )}
+        </div>
+      )}
 
       {/* Alternate identity values captured from later submissions.
           The intake never overwrites the primary email/phone (so a
           typo or shared phone doesn't break the contact identity),
           but the alternate is preserved here so workspace users can
           see it and reach out via the other address if needed. */}
-      <AlternatesBlock enrichmentJson={contact.enrichmentJson} />
+      {!editing && <AlternatesBlock enrichmentJson={contact.enrichmentJson} />}
+    </div>
+  );
+}
+
+// Inline editor for the three identity fields. Pre-fills with the
+// current values; submit fires a partial PATCH containing only the
+// fields the user actually changed (so a no-op edit doesn't write
+// an audit row).
+function IdentityEditor({
+  contact,
+  onPatch,
+  pending,
+  onClose,
+}: {
+  contact: InboxContact;
+  onPatch: (patch: { name?: string | null; email?: string | null; phone?: string | null }) => void;
+  pending: boolean;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(contact.name ?? '');
+  const [email, setEmail] = useState(contact.email ?? '');
+  const [phone, setPhone] = useState(contact.phone ?? '');
+
+  // If the underlying row changes while the editor is open (e.g.
+  // another tab updated the contact), reset the form fields to the
+  // new canonical values. Cheap optimistic-correctness guard.
+  useEffect(() => {
+    setName(contact.name ?? '');
+    setEmail(contact.email ?? '');
+    setPhone(contact.phone ?? '');
+  }, [contact.id, contact.name, contact.email, contact.phone]);
+
+  const handleSave = () => {
+    const patch: { name?: string | null; email?: string | null; phone?: string | null } = {};
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+    if (trimmedName !== (contact.name ?? '')) patch.name = trimmedName || null;
+    if (trimmedEmail !== (contact.email ?? '')) patch.email = trimmedEmail || null;
+    if (trimmedPhone !== (contact.phone ?? '')) patch.phone = trimmedPhone || null;
+    if (Object.keys(patch).length === 0) {
+      onClose();
+      return;
+    }
+    onPatch(patch);
+    onClose();
+  };
+
+  return (
+    <div className="space-y-2 pt-1 border-t border-white-10">
+      <IdentityField
+        label="Name"
+        value={name}
+        onChange={setName}
+        placeholder="Lead's name"
+      />
+      <IdentityField
+        label="Email"
+        value={email}
+        onChange={setEmail}
+        placeholder="name@example.com"
+        type="email"
+      />
+      <IdentityField
+        label="Phone"
+        value={phone}
+        onChange={setPhone}
+        placeholder="+1 555 123 4567"
+      />
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={pending}
+          className={cn(
+            'text-[11px] font-semibold px-2.5 py-1.5 rounded-md bg-accent-green-110 text-sp-bg hover:bg-accent-green-100',
+            pending && 'opacity-50 cursor-not-allowed',
+          )}
+        >
+          {pending ? 'Saving…' : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[11px] font-medium px-2.5 py-1.5 rounded-md text-white-60 hover:text-white-100"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function IdentityField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-wider text-white-50 mb-0.5">
+        {label}
+      </span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-white-5 border border-white-10 rounded-md px-2 py-1 text-xs text-white-100 placeholder:text-white-30 focus:outline-none focus:border-accent-green-110"
+      />
+    </label>
+  );
+}
+
+function StatusPickerCard({
+  contact,
+  onPatch,
+  pending,
+}: {
+  contact: InboxContact;
+  onPatch: (patch: { status: ContactStatus }) => void;
+  pending: boolean;
+}) {
+  return (
+    <div className="card p-4 space-y-2.5">
+      <h4 className="text-[10px] font-semibold text-white-40 uppercase tracking-wider">
+        Lead status
+      </h4>
+      <div className="flex flex-wrap gap-1.5">
+        {CONTACT_STATUSES.map((s) => {
+          const active = contact.status === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              disabled={pending || active}
+              onClick={() => onPatch({ status: s })}
+              className={cn(
+                'text-[10px] font-medium px-2 py-1 rounded-md uppercase tracking-wider border transition-colors',
+                active
+                  ? (STATUS_TONE[s] ?? 'text-white-80 bg-white-10') +
+                      ' border-current cursor-default'
+                  : 'border-white-10 text-white-60 hover:text-white-100 hover:border-white-20',
+                pending && !active && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              {s.toLowerCase()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TagsCard({
+  contact,
+  onPatch,
+  pending,
+}: {
+  contact: InboxContact;
+  onPatch: (patch: { tags: string[] }) => void;
+  pending: boolean;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const handleAdd = () => {
+    const next = draft.trim();
+    if (!next) {
+      setAdding(false);
+      return;
+    }
+    // De-dupe case-insensitively but preserve the input casing.
+    const lower = contact.tags.map((t) => t.toLowerCase());
+    if (lower.includes(next.toLowerCase())) {
+      setDraft('');
+      setAdding(false);
+      return;
+    }
+    onPatch({ tags: [...contact.tags, next] });
+    setDraft('');
+    setAdding(false);
+  };
+
+  const handleRemove = (tag: string) => {
+    onPatch({ tags: contact.tags.filter((t) => t !== tag) });
+  };
+
+  return (
+    <div className="card p-4 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <h4 className="text-[10px] font-semibold text-white-40 uppercase tracking-wider">
+          Tags
+        </h4>
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="text-[10px] font-medium text-white-50 hover:text-white-100 inline-flex items-center gap-1"
+          >
+            <Plus className="w-3 h-3" />
+            Add
+          </button>
+        )}
+      </div>
+
+      {contact.tags.length === 0 && !adding && (
+        <p className="text-[11px] text-white-40">No tags yet.</p>
+      )}
+
+      <div className="flex flex-wrap gap-1.5">
+        {contact.tags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md bg-white-10 text-white-80 border border-white-10"
+          >
+            <Tag className="w-2.5 h-2.5 text-white-50" />
+            {tag}
+            <button
+              type="button"
+              onClick={() => handleRemove(tag)}
+              disabled={pending}
+              className="text-white-40 hover:text-white-100 ml-0.5"
+              title={`Remove ${tag}`}
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </span>
+        ))}
+        {adding && (
+          <input
+            type="text"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={handleAdd}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAdd();
+              } else if (e.key === 'Escape') {
+                setDraft('');
+                setAdding(false);
+              }
+            }}
+            placeholder="New tag…"
+            maxLength={64}
+            className="text-[10px] bg-white-5 border border-white-10 rounded-md px-2 py-1 text-white-100 placeholder:text-white-30 focus:outline-none focus:border-accent-green-110 w-28"
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -393,16 +727,8 @@ function ActionsCard({
         Actions
       </h4>
       <div className="space-y-1.5">
-        {/* "Mark qualified" has no Contact PATCH endpoint yet —
-            rendered disabled so the slot is visible but doesn't
-            mislead. Wire when the route lands. */}
-        <ActionButton
-          icon={<Award className="w-3.5 h-3.5" />}
-          label="Mark qualified"
-          onClick={() => {}}
-          disabled
-          title="Contact status updates aren't wired yet."
-        />
+        {/* Status updates moved to the dedicated "Lead status" card
+            above (real Contact PATCH endpoint, all 5 statuses). */}
         <ActionButton
           icon={<Archive className="w-3.5 h-3.5" />}
           label={conversation.status === 'CLOSED' ? 'Reopen' : 'Archive'}

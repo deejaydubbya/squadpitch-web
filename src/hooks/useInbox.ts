@@ -18,7 +18,12 @@ import { apiFetch } from '@/lib/apiFetch';
 export type ConversationStatus = 'OPEN' | 'PENDING' | 'CLOSED' | 'SNOOZED';
 export type ConversationParty = 'CONTACT' | 'WORKSPACE' | 'SYSTEM';
 export type ConversationSource = 'FORM' | 'EMAIL' | 'SOCIAL' | 'MANUAL';
-export type ContactStatus = 'NEW' | 'ENGAGED' | 'CUSTOMER' | 'LOST' | 'ARCHIVED';
+export type ContactStatus =
+  | 'NEW'
+  | 'ENGAGED'
+  | 'QUALIFIED'
+  | 'CONVERTED'
+  | 'ARCHIVED';
 export type ContactSourceType = 'FORM' | 'IMPORT' | 'MANUAL';
 export type MessageChannel =
   | 'FORM_SUBMISSION'
@@ -338,6 +343,44 @@ export function useSendInboxEmail(clientId: string, conversationId: string) {
       });
       qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
       qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
+// ── Contact mutation (CRM-lite) ──────────────────────────────────────────
+
+export interface ContactPatch {
+  status?: ContactStatus;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  /** Replace the full tag set. Pass [] to clear. */
+  tags?: string[];
+}
+
+export function useUpdateContact(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      contactId,
+      patch,
+    }: {
+      contactId: string;
+      patch: ContactPatch;
+    }) =>
+      apiFetch<{ contact: InboxContact }>(
+        `workspaces/${clientId}/contacts/${contactId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        },
+      ),
+    onSuccess: () => {
+      // The contact rides along with multiple Inbox queries — list
+      // rows surface its email/name/status, the detail view embeds
+      // the full row. Blanket-invalidate to keep both in sync.
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversation', clientId] });
     },
   });
 }
