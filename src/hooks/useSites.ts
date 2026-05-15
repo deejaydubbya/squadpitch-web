@@ -157,6 +157,9 @@ export interface FormSubmission {
   status: SubmissionStatus;
   createdAt: string;
   form: { id: string; name: string };
+  // Conversation created by Inbox intake for this submission. Null
+  // when intake skipped the submission (no usable email/phone).
+  inboxConversationId: string | null;
 }
 
 // ── Query keys ───────────────────────────────────────────────────────────

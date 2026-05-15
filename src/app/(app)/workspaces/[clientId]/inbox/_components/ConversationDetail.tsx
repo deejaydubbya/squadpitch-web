@@ -462,7 +462,7 @@ function SourceStrip({ conv, clientId }: { conv: Conversation; clientId: string 
     <div className="px-4 sm:px-6 py-2 flex items-center gap-3 text-[11px] text-white-50 border-t border-white-10/50 bg-white-3 flex-wrap">
       {conv.page && (
         <Link
-          href={`/workspaces/${clientId}/sites?page=${conv.page.id}`}
+          href={`/workspaces/${clientId}/sites/pages/${conv.page.id}`}
           className="inline-flex items-center gap-1.5 hover:text-white-100 transition-colors group"
         >
           <Globe className="w-3 h-3" />

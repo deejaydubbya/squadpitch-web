@@ -7,6 +7,7 @@
 // ships in a later phase.
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   Inbox as InboxIcon,
   Mail,
@@ -14,6 +15,7 @@ import {
   X,
   CheckCircle2,
   ShieldAlert,
+  ExternalLink,
 } from 'lucide-react';
 import {
   useSubmissions,
@@ -95,6 +97,7 @@ export function SubmissionsPanel({ clientId }: SubmissionsPanelProps) {
                 <th className="text-left text-xs font-medium text-white-50 uppercase tracking-wider px-4 py-3">
                   Status
                 </th>
+                <th className="text-right text-xs font-medium text-white-50 uppercase tracking-wider px-2 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -127,6 +130,19 @@ export function SubmissionsPanel({ clientId }: SubmissionsPanelProps) {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={s.status} />
+                  </td>
+                  <td className="px-2 py-3 text-right">
+                    {s.inboxConversationId && (
+                      <Link
+                        href={`/workspaces/${clientId}/inbox?c=${s.inboxConversationId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-white-50 hover:text-accent-green-110 whitespace-nowrap"
+                        title="Open in Inbox"
+                      >
+                        Inbox
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}

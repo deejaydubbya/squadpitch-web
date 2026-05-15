@@ -582,7 +582,7 @@ function SourceCard({
             label="Page"
             value={
               <Link
-                href={`/workspaces/${clientId}/sites?page=${conversation.page.id}`}
+                href={`/workspaces/${clientId}/sites/pages/${conversation.page.id}`}
                 className="text-white-90 hover:text-accent-green-110 font-medium inline-flex items-center gap-1 group"
               >
                 {conversation.page.title}
