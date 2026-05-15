@@ -155,8 +155,69 @@ function ContactCard({ contact }: { contact: InboxConversationDetail['contact'] 
           <p className="text-xs text-white-40">No contact channels on file.</p>
         )}
       </div>
+
+      {/* Alternate identity values captured from later submissions.
+          The intake never overwrites the primary email/phone (so a
+          typo or shared phone doesn't break the contact identity),
+          but the alternate is preserved here so workspace users can
+          see it and reach out via the other address if needed. */}
+      <AlternatesBlock enrichmentJson={contact.enrichmentJson} />
     </div>
   );
+}
+
+function AlternatesBlock({
+  enrichmentJson,
+}: {
+  enrichmentJson: Record<string, unknown> | null;
+}) {
+  const alts = readAlternates(enrichmentJson);
+  if (alts.emails.length === 0 && alts.phones.length === 0) return null;
+  return (
+    <div className="space-y-1.5 pt-1 border-t border-white-10">
+      <p className="text-[10px] uppercase tracking-wider font-medium text-white-40">
+        Also submitted with
+      </p>
+      {alts.emails.map((email) => (
+        <ContactLink
+          key={`alt-email-${email}`}
+          icon={<Mail className="w-3.5 h-3.5" />}
+          label={email}
+          href={`mailto:${email}`}
+          copyValue={email}
+          muted
+        />
+      ))}
+      {alts.phones.map((phone) => (
+        <ContactLink
+          key={`alt-phone-${phone}`}
+          icon={<Phone className="w-3.5 h-3.5" />}
+          label={phone}
+          href={`tel:${phone}`}
+          copyValue={phone}
+          muted
+        />
+      ))}
+    </div>
+  );
+}
+
+function readAlternates(
+  enrichmentJson: Record<string, unknown> | null,
+): { emails: string[]; phones: string[] } {
+  const empty = { emails: [], phones: [] };
+  if (!enrichmentJson || typeof enrichmentJson !== 'object') return empty;
+  const emails = Array.isArray(enrichmentJson.alternateEmails)
+    ? enrichmentJson.alternateEmails.filter(
+        (s): s is string => typeof s === 'string' && s.length > 0,
+      )
+    : [];
+  const phones = Array.isArray(enrichmentJson.alternatePhones)
+    ? enrichmentJson.alternatePhones.filter(
+        (s): s is string => typeof s === 'string' && s.length > 0,
+      )
+    : [];
+  return { emails, phones };
 }
 
 function SourceCard({
@@ -402,11 +463,14 @@ function ContactLink({
   label,
   href,
   copyValue,
+  muted = false,
 }: {
   icon: React.ReactNode;
   label: string;
   href: string;
   copyValue: string;
+  /** Dimmer styling for alternate/secondary identity values. */
+  muted?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async (e: React.MouseEvent) => {
@@ -425,7 +489,12 @@ function ContactLink({
       <span className="text-white-30 shrink-0">{icon}</span>
       <a
         href={href}
-        className="text-xs text-white-80 hover:text-white-100 truncate min-w-0 flex-1"
+        className={cn(
+          'text-xs truncate min-w-0 flex-1',
+          muted
+            ? 'text-white-50 hover:text-white-80'
+            : 'text-white-80 hover:text-white-100',
+        )}
       >
         {label}
       </a>
