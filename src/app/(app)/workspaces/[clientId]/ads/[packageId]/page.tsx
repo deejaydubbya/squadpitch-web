@@ -711,6 +711,7 @@ function DestinationSection({
 }) {
   const update = useUpdateDestination(clientId, pkg.id);
   const d = pkg.destination;
+  const preview = pkg.destinationPreview;
   const [kind, setKind] = useState(d?.kind ?? 'EXTERNAL_URL');
   const [externalUrl, setExternalUrl] = useState(d?.externalUrl ?? '');
   const [social, setSocial] = useState(d?.socialProfile ?? '');
@@ -761,15 +762,36 @@ function DestinationSection({
         ))}
       </div>
       {kind === 'SITE_PAGE' && (
-        <Field label="SitePage id">
-          <input
-            type="text"
-            value={sitePageId}
-            onChange={(e) => setSitePageId(e.target.value)}
-            placeholder="paste a site page id"
-            className="w-full bg-white-5 border border-white-10 rounded-lg px-3 py-2 text-sm text-white-90 placeholder:text-white-40 focus:outline-none focus:border-white-30"
-          />
-        </Field>
+        <>
+          <Field label="SitePage id">
+            <input
+              type="text"
+              value={sitePageId}
+              onChange={(e) => setSitePageId(e.target.value)}
+              placeholder="paste a site page id"
+              className="w-full bg-white-5 border border-white-10 rounded-lg px-3 py-2 text-sm text-white-90 placeholder:text-white-40 focus:outline-none focus:border-white-30"
+            />
+          </Field>
+          {preview?.resolvedUrl && (
+            <div className="text-[11px] text-white-50 leading-snug">
+              <span className="text-white-40">Will export as:</span>{' '}
+              <a
+                href={preview.resolvedUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent-green-110 hover:text-accent-green-100 break-all"
+              >
+                {preview.resolvedUrl}
+              </a>
+            </div>
+          )}
+          {preview?.warning && (
+            <div className="flex items-start gap-2 text-[11px] text-amber-200 bg-amber-400/5 border border-amber-400/30 rounded-lg px-2.5 py-2">
+              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+              <span>{preview.warning}</span>
+            </div>
+          )}
+        </>
       )}
       {kind === 'EXTERNAL_URL' && (
         <Field label="URL">

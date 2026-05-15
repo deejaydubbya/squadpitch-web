@@ -152,12 +152,18 @@ export interface AdPackageListRow {
   destination?: Pick<AdDestination, 'kind' | 'sitePageId' | 'externalUrl'> | null;
 }
 
+export interface AdDestinationPreview {
+  resolvedUrl: string | null;
+  warning: string | null;
+}
+
 export interface AdPackageDetail extends AdPackageListRow {
   creatives: AdCreative[];
   audience: AdAudience | null;
   budget: AdBudget | null;
   destination: AdDestination | null;
   sourceSummary: AdSourceSummary | null;
+  destinationPreview: AdDestinationPreview | null;
 }
 
 export interface AdsStats {
