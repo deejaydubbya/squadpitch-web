@@ -79,20 +79,31 @@ export function Composer({
   const isReply = mode === 'reply';
   const isNote = mode === 'note';
 
-  // GBP review conversations repurpose the primary tab: same
-  // mode='email' shape, but the label, helper copy, and the
-  // server endpoint behind handleSubmit all swap to public-reply
-  // semantics. The contact has no email; this is the only public
-  // outbound action for this conversation type.
+  // GBP review + YouTube comment conversations repurpose the
+  // primary tab: same mode='email' shape, but the label, helper
+  // copy, and the server endpoint behind handleSubmit all swap to
+  // public-reply semantics. The contact has no email; the public
+  // reply is the only outbound action available.
   const isGbpReview = provider === 'GOOGLE_BUSINESS';
-  // For GBP we look at the REPLY_REVIEW action's reason instead of
-  // the email capability — they're different gates.
+  const isYouTubeComment = provider === 'YOUTUBE';
+  // For GBP/YouTube we look at the matching action's reason
+  // instead of the email capability — they're different gates.
   const reviewAction = availableActions.find((a) => a.action === 'REPLY_REVIEW');
+  const commentAction = availableActions.find(
+    (a) => a.action === 'REPLY_PUBLIC_COMMENT',
+  );
   const reviewAvailable = reviewAction?.available ?? false;
-  const primaryAvailable = isGbpReview ? reviewAvailable : capabilities.email.available;
+  const commentAvailable = commentAction?.available ?? false;
+  const primaryAvailable = isGbpReview
+    ? reviewAvailable
+    : isYouTubeComment
+      ? commentAvailable
+      : capabilities.email.available;
   const primaryReason = isGbpReview
     ? reviewAction?.reason ?? 'Reviews can\'t be replied to yet.'
-    : capabilities.email.reason ?? 'Email is not available for this conversation.';
+    : isYouTubeComment
+      ? commentAction?.reason ?? 'YouTube comment replies aren\'t connected yet.'
+      : capabilities.email.reason ?? 'Email is not available for this conversation.';
 
   const emailDisabledReason = primaryAvailable ? null : primaryReason;
 
@@ -107,9 +118,16 @@ export function Composer({
     'REPLY_DM',
     'REPLY_REVIEW',
   ];
-  const extraActions = availableActions.filter((a) =>
-    EXTRA_ACTION_IDS.includes(a.action),
-  );
+  const extraActions = availableActions.filter((a) => {
+    if (!EXTRA_ACTION_IDS.includes(a.action)) return false;
+    // Don't surface the action that's already wired into the
+    // primary tab as a duplicate chip — it'd read as confusing
+    // ("Reply to comment" disabled chip below an enabled
+    // "Public comment reply" button).
+    if (isGbpReview && a.action === 'REPLY_REVIEW') return false;
+    if (isYouTubeComment && a.action === 'REPLY_PUBLIC_COMMENT') return false;
+    return true;
+  });
 
   return (
     <div className="card p-0 overflow-hidden">
@@ -123,7 +141,11 @@ export function Composer({
           disabled={!primaryAvailable}
           disabledTitle={emailDisabledReason}
         >
-          {isGbpReview ? 'Public review reply' : 'Send email'}
+          {isGbpReview
+            ? 'Public review reply'
+            : isYouTubeComment
+              ? 'Public comment reply'
+              : 'Send email'}
         </SegButton>
         <SegButton
           active={isReply}
@@ -157,7 +179,9 @@ export function Composer({
             isEmail
               ? isGbpReview
                 ? 'Write a public response to this Google review…'
-                : 'Write the reply you want to send to the lead…'
+                : isYouTubeComment
+                  ? 'Write a public reply to this YouTube comment…'
+                  : 'Write the reply you want to send to the lead…'
               : isReply
                 ? 'Paste the reply you sent outside Squadpitch…'
                 : 'Add a private note for your team…'
@@ -173,7 +197,9 @@ export function Composer({
           {isEmail
             ? isGbpReview
               ? 'Posts a public response under the review on your Google listing. Visible to everyone browsing the listing.'
-              : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
+              : isYouTubeComment
+                ? 'Posts a public reply under the comment on YouTube. Visible to every viewer of the video.'
+                : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
             : isReply
               ? 'Sending is not connected for this channel. This only records the reply on the thread.'
               : 'Notes stay inside your workspace and are never sent to the lead.'}
@@ -201,7 +227,7 @@ export function Composer({
           )}
           {pending
             ? isEmail
-              ? isGbpReview
+              ? isGbpReview || isYouTubeComment
                 ? 'Posting…'
                 : 'Sending…'
               : isReply
@@ -210,7 +236,9 @@ export function Composer({
             : isEmail
               ? isGbpReview
                 ? 'Post public reply'
-                : 'Send email'
+                : isYouTubeComment
+                  ? 'Post public reply'
+                  : 'Send email'
               : isReply
                 ? 'Log external reply'
                 : 'Add note'}
@@ -225,10 +253,11 @@ export function Composer({
         </div>
       )}
 
-      {/* Capability strip — only shown on the email tab.
-          When email is not available, explains why and offers
-          a path to fix (e.g. add a contact email). */}
-      {isEmail && !capabilities.email.available && (
+      {/* Capability strip — only shown on the email/primary tab.
+          When the primary action is not available, explains why
+          and offers a path to fix (add a contact email, connect
+          provider, reconnect with scope, etc.). */}
+      {isEmail && !primaryAvailable && (
         <div className="flex items-center justify-between gap-3 px-3 py-2 border-t border-white-10 bg-amber-400/5">
           <div className="flex items-start gap-2 text-[11px] text-amber-200/80 leading-snug min-w-0">
             <Lock className="w-3 h-3 shrink-0 mt-0.5" />

@@ -426,6 +426,41 @@ export function useSendGbpReviewReply(clientId: string, conversationId: string) 
   });
 }
 
+// ── Send YouTube public comment reply ──────────────────────────────────
+//
+// Same {body, fromSuggestionId, idempotencyKey} contract as the
+// other outbound hooks so the composer can dispatch by provider
+// without restructuring. POSTs to the provider-aware
+// reply-comment route which routes to inbox.outbound.youtube on
+// YOUTUBE conversations.
+export interface SendYouTubeCommentReplyInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendYouTubeCommentReply(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendYouTubeCommentReplyInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/reply-comment`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
 export function useSendInboxEmail(clientId: string, conversationId: string) {
   const qc = useQueryClient();
   return useMutation({

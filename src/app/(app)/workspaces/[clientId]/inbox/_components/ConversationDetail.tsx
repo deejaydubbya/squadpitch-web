@@ -31,6 +31,7 @@ import {
   useLogManualMessage,
   useSendInboxEmail,
   useSendGbpReviewReply,
+  useSendYouTubeCommentReply,
   type InboxConversationDetail as Conversation,
   type InboxMessage,
   type InboxAiSuggestion,
@@ -65,6 +66,7 @@ export function ConversationDetail({
   const createNote = useCreateNote(clientId, conversationId);
   const sendEmail = useSendInboxEmail(clientId, conversationId);
   const sendGbpReply = useSendGbpReviewReply(clientId, conversationId);
+  const sendYouTubeReply = useSendYouTubeCommentReply(clientId, conversationId);
 
   // Mark read whenever a new unread conversation is opened. Stamp the
   // last-message id so we don't re-fire on every re-render while the
@@ -157,7 +159,11 @@ export function ConversationDetail({
       // not an outbound email — the contact has no email address
       // and the reply is on the public Google listing.
       const sendMutation =
-        conv.provider === 'GOOGLE_BUSINESS' ? sendGbpReply : sendEmail;
+        conv.provider === 'GOOGLE_BUSINESS'
+          ? sendGbpReply
+          : conv.provider === 'YOUTUBE'
+            ? sendYouTubeReply
+            : sendEmail;
       sendMutation.mutate(
         {
           body,
@@ -295,6 +301,7 @@ export function ConversationDetail({
           pending={
             sendEmail.isPending ||
             sendGbpReply.isPending ||
+            sendYouTubeReply.isPending ||
             logMessage.isPending ||
             createNote.isPending
           }

@@ -91,6 +91,8 @@ export interface SourceBadge {
     | 'Email'
     | 'Facebook'
     | 'Instagram'
+    | 'YouTube'
+    | 'LinkedIn'
     | 'Social'
     | 'Google review';
   tone: 'form' | 'campaign' | 'site' | 'email' | 'social' | 'review';
@@ -99,8 +101,8 @@ export interface SourceBadge {
 const PROVIDER_SOCIAL_LABELS: Record<string, SourceBadge['label']> = {
   FACEBOOK: 'Facebook',
   INSTAGRAM: 'Instagram',
-  YOUTUBE: 'Social',
-  LINKEDIN: 'Social',
+  YOUTUBE: 'YouTube',
+  LINKEDIN: 'LinkedIn',
   X: 'Social',
   TIKTOK: 'Social',
   THREADS: 'Social',
