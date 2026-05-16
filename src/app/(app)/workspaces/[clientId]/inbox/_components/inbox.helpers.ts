@@ -131,3 +131,23 @@ export function contactHeadline(
 ): string {
   return contact.name || contact.email || contact.phone || 'Unknown lead';
 }
+
+// Social identities — surfaces Contact.enrichmentJson.externalIds
+// for the Lead Details drawer. Meta commenters (and other social
+// sources) have no email/phone, only a provider user id. This
+// helper turns the JSON shape into a flat array the UI can map
+// over. Whitelisted to string values so a malformed enrichment
+// shape can't render junk.
+//
+// Shape stored by the ingestion services:
+//   enrichmentJson: { externalIds: { FACEBOOK: "<user_id>", ... }, ... }
+export function readExternalIds(
+  enrichmentJson: Record<string, unknown> | null,
+): Array<{ provider: string; id: string }> {
+  if (!enrichmentJson || typeof enrichmentJson !== 'object') return [];
+  const raw = (enrichmentJson as { externalIds?: unknown }).externalIds;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+  return Object.entries(raw as Record<string, unknown>)
+    .filter(([, v]) => typeof v === 'string' && v.length > 0)
+    .map(([provider, id]) => ({ provider, id: id as string }));
+}

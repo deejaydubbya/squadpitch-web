@@ -25,6 +25,12 @@ import {
   Tag,
   Plus,
   Pencil,
+  Facebook,
+  Instagram,
+  Youtube,
+  Linkedin,
+  AtSign,
+  MessageCircle,
 } from 'lucide-react';
 import {
   useUpdateConversation,
@@ -40,6 +46,7 @@ import {
   formatDate,
   humanizeKey,
   initialsFromContact,
+  readExternalIds,
 } from './inbox.helpers';
 
 interface ContactSidebarProps {
@@ -111,6 +118,7 @@ export function ContactSidebar({
       <div className="p-4 space-y-3 flex-1 overflow-y-auto">
         <ContactCard
           contact={contact}
+          conversation={conversation}
           onPatch={patchContact}
           pending={updateContact.isPending}
         />
@@ -159,10 +167,12 @@ export function ContactSidebar({
 
 function ContactCard({
   contact,
+  conversation,
   onPatch,
   pending,
 }: {
   contact: InboxConversationDetail['contact'];
+  conversation: InboxConversationDetail;
   onPatch: (patch: { name?: string | null; email?: string | null; phone?: string | null }) => void;
   pending: boolean;
 }) {
@@ -207,27 +217,35 @@ function ContactCard({
           onClose={() => setEditing(false)}
         />
       ) : (
-        <div className="space-y-2 pt-1 border-t border-white-10">
-          {contact.email && (
-            <ContactLink
-              icon={<Mail className="w-3.5 h-3.5" />}
-              label={contact.email}
-              href={`mailto:${contact.email}`}
-              copyValue={contact.email}
-            />
-          )}
-          {contact.phone && (
-            <ContactLink
-              icon={<Phone className="w-3.5 h-3.5" />}
-              label={contact.phone}
-              href={`tel:${contact.phone}`}
-              copyValue={contact.phone}
-            />
-          )}
-          {!contact.email && !contact.phone && (
-            <p className="text-xs text-white-40">No contact channels on file.</p>
-          )}
-        </div>
+        <>
+          <div className="space-y-1.5 pt-1 border-t border-white-10">
+            <p className="text-[10px] uppercase tracking-wider font-medium text-white-40">
+              Contact methods
+            </p>
+            {contact.email && (
+              <ContactLink
+                icon={<Mail className="w-3.5 h-3.5" />}
+                label={contact.email}
+                href={`mailto:${contact.email}`}
+                copyValue={contact.email}
+              />
+            )}
+            {contact.phone && (
+              <ContactLink
+                icon={<Phone className="w-3.5 h-3.5" />}
+                label={contact.phone}
+                href={`tel:${contact.phone}`}
+                copyValue={contact.phone}
+              />
+            )}
+            {!contact.email && !contact.phone && (
+              <p className="text-xs text-white-40">
+                No email or phone on file yet.
+              </p>
+            )}
+          </div>
+          <SocialIdentitiesBlock contact={contact} conversation={conversation} />
+        </>
       )}
 
       {/* Alternate identity values captured from later submissions.
@@ -552,6 +570,94 @@ function readAlternates(
       )
     : [];
   return { emails, phones };
+}
+
+// Social identities — surfaces Contact.enrichmentJson.externalIds
+// (FACEBOOK / INSTAGRAM / etc.) so a commenter without email/phone
+// still has a visible "Source identity" row in the drawer.
+// Includes an "Open on <Provider>" link when the current
+// conversation carries a sourceUrl on its inbound messages.
+//
+// Public-comment identity is NOT a permission to DM — DM availability
+// stays gated on the resolver (Pending Meta App Review reason).
+const SOCIAL_PROVIDER_META: Record<string, {
+  label: string;
+  noun: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = {
+  FACEBOOK: { label: 'Facebook', noun: 'commenter', Icon: Facebook },
+  INSTAGRAM: { label: 'Instagram', noun: 'commenter', Icon: Instagram },
+  YOUTUBE: { label: 'YouTube', noun: 'commenter', Icon: Youtube },
+  LINKEDIN: { label: 'LinkedIn', noun: 'commenter', Icon: Linkedin },
+  THREADS: { label: 'Threads', noun: 'commenter', Icon: AtSign },
+  X: { label: 'X', noun: 'commenter', Icon: MessageCircle },
+  TIKTOK: { label: 'TikTok', noun: 'commenter', Icon: MessageCircle },
+  PINTEREST: { label: 'Pinterest', noun: 'commenter', Icon: MessageCircle },
+  GOOGLE_BUSINESS: { label: 'Google Business', noun: 'reviewer', Icon: MessageCircle },
+};
+
+function SocialIdentitiesBlock({
+  contact,
+  conversation,
+}: {
+  contact: InboxContact;
+  conversation: InboxConversationDetail;
+}) {
+  const externalIds = readExternalIds(contact.enrichmentJson);
+  if (externalIds.length === 0) return null;
+
+  // The conversation's provider is the one we have a sourceUrl for
+  // (the latest CONTACT message in the thread). For other providers
+  // on the same contact (cross-channel reach), we render the identity
+  // row without an "Open on" link — we don't have its sourceUrl
+  // available in this component's data scope.
+  const currentProviderSourceUrl =
+    conversation.messages
+      .filter((m) => m.party === 'CONTACT' && typeof m.sourceUrl === 'string' && m.sourceUrl)
+      .pop()?.sourceUrl ?? null;
+
+  return (
+    <div className="space-y-1.5 pt-1 border-t border-white-10">
+      <p className="text-[10px] uppercase tracking-wider font-medium text-white-40">
+        Source identity
+      </p>
+      {externalIds.map(({ provider, id }) => {
+        const meta = SOCIAL_PROVIDER_META[provider] ?? {
+          label: provider,
+          noun: 'contact',
+          Icon: MessageCircle,
+        };
+        const isCurrentProvider = provider === conversation.provider;
+        const openUrl = isCurrentProvider ? currentProviderSourceUrl : null;
+        return (
+          <div
+            key={`${provider}:${id}`}
+            className="flex items-center gap-2 text-xs text-white-70"
+          >
+            <span className="text-white-30 shrink-0">
+              <meta.Icon className="w-3.5 h-3.5" />
+            </span>
+            <span className="min-w-0 flex-1 truncate">
+              {meta.label} {meta.noun}
+              {contact.name ? <> · <span className="text-white-90">{contact.name}</span></> : null}
+            </span>
+            {openUrl && (
+              <a
+                href={openUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-[11px] text-white-50 hover:text-accent-green-110 whitespace-nowrap"
+                title={`Open on ${meta.label}`}
+              >
+                Open
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function SourceCard({
