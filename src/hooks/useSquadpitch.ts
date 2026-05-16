@@ -17,7 +17,11 @@ export type Channel =
   | 'YOUTUBE'
   | 'PINTEREST'
   | 'THREADS'
-  | 'REDDIT';
+  | 'REDDIT'
+  // Inbox-only channel (no publishing). Reviews ingestion + reply
+  // land in a follow-up prompt; the tile in Settings → Channels
+  // exists today as a disabled "Coming soon" placeholder.
+  | 'GOOGLE_BUSINESS_PROFILE';
 
 export type MediaMode =
   | 'BRAND_ASSETS_ONLY'

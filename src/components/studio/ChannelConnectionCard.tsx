@@ -11,6 +11,7 @@ import {
   Pin,
   AtSign,
   Hash,
+  Star,
 
   Loader2,
   Link2,
@@ -38,7 +39,14 @@ interface Props {
 
 const CHANNEL_META: Record<
   Channel,
-  { label: string; icon: React.ComponentType<{ className?: string }>; real: boolean }
+  {
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    real: boolean;
+    /** Short copy shown under the label on "coming soon" tiles to
+     *  explain why the channel exists and what it'll unlock. */
+    description?: string;
+  }
 > = {
   INSTAGRAM: { label: 'Instagram', icon: Instagram, real: true },
   TIKTOK: { label: 'TikTok', icon: Music2, real: true },
@@ -54,6 +62,13 @@ const CHANNEL_META: Record<
   PINTEREST: { label: 'Pinterest', icon: Pin, real: true },
   THREADS: { label: 'Threads', icon: AtSign, real: true },
   REDDIT: { label: 'Reddit', icon: Hash, real: false },
+  GOOGLE_BUSINESS_PROFILE: {
+    label: 'Google Business Profile',
+    icon: Star,
+    real: false,
+    description:
+      'Connect your Google Business Profile to bring reviews into SquadInbox. Requires Google verification / business.manage approval before production use.',
+  },
 };
 
 const STATUS_PILL: Record<ChannelConnectionStatus, string> = {
@@ -169,6 +184,12 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
           {connection?.displayName && (
             <p className="text-sm text-white-60 mt-1 truncate">
               {connection.displayName}
+            </p>
+          )}
+
+          {meta.description && !connection && (
+            <p className="text-xs text-white-50 mt-1 leading-snug">
+              {meta.description}
             </p>
           )}
 

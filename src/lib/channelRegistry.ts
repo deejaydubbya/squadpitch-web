@@ -146,6 +146,21 @@ export const CHANNEL_REGISTRY: Record<Channel, ChannelCapability> = {
     supportsTextOnly: true,
     maxCaptionLength: 40000,
   },
+  // Inbox-only channel. Reviews surface — no publishing capability.
+  // Listed here for type completeness (every Channel must be in the
+  // registry); requiresMedia/supportsTextOnly are both false because
+  // publishing isn't applicable.
+  GOOGLE_BUSINESS_PROFILE: {
+    channel: 'GOOGLE_BUSINESS_PROFILE',
+    label: 'Google Business Profile',
+    comingSoon: true,
+    requiresConnection: true,
+    requiresMedia: false,
+    requiresVideo: false,
+    prefersVideo: false,
+    supportsTextOnly: false,
+    maxCaptionLength: null,
+  },
 };
 
 export function getChannelLabel(channel: Channel): string {
