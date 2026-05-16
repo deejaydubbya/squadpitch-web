@@ -239,7 +239,11 @@ function ConversationRow({ row, selected, onSelect }: RowProps) {
       ? 'bg-purple-400/10 text-purple-300 border-purple-400/20'
       : badge.tone === 'form'
         ? 'bg-blue-400/10 text-blue-300 border-blue-400/20'
-        : 'bg-white-5 text-white-50 border-white-10';
+        : badge.tone === 'social'
+          ? 'bg-pink-400/10 text-pink-300 border-pink-400/20'
+          : badge.tone === 'email'
+            ? 'bg-emerald-400/10 text-emerald-300 border-emerald-400/20'
+            : 'bg-white-5 text-white-50 border-white-10';
 
   return (
     <li>

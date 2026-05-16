@@ -84,15 +84,41 @@ export function humanizeKey(key: string): string {
 // informative than "Form" in that case. Single source of truth so
 // list rows and the detail strip never disagree.
 export interface SourceBadge {
-  label: 'Form' | 'Campaign' | 'Site';
-  tone: 'form' | 'campaign' | 'site';
+  label: 'Form' | 'Campaign' | 'Site' | 'Email' | 'Facebook' | 'Instagram' | 'Social';
+  tone: 'form' | 'campaign' | 'site' | 'email' | 'social';
 }
 
+const PROVIDER_SOCIAL_LABELS: Record<string, SourceBadge['label']> = {
+  FACEBOOK: 'Facebook',
+  INSTAGRAM: 'Instagram',
+  YOUTUBE: 'Social',
+  LINKEDIN: 'Social',
+  X: 'Social',
+  TIKTOK: 'Social',
+  THREADS: 'Social',
+  PINTEREST: 'Social',
+  GOOGLE_BUSINESS: 'Social',
+  WEB_CHAT: 'Social',
+};
+
 export function sourceBadge(
-  conv: Pick<InboxConversationListRow, 'sourceType' | 'campaignId' | 'pageId'>,
+  conv: Pick<InboxConversationListRow, 'sourceType' | 'campaignId' | 'pageId' | 'provider'>,
 ): SourceBadge {
+  // Social-network sourced conversations get a per-provider label
+  // (Facebook / Instagram / generic Social) BEFORE the campaign/form
+  // checks — a FB comment conversation may carry a campaignId for
+  // future analytics, but the user reads "Facebook" first.
+  const socialLabel = conv.provider && PROVIDER_SOCIAL_LABELS[conv.provider];
+  if (socialLabel) return { label: socialLabel, tone: 'social' };
+
+  // EMAIL-provider conversations (the Postmark inbound webhook
+  // creates these when there's no prior thread to attach to).
+  if (conv.provider === 'EMAIL') {
+    return { label: 'Email', tone: 'email' };
+  }
+
   if (conv.campaignId) return { label: 'Campaign', tone: 'campaign' };
-  if (conv.sourceType === 'FORM' as ConversationSource && conv.pageId) {
+  if (conv.sourceType === ('FORM' as ConversationSource) && conv.pageId) {
     return { label: 'Form', tone: 'form' };
   }
   return { label: 'Site', tone: 'site' };

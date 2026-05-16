@@ -163,6 +163,10 @@ export interface InboxConversationListRow {
   sourceFormSubmissionId: string | null;
   pageId: string | null;
   campaignId: string | null;
+  /** Per-network origin — drives the list-row badge and the
+   *  reply-action resolver. SQUADSITES for form-intake; FACEBOOK /
+   *  INSTAGRAM / etc. for social ingestion. */
+  provider: ConversationProvider;
   status: ConversationStatus;
   spam: boolean;
   lastMessageAt: string;
