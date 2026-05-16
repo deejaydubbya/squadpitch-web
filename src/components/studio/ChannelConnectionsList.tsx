@@ -34,9 +34,10 @@ const CHANNELS: Channel[] = [
   'THREADS',
   'X',
   'YOUTUBE',
+  'GOOGLE_BUSINESS_PROFILE',
 ];
 
-const COMING_SOON_CHANNELS: Channel[] = ['GOOGLE_BUSINESS_PROFILE', 'REDDIT'];
+const COMING_SOON_CHANNELS: Channel[] = ['REDDIT'];
 
 function resolveRecommendationTier(
   channel: Channel,

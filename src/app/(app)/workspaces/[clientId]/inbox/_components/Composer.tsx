@@ -26,6 +26,7 @@ import {
   Star,
 } from 'lucide-react';
 import type {
+  ConversationProvider,
   ReplyActionDescriptor,
   ReplyActionId,
   ReplyCapabilities,
@@ -52,6 +53,10 @@ interface ComposerProps {
    *  rendered as disabled chips so the UI is honest about what's
    *  possible — never a misleading send button. */
   availableActions?: ReplyActionDescriptor[];
+  /** Conversation provider. When GOOGLE_BUSINESS, the primary
+   *  "Send email" tab becomes "Public review reply" — the underlying
+   *  action submits to the GBP /reply-review endpoint instead. */
+  provider?: ConversationProvider;
   /** Inline error from the most recent submit (e.g. provider failed). */
   sendError?: string | null;
 }
@@ -67,15 +72,29 @@ export function Composer({
   fromSuggestion,
   capabilities,
   availableActions = [],
+  provider,
   sendError = null,
 }: ComposerProps) {
   const isEmail = mode === 'email';
   const isReply = mode === 'reply';
   const isNote = mode === 'note';
 
-  const emailDisabledReason = capabilities.email.available
-    ? null
+  // GBP review conversations repurpose the primary tab: same
+  // mode='email' shape, but the label, helper copy, and the
+  // server endpoint behind handleSubmit all swap to public-reply
+  // semantics. The contact has no email; this is the only public
+  // outbound action for this conversation type.
+  const isGbpReview = provider === 'GOOGLE_BUSINESS';
+  // For GBP we look at the REPLY_REVIEW action's reason instead of
+  // the email capability — they're different gates.
+  const reviewAction = availableActions.find((a) => a.action === 'REPLY_REVIEW');
+  const reviewAvailable = reviewAction?.available ?? false;
+  const primaryAvailable = isGbpReview ? reviewAvailable : capabilities.email.available;
+  const primaryReason = isGbpReview
+    ? reviewAction?.reason ?? 'Reviews can\'t be replied to yet.'
     : capabilities.email.reason ?? 'Email is not available for this conversation.';
+
+  const emailDisabledReason = primaryAvailable ? null : primaryReason;
 
   // Other-channel actions the server says are theoretically possible
   // for this conversation (based on provider) but aren't a primary
@@ -101,10 +120,10 @@ export function Composer({
           onClick={() => onModeChange('email')}
           icon={<Mail className="w-3 h-3" />}
           tone="primary"
-          disabled={!capabilities.email.available}
+          disabled={!primaryAvailable}
           disabledTitle={emailDisabledReason}
         >
-          Send email
+          {isGbpReview ? 'Public review reply' : 'Send email'}
         </SegButton>
         <SegButton
           active={isReply}
@@ -136,7 +155,9 @@ export function Composer({
           onChange={(e) => onBodyChange(e.target.value)}
           placeholder={
             isEmail
-              ? 'Write the reply you want to send to the lead…'
+              ? isGbpReview
+                ? 'Write a public response to this Google review…'
+                : 'Write the reply you want to send to the lead…'
               : isReply
                 ? 'Paste the reply you sent outside Squadpitch…'
                 : 'Add a private note for your team…'
@@ -150,7 +171,9 @@ export function Composer({
       <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-t border-white-10 bg-white-3">
         <p className="text-[11px] text-white-50 leading-snug min-w-0">
           {isEmail
-            ? 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
+            ? isGbpReview
+              ? 'Posts a public response under the review on your Google listing. Visible to everyone browsing the listing.'
+              : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
             : isReply
               ? 'Sending is not connected for this channel. This only records the reply on the thread.'
               : 'Notes stay inside your workspace and are never sent to the lead.'}
@@ -178,12 +201,16 @@ export function Composer({
           )}
           {pending
             ? isEmail
-              ? 'Sending…'
+              ? isGbpReview
+                ? 'Posting…'
+                : 'Sending…'
               : isReply
                 ? 'Logging…'
                 : 'Saving…'
             : isEmail
-              ? 'Send email'
+              ? isGbpReview
+                ? 'Post public reply'
+                : 'Send email'
               : isReply
                 ? 'Log external reply'
                 : 'Add note'}

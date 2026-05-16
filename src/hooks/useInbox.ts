@@ -391,6 +391,41 @@ export interface SendEmailInput {
   idempotencyKey?: string;
 }
 
+// ── Send Google Business Profile public review reply ────────────────────
+//
+// Mirrors useSendInboxEmail (same idempotency-key-as-header pattern,
+// same {body, fromSuggestionId, idempotencyKey} input shape) so the
+// composer can dispatch to whichever send endpoint matches the
+// conversation provider without restructuring its handler.
+
+export interface SendGbpReviewReplyInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendGbpReviewReply(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendGbpReviewReplyInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/reply-review`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
 export function useSendInboxEmail(clientId: string, conversationId: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -2369,6 +2369,46 @@ export function useSelectPinterestBoard(clientId: string) {
 // Pinterest's sandbox host has no UI for creating boards, so trial
 // apps can't otherwise seed a destination. Production / Standard
 // access apps can also use this if they want — there's no harm.
+// ── Google Business Profile location picker ──────────────────────────
+// Mirrors the Pinterest board picker pattern. After GBP OAuth, the
+// ChannelConnection has the user's tokens but externalAccountId is
+// the sentinel "accounts/{a}" — the location picker upgrades that
+// to "accounts/{a}/locations/{l}" before review polling/reply fire.
+
+export interface GbpLocation {
+  name: string; // "accounts/{a}/locations/{l}" canonical resource name
+  title: string | null;
+  address: string | null;
+  accountId: string;
+  accountName: string;
+}
+
+export function useGbpLocations(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ['gbp-locations', clientId ?? ''],
+    queryFn: () =>
+      apiFetch<{ locations: GbpLocation[]; message?: string }>(
+        `workspaces/${clientId}/connections/GOOGLE_BUSINESS_PROFILE/locations`,
+      ),
+    enabled: Boolean(clientId),
+    staleTime: 60_000,
+  });
+}
+
+export function useSelectGbpLocation(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { locationName: string; locationTitle?: string }) =>
+      apiFetch<{ connection: ChannelConnection }>(
+        `workspaces/${clientId}/connections/GOOGLE_BUSINESS_PROFILE/locations/select`,
+        { method: 'POST', body: JSON.stringify(input) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+    },
+  });
+}
+
 export function useCreatePinterestBoard(clientId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({

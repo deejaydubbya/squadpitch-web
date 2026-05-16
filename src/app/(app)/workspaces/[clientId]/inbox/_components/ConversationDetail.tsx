@@ -30,6 +30,7 @@ import {
   useCreateNote,
   useLogManualMessage,
   useSendInboxEmail,
+  useSendGbpReviewReply,
   type InboxConversationDetail as Conversation,
   type InboxMessage,
   type InboxAiSuggestion,
@@ -63,6 +64,7 @@ export function ConversationDetail({
   const logMessage = useLogManualMessage(clientId, conversationId);
   const createNote = useCreateNote(clientId, conversationId);
   const sendEmail = useSendInboxEmail(clientId, conversationId);
+  const sendGbpReply = useSendGbpReviewReply(clientId, conversationId);
 
   // Mark read whenever a new unread conversation is opened. Stamp the
   // last-message id so we don't re-fire on every re-render while the
@@ -148,7 +150,15 @@ export function ConversationDetail({
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      sendEmail.mutate(
+      // Conversation provider drives WHICH send endpoint the
+      // "email" composer tab dispatches to. For Google Business
+      // Profile review conversations the primary action is a
+      // public review reply (PUT updateReply via /reply-review),
+      // not an outbound email — the contact has no email address
+      // and the reply is on the public Google listing.
+      const sendMutation =
+        conv.provider === 'GOOGLE_BUSINESS' ? sendGbpReply : sendEmail;
+      sendMutation.mutate(
         {
           body,
           fromSuggestionId: fromSuggestionId ?? undefined,
@@ -283,7 +293,10 @@ export function ConversationDetail({
           onBodyChange={setComposerBody}
           onSubmit={handleSubmit}
           pending={
-            sendEmail.isPending || logMessage.isPending || createNote.isPending
+            sendEmail.isPending ||
+            sendGbpReply.isPending ||
+            logMessage.isPending ||
+            createNote.isPending
           }
           fromSuggestion={Boolean(fromSuggestionId)}
           capabilities={
@@ -294,6 +307,7 @@ export function ConversationDetail({
             }
           }
           availableActions={conv.availableReplyActions ?? []}
+          provider={conv.provider}
           sendError={sendError}
         />
       </div>
