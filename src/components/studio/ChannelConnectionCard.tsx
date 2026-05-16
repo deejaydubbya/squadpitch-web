@@ -141,6 +141,18 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
     !!connection?.externalAccountId &&
     connection.externalAccountId.includes('/locations/');
 
+  // The poller (and any reply attempt) stash a stable marker on
+  // ChannelConnection.lastError when Google rejects reviews API
+  // calls with the "your project isn't allowlisted" 403. We
+  // surface that with a dedicated banner pointing at Google's
+  // access-request form — distinct from the generic isBroken
+  // banner (status stays CONNECTED in this case; only reviews
+  // are gated, not OAuth itself).
+  const gbpReviewAccessDenied =
+    channel === 'GOOGLE_BUSINESS_PROFILE' &&
+    typeof connection?.lastError === 'string' &&
+    connection.lastError.startsWith('REVIEW_API_ACCESS_DENIED:');
+
   const handleConnect = () => oauthPopup.connect(channel);
 
   const handleDisconnect = () => {
@@ -285,6 +297,28 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
             >
               Change location
             </button>
+          )}
+
+          {gbpReviewAccessDenied && (
+            <div className="mt-2 flex items-start gap-2 p-2 rounded-md bg-zone-yellow/10 text-zone-yellow text-xs">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 leading-snug">
+                <p>
+                  Google hasn&apos;t granted this project access to the Business
+                  Profile reviews API yet. OAuth and location selection work, but
+                  review polling and public replies are blocked until approval
+                  lands.
+                </p>
+                <a
+                  href="https://developers.google.com/my-business/content/prereqs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-[11px] font-medium underline-offset-2 hover:underline"
+                >
+                  Request Business Profile API access →
+                </a>
+              </div>
+            </div>
           )}
         </div>
 
