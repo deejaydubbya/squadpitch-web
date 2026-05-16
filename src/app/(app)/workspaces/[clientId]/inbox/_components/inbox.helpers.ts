@@ -84,8 +84,16 @@ export function humanizeKey(key: string): string {
 // informative than "Form" in that case. Single source of truth so
 // list rows and the detail strip never disagree.
 export interface SourceBadge {
-  label: 'Form' | 'Campaign' | 'Site' | 'Email' | 'Facebook' | 'Instagram' | 'Social';
-  tone: 'form' | 'campaign' | 'site' | 'email' | 'social';
+  label:
+    | 'Form'
+    | 'Campaign'
+    | 'Site'
+    | 'Email'
+    | 'Facebook'
+    | 'Instagram'
+    | 'Social'
+    | 'Google review';
+  tone: 'form' | 'campaign' | 'site' | 'email' | 'social' | 'review';
 }
 
 const PROVIDER_SOCIAL_LABELS: Record<string, SourceBadge['label']> = {
@@ -97,13 +105,19 @@ const PROVIDER_SOCIAL_LABELS: Record<string, SourceBadge['label']> = {
   TIKTOK: 'Social',
   THREADS: 'Social',
   PINTEREST: 'Social',
-  GOOGLE_BUSINESS: 'Social',
   WEB_CHAT: 'Social',
 };
 
 export function sourceBadge(
   conv: Pick<InboxConversationListRow, 'sourceType' | 'campaignId' | 'pageId' | 'provider'>,
 ): SourceBadge {
+  // Google Business Profile reviews get their own label so the
+  // workspace user can spot them at a glance. Reviews are a
+  // distinct triage pattern from a chat/comment.
+  if (conv.provider === 'GOOGLE_BUSINESS') {
+    return { label: 'Google review', tone: 'review' };
+  }
+
   // Social-network sourced conversations get a per-provider label
   // (Facebook / Instagram / generic Social) BEFORE the campaign/form
   // checks — a FB comment conversation may carry a campaignId for
