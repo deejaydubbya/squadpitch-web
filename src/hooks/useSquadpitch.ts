@@ -2395,6 +2395,34 @@ export function useGbpLocations(clientId: string | undefined) {
   });
 }
 
+// Manual probe — fires reviews.list pageSize=1 against the
+// connection's selected location. Returns the resolved access
+// state without any fake ingestion. Invalidates the connections
+// query on completion so the Settings tile rerenders with the
+// new lastError state immediately.
+export interface GbpAccessCheckResult {
+  status: 'ok' | 'access_denied' | 'no_location' | 'error';
+  message: string;
+  providerMessage?: string;
+}
+
+export function useCheckGbpReviewAccess(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<GbpAccessCheckResult>(
+        `workspaces/${clientId}/connections/GOOGLE_BUSINESS_PROFILE/check-review-access`,
+        { method: 'POST' },
+      ),
+    onSettled: () => {
+      // Whether the check succeeded or failed, the connection's
+      // lastError may have flipped — refetch so the access-pending
+      // banner appears/disappears immediately.
+      qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+    },
+  });
+}
+
 export function useSelectGbpLocation(clientId: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -19,6 +19,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import {
+  useCheckGbpReviewAccess,
   useDisconnectChannel,
   type ChannelConnection,
   type Channel,
@@ -105,6 +106,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   const disconnect = useDisconnectChannel(clientId);
   const [pinterestPickerOpen, setPinterestPickerOpen] = useState(false);
   const [gbpPickerOpen, setGbpPickerOpen] = useState(false);
+  const checkGbpReviewAccess = useCheckGbpReviewAccess(clientId);
 
   const isConnected = connection && connection.status === 'CONNECTED';
   const isBroken =
@@ -291,12 +293,49 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
           )}
 
           {gbpHasLocation && (
-            <button
-              onClick={() => setGbpPickerOpen(true)}
-              className="mt-1 text-[11px] text-white-40 hover:text-white-60 underline-offset-2 hover:underline"
+            <div className="mt-1 flex items-center gap-3">
+              <button
+                onClick={() => setGbpPickerOpen(true)}
+                className="text-[11px] text-white-40 hover:text-white-60 underline-offset-2 hover:underline"
+              >
+                Change location
+              </button>
+              <span className="text-white-20">·</span>
+              <button
+                onClick={() => checkGbpReviewAccess.mutate()}
+                disabled={checkGbpReviewAccess.isPending}
+                className="text-[11px] text-white-40 hover:text-white-60 underline-offset-2 hover:underline inline-flex items-center gap-1 disabled:opacity-50"
+                title="Run a single reviews.list call to see if Google has approved review API access yet"
+              >
+                {checkGbpReviewAccess.isPending ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" /> Checking…
+                  </>
+                ) : (
+                  'Check review API access'
+                )}
+              </button>
+            </div>
+          )}
+
+          {checkGbpReviewAccess.data && (
+            <div
+              className={cn(
+                'mt-2 flex items-start gap-2 p-2 rounded-md text-xs',
+                checkGbpReviewAccess.data.status === 'ok'
+                  ? 'bg-accent-green-110/10 text-accent-green-110'
+                  : checkGbpReviewAccess.data.status === 'access_denied'
+                    ? 'bg-zone-yellow/10 text-zone-yellow'
+                    : 'bg-accent-red/10 text-accent-red',
+              )}
             >
-              Change location
-            </button>
+              {checkGbpReviewAccess.data.status === 'ok' ? (
+                <Link2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              )}
+              <span className="leading-snug">{checkGbpReviewAccess.data.message}</span>
+            </div>
           )}
 
           {gbpReviewAccessDenied && (
@@ -304,10 +343,9 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <div className="flex-1 leading-snug">
                 <p>
-                  Google hasn&apos;t granted this project access to the Business
-                  Profile reviews API yet. OAuth and location selection work, but
-                  review polling and public replies are blocked until approval
-                  lands.
+                  Awaiting Google Business Profile API access approval. Account
+                  and location connection works, but review sync requires Google
+                  allowlisting.
                 </p>
                 <a
                   href="https://developers.google.com/my-business/content/prereqs"
@@ -315,7 +353,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
                   rel="noopener noreferrer"
                   className="mt-1 inline-block text-[11px] font-medium underline-offset-2 hover:underline"
                 >
-                  Request Business Profile API access →
+                  Check status of API access request →
                 </a>
               </div>
             </div>
