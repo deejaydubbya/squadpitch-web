@@ -2383,11 +2383,21 @@ export interface GbpLocation {
   accountName: string;
 }
 
+// Picker response can be one of three states. The UI branches on
+// `status` so the empty / access-denied paths render dedicated
+// copy rather than a misleading "no locations" message.
+export interface GbpLocationsResponse {
+  status: 'ok' | 'empty' | 'access_denied';
+  locations: GbpLocation[];
+  message?: string;
+  providerMessage?: string | null;
+}
+
 export function useGbpLocations(clientId: string | undefined) {
   return useQuery({
     queryKey: ['gbp-locations', clientId ?? ''],
     queryFn: () =>
-      apiFetch<{ locations: GbpLocation[]; message?: string }>(
+      apiFetch<GbpLocationsResponse>(
         `workspaces/${clientId}/connections/GOOGLE_BUSINESS_PROFILE/locations`,
       ),
     enabled: Boolean(clientId),

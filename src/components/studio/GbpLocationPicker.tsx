@@ -79,12 +79,36 @@ export function GbpLocationPicker({ clientId, currentLocationName, onClose }: Pr
             </div>
           )}
 
-          {!isLoading && !error && locations.length === 0 && (
-            <div className="text-sm text-white-60 py-6 text-center">
-              {data?.message ??
-                'No Google Business Profile locations were found on this account.'}
+          {!isLoading && !error && data?.status === 'access_denied' && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-zone-yellow/10 text-zone-yellow text-xs leading-snug">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p>
+                  Awaiting Google Business Profile API access approval. Account
+                  and location connection works, but listing locations requires
+                  Google allowlisting.
+                </p>
+                <a
+                  href="https://developers.google.com/my-business/content/prereqs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-[11px] font-medium underline-offset-2 hover:underline"
+                >
+                  Check status of API access request →
+                </a>
+              </div>
             </div>
           )}
+
+          {!isLoading &&
+            !error &&
+            data?.status !== 'access_denied' &&
+            locations.length === 0 && (
+              <div className="text-sm text-white-60 py-6 text-center">
+                {data?.message ??
+                  'No Google Business Profile locations were found on this account.'}
+              </div>
+            )}
 
           {!isLoading && !error && locations.length > 0 && (
             <ul className="space-y-1.5 max-h-96 overflow-y-auto">
