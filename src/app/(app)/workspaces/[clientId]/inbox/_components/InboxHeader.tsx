@@ -53,8 +53,101 @@ export function InboxHeader({ clientId }: InboxHeaderProps) {
           />
         </div>
       </div>
+
+      {/* Compact analytics bar — windowed metrics from the server.
+          Hidden on small screens to keep the header scannable; the
+          dashboard widget on workspaces/[clientId] surfaces a
+          subset for the main overview. */}
+      {stats && <AnalyticsBar stats={stats} />}
     </header>
   );
+}
+
+// One-row analytics strip. No charts, no library — just labeled
+// numbers separated by · so the eye can scan left to right.
+function AnalyticsBar({ stats }: { stats: InboxStats }) {
+  const acceptRate =
+    stats.aiSuggestionsGenerated > 0
+      ? Math.round(
+          (stats.aiSuggestionsUsed / stats.aiSuggestionsGenerated) * 100,
+        )
+      : null;
+  const respLabel = formatResponseTime(stats.avgFirstResponseSeconds);
+  const sourceTop = topSource(stats.bySource);
+
+  return (
+    <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[11px] text-white-50">
+      <span>
+        Last {stats.windowDays}d:
+      </span>
+      <AnalyticsMetric label="Avg first response" value={respLabel} />
+      <AnalyticsMetric
+        label="Logged"
+        value={String(stats.messageCounts.loggedExternal)}
+      />
+      <AnalyticsMetric
+        label="Email sent"
+        value={String(stats.messageCounts.emailSent)}
+      />
+      <AnalyticsMetric
+        label="Social replies"
+        value={String(stats.messageCounts.socialReplySent)}
+      />
+      <AnalyticsMetric
+        label="Notes"
+        value={String(stats.messageCounts.internalNotes)}
+      />
+      <AnalyticsMetric
+        label="AI used"
+        value={
+          acceptRate == null
+            ? '—'
+            : `${stats.aiSuggestionsUsed}/${stats.aiSuggestionsGenerated} (${acceptRate}%)`
+        }
+      />
+      {sourceTop && (
+        <AnalyticsMetric label="Top source" value={sourceTop} />
+      )}
+    </div>
+  );
+}
+
+function AnalyticsMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="text-white-30">{label}:</span>
+      <span className="text-white-80 font-medium tabular-nums">{value}</span>
+    </span>
+  );
+}
+
+function formatResponseTime(seconds: number | null): string {
+  if (seconds == null) return '—';
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.round((seconds / 3600) * 10) / 10}h`;
+  return `${Math.round((seconds / 86400) * 10) / 10}d`;
+}
+
+const SOURCE_LABELS: Record<keyof InboxStats['bySource'], string> = {
+  FORM: 'Forms',
+  EMAIL_REPLY: 'Email',
+  SOCIAL: 'Social',
+  SOCIAL_COMMENT: 'Comments',
+  REVIEW: 'Reviews',
+  MANUAL: 'Manual',
+};
+
+function topSource(bySource: InboxStats['bySource']): string | null {
+  const entries = Object.entries(bySource) as Array<[
+    keyof InboxStats['bySource'],
+    number,
+  ]>;
+  const nonZero = entries.filter(([, n]) => n > 0);
+  if (nonZero.length === 0) return null;
+  nonZero.sort((a, b) => b[1] - a[1]);
+  const [key, n] = nonZero[0];
+  return `${SOURCE_LABELS[key]} (${n})`;
 }
 
 interface StatPillProps {

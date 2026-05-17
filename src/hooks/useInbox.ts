@@ -218,8 +218,35 @@ export interface InboxConversationDetail extends InboxConversationListRow {
 export interface InboxStats {
   unreadCount: number;
   openCount: number;
+  pendingCount: number;
+  closedCount: number;
   spamCount: number;
   totalCount: number;
+  // Windowed analytics — the server computes over the last
+  // `windowDays` days (server default: 30). UI surfaces this in
+  // a compact analytics bar under the header pills.
+  windowDays: number;
+  bySource: {
+    FORM: number;
+    EMAIL_REPLY: number;
+    SOCIAL: number;
+    SOCIAL_COMMENT: number;
+    REVIEW: number;
+    MANUAL: number;
+  };
+  messageCounts: {
+    emailSent: number;
+    smsSent: number;
+    socialReplySent: number;
+    loggedExternal: number;
+    internalNotes: number;
+  };
+  aiSuggestionsGenerated: number;
+  aiSuggestionsUsed: number;
+  // null when no conversations had both an inbound + an outbound
+  // within the window. UI shows "—" rather than 0 in that case.
+  avgFirstResponseSeconds: number | null;
+  firstResponseSampleSize: number;
 }
 
 // ── Query keys ───────────────────────────────────────────────────────────
