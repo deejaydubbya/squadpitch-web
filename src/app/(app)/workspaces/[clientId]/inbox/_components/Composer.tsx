@@ -86,8 +86,11 @@ export function Composer({
   // reply is the only outbound action available.
   const isGbpReview = provider === 'GOOGLE_BUSINESS';
   const isYouTubeComment = provider === 'YOUTUBE';
-  // For GBP/YouTube we look at the matching action's reason
-  // instead of the email capability — they're different gates.
+  const isThreadsReply = provider === 'THREADS';
+  // For GBP/YouTube/Threads we look at the matching action's
+  // reason instead of the email capability — they're different
+  // gates. YouTube + Threads share REPLY_PUBLIC_COMMENT as the
+  // primary action.
   const reviewAction = availableActions.find((a) => a.action === 'REPLY_REVIEW');
   const commentAction = availableActions.find(
     (a) => a.action === 'REPLY_PUBLIC_COMMENT',
@@ -96,14 +99,16 @@ export function Composer({
   const commentAvailable = commentAction?.available ?? false;
   const primaryAvailable = isGbpReview
     ? reviewAvailable
-    : isYouTubeComment
+    : isYouTubeComment || isThreadsReply
       ? commentAvailable
       : capabilities.email.available;
   const primaryReason = isGbpReview
     ? reviewAction?.reason ?? 'Reviews can\'t be replied to yet.'
     : isYouTubeComment
       ? commentAction?.reason ?? 'YouTube comment replies aren\'t connected yet.'
-      : capabilities.email.reason ?? 'Email is not available for this conversation.';
+      : isThreadsReply
+        ? commentAction?.reason ?? 'Threads reply publishing is not enabled.'
+        : capabilities.email.reason ?? 'Email is not available for this conversation.';
 
   const emailDisabledReason = primaryAvailable ? null : primaryReason;
 
@@ -125,7 +130,8 @@ export function Composer({
     // ("Reply to comment" disabled chip below an enabled
     // "Public comment reply" button).
     if (isGbpReview && a.action === 'REPLY_REVIEW') return false;
-    if (isYouTubeComment && a.action === 'REPLY_PUBLIC_COMMENT') return false;
+    if ((isYouTubeComment || isThreadsReply) && a.action === 'REPLY_PUBLIC_COMMENT')
+      return false;
     return true;
   });
 
@@ -145,7 +151,9 @@ export function Composer({
             ? 'Public review reply'
             : isYouTubeComment
               ? 'Public comment reply'
-              : 'Send email'}
+              : isThreadsReply
+                ? 'Public reply'
+                : 'Send email'}
         </SegButton>
         <SegButton
           active={isReply}
@@ -181,7 +189,9 @@ export function Composer({
                 ? 'Write a public response to this Google review…'
                 : isYouTubeComment
                   ? 'Write a public reply to this YouTube comment…'
-                  : 'Write the reply you want to send to the lead…'
+                  : isThreadsReply
+                    ? 'Write a public reply on Threads…'
+                    : 'Write the reply you want to send to the lead…'
               : isReply
                 ? 'Paste the reply you sent outside Squadpitch…'
                 : 'Add a private note for your team…'
@@ -199,7 +209,9 @@ export function Composer({
               ? 'Posts a public response under the review on your Google listing. Visible to everyone browsing the listing.'
               : isYouTubeComment
                 ? 'Posts a public reply under the comment on YouTube. Visible to every viewer of the video.'
-                : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
+                : isThreadsReply
+                  ? 'Posts a public reply under the comment on Threads. Visible in the public conversation.'
+                  : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
             : isReply
               ? 'Sending is not connected for this channel. This only records the reply on the thread.'
               : 'Notes stay inside your workspace and are never sent to the lead.'}
@@ -227,18 +239,16 @@ export function Composer({
           )}
           {pending
             ? isEmail
-              ? isGbpReview || isYouTubeComment
+              ? isGbpReview || isYouTubeComment || isThreadsReply
                 ? 'Posting…'
                 : 'Sending…'
               : isReply
                 ? 'Logging…'
                 : 'Saving…'
             : isEmail
-              ? isGbpReview
+              ? isGbpReview || isYouTubeComment || isThreadsReply
                 ? 'Post public reply'
-                : isYouTubeComment
-                  ? 'Post public reply'
-                  : 'Send email'
+                : 'Send email'
               : isReply
                 ? 'Log external reply'
                 : 'Add note'}

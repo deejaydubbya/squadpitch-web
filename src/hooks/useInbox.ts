@@ -461,6 +461,41 @@ export function useSendYouTubeCommentReply(clientId: string, conversationId: str
   });
 }
 
+// ── Send Threads public reply ──────────────────────────────────────────
+//
+// Same /reply-comment route — provider-aware dispatch on the
+// server picks the Threads outbound service when conv.provider
+// is THREADS. Same {body, fromSuggestionId, idempotencyKey}
+// contract so the composer doesn't care which network it's
+// posting to.
+export interface SendThreadsReplyInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendThreadsReply(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendThreadsReplyInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/reply-comment`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
 export function useSendInboxEmail(clientId: string, conversationId: string) {
   const qc = useQueryClient();
   return useMutation({

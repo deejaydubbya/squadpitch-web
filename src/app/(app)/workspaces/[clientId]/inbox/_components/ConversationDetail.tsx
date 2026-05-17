@@ -32,6 +32,7 @@ import {
   useSendInboxEmail,
   useSendGbpReviewReply,
   useSendYouTubeCommentReply,
+  useSendThreadsReply,
   type InboxConversationDetail as Conversation,
   type InboxMessage,
   type InboxAiSuggestion,
@@ -67,6 +68,7 @@ export function ConversationDetail({
   const sendEmail = useSendInboxEmail(clientId, conversationId);
   const sendGbpReply = useSendGbpReviewReply(clientId, conversationId);
   const sendYouTubeReply = useSendYouTubeCommentReply(clientId, conversationId);
+  const sendThreadsReply = useSendThreadsReply(clientId, conversationId);
 
   // Mark read whenever a new unread conversation is opened. Stamp the
   // last-message id so we don't re-fire on every re-render while the
@@ -163,7 +165,9 @@ export function ConversationDetail({
           ? sendGbpReply
           : conv.provider === 'YOUTUBE'
             ? sendYouTubeReply
-            : sendEmail;
+            : conv.provider === 'THREADS'
+              ? sendThreadsReply
+              : sendEmail;
       sendMutation.mutate(
         {
           body,
@@ -302,6 +306,7 @@ export function ConversationDetail({
             sendEmail.isPending ||
             sendGbpReply.isPending ||
             sendYouTubeReply.isPending ||
+            sendThreadsReply.isPending ||
             logMessage.isPending ||
             createNote.isPending
           }
