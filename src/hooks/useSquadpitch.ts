@@ -4235,10 +4235,17 @@ export interface IndustryContentTypeLabel {
   label: string;
 }
 
+export type IndustryStatus = 'active' | 'coming_soon';
+
 export interface IndustryProfile {
   key: string;
   label: string;
   description: string;
+  // spinstr421 — present on every profile returned by the server.
+  // Older callers that don't read these can ignore them; the
+  // onboarding grid uses them to render coming-soon cards.
+  status?: IndustryStatus;
+  isComplianceSensitive?: boolean;
   onboarding: IndustryOnboarding;
   content: {
     starterBlueprintSlugs: string[];

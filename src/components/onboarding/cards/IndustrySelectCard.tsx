@@ -28,18 +28,57 @@ export function IndustrySelectCard({ onSelect }: Props) {
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pb-4">
       {industries.map((industry) => {
         const IconComponent = INDUSTRY_ICON_MAP[industry.ui?.icon] ?? Briefcase;
+        // spinstr421 — only Real Estate + Car Sales are active
+        // today. Defaulting to "active" preserves behavior for
+        // any older profile that hasn't been re-served with the
+        // new shape (the server now always sends status).
+        const isComingSoon = (industry.status ?? 'active') === 'coming_soon';
+
         return (
           <button
             key={industry.key}
-            onClick={() => onSelect(industry.key, industry.label)}
+            type="button"
+            onClick={() => {
+              if (isComingSoon) return;
+              onSelect(industry.key, industry.label);
+            }}
+            disabled={isComingSoon}
+            aria-disabled={isComingSoon}
+            title={isComingSoon ? `${industry.label} — coming soon` : industry.label}
             className={cn(
-              'flex flex-col items-center gap-1.5 p-3 rounded-lg',
-              'bg-white-5 hover:bg-white-10 border border-transparent hover:border-accent-green-110/30',
-              'transition-all text-center cursor-pointer',
+              'relative flex flex-col items-center gap-1.5 p-3 rounded-lg border border-transparent text-center transition-all',
+              isComingSoon
+                ? 'bg-white-3 cursor-not-allowed opacity-50'
+                : 'bg-white-5 hover:bg-white-10 hover:border-accent-green-110/30 cursor-pointer',
             )}
           >
-            <IconComponent className="w-5 h-5 text-accent-green-110" />
-            <span className="text-xs text-white-80 font-medium">{industry.label}</span>
+            {isComingSoon && (
+              <span
+                className="absolute top-1.5 right-1.5 text-[9px] uppercase tracking-wider font-semibold text-white-40 bg-white-5 border border-white-10 rounded-full px-1.5 py-0.5"
+                aria-hidden
+              >
+                Soon
+              </span>
+            )}
+            <IconComponent
+              className={cn(
+                'w-5 h-5',
+                isComingSoon ? 'text-white-30' : 'text-accent-green-110',
+              )}
+            />
+            <span
+              className={cn(
+                'text-xs font-medium leading-tight',
+                isComingSoon ? 'text-white-40' : 'text-white-80',
+              )}
+            >
+              {industry.label}
+            </span>
+            {isComingSoon && (
+              <span className="text-[10px] text-white-30 leading-snug">
+                Coming soon
+              </span>
+            )}
           </button>
         );
       })}
