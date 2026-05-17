@@ -33,7 +33,7 @@ import type {
 } from '@/hooks/useInbox';
 import { cn } from '@/lib/utils';
 
-export type ComposerMode = 'email' | 'reply' | 'note';
+export type ComposerMode = 'email' | 'sms' | 'reply' | 'note';
 
 interface ComposerProps {
   clientId: string;
@@ -76,6 +76,7 @@ export function Composer({
   sendError = null,
 }: ComposerProps) {
   const isEmail = mode === 'email';
+  const isSms = mode === 'sms';
   const isReply = mode === 'reply';
   const isNote = mode === 'note';
 
@@ -123,6 +124,16 @@ export function Composer({
     'REPLY_DM',
     'REPLY_REVIEW',
   ];
+  // SMS is now a real tab (not an extras chip) when the server
+  // surfaces a SEND_SMS action. The tab is visible whenever the
+  // resolver returns the action at all — so the user sees the
+  // truthful "Awaiting Twilio business profile / A2P 10DLC
+  // approval." reason instead of a hidden capability.
+  const smsAction = availableActions.find((a) => a.action === 'SEND_SMS');
+  const smsAvailable = smsAction?.available ?? false;
+  const smsReason = smsAction?.reason ?? null;
+  const showSmsTab = Boolean(smsAction);
+
   const extraActions = availableActions.filter((a) => {
     if (!EXTRA_ACTION_IDS.includes(a.action)) return false;
     // Don't surface the action that's already wired into the
@@ -132,6 +143,8 @@ export function Composer({
     if (isGbpReview && a.action === 'REPLY_REVIEW') return false;
     if ((isYouTubeComment || isThreadsReply) && a.action === 'REPLY_PUBLIC_COMMENT')
       return false;
+    // SMS now has its own tab; don't double-render as a chip.
+    if (a.action === 'SEND_SMS') return false;
     return true;
   });
 
@@ -155,6 +168,18 @@ export function Composer({
                 ? 'Public reply'
                 : 'Send email'}
         </SegButton>
+        {showSmsTab && (
+          <SegButton
+            active={isSms}
+            onClick={() => onModeChange('sms')}
+            icon={<MessageSquare className="w-3 h-3" />}
+            tone="primary"
+            disabled={!smsAvailable}
+            disabledTitle={smsReason}
+          >
+            Send SMS
+          </SegButton>
+        )}
         <SegButton
           active={isReply}
           onClick={() => onModeChange('reply')}
@@ -192,9 +217,11 @@ export function Composer({
                   : isThreadsReply
                     ? 'Write a public reply on Threads…'
                     : 'Write the reply you want to send to the lead…'
-              : isReply
-                ? 'Paste the reply you sent outside Squadpitch…'
-                : 'Add a private note for your team…'
+              : isSms
+                ? 'Type your SMS reply (keep it short — long messages span multiple segments)…'
+                : isReply
+                  ? 'Paste the reply you sent outside Squadpitch…'
+                  : 'Add a private note for your team…'
           }
           rows={4}
           className="w-full bg-transparent border-0 px-0 py-1 text-sm text-white-90 placeholder:text-white-30 focus:outline-none resize-none"
@@ -212,9 +239,11 @@ export function Composer({
                 : isThreadsReply
                   ? 'Posts a public reply under the comment on Threads. Visible in the public conversation.'
                   : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
-            : isReply
-              ? 'Sending is not connected for this channel. This only records the reply on the thread.'
-              : 'Notes stay inside your workspace and are never sent to the lead.'}
+            : isSms
+              ? 'Sends a real SMS to the lead\'s phone via Twilio. First message includes a STOP-to-opt-out footer for compliance.'
+              : isReply
+                ? 'Sending is not connected for this channel. This only records the reply on the thread.'
+                : 'Notes stay inside your workspace and are never sent to the lead.'}
         </p>
         <button
           type="button"
@@ -222,7 +251,7 @@ export function Composer({
           disabled={pending || !body.trim()}
           className={cn(
             'text-xs font-semibold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-colors shrink-0',
-            isEmail
+            isEmail || isSms
               ? 'bg-accent-green-110 text-sp-bg hover:bg-accent-green-100'
               : isReply
                 ? 'bg-white-10 text-white-90 hover:bg-white-15 border border-white-15'
@@ -232,6 +261,8 @@ export function Composer({
         >
           {isEmail ? (
             <Mail className="w-3 h-3" />
+          ) : isSms ? (
+            <MessageSquare className="w-3 h-3" />
           ) : isReply ? (
             <Send className="w-3 h-3" />
           ) : (
@@ -242,24 +273,42 @@ export function Composer({
               ? isGbpReview || isYouTubeComment || isThreadsReply
                 ? 'Posting…'
                 : 'Sending…'
-              : isReply
-                ? 'Logging…'
-                : 'Saving…'
+              : isSms
+                ? 'Sending…'
+                : isReply
+                  ? 'Logging…'
+                  : 'Saving…'
             : isEmail
               ? isGbpReview || isYouTubeComment || isThreadsReply
                 ? 'Post public reply'
                 : 'Send email'
-              : isReply
-                ? 'Log external reply'
-                : 'Add note'}
+              : isSms
+                ? 'Send SMS'
+                : isReply
+                  ? 'Log external reply'
+                  : 'Add note'}
         </button>
       </div>
 
       {/* Send error — inline; never pretend a failed send worked. */}
-      {sendError && isEmail && (
+      {sendError && (isEmail || isSms) && (
         <div className="flex items-start gap-2 px-3 py-2 border-t border-white-10 bg-amber-400/5 text-[11px] text-amber-200/90 leading-snug">
           <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
           <span>{sendError}</span>
+        </div>
+      )}
+
+      {/* SMS capability strip — when SMS tab is active and the
+          server's SEND_SMS action is not available, surface the
+          truthful reason ("Awaiting Twilio business profile /
+          A2P 10DLC approval.", etc.) so the user knows what
+          blocker stands between them and a working send. */}
+      {isSms && !smsAvailable && smsReason && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2 border-t border-white-10 bg-amber-400/5">
+          <div className="flex items-start gap-2 text-[11px] text-amber-200/80 leading-snug min-w-0">
+            <Lock className="w-3 h-3 shrink-0 mt-0.5" />
+            <span>{smsReason}</span>
+          </div>
         </div>
       )}
 

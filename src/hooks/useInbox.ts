@@ -474,6 +474,40 @@ export interface SendThreadsReplyInput {
   idempotencyKey?: string;
 }
 
+// ── Send SMS reply ──────────────────────────────────────────────────────
+//
+// POSTs to /send-sms. Hard-gated server-side on env.SMS_SENDING_ENABLED
+// + env.SMS_A2P_APPROVED; this hook fires only when the resolver
+// has already flipped SEND_SMS to available, so a 412 from the
+// server is treated as a (rare) stale-cache race.
+export interface SendSmsInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendInboxSms(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendSmsInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/send-sms`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
 export function useSendThreadsReply(clientId: string, conversationId: string) {
   const qc = useQueryClient();
   return useMutation({

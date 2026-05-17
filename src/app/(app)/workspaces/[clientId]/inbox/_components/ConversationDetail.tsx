@@ -33,6 +33,7 @@ import {
   useSendGbpReviewReply,
   useSendYouTubeCommentReply,
   useSendThreadsReply,
+  useSendInboxSms,
   type InboxConversationDetail as Conversation,
   type InboxMessage,
   type InboxAiSuggestion,
@@ -69,6 +70,7 @@ export function ConversationDetail({
   const sendGbpReply = useSendGbpReviewReply(clientId, conversationId);
   const sendYouTubeReply = useSendYouTubeCommentReply(clientId, conversationId);
   const sendThreadsReply = useSendThreadsReply(clientId, conversationId);
+  const sendSms = useSendInboxSms(clientId, conversationId);
 
   // Mark read whenever a new unread conversation is opened. Stamp the
   // last-message id so we don't re-fire on every re-render while the
@@ -169,6 +171,28 @@ export function ConversationDetail({
               ? sendThreadsReply
               : sendEmail;
       sendMutation.mutate(
+        {
+          body,
+          fromSuggestionId: fromSuggestionId ?? undefined,
+          idempotencyKey,
+        },
+        {
+          onSuccess: () => {
+            setComposerBody('');
+            setFromSuggestionId(null);
+            setAiCollapsed(false);
+          },
+          onError: (err) => {
+            setSendError(err instanceof ApiError ? err.message : 'Send failed');
+          },
+        },
+      );
+    } else if (composerMode === 'sms') {
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sendSms.mutate(
         {
           body,
           fromSuggestionId: fromSuggestionId ?? undefined,
@@ -307,6 +331,7 @@ export function ConversationDetail({
             sendGbpReply.isPending ||
             sendYouTubeReply.isPending ||
             sendThreadsReply.isPending ||
+            sendSms.isPending ||
             logMessage.isPending ||
             createNote.isPending
           }
