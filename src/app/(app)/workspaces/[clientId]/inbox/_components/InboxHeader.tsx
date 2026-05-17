@@ -130,12 +130,15 @@ function formatResponseTime(seconds: number | null): string {
 }
 
 const SOURCE_LABELS: Record<keyof InboxStats['bySource'], string> = {
-  FORM: 'Forms',
-  EMAIL_REPLY: 'Email',
-  SOCIAL: 'Social',
-  SOCIAL_COMMENT: 'Comments',
-  REVIEW: 'Reviews',
-  MANUAL: 'Manual',
+  forms: 'Forms',
+  email: 'Email',
+  threadsComments: 'Threads',
+  youtubeComments: 'YouTube',
+  otherSocialComments: 'Comments',
+  reviews: 'Reviews',
+  dms: 'DMs',
+  sms: 'SMS',
+  manual: 'Manual',
 };
 
 function topSource(bySource: InboxStats['bySource']): string | null {

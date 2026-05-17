@@ -226,13 +226,19 @@ export interface InboxStats {
   // `windowDays` days (server default: 30). UI surfaces this in
   // a compact analytics bar under the header pills.
   windowDays: number;
+  // Granular source attribution — Threads vs YouTube comments
+  // are separate buckets; DMs and SMS are their own categories.
+  // Buckets with zero volume render as 0 (UI may hide them).
   bySource: {
-    FORM: number;
-    EMAIL_REPLY: number;
-    SOCIAL: number;
-    SOCIAL_COMMENT: number;
-    REVIEW: number;
-    MANUAL: number;
+    forms: number;
+    email: number;
+    threadsComments: number;
+    youtubeComments: number;
+    otherSocialComments: number;
+    reviews: number;
+    dms: number;
+    sms: number;
+    manual: number;
   };
   messageCounts: {
     emailSent: number;
