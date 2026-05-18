@@ -55,8 +55,18 @@ import {
   type SiteSourceType,
   type SitePageGoal,
 } from '@/hooks/useSites';
+import { useDataItem } from '@/hooks/useSquadpitch';
 import { ApiError } from '@/lib/apiFetch';
+import {
+  normalizeProperty,
+  buildKeyDetailItems,
+  buildHeroSubheadline,
+  buildSafeDescription,
+  type NormalizedProperty,
+} from '@/lib/property/normalize';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import { Home as HomeIcon, Sparkles, AlertTriangle } from 'lucide-react';
 
 interface PageEditorProps {
   clientId: string;
@@ -168,6 +178,16 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
   const updatePage = useUpdatePage(clientId, page.id);
   const publishPage = usePublishPage(clientId, page.id);
   const unpublishPage = useUnpublishPage(clientId, page.id);
+
+  // Sites-02 — load the source property when the page is linked to
+  // one. Hook always fires (with undefined id when no source) so
+  // the rules-of-hooks contract holds. PROPERTY pages get a rich
+  // source pill + per-block "Pull from property" actions.
+  const isPropertyPage = page.sourceType === 'PROPERTY' && Boolean(page.sourceId);
+  const propertySourceItem = useDataItem(clientId, isPropertyPage ? page.sourceId ?? undefined : undefined);
+  const property = isPropertyPage ? normalizeProperty(propertySourceItem.data ?? null) : null;
+  const propertyMissing =
+    isPropertyPage && !propertySourceItem.isLoading && !propertySourceItem.data;
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -348,7 +368,20 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
           </div>
         )}
 
-        {page.sourceType && (
+        {isPropertyPage && property ? (
+          <PropertySourcePanel clientId={clientId} property={property} />
+        ) : propertyMissing ? (
+          <div
+            data-testid="page-editor-source-missing"
+            className="flex items-start gap-2 text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>
+              Linked property not found — it may have been archived. Existing page
+              content is safe; edits won&apos;t affect any property.
+            </span>
+          </div>
+        ) : page.sourceType ? (
           <div className="flex items-center gap-2 text-xs text-white-50">
             <span className="text-white-40 uppercase tracking-wider font-medium">
               Source
@@ -362,7 +395,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
               </span>
             )}
           </div>
-        )}
+        ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -470,6 +503,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
                   id={it.id}
                   block={it.block}
                   forms={forms}
+                  property={property}
                   onChange={(patch) => updateBlock(it.id, patch)}
                   onRemove={() => removeBlock(it.id)}
                 />
@@ -554,11 +588,12 @@ interface SortableBlockCardProps {
   id: string;
   block: Block;
   forms: LeadForm[];
+  property: NormalizedProperty | null;
   onChange: (patch: Partial<Block>) => void;
   onRemove: () => void;
 }
 
-function SortableBlockCard({ id, block, forms, onChange, onRemove }: SortableBlockCardProps) {
+function SortableBlockCard({ id, block, forms, property, onChange, onRemove }: SortableBlockCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
 
@@ -594,7 +629,7 @@ function SortableBlockCard({ id, block, forms, onChange, onRemove }: SortableBlo
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
-          <BlockFields block={block} forms={forms} onChange={onChange} />
+          <BlockFields block={block} forms={forms} property={property} onChange={onChange} />
         </div>
       </div>
     </div>
@@ -606,13 +641,25 @@ function SortableBlockCard({ id, block, forms, onChange, onRemove }: SortableBlo
 interface BlockFieldsProps {
   block: Block;
   forms: LeadForm[];
+  property: NormalizedProperty | null;
   onChange: (patch: Partial<Block>) => void;
 }
 
-function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
+function BlockFields({ block, forms, property, onChange }: BlockFieldsProps) {
   if (block.type === 'hero') {
+    const pullFromProperty = property
+      ? () =>
+          onChange({
+            headline: property.title,
+            subheadline: buildHeroSubheadline(property),
+            imageUrl: property.primaryImage ?? undefined,
+          } as Partial<Block>)
+      : null;
     return (
       <div className="space-y-3">
+        {pullFromProperty && (
+          <PullFromPropertyButton onClick={pullFromProperty} label="Pull from property" />
+        )}
         <Field label="Headline">
           <input
             className="input"
@@ -642,15 +689,23 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
   }
 
   if (block.type === 'paragraph') {
+    const pullFromProperty = property
+      ? () => onChange({ body: buildSafeDescription(property) } as Partial<Block>)
+      : null;
     return (
-      <Field label="Body">
-        <textarea
-          className="input min-h-[120px] resize-y"
-          value={block.body ?? ''}
-          onChange={(e) => onChange({ body: e.target.value } as Partial<Block>)}
-          maxLength={4000}
-        />
-      </Field>
+      <div className="space-y-3">
+        {pullFromProperty && (
+          <PullFromPropertyButton onClick={pullFromProperty} label="Pull description from property" />
+        )}
+        <Field label="Body">
+          <textarea
+            className="input min-h-[120px] resize-y"
+            value={block.body ?? ''}
+            onChange={(e) => onChange({ body: e.target.value } as Partial<Block>)}
+            maxLength={4000}
+          />
+        </Field>
+      </div>
     );
   }
 
@@ -733,8 +788,18 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
   }
 
   if (block.type === 'gallery') {
+    const pullFromProperty =
+      property && property.images.length > 0
+        ? () => onChange({ imageUrls: property.images } as Partial<Block>)
+        : null;
     return (
       <div className="space-y-3">
+        {pullFromProperty && (
+          <PullFromPropertyButton
+            onClick={pullFromProperty}
+            label={`Pull ${property!.images.length} photo${property!.images.length === 1 ? '' : 's'} from property`}
+          />
+        )}
         <Field label="Layout">
           <select
             className="input"
@@ -769,8 +834,14 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
   }
 
   if (block.type === 'key_details') {
+    const pullFromProperty = property
+      ? () => onChange({ items: buildKeyDetailItems(property) } as Partial<Block>)
+      : null;
     return (
       <div className="space-y-3">
+        {pullFromProperty && (
+          <PullFromPropertyButton onClick={pullFromProperty} label="Pull details from property" />
+        )}
         <Field label="Heading (optional)">
           <input
             className="input"
@@ -1027,6 +1098,91 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+// Sites-02 — explicit one-shot autofill button. Re-clicking overwrites
+// the block's relevant fields. Kept visually distinct so the user
+// knows this isn't a passive bind — it's a deliberate action.
+function PullFromPropertyButton({
+  onClick,
+  label,
+}: {
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid="pull-from-property-button"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold bg-teal-500/10 text-teal-300 border border-teal-500/20 hover:bg-teal-500/20 transition-colors"
+    >
+      <Sparkles className="w-3 h-3" />
+      {label}
+    </button>
+  );
+}
+
+// Sites-02 — source context panel. Replaces the bare "Source: Property
+// <id>" pill with address / price / specs / thumbnail when the linked
+// property loads.
+function PropertySourcePanel({
+  clientId,
+  property,
+}: {
+  clientId: string;
+  property: NormalizedProperty;
+}) {
+  return (
+    <div
+      data-testid="page-editor-source-panel"
+      className="flex items-start gap-3 rounded-xl border border-teal-500/20 bg-teal-500/5 p-3"
+    >
+      <div className="shrink-0">
+        {property.primaryImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={property.primaryImage}
+            alt={property.title}
+            className="w-16 h-16 rounded-lg object-cover border border-white-10"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-lg bg-white-5 border border-white-10 flex items-center justify-center">
+            <HomeIcon className="w-5 h-5 text-teal-300" />
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0 space-y-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-teal-300">
+            Linked property
+          </span>
+          {property.status && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white-5 text-white-60">
+              {property.status.replace(/_/g, ' ')}
+            </span>
+          )}
+        </div>
+        <p className="text-sm font-semibold text-white-100 truncate">{property.title}</p>
+        {property.addressLine !== property.title && (
+          <p className="text-xs text-white-50 truncate">{property.addressLine}</p>
+        )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-white-60">
+          {property.priceFormatted && <span className="font-medium">{property.priceFormatted}</span>}
+          {property.beds != null && <span>{property.beds} bd</span>}
+          {property.baths != null && <span>{property.baths} ba</span>}
+          {property.sqft != null && <span>{property.sqft.toLocaleString()} sqft</span>}
+          {property.propertyType && <span>{property.propertyType}</span>}
+        </div>
+      </div>
+      <Link
+        href={`/workspaces/${clientId}/data?tab=properties`}
+        className="text-[11px] text-teal-300 hover:underline shrink-0"
+      >
+        View
+      </Link>
     </div>
   );
 }
