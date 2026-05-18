@@ -27,7 +27,7 @@ import {
   type AutopilotSettings,
   type AutopilotActivityItem,
 } from '@/hooks/useSquadpitch';
-import { AutopilotCampaignsSection } from '@/components/studio/AutopilotCampaignsSection';
+import { AutopilotCommandCenter } from '@/components/studio/autopilot/AutopilotCommandCenter';
 import { AutopilotInboxBanner } from '@/components/studio/AutopilotInboxBanner';
 import { cn } from '@/lib/utils';
 import { useSubscription, type PlanTier } from '@/hooks/useBilling';
@@ -174,7 +174,7 @@ export default function AutopilotPage() {
 
   if (settingsLoading) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="max-w-6xl space-y-6">
         <div className="h-8 w-48 bg-white-10 rounded animate-pulse" />
         <div className="h-40 bg-white-10 rounded animate-pulse" />
       </div>
@@ -183,7 +183,7 @@ export default function AutopilotPage() {
 
   if (isBelowPro) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="max-w-6xl space-y-6">
         {/* Header — same as normal */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -237,7 +237,7 @@ export default function AutopilotPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-6xl space-y-6">
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -291,30 +291,7 @@ export default function AutopilotPage() {
       {activeTab === 'inbox' && (
         <>
           <AutopilotInboxBanner clientId={clientId} />
-          <AutopilotCampaignsSection clientId={clientId} />
-
-          {/* Compact recent activity preview */}
-          {activity && activity.length > 0 && (
-            <div className="card p-4 border-white-10 mt-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-white-40" />
-                  <span className="text-xs font-semibold text-white-60 uppercase tracking-wider">Recent Activity</span>
-                </div>
-                <button
-                  onClick={() => setActiveTab('settings')}
-                  className="text-xs text-accent-green-110 hover:underline"
-                >
-                  View all →
-                </button>
-              </div>
-              <div className="space-y-2">
-                {activity.slice(0, 3).map((item) => (
-                  <ActivityRow key={item.id} item={item} base={base} />
-                ))}
-              </div>
-            </div>
-          )}
+          <AutopilotCommandCenter clientId={clientId} />
         </>
       )}
 
