@@ -247,7 +247,7 @@ export default function AutopilotPage() {
           <div>
             <h1 className="text-xl font-bold text-white-100">Autopilot</h1>
             <p className="text-sm text-white-40">
-              Automated content generation and scheduling
+              AI campaign opportunities prepared for your review
             </p>
           </div>
         </div>
