@@ -8,6 +8,10 @@ primary_region = "ord"
     # Set to "true" while serving Meta App Review reviewers; flip to
     # "false" (or remove the line) before unrelated production deploys.
     NEXT_PUBLIC_META_APP_REVIEW_DEMO = "true"
+    # Autopilot Campaign Inbox UI — gates whether the inbox surface
+    # renders + whether the read/dismiss/generate/approve hooks fire.
+    # Backend Phase 2-5 routes are live (docs/AUTOPILOT_MVP_IMPLEMENTATION.md).
+    NEXT_PUBLIC_AUTOPILOT_CAMPAIGN_INBOX_ENABLED = "true"
 
 [http_service]
   internal_port = 3000
