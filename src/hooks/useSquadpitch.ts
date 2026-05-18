@@ -3639,6 +3639,42 @@ export function useAutopilotStatus(clientId: string | undefined) {
 
 // ── Autopilot Campaign Recommendations ─────────────────────────────────
 
+// Phase 5 — Autopilot run history. Each row is one evaluator
+// pass (manual, scheduled, or internal evaluate-all). reason
+// explains WHY Autopilot did nothing on a given tick.
+export interface AutopilotRun {
+  id: string;
+  triggerSource: 'manual' | 'scheduled' | 'event';
+  status:
+    | 'created_recommendations'
+    | 'updated_recommendations'
+    | 'no_action'
+    | 'skipped'
+    | 'error';
+  reason: string | null;
+  recommendationsCreated: number;
+  recommendationsUpdated: number;
+  recommendationsExpired: number;
+  startedAt: string;
+  finishedAt: string | null;
+  errorMessage: string | null;
+}
+
+export interface AutopilotRunsResponse {
+  runs: AutopilotRun[];
+  total: number;
+}
+
+export function useAutopilotRuns(clientId: string | undefined) {
+  return useQuery({
+    queryKey: [...squadpitchKeys.all, 'autopilot-runs', clientId ?? ''],
+    queryFn: () =>
+      apiFetch<AutopilotRunsResponse>(`workspaces/${clientId}/autopilot/runs`),
+    enabled: Boolean(clientId),
+    staleTime: 30_000,
+  });
+}
+
 // Both Campaign Inbox readers gate on the feature flag — the
 // backend routes don't exist yet (Phase 2 of the audit doc will
 // land them). Until the flag flips, the queries never fire and
