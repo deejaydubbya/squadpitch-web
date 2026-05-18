@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Megaphone, Plug, Database, Zap } from 'lucide-react';
+import { Megaphone, Plug, Database, Zap, ShieldCheck, Settings2 } from 'lucide-react';
 import {
   useAutopilotCampaignRecommendations,
   useAutopilotCampaignStats,
@@ -11,11 +11,13 @@ import {
   useAutopilotActivity,
   useAutopilotRuns,
   useAutopilotReadiness,
+  useAutopilotSettings,
   useGenerateAutopilotCampaign,
   useApproveAutopilotCampaign,
   useDismissAutopilotCampaign,
   useChannelSettings,
   type AutopilotCampaignRecommendation,
+  type AutopilotMode,
   type Channel,
 } from '@/hooks/useSquadpitch';
 import { isAutopilotCampaignInboxEnabled } from '@/lib/autopilotCampaignInbox';
@@ -72,6 +74,7 @@ function LiveCommandCenter({ clientId }: AutopilotCommandCenterProps) {
   const { data: runsData } = useAutopilotRuns(clientId);
   const { data: readiness } = useAutopilotReadiness(clientId);
   const { data: channels } = useChannelSettings(clientId);
+  const { data: settings } = useAutopilotSettings(clientId);
 
   const generateMutation = useGenerateAutopilotCampaign(clientId);
   const approveMutation = useApproveAutopilotCampaign(clientId);
@@ -225,6 +228,8 @@ function LiveCommandCenter({ clientId }: AutopilotCommandCenterProps) {
         loading={isLoading}
       />
 
+      <StatusChips mode={settings?.mode ?? 'off'} enabled={Boolean(settings?.enabled)} />
+
       <SafetyCallout />
 
       {hasNoRecs ? (
@@ -232,6 +237,7 @@ function LiveCommandCenter({ clientId }: AutopilotCommandCenterProps) {
           clientId={clientId}
           hasChannels={hasChannels}
           hasData={hasData}
+          lastRun={runsData?.runs?.[0] ?? null}
         />
       ) : hero ? (
         <OpportunityHero
@@ -301,6 +307,38 @@ function SafetyCallout() {
   );
 }
 
+const MODE_PILL_LABELS: Record<AutopilotMode, string> = {
+  off: 'Off',
+  recommend_only: 'Recommendations only',
+  draft_on_click: 'Generate drafts manually',
+  auto_generate_drafts: 'Auto-prepare drafts',
+  schedule_after_approval: 'Auto-schedule on approve',
+  auto_publish_guarded: 'Auto-publish (locked)',
+  draft_only: 'Generate drafts manually',
+};
+
+function StatusChips({ mode, enabled }: { mode: AutopilotMode; enabled: boolean }) {
+  const modeLabel = MODE_PILL_LABELS[mode] ?? mode;
+  return (
+    <div
+      data-testid="autopilot-status-chips"
+      className="flex items-center gap-2 flex-wrap"
+    >
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white-5 text-white-70 border border-white-10">
+        <Settings2 className="w-3 h-3 text-accent-green-110" />
+        <span className="text-white-40">Mode:</span> {modeLabel}
+        {!enabled && mode !== 'off' && (
+          <span className="ml-1 text-yellow-400">· paused</span>
+        )}
+      </span>
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+        <ShieldCheck className="w-3 h-3" />
+        Approval required before publishing
+      </span>
+    </div>
+  );
+}
+
 function LoadingState() {
   return (
     <div className="space-y-5" data-testid="autopilot-loading">
@@ -338,10 +376,12 @@ function FirstRunEmptyState({
   clientId,
   hasChannels,
   hasData,
+  lastRun,
 }: {
   clientId: string;
   hasChannels: boolean;
   hasData: boolean;
+  lastRun?: import('@/hooks/useSquadpitch').AutopilotRun | null;
 }) {
   // Surface the most actionable missing piece first.
   const setupPrompt =
@@ -363,6 +403,9 @@ function FirstRunEmptyState({
           }
         : null;
 
+  const lastScanWhy = lastRun?.metadata?.summary?.noActionReason ?? lastRun?.reason ?? null;
+  const lastScanWhen = lastRun ? lastScanLabel(lastRun.startedAt) : null;
+
   return (
     <section
       data-testid="autopilot-empty"
@@ -379,6 +422,15 @@ function FirstRunEmptyState({
           Autopilot will surface recommendations as soon as it detects new
           listings, reviews, open houses, or posting gaps.
         </p>
+        {lastRun && (
+          <p
+            data-testid="autopilot-empty-last-scan"
+            className="text-xs text-white-40 mt-3 max-w-md mx-auto leading-relaxed"
+          >
+            Last scan {lastScanWhen}
+            {lastScanWhy ? ` — ${lastScanWhy}` : '.'}
+          </p>
+        )}
       </div>
       {setupPrompt && (
         <div className="max-w-md mx-auto rounded-xl border border-white-10 bg-white-3 p-4 text-left flex items-start gap-3">

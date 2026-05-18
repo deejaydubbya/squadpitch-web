@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Home as HomeIcon,
   TrendingDown,
@@ -8,13 +9,15 @@ import {
   ArrowRight,
   Eye,
   Loader2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import type {
   AutopilotCampaignRecommendation,
   AutopilotTriggerType,
   AutopilotCampaignStatus,
 } from '@/hooks/useSquadpitch';
-import { STATUS_DISPLAY } from '../autopilotInboxConstants';
+import { STATUS_DISPLAY, CHANNEL_LABELS } from '../autopilotInboxConstants';
 import { cn } from '@/lib/utils';
 
 export type QueueFilter =
@@ -202,6 +205,7 @@ function QueueRow({
   onViewDetails,
   generating,
 }: QueueRowProps) {
+  const [showWhy, setShowWhy] = useState(false);
   const TriggerIcon = TRIGGER_ICONS[recommendation.triggerType] ?? HomeIcon;
   const triggerLabel = TRIGGER_LABELS[recommendation.triggerType] ?? recommendation.triggerType;
   const statusDisplay = STATUS_DISPLAY[recommendation.status];
@@ -229,71 +233,166 @@ function QueueRow({
     <li
       data-testid="queue-row"
       className={cn(
-        'py-3 flex items-center gap-3',
+        'py-3',
         inactive && 'opacity-60',
       )}
     >
-      <div className="w-8 h-8 rounded-lg bg-white-5 flex items-center justify-center shrink-0">
-        <TriggerIcon className="w-3.5 h-3.5 text-white-60" />
-      </div>
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-white-5 flex items-center justify-center shrink-0">
+          <TriggerIcon className="w-3.5 h-3.5 text-white-60" />
+        </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider font-medium text-white-40">
-            {triggerLabel}
-          </span>
-          <span className={cn('w-1.5 h-1.5 rounded-full', dot)} title={`${recommendation.confidence} confidence`} />
-          {statusDisplay && (
-            <span
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-[10px] uppercase tracking-wider font-medium text-white-40">
+              {triggerLabel}
+            </span>
+            <span className={cn('w-1.5 h-1.5 rounded-full', dot)} title={`${recommendation.confidence} confidence`} />
+            {statusDisplay && (
+              <span
+                className={cn(
+                  'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                  statusDisplay.className,
+                )}
+              >
+                {statusDisplay.label}
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-medium text-white-100 truncate">
+            {recommendation.propertyTitle}
+          </p>
+          {recommendation.propertyAddress &&
+            recommendation.propertyAddress !== recommendation.propertyTitle && (
+              <p className="text-xs text-white-40 truncate">
+                {recommendation.propertyAddress}
+              </p>
+            )}
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {!inactive && (
+            <button
+              data-testid="queue-row-why-toggle"
+              onClick={() => setShowWhy((v) => !v)}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium text-white-40 hover:bg-white-10 hover:text-white-60 transition-colors"
+              aria-expanded={showWhy}
+            >
+              Why?
+              {showWhy ? (
+                <ChevronUp className="w-3 h-3" />
+              ) : (
+                <ChevronDown className="w-3 h-3" />
+              )}
+            </button>
+          )}
+          {!inactive && primary && (
+            <button
+              onClick={primary.onClick}
+              disabled={primary.loading}
               className={cn(
-                'px-1.5 py-0.5 rounded text-[10px] font-medium',
-                statusDisplay.className,
+                'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                'bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20',
+                'disabled:opacity-60 disabled:cursor-not-allowed',
               )}
             >
-              {statusDisplay.label}
-            </span>
+              {primary.loading ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <ArrowRight className="w-3 h-3" />
+              )}
+              {primary.label}
+            </button>
+          )}
+          {!inactive && (
+            <button
+              onClick={() => onViewDetails(recommendation.id)}
+              className="p-1.5 rounded-lg text-white-40 hover:bg-white-10 hover:text-white-60 transition-colors"
+              title="View details"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
-        <p className="text-sm font-medium text-white-100 truncate">
-          {recommendation.propertyTitle}
-        </p>
-        {recommendation.propertyAddress &&
-          recommendation.propertyAddress !== recommendation.propertyTitle && (
-            <p className="text-xs text-white-40 truncate">
-              {recommendation.propertyAddress}
-            </p>
-          )}
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
-        {!inactive && primary && (
-          <button
-            onClick={primary.onClick}
-            disabled={primary.loading}
-            className={cn(
-              'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-              'bg-accent-green-110/10 text-accent-green-110 hover:bg-accent-green-110/20',
-              'disabled:opacity-60 disabled:cursor-not-allowed',
-            )}
-          >
-            {primary.loading ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <ArrowRight className="w-3 h-3" />
-            )}
-            {primary.label}
-          </button>
-        )}
-        {!inactive && (
-          <button
-            onClick={() => onViewDetails(recommendation.id)}
-            className="p-1.5 rounded-lg text-white-40 hover:bg-white-10 hover:text-white-60 transition-colors"
-            title="View details"
-          >
-            <Eye className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
+      {showWhy && !inactive && (
+        <WhyThisDetails recommendation={recommendation} />
+      )}
     </li>
+  );
+}
+
+function WhyThisDetails({
+  recommendation,
+}: {
+  recommendation: AutopilotCampaignRecommendation;
+}) {
+  const extras = recommendation as AutopilotCampaignRecommendation & {
+    whatWeNoticed?: string;
+    whyItMatters?: string;
+    recommendedAngles?: string[];
+  };
+  const channels = recommendation.suggestedChannels.slice(0, 5);
+  const angles = (extras.recommendedAngles ?? []).slice(0, 3);
+  const whatWeNoticed = extras.whatWeNoticed || recommendation.triggerReason;
+  const whyItMatters = extras.whyItMatters || '';
+
+  const nextStep = (() => {
+    if (recommendation.status === 'pending') {
+      return 'Clicking Prepare will create one draft per recommended channel. Drafts stay unpublished until you approve them.';
+    }
+    if (recommendation.status === 'ready') {
+      return 'Clicking Approve marks the drafts as approved. They will not publish until you schedule them yourself (or auto-schedule mode is on).';
+    }
+    if (recommendation.status === 'approved' || recommendation.status === 'launched') {
+      return 'Drafts are already approved. View opens them in your Drafts view for scheduling.';
+    }
+    return '';
+  })();
+
+  return (
+    <div
+      data-testid="queue-row-why"
+      className="mt-3 ml-11 rounded-lg border border-white-10 bg-white-3 p-3 text-xs text-white-60 space-y-2 leading-relaxed"
+    >
+      {whatWeNoticed && (
+        <p>
+          <span className="text-white-40">What we noticed: </span>
+          {whatWeNoticed}
+        </p>
+      )}
+      {whyItMatters && (
+        <p>
+          <span className="text-white-40">Why it matters: </span>
+          {whyItMatters}
+        </p>
+      )}
+      <p>
+        <span className="text-white-40">Confidence: </span>
+        <span className="capitalize">{recommendation.confidence}</span>
+        {recommendation.confidence === 'high' &&
+          ' — concrete source object with non-generic copy potential.'}
+        {recommendation.confidence === 'medium' &&
+          ' — useful signal but limited supporting data.'}
+        {recommendation.confidence === 'low' &&
+          ' — workspace-scoped fallback rather than a specific opportunity.'}
+      </p>
+      {channels.length > 0 && (
+        <p>
+          <span className="text-white-40">Channels: </span>
+          {channels.map((ch) => CHANNEL_LABELS[ch] ?? ch).join(', ')}
+        </p>
+      )}
+      {angles.length > 0 && (
+        <p>
+          <span className="text-white-40">Angles: </span>
+          {angles.join(' · ')}
+        </p>
+      )}
+      {nextStep && (
+        <p className="text-white-70 pt-1 border-t border-white-10">{nextStep}</p>
+      )}
+    </div>
   );
 }

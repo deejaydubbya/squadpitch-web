@@ -11,6 +11,7 @@ import type {
   AutopilotRun,
   AutopilotActivityItem,
 } from '@/hooks/useSquadpitch';
+import { runDetailFragments } from './runActivity.helpers';
 import { cn } from '@/lib/utils';
 
 interface RunActivityPanelProps {
@@ -41,13 +42,16 @@ interface FeedRow {
 
 function runRow(run: AutopilotRun): FeedRow {
   const when = relativeTime(run.startedAt);
+  const fragments = runDetailFragments(run);
+  const detailSuffix = fragments.length > 0 ? ` (${fragments.join(', ')})` : '';
+
   if (run.status === 'created_recommendations') {
     const n = run.recommendationsCreated;
     return {
       key: `run-${run.id}`,
       Icon: Sparkles,
       iconClass: 'text-accent-green-110',
-      body: `Autopilot scanned and found ${n} new opportunit${n === 1 ? 'y' : 'ies'}.`,
+      body: `Autopilot scanned and found ${n} new opportunit${n === 1 ? 'y' : 'ies'}${detailSuffix}.`,
       when,
     };
   }
@@ -57,16 +61,17 @@ function runRow(run: AutopilotRun): FeedRow {
       key: `run-${run.id}`,
       Icon: Activity,
       iconClass: 'text-cyan-400',
-      body: `Autopilot refreshed ${n} existing opportunit${n === 1 ? 'y' : 'ies'}.`,
+      body: `Autopilot refreshed ${n} existing opportunit${n === 1 ? 'y' : 'ies'}${detailSuffix}.`,
       when,
     };
   }
   if (run.status === 'no_action') {
+    const why = run.metadata?.summary?.noActionReason ?? run.reason ?? 'no new opportunities yet';
     return {
       key: `run-${run.id}`,
       Icon: Radar,
       iconClass: 'text-white-40',
-      body: `Autopilot scanned — ${run.reason ?? 'no new opportunities yet'}.`,
+      body: `Autopilot scanned — ${why}${detailSuffix}.`,
       when,
     };
   }
@@ -75,7 +80,7 @@ function runRow(run: AutopilotRun): FeedRow {
       key: `run-${run.id}`,
       Icon: PauseCircle,
       iconClass: 'text-yellow-400',
-      body: `Skipped — ${run.reason ?? 'preconditions not met'}.`,
+      body: `Scan skipped — ${run.reason ?? 'preconditions not met'}.`,
       when,
     };
   }

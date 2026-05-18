@@ -3653,6 +3653,33 @@ export function useAutopilotStatus(clientId: string | undefined) {
 // Phase 5 — Autopilot run history. Each row is one evaluator
 // pass (manual, scheduled, or internal evaluate-all). reason
 // explains WHY Autopilot did nothing on a given tick.
+// Spinstr04 — detector summary returned per run for the
+// explainability surface. All fields are optional so older runs
+// without summary metadata still parse.
+export interface AutopilotRunSummary {
+  eligibleListings?: number;
+  duplicatesSuppressed?: number;
+  listingsCappedByRunLimit?: number;
+  openHouseCandidates?: number;
+  openHouseEmitted?: number;
+  reviewsConsidered?: number;
+  reviewsEmitted?: number;
+  inactivityEmitted?: boolean;
+  noActionReason?: string | null;
+}
+
+export interface AutopilotRunAutoGenerate {
+  draftsCreated?: number;
+  recommendationsGenerated?: number;
+  skipped?: Array<{ recommendationId: string; reason: string }>;
+}
+
+export interface AutopilotRunMetadata {
+  summary?: AutopilotRunSummary;
+  autoGenerate?: AutopilotRunAutoGenerate;
+  schedulerTickId?: string;
+}
+
 export interface AutopilotRun {
   id: string;
   triggerSource: 'manual' | 'scheduled' | 'event';
@@ -3669,6 +3696,7 @@ export interface AutopilotRun {
   startedAt: string;
   finishedAt: string | null;
   errorMessage: string | null;
+  metadata: AutopilotRunMetadata | null;
 }
 
 export interface AutopilotRunsResponse {
