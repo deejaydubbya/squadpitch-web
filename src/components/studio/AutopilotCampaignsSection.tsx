@@ -242,8 +242,12 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
   // Error state — treat as empty inbox (endpoint may not exist yet)
   // Fall through to render the empty state UI below
 
+  // Per spinstr423 — "Needs Review" reads as a problem before
+  // drafts exist. "Recommended" is the actual user state at
+  // that stage. "Drafts Ready" is rendered on individual cards
+  // when status === 'ready' (DRAFT_GENERATED).
   const FILTER_TABS: { key: FilterTab; label: string; count?: number }[] = [
-    { key: 'needs_review', label: 'Needs Review', count: needsReviewCount > 0 ? needsReviewCount : undefined },
+    { key: 'needs_review', label: 'Recommended', count: needsReviewCount > 0 ? needsReviewCount : undefined },
     { key: 'approved', label: 'Approved' },
     { key: 'dismissed', label: 'Dismissed' },
     { key: 'all', label: 'All' },

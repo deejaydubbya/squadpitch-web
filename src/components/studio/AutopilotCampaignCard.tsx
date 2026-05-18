@@ -233,7 +233,7 @@ export function AutopilotCampaignCard({
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors"
                 >
                   <Sparkles className="w-3 h-3" />
-                  Generate Campaign
+                  Generate Drafts
                 </button>
                 <button
                   onClick={() => onDismiss(recommendation.id)}

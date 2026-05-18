@@ -2,10 +2,14 @@ import type { AutopilotCampaignStatus } from '@/hooks/useSquadpitch';
 
 // ── Status Display ────────────────────────────────────────────────────────
 
+// Status badge shown on each recommendation card. `pending` is
+// the default state — no badge needed because the recommendation
+// itself communicates "needs review." `ready` (DRAFT_GENERATED)
+// gets "Drafts Ready" so the user knows the next click target.
 export const STATUS_DISPLAY: Record<AutopilotCampaignStatus, { label: string; className: string } | null> = {
   pending: null,
   generating: null,
-  ready: null,
+  ready: { label: 'Drafts Ready', className: 'bg-accent-green-110/15 text-accent-green-110' },
   approved: { label: 'Approved', className: 'bg-green-500/15 text-green-400' },
   dismissed: { label: 'Dismissed', className: 'bg-white-10 text-white-40' },
   expired: { label: 'Expired', className: 'bg-white-10 text-white-40' },
