@@ -67,6 +67,8 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Home as HomeIcon, Sparkles, AlertTriangle } from 'lucide-react';
+import { ImageField } from './ImageField';
+import { GalleryField } from './GalleryField';
 
 interface PageEditorProps {
   clientId: string;
@@ -504,6 +506,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
                   block={it.block}
                   forms={forms}
                   property={property}
+                  clientId={clientId}
                   onChange={(patch) => updateBlock(it.id, patch)}
                   onRemove={() => removeBlock(it.id)}
                 />
@@ -589,11 +592,12 @@ interface SortableBlockCardProps {
   block: Block;
   forms: LeadForm[];
   property: NormalizedProperty | null;
+  clientId: string;
   onChange: (patch: Partial<Block>) => void;
   onRemove: () => void;
 }
 
-function SortableBlockCard({ id, block, forms, property, onChange, onRemove }: SortableBlockCardProps) {
+function SortableBlockCard({ id, block, forms, property, clientId, onChange, onRemove }: SortableBlockCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
 
@@ -629,7 +633,13 @@ function SortableBlockCard({ id, block, forms, property, onChange, onRemove }: S
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
-          <BlockFields block={block} forms={forms} property={property} onChange={onChange} />
+          <BlockFields
+            block={block}
+            forms={forms}
+            property={property}
+            clientId={clientId}
+            onChange={onChange}
+          />
         </div>
       </div>
     </div>
@@ -642,10 +652,12 @@ interface BlockFieldsProps {
   block: Block;
   forms: LeadForm[];
   property: NormalizedProperty | null;
+  clientId: string;
   onChange: (patch: Partial<Block>) => void;
 }
 
-function BlockFields({ block, forms, property, onChange }: BlockFieldsProps) {
+function BlockFields({ block, forms, property, clientId, onChange }: BlockFieldsProps) {
+  const propertyImages = property?.images ?? undefined;
   if (block.type === 'hero') {
     const pullFromProperty = property
       ? () =>
@@ -676,14 +688,21 @@ function BlockFields({ block, forms, property, onChange }: BlockFieldsProps) {
             maxLength={600}
           />
         </Field>
-        <Field label="Image URL (optional)">
-          <input
-            className="input font-mono text-xs"
-            value={block.imageUrl ?? ''}
-            placeholder="https://res.cloudinary.com/…"
-            onChange={(e) => onChange({ imageUrl: e.target.value || undefined } as Partial<Block>)}
-          />
-        </Field>
+        <ImageField
+          clientId={clientId}
+          label="Hero image (optional)"
+          value={{
+            imageUrl: block.imageUrl ?? null,
+            imageId: (block as { imageId?: string | null }).imageId ?? null,
+          }}
+          propertyImages={propertyImages}
+          onChange={(next) =>
+            onChange({
+              imageUrl: next.imageUrl ?? undefined,
+              imageId: next.imageId ?? undefined,
+            } as Partial<Block>)
+          }
+        />
       </div>
     );
   }
@@ -712,14 +731,21 @@ function BlockFields({ block, forms, property, onChange }: BlockFieldsProps) {
   if (block.type === 'image') {
     return (
       <div className="space-y-3">
-        <Field label="Image URL">
-          <input
-            className="input font-mono text-xs"
-            value={block.imageUrl ?? ''}
-            placeholder="https://…"
-            onChange={(e) => onChange({ imageUrl: e.target.value || undefined } as Partial<Block>)}
-          />
-        </Field>
+        <ImageField
+          clientId={clientId}
+          label="Image"
+          value={{
+            imageUrl: block.imageUrl ?? null,
+            imageId: (block as { imageId?: string | null }).imageId ?? null,
+          }}
+          propertyImages={propertyImages}
+          onChange={(next) =>
+            onChange({
+              imageUrl: next.imageUrl ?? undefined,
+              imageId: next.imageId ?? undefined,
+            } as Partial<Block>)
+          }
+        />
         <Field label="Alt text">
           <input
             className="input"
@@ -814,19 +840,12 @@ function BlockFields({ block, forms, property, onChange }: BlockFieldsProps) {
             <option value="carousel">Carousel</option>
           </select>
         </Field>
-        <Field label="Image URLs (one per line)">
-          <textarea
-            className="input min-h-[120px] resize-y font-mono text-xs"
-            value={block.imageUrls.join('\n')}
-            onChange={(e) =>
-              onChange({
-                imageUrls: e.target.value
-                  .split('\n')
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              } as Partial<Block>)
-            }
-            placeholder={'https://...\nhttps://...'}
+        <Field label="Images">
+          <GalleryField
+            clientId={clientId}
+            imageUrls={block.imageUrls}
+            propertyImages={propertyImages}
+            onChange={(next) => onChange({ imageUrls: next } as Partial<Block>)}
           />
         </Field>
       </div>
@@ -949,16 +968,20 @@ function BlockFields({ block, forms, property, onChange }: BlockFieldsProps) {
             />
           </Field>
         </div>
-        <Field label="Headshot URL (optional)">
-          <input
-            className="input font-mono text-xs"
-            value={block.imageUrl ?? ''}
-            onChange={(e) =>
-              onChange({ imageUrl: e.target.value || undefined } as Partial<Block>)
-            }
-            placeholder="https://..."
-          />
-        </Field>
+        <ImageField
+          clientId={clientId}
+          label="Headshot (optional)"
+          value={{
+            imageUrl: block.imageUrl ?? null,
+            imageId: (block as { imageId?: string | null }).imageId ?? null,
+          }}
+          onChange={(next) =>
+            onChange({
+              imageUrl: next.imageUrl ?? undefined,
+              imageId: next.imageId ?? undefined,
+            } as Partial<Block>)
+          }
+        />
       </div>
     );
   }
