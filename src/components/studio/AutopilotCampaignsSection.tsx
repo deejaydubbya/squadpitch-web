@@ -64,11 +64,12 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
   const router = useRouter();
   const { data, isLoading, isError } = useAutopilotCampaignRecommendations(clientId);
   const { data: channels } = useChannelSettings(clientId);
-  // Phase 3 — dismiss + generate now have real backends. Approve
-  // / convert still ship in Phase 4 (handlers route to coming-soon).
+  // Phase 4 — dismiss + generate + approve now have real
+  // backends. Convert remains a manual nav to /create until a
+  // server-side convert endpoint is justified.
   const dismissMutation = useDismissAutopilotCampaign(clientId);
   const generateMutation = useGenerateAutopilotCampaign(clientId);
-  useApproveAutopilotCampaign(clientId);
+  const approveMutation = useApproveAutopilotCampaign(clientId);
   useConvertAutopilotCampaign(clientId);
 
   const [activeFilter, setActiveFilter] = useState<FilterTab>('needs_review');
@@ -104,15 +105,15 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
 
   const detailRec = recommendations.find((r) => r.id === detailRecId) ?? null;
 
-  // Phase 4 — approve / convert backend routes still in flight.
-  // Their handlers route to a coming-soon notice. Generate is wired.
+  // Phase 5+ surfaces (none currently wired through this helper —
+  // kept so future "coming soon" buttons can call it without
+  // re-introducing the import).
   const notifyComingSoon = (label: string) => {
     if (typeof window !== 'undefined') {
-      window.alert(
-        `${label} is coming in the next release. For now, Autopilot can prepare drafts from a recommendation and let you review them in the regular Drafts UI.`,
-      );
+      window.alert(`${label} is coming in the next release.`);
     }
   };
+  void notifyComingSoon;
   const handleGenerate = (id: string) => {
     generateMutation.mutate(id, {
       onSuccess: (result) => {
@@ -148,7 +149,42 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
       },
     });
   };
-  const handleApprove = () => notifyComingSoon('Approving a campaign recommendation');
+  const handleApprove = (id: string) => {
+    approveMutation.mutate(
+      { recommendationId: id },
+      {
+        onSuccess: (result) => {
+          if (typeof window === 'undefined') return;
+          const approvedCount = result.drafts.filter((d) =>
+            ['APPROVED', 'SCHEDULED', 'PUBLISHED'].includes(d.status),
+          ).length;
+          const total = result.drafts.length;
+          const errorRows = result.drafts.filter((d) => d.error);
+          if (errorRows.length > 0) {
+            const detail = errorRows
+              .map((d) => `• ${d.channel}: ${d.error}`)
+              .join('\n');
+            window.alert(
+              `${approvedCount} of ${total} drafts approved — some couldn't transition:\n${detail}`,
+            );
+            return;
+          }
+          window.alert(
+            `${approvedCount} draft${approvedCount === 1 ? '' : 's'} approved. Review or schedule them from your Drafts.`,
+          );
+        },
+        onError: (err: unknown) => {
+          if (typeof window !== 'undefined') {
+            window.alert(
+              err instanceof Error
+                ? err.message
+                : 'Approve failed; please try again.',
+            );
+          }
+        },
+      },
+    );
+  };
 
   const handleDismiss = (id: string) => {
     dismissMutation.mutate({ recommendationId: id });
@@ -313,7 +349,7 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
           connectedChannels={connectedChannels}
           clientId={clientId}
           onApprove={() => {
-            handleApprove();
+            handleApprove(detailRec.id);
             setDetailRecId(null);
           }}
           onDismiss={() => {

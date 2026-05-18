@@ -3695,13 +3695,34 @@ export function useGenerateAutopilotCampaign(clientId: string) {
   });
 }
 
+// Phase 4 — approve result. Each child draft's outcome is
+// returned so the UI can show "3 drafts approved" or "2 of 3
+// approved — 1 was already published".
+export interface AutopilotApproveResult {
+  status: 'success' | 'partial_success' | 'noop';
+  drafts: Array<{
+    draftId: string;
+    channel: string;
+    status: string;
+    scheduled: boolean;
+    skipped: boolean;
+    error?: string;
+  }>;
+  scheduledAt: string | null;
+  recommendation: AutopilotCampaignRecommendation | null;
+  recommendationId: string;
+}
+
 export function useApproveAutopilotCampaign(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { recommendationId: string; addToPlanner: boolean }) =>
-      apiFetch<{ success: boolean }>(
+    mutationFn: (input: { recommendationId: string; scheduleAt?: string | null }) =>
+      apiFetch<AutopilotApproveResult>(
         `workspaces/${clientId}/autopilot/campaign-recommendations/${input.recommendationId}/approve`,
-        { method: 'POST', body: JSON.stringify({ addToPlanner: input.addToPlanner }) },
+        {
+          method: 'POST',
+          body: JSON.stringify({ scheduleAt: input.scheduleAt ?? null }),
+        },
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaigns(clientId) });
