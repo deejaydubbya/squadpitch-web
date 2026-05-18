@@ -10,6 +10,12 @@ import {
 } from '@/hooks/useSquadpitch';
 import { cn } from '@/lib/utils';
 import { StatusBanner } from '@/components/common/StatusBanner';
+import { PropertyPhotosField } from './PropertyPhotosField';
+import {
+  type PropertyPhoto,
+  readPhotosFromDataJson,
+  buildPhotoDataJson,
+} from './propertyPhotos.helpers';
 
 // Spinstr425 — Add/Edit Property form. POSTs to listings/manual on
 // create (which runs intake dedup against existing PROPERTY rows) and
@@ -37,7 +43,6 @@ type FormState = {
   yearBuilt: string;
   listingUrl: string;
   externalListingId: string;
-  imageUrl: string;
   description: string;
 };
 
@@ -57,14 +62,12 @@ const EMPTY: FormState = {
   yearBuilt: '',
   listingUrl: '',
   externalListingId: '',
-  imageUrl: '',
   description: '',
 };
 
 function prefillFromItem(item: WorkspaceDataItem): FormState {
   const d = (item.dataJson ?? {}) as Record<string, unknown>;
   const str = (v: unknown) => (v == null ? '' : String(v));
-  const images = Array.isArray(d.images) ? (d.images as string[]) : [];
   return {
     street: str(d.street ?? d.address),
     city: str(d.city),
@@ -79,7 +82,6 @@ function prefillFromItem(item: WorkspaceDataItem): FormState {
     yearBuilt: str(d.yearBuilt),
     listingUrl: str(d.listingUrl),
     externalListingId: str(d.externalListingId ?? d.mlsId ?? d.sourceId),
-    imageUrl: str(d.imageUrl ?? images[0] ?? ''),
     description: str(d.description),
   };
 }
@@ -89,11 +91,13 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
   const create = useManualListingImport(clientId);
   const update = useUpdateDataItem(clientId);
   const [form, setForm] = useState<FormState>(EMPTY);
+  const [photos, setPhotos] = useState<PropertyPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
     setForm(editItem ? prefillFromItem(editItem) : EMPTY);
+    setPhotos(editItem ? readPhotosFromDataJson(editItem.dataJson as Record<string, unknown> | null) : []);
     setError(null);
     setInfo(null);
   }, [editItem]);
@@ -115,7 +119,7 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
       try {
         await update.mutateAsync({
           id: editItem.id,
-          dataJson: buildDataJson(form, editItem),
+          dataJson: buildDataJson(form, photos, editItem),
         });
         onClose();
       } catch (err) {
@@ -124,6 +128,7 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
       return;
     }
 
+    const photoFields = buildPhotoDataJson(photos);
     const payload: ManualListingInput = {
       street: form.street || undefined,
       city: form.city || undefined,
@@ -137,7 +142,8 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
       propertyType: form.propertyType || undefined,
       yearBuilt: form.yearBuilt || undefined,
       listingUrl: form.listingUrl || undefined,
-      imageUrl: form.imageUrl || undefined,
+      imageUrl: photoFields.imageUrl ?? undefined,
+      images: photoFields.images.length > 0 ? photoFields.images : undefined,
       description: form.description || undefined,
     };
 
@@ -231,7 +237,7 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
             </div>
           </Section>
 
-          <Section title="Sources & media">
+          <Section title="Sources">
             <Field
               label="Listing URL"
               value={form.listingUrl}
@@ -245,12 +251,13 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
               placeholder="MLS-12345"
               helper="Used for intake dedup so re-imports don't create duplicates."
             />
-            <Field
-              label="Primary Image URL"
-              value={form.imageUrl}
-              onChange={(v) => setField('imageUrl', v)}
-              placeholder="https://cdn/photo.jpg"
-              helper="Photo upload is on the roadmap — paste a URL for now."
+          </Section>
+
+          <Section title="Property photos">
+            <PropertyPhotosField
+              clientId={clientId}
+              photos={photos}
+              onChange={setPhotos}
             />
           </Section>
 
@@ -292,7 +299,11 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
   );
 }
 
-function buildDataJson(form: FormState, existing: WorkspaceDataItem): Record<string, unknown> {
+function buildDataJson(
+  form: FormState,
+  photos: PropertyPhoto[],
+  existing: WorkspaceDataItem,
+): Record<string, unknown> {
   // Edit path: merge over the existing dataJson so we never clobber
   // server-managed fields like _events / _priceHistory / _statusHistory.
   const existingData = (existing.dataJson ?? {}) as Record<string, unknown>;
@@ -307,6 +318,8 @@ function buildDataJson(form: FormState, existing: WorkspaceDataItem): Record<str
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : undefined;
   };
+
+  const photoFields = buildPhotoDataJson(photos);
   const merged: Record<string, unknown> = {
     ...existingData,
     street: form.street.trim() || existingData.street,
@@ -322,9 +335,22 @@ function buildDataJson(form: FormState, existing: WorkspaceDataItem): Record<str
     yearBuilt: num(form.yearBuilt) ?? existingData.yearBuilt,
     listingUrl: form.listingUrl.trim() || existingData.listingUrl,
     externalListingId: form.externalListingId.trim() || existingData.externalListingId,
-    imageUrl: form.imageUrl.trim() || existingData.imageUrl,
     description: form.description.trim() || existingData.description,
   };
+  // Photos: only write when the user touched them in the editor.
+  // Empty photos list = explicit clear; preserve back-compat by
+  // always writing both imageUrl + images so old readers + new
+  // readers see the same thing.
+  if (photos.length > 0) {
+    merged.imageUrl = photoFields.imageUrl;
+    merged.images = photoFields.images;
+    merged._photos = photoFields._photos;
+  } else {
+    // User cleared all photos.
+    merged.imageUrl = null;
+    merged.images = [];
+    merged._photos = [];
+  }
   return merged;
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Home, Plus } from 'lucide-react';
+import { Search, Home, Plus, Link as LinkIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useProperties,
@@ -11,6 +11,7 @@ import {
 import { PropertyCard } from '@/components/studio/PropertyCard';
 import { PropertyDetailDrawer } from '@/components/studio/PropertyDetailDrawer';
 import { AddPropertyModal } from '@/components/studio/AddPropertyModal';
+import { ImportPropertyUrlModal } from '@/components/studio/ImportPropertyUrlModal';
 
 const STATUS_FILTERS = ['All', 'Active', 'Pending', 'Sold'] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -26,6 +27,7 @@ export function PropertyLibrary({ clientId }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showImportUrl, setShowImportUrl] = useState(false);
   const [editItem, setEditItem] = useState<WorkspaceDataItem | null>(null);
   const selectedItem = properties?.find((p) => p.id === selectedItemId) ?? null;
 
@@ -72,14 +74,24 @@ export function PropertyLibrary({ clientId }: Props) {
             {properties.length}
           </span>
         )}
-        <button
-          data-testid="property-add-button"
-          onClick={() => setShowAdd(true)}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent-green-110 text-black hover:bg-accent-green-110/90 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Property
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            data-testid="property-import-url-button"
+            onClick={() => setShowImportUrl(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white-5 text-white-100 hover:bg-white-10 border border-white-10 transition-colors"
+          >
+            <LinkIcon className="w-3.5 h-3.5" />
+            Import from URL
+          </button>
+          <button
+            data-testid="property-add-button"
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent-green-110 text-black hover:bg-accent-green-110/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Property
+          </button>
+        </div>
       </div>
 
       {/* Search + filters */}
@@ -168,6 +180,13 @@ export function PropertyLibrary({ clientId }: Props) {
             setShowAdd(false);
             setEditItem(null);
           }}
+        />
+      )}
+
+      {showImportUrl && (
+        <ImportPropertyUrlModal
+          clientId={clientId}
+          onClose={() => setShowImportUrl(false)}
         />
       )}
     </div>
