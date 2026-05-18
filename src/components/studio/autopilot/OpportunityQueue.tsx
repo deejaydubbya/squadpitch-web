@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type {
   AutopilotCampaignRecommendation,
+  AutopilotMode,
   AutopilotTriggerType,
   AutopilotCampaignStatus,
 } from '@/hooks/useSquadpitch';
@@ -68,18 +69,18 @@ const CONFIDENCE_DOT: Record<string, string> = {
 const STATUS_BUCKETS: Record<QueueFilter, Set<AutopilotCampaignStatus>> = {
   recommended: new Set<AutopilotCampaignStatus>(['pending', 'generating']),
   drafts_ready: new Set<AutopilotCampaignStatus>(['ready']),
-  approved: new Set<AutopilotCampaignStatus>(['approved', 'launched']),
-  // The backend has no SCHEDULED rec status — recommendations become
-  // APPROVED after approveRecommendation, and scheduling happens
-  // per-draft. Use approved+launched as the proxy until a
-  // SCHEDULED rec status lands.
-  scheduled: new Set<AutopilotCampaignStatus>(['launched']),
+  approved: new Set<AutopilotCampaignStatus>(['approved']),
+  // Spinstr06 — the backend's SCHEDULED enum now flows through to
+  // FE as 'scheduled' (was previously folded into 'approved'). The
+  // legacy 'launched' state stays here so older rows still surface.
+  scheduled: new Set<AutopilotCampaignStatus>(['scheduled', 'launched']),
   dismissed: new Set<AutopilotCampaignStatus>(['dismissed', 'expired']),
   all: new Set<AutopilotCampaignStatus>([
     'pending',
     'generating',
     'ready',
     'approved',
+    'scheduled',
     'dismissed',
     'expired',
     'converted',
@@ -90,6 +91,7 @@ const STATUS_BUCKETS: Record<QueueFilter, Set<AutopilotCampaignStatus>> = {
 interface OpportunityQueueProps {
   recommendations: AutopilotCampaignRecommendation[];
   excludeId?: string | null; // id of the hero — don't double-render
+  mode: AutopilotMode;
   activeFilter: QueueFilter;
   onFilterChange: (filter: QueueFilter) => void;
   onGenerate: (id: string) => void;
@@ -102,6 +104,7 @@ interface OpportunityQueueProps {
 export function OpportunityQueue({
   recommendations,
   excludeId,
+  mode,
   activeFilter,
   onFilterChange,
   onGenerate,
@@ -177,6 +180,7 @@ export function OpportunityQueue({
             <QueueRow
               key={rec.id}
               recommendation={rec}
+              mode={mode}
               onGenerate={onGenerate}
               onApprove={onApprove}
               onDismiss={onDismiss}
@@ -205,6 +209,7 @@ function emptyLabel(filter: QueueFilter, excludeId: string | null | undefined): 
 
 interface QueueRowProps {
   recommendation: AutopilotCampaignRecommendation;
+  mode: AutopilotMode;
   onGenerate: (id: string) => void;
   onApprove: (id: string) => void;
   onDismiss: (id: string) => void;
@@ -214,6 +219,7 @@ interface QueueRowProps {
 
 function QueueRow({
   recommendation,
+  mode,
   onGenerate,
   onApprove,
   onDismiss,
@@ -229,13 +235,19 @@ function QueueRow({
   const inactive =
     recommendation.status === 'dismissed' || recommendation.status === 'expired';
 
+  // Spinstr06 — recommend_only mode hides the Prepare CTA, same
+  // as the Hero. See OpportunityHero for the rationale.
+  const recommendOnly = mode === 'recommend_only';
+
   let primary: { label: string; onClick: () => void; loading?: boolean } | null = null;
   if (recommendation.status === 'pending') {
-    primary = {
-      label: 'Prepare',
-      onClick: () => onGenerate(recommendation.id),
-      loading: generating,
-    };
+    if (!recommendOnly) {
+      primary = {
+        label: 'Prepare',
+        onClick: () => onGenerate(recommendation.id),
+        loading: generating,
+      };
+    }
   } else if (recommendation.status === 'ready') {
     primary = { label: 'Approve', onClick: () => onApprove(recommendation.id) };
   } else if (recommendation.status === 'approved' || recommendation.status === 'launched') {

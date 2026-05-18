@@ -242,6 +242,7 @@ function LiveCommandCenter({ clientId }: AutopilotCommandCenterProps) {
       ) : hero ? (
         <OpportunityHero
           recommendation={hero}
+          mode={settings?.mode ?? 'off'}
           onGenerate={handleGenerate}
           onApprove={handleApprove}
           onDismiss={handleDismiss}
@@ -254,6 +255,7 @@ function LiveCommandCenter({ clientId }: AutopilotCommandCenterProps) {
         <OpportunityQueue
           recommendations={recommendations}
           excludeId={hero?.id ?? null}
+          mode={settings?.mode ?? 'off'}
           activeFilter={activeFilter}
           onFilterChange={setActiveFilter}
           onGenerate={handleGenerate}

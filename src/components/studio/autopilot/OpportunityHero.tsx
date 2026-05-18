@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type {
   AutopilotCampaignRecommendation,
+  AutopilotMode,
   AutopilotTriggerType,
   Channel,
 } from '@/hooks/useSquadpitch';
@@ -98,6 +99,7 @@ const CONFIDENCE_STYLES: Record<string, string> = {
 
 interface OpportunityHeroProps {
   recommendation: AutopilotCampaignRecommendation;
+  mode: AutopilotMode;
   onGenerate: (id: string) => void;
   onApprove: (id: string) => void;
   onDismiss: (id: string) => void;
@@ -107,6 +109,7 @@ interface OpportunityHeroProps {
 
 export function OpportunityHero({
   recommendation,
+  mode,
   onGenerate,
   onApprove,
   onDismiss,
@@ -130,13 +133,22 @@ export function OpportunityHero({
   // single most useful next action — multiple are only available
   // in the inactive states (which we wouldn't pick as the Hero
   // anyway, but defend against it).
+  //
+  // Spinstr06 — recommend_only mode intentionally hides the
+  // Prepare CTA. The product contract for that mode is "Autopilot
+  // finds opportunities and adds them to your inbox. You choose
+  // what to create." — generating drafts from Autopilot would
+  // break that promise.
+  const recommendOnly = mode === 'recommend_only';
   let primaryAction: { label: string; onClick: () => void; loading?: boolean } | null = null;
   if (recommendation.status === 'pending') {
-    primaryAction = {
-      label: 'Prepare Drafts',
-      onClick: () => onGenerate(recommendation.id),
-      loading: isGenerating,
-    };
+    if (!recommendOnly) {
+      primaryAction = {
+        label: 'Prepare Drafts',
+        onClick: () => onGenerate(recommendation.id),
+        loading: isGenerating,
+      };
+    }
   } else if (recommendation.status === 'ready') {
     primaryAction = {
       label: 'Approve Drafts',
@@ -250,6 +262,17 @@ export function OpportunityHero({
                 </span>
               ))}
             </div>
+          )}
+
+          {recommendOnly && recommendation.status === 'pending' && (
+            <p
+              data-testid="hero-recommend-only-note"
+              className="text-xs text-yellow-400/90 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2"
+            >
+              Recommendations-only mode. Switch automation level to
+              Generate drafts manually (or higher) on the Settings tab to
+              prepare drafts from Autopilot.
+            </p>
           )}
 
           {/* Actions */}

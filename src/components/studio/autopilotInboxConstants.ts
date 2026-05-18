@@ -11,6 +11,9 @@ export const STATUS_DISPLAY: Record<AutopilotCampaignStatus, { label: string; cl
   generating: null,
   ready: { label: 'Drafts Ready', className: 'bg-accent-green-110/15 text-accent-green-110' },
   approved: { label: 'Approved', className: 'bg-green-500/15 text-green-400' },
+  // Spinstr06 — backend SCHEDULED rows now flow through as
+  // 'scheduled' so the command-center tab surfaces them.
+  scheduled: { label: 'Scheduled', className: 'bg-violet-500/15 text-violet-400' },
   dismissed: { label: 'Dismissed', className: 'bg-white-10 text-white-40' },
   expired: { label: 'Expired', className: 'bg-white-10 text-white-40' },
   converted: { label: 'Converted', className: 'bg-blue-500/15 text-blue-400' },
@@ -79,5 +82,12 @@ export function isExpiringSoon(iso: string | null): boolean {
 // ── Status Helpers ────────────────────────────────────────────────────────
 
 export function isInactiveStatus(status: AutopilotCampaignStatus): boolean {
-  return status === 'approved' || status === 'dismissed' || status === 'expired' || status === 'converted' || status === 'launched';
+  return (
+    status === 'approved' ||
+    status === 'scheduled' ||
+    status === 'dismissed' ||
+    status === 'expired' ||
+    status === 'converted' ||
+    status === 'launched'
+  );
 }

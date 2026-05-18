@@ -1062,6 +1062,7 @@ export type AutopilotCampaignStatus =
   | 'generating'
   | 'ready'
   | 'approved'
+  | 'scheduled'
   | 'dismissed'
   | 'expired'
   | 'converted'

@@ -200,7 +200,9 @@ export interface AutopilotCampaignContext {
 
 /**
  * Composes all intelligence functions into a full context for display.
- * Used by AutopilotCampaignCard to show *why* a campaign was recommended.
+ * Used by AutopilotCampaignDetailModal (and historically by
+ * AutopilotCampaignCard, removed in spinstr06) to show *why* a
+ * campaign was recommended.
  */
 export function buildAutopilotCampaignContext(
   input: {
