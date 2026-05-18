@@ -64,10 +64,17 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
   const router = useRouter();
   const { data, isLoading, isError } = useAutopilotCampaignRecommendations(clientId);
   const { data: channels } = useChannelSettings(clientId);
-  const generateMutation = useGenerateAutopilotCampaign(clientId);
-  const approveMutation = useApproveAutopilotCampaign(clientId);
+  // Phase 2 — only the dismiss mutation has a real backend.
+  // Generate / approve / convert routes ship in Phases 3 / 4 / 4.
+  // We keep the mutation hook references for type stability, but
+  // route the click handlers through a notifyComingSoon helper
+  // instead of firing the 404-prone calls.
   const dismissMutation = useDismissAutopilotCampaign(clientId);
-  const convertMutation = useConvertAutopilotCampaign(clientId);
+  // Reserved — not invoked in Phase 2 (see notifyComingSoon).
+  // Kept so future-phase wire-up is a one-line change.
+  useGenerateAutopilotCampaign(clientId);
+  useApproveAutopilotCampaign(clientId);
+  useConvertAutopilotCampaign(clientId);
 
   const [activeFilter, setActiveFilter] = useState<FilterTab>('needs_review');
   const [detailRecId, setDetailRecId] = useState<string | null>(null);
@@ -102,13 +109,19 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
 
   const detailRec = recommendations.find((r) => r.id === detailRecId) ?? null;
 
-  const handleGenerate = (id: string) => {
-    generateMutation.mutate(id);
+  // Phase 2 — generate / approve / convert backend routes ship
+  // in subsequent phases. We DO NOT fire those mutations yet;
+  // the click handlers route to a "coming soon" notice so the
+  // user understands why the button doesn't act.
+  const notifyComingSoon = (label: string) => {
+    if (typeof window !== 'undefined') {
+      window.alert(
+        `${label} is coming in the next release. For now, Autopilot surfaces opportunities here and lets you dismiss them.`,
+      );
+    }
   };
-
-  const handleApprove = (id: string) => {
-    approveMutation.mutate({ recommendationId: id, addToPlanner: true });
-  };
+  const handleGenerate = () => notifyComingSoon('Generating drafts from a recommendation');
+  const handleApprove = () => notifyComingSoon('Approving a campaign recommendation');
 
   const handleDismiss = (id: string) => {
     dismissMutation.mutate({ recommendationId: id });
@@ -119,9 +132,12 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
   };
 
   const handleConvert = (id: string) => {
+    // Defer the backend "convert" call; just navigate to the
+    // existing create-campaign flow so the user can manually
+    // build it. The Phase 4 convert endpoint will replace this
+    // with a server-side materialization.
     const rec = recommendations.find((r) => r.id === id);
     if (!rec) return;
-    convertMutation.mutate(id);
     const params = new URLSearchParams();
     params.set('intent', 'campaign');
     params.set('sourceType', 'property');
@@ -270,7 +286,7 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
           connectedChannels={connectedChannels}
           clientId={clientId}
           onApprove={() => {
-            handleApprove(detailRec.id);
+            handleApprove();
             setDetailRecId(null);
           }}
           onDismiss={() => {
