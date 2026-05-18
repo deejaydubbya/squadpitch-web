@@ -3090,6 +3090,9 @@ export function useSuiteFlags(clientId: string | undefined) {
 
 export interface DataItemFilters {
   type?: DataItemType;
+  /** Spinstr425 — Content Assets passes ['PROPERTY'] so the
+   *  generic asset view doesn't list property rows. */
+  excludeTypes?: DataItemType[];
   status?: DataItemStatus;
   search?: string;
   limit?: number;
@@ -3098,7 +3101,12 @@ export interface DataItemFilters {
 export function useDataItems(clientId: string, filters: DataItemFilters = {}) {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
+    if (v === undefined || v === null || v === '') return;
+    if (Array.isArray(v)) {
+      if (v.length > 0) query.set(k, v.join(','));
+      return;
+    }
+    query.set(k, String(v));
   });
   const qs = query.toString();
   const path = `workspaces/${clientId}/business-data${qs ? `?${qs}` : ''}`;

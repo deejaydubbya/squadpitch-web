@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Home, Archive, ArrowRight, ImageIcon, Camera, Calendar } from 'lucide-react';
+import { Home, Archive, ArrowRight, ImageIcon, Camera, Calendar, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceDataItem } from '@/hooks/useSquadpitch';
 
@@ -24,10 +24,11 @@ interface Props {
   item: WorkspaceDataItem;
   clientId: string;
   onArchive: (id: string) => void;
+  onEdit?: () => void;
   onClick?: () => void;
 }
 
-export function PropertyCard({ item, clientId, onArchive, onClick }: Props) {
+export function PropertyCard({ item, clientId, onArchive, onEdit, onClick }: Props) {
   const router = useRouter();
   const d = item.dataJson as Record<string, unknown>;
   const imageUrl = d.imageUrl as string | undefined;
@@ -156,9 +157,25 @@ export function PropertyCard({ item, clientId, onArchive, onClick }: Props) {
         >
           New Campaign <ArrowRight className="w-3 h-3" />
         </button>
+        {onEdit && (
+          <button
+            data-testid="property-card-edit"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="ml-auto p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors"
+            title="Edit"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           onClick={handleArchive}
-          className="ml-auto p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors"
+          className={cn(
+            'p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors',
+            !onEdit && 'ml-auto',
+          )}
           title="Archive"
         >
           <Archive className="w-3.5 h-3.5" />

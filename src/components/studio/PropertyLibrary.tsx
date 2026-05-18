@@ -1,11 +1,16 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Home } from 'lucide-react';
+import { Search, Home, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useProperties, useArchiveDataItem } from '@/hooks/useSquadpitch';
+import {
+  useProperties,
+  useArchiveDataItem,
+  type WorkspaceDataItem,
+} from '@/hooks/useSquadpitch';
 import { PropertyCard } from '@/components/studio/PropertyCard';
 import { PropertyDetailDrawer } from '@/components/studio/PropertyDetailDrawer';
+import { AddPropertyModal } from '@/components/studio/AddPropertyModal';
 
 const STATUS_FILTERS = ['All', 'Active', 'Pending', 'Sold'] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -20,6 +25,8 @@ export function PropertyLibrary({ clientId }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editItem, setEditItem] = useState<WorkspaceDataItem | null>(null);
   const selectedItem = properties?.find((p) => p.id === selectedItemId) ?? null;
 
   const filtered = useMemo(() => {
@@ -65,6 +72,14 @@ export function PropertyLibrary({ clientId }: Props) {
             {properties.length}
           </span>
         )}
+        <button
+          data-testid="property-add-button"
+          onClick={() => setShowAdd(true)}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent-green-110 text-black hover:bg-accent-green-110/90 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add Property
+        </button>
       </div>
 
       {/* Search + filters */}
@@ -128,6 +143,7 @@ export function PropertyLibrary({ clientId }: Props) {
               item={item}
               clientId={clientId}
               onArchive={(id) => archive.mutate(id)}
+              onEdit={() => setEditItem(item)}
               onClick={() => setSelectedItemId(item.id)}
             />
           ))}
@@ -141,6 +157,17 @@ export function PropertyLibrary({ clientId }: Props) {
           clientId={clientId}
           isOpen={!!selectedItem}
           onClose={() => setSelectedItemId(null)}
+        />
+      )}
+
+      {(showAdd || editItem) && (
+        <AddPropertyModal
+          clientId={clientId}
+          editItem={editItem}
+          onClose={() => {
+            setShowAdd(false);
+            setEditItem(null);
+          }}
         />
       )}
     </div>

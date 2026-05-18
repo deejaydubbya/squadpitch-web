@@ -18,8 +18,11 @@ import { StatusBanner } from '@/components/common/StatusBanner';
 
 function getDataItemTypes(launchLabel: string, isRealEstate = false): { value: DataItemType; label: string }[] {
   if (isRealEstate) {
+    // Spinstr425 — "New Listing" moved off this modal. Properties
+    // are created from the dedicated Properties tab via the
+    // AddPropertyModal, which writes a type=PROPERTY row through
+    // the manual-listings endpoint (intake dedup included).
     return [
-      { value: 'CUSTOM', label: 'New Listing' },
       { value: 'TESTIMONIAL', label: 'Testimonial' },
       { value: 'STATISTIC', label: 'Market Stat' },
       { value: 'TEAM_SPOTLIGHT', label: 'Team Spotlight' },
