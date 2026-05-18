@@ -24,15 +24,10 @@ import type {
   AutopilotCampaignStatus,
 } from '@/hooks/useSquadpitch';
 import { STATUS_DISPLAY, CHANNEL_LABELS } from '../autopilotInboxConstants';
+import { pickQueueEmptyCopy, type QueueFilter } from './opportunityQueue.helpers';
 import { cn } from '@/lib/utils';
 
-export type QueueFilter =
-  | 'recommended'
-  | 'drafts_ready'
-  | 'approved'
-  | 'scheduled'
-  | 'dismissed'
-  | 'all';
+export type { QueueFilter };
 
 const TRIGGER_ICONS: Record<AutopilotTriggerType, typeof HomeIcon> = {
   new_listing: HomeIcon,
@@ -121,6 +116,16 @@ export function OpportunityQueue({
   const countFor = (filter: QueueFilter) =>
     recommendations.filter((r) => STATUS_BUCKETS[filter].has(r.status)).length;
 
+  // Spinstr424 — when the only rec in the active filter is the
+  // hero we already pulled into the Next Best Move card, the
+  // queue is empty *not because nothing matches* but because the
+  // sole match is featured above. Tell the user that explicitly
+  // so the tab count + empty list don't look contradictory.
+  const totalInBucket = countFor(activeFilter);
+  const heroIsInBucket =
+    Boolean(excludeId) && recommendations.some((r) => r.id === excludeId && bucket.has(r.status));
+  const onlyHeroMatches = rows.length === 0 && totalInBucket > 0 && heroIsInBucket;
+
   const tabs: { key: QueueFilter; label: string; count?: number }[] = [
     { key: 'recommended', label: 'Recommended', count: countFor('recommended') },
     { key: 'drafts_ready', label: 'Drafts Ready', count: countFor('drafts_ready') },
@@ -134,7 +139,7 @@ export function OpportunityQueue({
     <section data-testid="autopilot-queue" className="card p-5 border-white-10">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-          Opportunity Inbox
+          Opportunity Queue
         </h2>
       </div>
 
@@ -172,7 +177,7 @@ export function OpportunityQueue({
 
       {rows.length === 0 ? (
         <p className="text-sm text-white-40 py-6 text-center" data-testid="queue-empty">
-          {emptyLabel(activeFilter, excludeId)}
+          {pickQueueEmptyCopy(activeFilter, { onlyHeroMatches })}
         </p>
       ) : (
         <ul className="divide-y divide-white-10">
@@ -194,18 +199,6 @@ export function OpportunityQueue({
   );
 }
 
-function emptyLabel(filter: QueueFilter, excludeId: string | null | undefined): string {
-  if (filter === 'recommended') {
-    return excludeId
-      ? 'No other opportunities in the queue. Autopilot will add more as activity comes in.'
-      : 'No opportunities yet. Autopilot will surface them as it detects activity.';
-  }
-  if (filter === 'drafts_ready') return 'No drafts ready for approval.';
-  if (filter === 'approved') return 'No approved recommendations yet.';
-  if (filter === 'scheduled') return 'No scheduled campaigns yet.';
-  if (filter === 'dismissed') return 'No dismissed recommendations.';
-  return 'Nothing to show.';
-}
 
 interface QueueRowProps {
   recommendation: AutopilotCampaignRecommendation;
