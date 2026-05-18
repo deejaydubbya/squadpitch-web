@@ -1049,7 +1049,13 @@ export type AutopilotTriggerType =
   | 'price_drop'
   | 'open_house_added'
   | 'open_house_updated'
-  | 'status_changed';
+  | 'status_changed'
+  // Spinstr05
+  | 'just_sold'
+  | 'stale_listing'
+  | 'seasonal'
+  | 'new_review'
+  | 'inactivity_gap';
 
 export type AutopilotCampaignStatus =
   | 'pending'

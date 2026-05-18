@@ -19,6 +19,14 @@ const TRIGGER_CONFIG: Record<AutopilotTriggerType, { label: string; accent: stri
   open_house_added: { label: 'Open House', accent: 'border-l-blue-400', icon: Calendar },
   open_house_updated: { label: 'Open House Updated', accent: 'border-l-blue-400', icon: Calendar },
   status_changed: { label: 'Status Changed', accent: 'border-l-purple-400', icon: RefreshCw },
+  // Spinstr05 — the new card surface (OpportunityHero / Queue) has
+  // dedicated icons; this legacy card keeps a sensible fallback so
+  // the type Record stays exhaustive.
+  just_sold: { label: 'Just Sold', accent: 'border-l-amber-400', icon: Home },
+  stale_listing: { label: 'Refresh Campaign', accent: 'border-l-cyan-400', icon: RefreshCw },
+  seasonal: { label: 'Seasonal', accent: 'border-l-yellow-400', icon: Calendar },
+  new_review: { label: 'New Review', accent: 'border-l-pink-400', icon: Home },
+  inactivity_gap: { label: 'Re-engagement', accent: 'border-l-white-30', icon: Home },
 };
 
 const CAMPAIGN_TYPE_LABELS: Record<string, string> = {

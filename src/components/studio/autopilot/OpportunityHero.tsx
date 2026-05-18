@@ -10,6 +10,11 @@ import {
   X,
   Eye,
   Loader2,
+  Trophy,
+  Clock,
+  Sun,
+  Star,
+  Megaphone,
 } from 'lucide-react';
 import type {
   AutopilotCampaignRecommendation,
@@ -52,6 +57,36 @@ const TRIGGER_CONFIG: Record<
     Icon: RefreshCw,
     accent: 'text-purple-400',
     ring: 'bg-purple-500/10',
+  },
+  just_sold: {
+    label: 'Just Sold',
+    Icon: Trophy,
+    accent: 'text-amber-400',
+    ring: 'bg-amber-500/10',
+  },
+  stale_listing: {
+    label: 'Refresh Campaign',
+    Icon: Clock,
+    accent: 'text-cyan-400',
+    ring: 'bg-cyan-500/10',
+  },
+  seasonal: {
+    label: 'Seasonal',
+    Icon: Sun,
+    accent: 'text-yellow-400',
+    ring: 'bg-yellow-500/10',
+  },
+  new_review: {
+    label: 'New Review',
+    Icon: Star,
+    accent: 'text-pink-400',
+    ring: 'bg-pink-500/10',
+  },
+  inactivity_gap: {
+    label: 'Re-engagement',
+    Icon: Megaphone,
+    accent: 'text-white-60',
+    ring: 'bg-white-10',
   },
 };
 

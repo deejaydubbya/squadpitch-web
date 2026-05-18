@@ -11,6 +11,11 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Trophy,
+  Clock,
+  Sun,
+  Star,
+  Megaphone,
 } from 'lucide-react';
 import type {
   AutopilotCampaignRecommendation,
@@ -34,6 +39,11 @@ const TRIGGER_ICONS: Record<AutopilotTriggerType, typeof HomeIcon> = {
   open_house_added: Calendar,
   open_house_updated: Calendar,
   status_changed: RefreshCw,
+  just_sold: Trophy,
+  stale_listing: Clock,
+  seasonal: Sun,
+  new_review: Star,
+  inactivity_gap: Megaphone,
 };
 
 const TRIGGER_LABELS: Record<AutopilotTriggerType, string> = {
@@ -42,6 +52,11 @@ const TRIGGER_LABELS: Record<AutopilotTriggerType, string> = {
   open_house_added: 'Open House',
   open_house_updated: 'Open House Updated',
   status_changed: 'Status Changed',
+  just_sold: 'Just Sold',
+  stale_listing: 'Refresh Campaign',
+  seasonal: 'Seasonal',
+  new_review: 'New Review',
+  inactivity_gap: 'Re-engagement',
 };
 
 const CONFIDENCE_DOT: Record<string, string> = {
