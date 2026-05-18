@@ -13,6 +13,7 @@ import {
   type AutopilotCampaignRecommendation,
   type Channel,
 } from '@/hooks/useSquadpitch';
+import { isAutopilotCampaignInboxEnabled } from '@/lib/autopilotCampaignInbox';
 import { cn } from '@/lib/utils';
 import { AutopilotCampaignCard } from './AutopilotCampaignCard';
 import { AutopilotCampaignDetailModal } from './AutopilotCampaignDetailModal';
@@ -24,6 +25,42 @@ interface AutopilotCampaignsSectionProps {
 }
 
 export function AutopilotCampaignsSection({ clientId }: AutopilotCampaignsSectionProps) {
+  // Campaign Inbox MVP backend doesn't ship until Phase 2 of the
+  // audit doc. Until the env flag flips, render a calm
+  // coming-soon state. Component tree stays mounted so Phase 2
+  // can wire the backend without a UI rewrite.
+  if (!isAutopilotCampaignInboxEnabled()) {
+    return <CampaignInboxComingSoon />;
+  }
+  return <CampaignInboxLive clientId={clientId} />;
+}
+
+function CampaignInboxComingSoon() {
+  return (
+    <section className="card p-5">
+      <header className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-xl bg-white-5 text-white-50 flex items-center justify-center shrink-0">
+          <Megaphone className="w-4.5 h-4.5" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-white-90 leading-tight">
+            Campaign Recommendations
+          </h2>
+          <p className="text-xs text-white-50 mt-0.5">
+            Coming soon — Autopilot will surface opportunities here as soon as
+            the Campaign Inbox is enabled.
+          </p>
+        </div>
+      </header>
+      <div className="rounded-lg border border-white-10 bg-white-3 p-4 text-xs text-white-60 leading-snug">
+        For now, Autopilot can prepare drafts for review. Use the controls below
+        to set its mode and connect your data sources.
+      </div>
+    </section>
+  );
+}
+
+function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
   const router = useRouter();
   const { data, isLoading, isError } = useAutopilotCampaignRecommendations(clientId);
   const { data: channels } = useChannelSettings(clientId);

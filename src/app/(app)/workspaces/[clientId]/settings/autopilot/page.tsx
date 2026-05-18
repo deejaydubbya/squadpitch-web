@@ -9,9 +9,7 @@ import { cn } from '@/lib/utils';
 
 const MODE_LABELS: Record<string, string> = {
   off: 'Off',
-  draft_only: 'Draft Only',
-  schedule_approved: 'Schedule Approved',
-  auto_publish: 'Auto Publish',
+  draft_only: 'Prepare drafts for review',
 };
 
 export default function AutopilotSettingsPage() {

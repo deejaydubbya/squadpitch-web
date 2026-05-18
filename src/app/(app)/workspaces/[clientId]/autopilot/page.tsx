@@ -43,23 +43,14 @@ const MODE_CONFIG: Record<
 > = {
   off: {
     label: 'Off',
-    description: 'Autopilot is disabled. No drafts are generated automatically.',
+    description: 'Autopilot is disabled. No drafts are prepared automatically.',
     accent: 'border-white-20 text-white-60',
   },
   draft_only: {
-    label: 'Draft Only',
-    description: 'Autopilot generates drafts for your review. Nothing is published without your approval.',
+    label: 'Prepare drafts for review',
+    description:
+      'Autopilot finds marketing opportunities and prepares drafts for your review. Nothing is published without your approval.',
     accent: 'border-blue-500 text-blue-400',
-  },
-  schedule_approved: {
-    label: 'Schedule Approved',
-    description: 'Autopilot generates and schedules drafts. You review before they go live.',
-    accent: 'border-yellow-500 text-yellow-400',
-  },
-  auto_publish: {
-    label: 'Auto Publish',
-    description: 'Autopilot generates and publishes posts automatically. Use with caution.',
-    accent: 'border-green-500 text-green-400',
   },
 };
 

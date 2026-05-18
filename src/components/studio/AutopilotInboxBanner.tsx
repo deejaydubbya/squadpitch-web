@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Sparkles, X } from 'lucide-react';
+import { isAutopilotCampaignInboxEnabled } from '@/lib/autopilotCampaignInbox';
 
 interface AutopilotInboxBannerProps {
   clientId: string;
@@ -15,6 +16,9 @@ export function AutopilotInboxBanner({ clientId }: AutopilotInboxBannerProps) {
     setDismissed(localStorage.getItem(storageKey) === 'dismissed');
   }, [storageKey]);
 
+  // Don't advertise the Campaign Inbox before it ships.
+  // Re-enables automatically once Phase 2 lands + flag flips.
+  if (!isAutopilotCampaignInboxEnabled()) return null;
   if (dismissed) return null;
 
   const handleDismiss = () => {

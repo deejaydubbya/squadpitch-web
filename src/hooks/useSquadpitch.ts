@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/apiFetch';
+import { isAutopilotCampaignInboxEnabled } from '@/lib/autopilotCampaignInbox';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -3517,7 +3518,11 @@ export function useAutopilotExecute(clientId: string) {
 
 // ── Autopilot Settings ───────────────────────────────────────────────────
 
-export type AutopilotMode = 'off' | 'draft_only' | 'schedule_approved' | 'auto_publish';
+// Only the two production-ready modes are exposed. Legacy values
+// (schedule_approved, auto_publish) were never wired through the
+// evaluator + publisher; the API normalizes them to 'draft_only'
+// on read. Phase 1 of the Autopilot audit (docs/AUTOPILOT_PRODUCT_AUDIT.md).
+export type AutopilotMode = 'off' | 'draft_only';
 
 export interface AutopilotSettings {
   enabled: boolean;
@@ -3634,6 +3639,10 @@ export function useAutopilotStatus(clientId: string | undefined) {
 
 // ── Autopilot Campaign Recommendations ─────────────────────────────────
 
+// Both Campaign Inbox readers gate on the feature flag — the
+// backend routes don't exist yet (Phase 2 of the audit doc will
+// land them). Until the flag flips, the queries never fire and
+// the UI renders an empty / coming-soon state instead.
 export function useAutopilotCampaignRecommendations(clientId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.autopilotCampaigns(clientId ?? ''),
@@ -3641,7 +3650,7 @@ export function useAutopilotCampaignRecommendations(clientId: string | undefined
       apiFetch<AutopilotCampaignRecommendationsResponse>(
         `workspaces/${clientId}/autopilot/campaign-recommendations`,
       ),
-    enabled: Boolean(clientId),
+    enabled: Boolean(clientId) && isAutopilotCampaignInboxEnabled(),
     refetchInterval: 60_000,
   });
 }
@@ -3653,8 +3662,7 @@ export function useAutopilotCampaignStats(clientId: string | undefined) {
       apiFetch<AutopilotCampaignStatsResponse>(
         `workspaces/${clientId}/autopilot/campaign-stats`,
       ),
-    // Backend route not yet implemented
-    enabled: false,
+    enabled: Boolean(clientId) && isAutopilotCampaignInboxEnabled(),
   });
 }
 
