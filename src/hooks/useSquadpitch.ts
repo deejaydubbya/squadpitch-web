@@ -3518,11 +3518,22 @@ export function useAutopilotExecute(clientId: string) {
 
 // ── Autopilot Settings ───────────────────────────────────────────────────
 
-// Only the two production-ready modes are exposed. Legacy values
-// (schedule_approved, auto_publish) were never wired through the
-// evaluator + publisher; the API normalizes them to 'draft_only'
-// on read. Phase 1 of the Autopilot audit (docs/AUTOPILOT_PRODUCT_AUDIT.md).
-export type AutopilotMode = 'off' | 'draft_only';
+// Spinstr01 — full automation mode ladder. auto_publish_guarded
+// renders in the UI as a locked Coming Soon card; the backend
+// schema rejects it on save. The type includes it for
+// label-mapping purposes; the picker filters it from the
+// selectable set. Legacy 'draft_only' rows persist and the API
+// normalizes them to 'draft_on_click' on read.
+export type AutopilotMode =
+  | 'off'
+  | 'recommend_only'
+  | 'draft_on_click'
+  | 'auto_generate_drafts'
+  | 'schedule_after_approval'
+  | 'auto_publish_guarded'
+  // Accepted on the wire for backward compat; normalized to
+  // 'draft_on_click' on read.
+  | 'draft_only';
 
 export interface AutopilotSettings {
   enabled: boolean;
