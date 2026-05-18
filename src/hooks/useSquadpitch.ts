@@ -3666,11 +3666,25 @@ export function useAutopilotCampaignStats(clientId: string | undefined) {
   });
 }
 
+// Phase 3 — the generate endpoint returns a fan-out result, not
+// the recommendation alone. Surface drafts + skipped reasons so
+// the UI can render both ("Generated 2 drafts; Instagram skipped:
+// no image").
+export interface AutopilotGenerateResult {
+  status: 'success' | 'partial_success' | 'noop' | 'failed';
+  drafts: Array<{ id: string; channel: string; status: string; templateType?: string }>;
+  skipped: Array<{ channel: string; reason: string }>;
+  recommendation: AutopilotCampaignRecommendation | null;
+  recommendationId: string;
+  alreadyGenerated?: boolean;
+  reason?: string;
+}
+
 export function useGenerateAutopilotCampaign(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (recommendationId: string) =>
-      apiFetch<AutopilotCampaignRecommendation>(
+      apiFetch<AutopilotGenerateResult>(
         `workspaces/${clientId}/autopilot/campaign-recommendations/${recommendationId}/generate`,
         { method: 'POST' },
       ),

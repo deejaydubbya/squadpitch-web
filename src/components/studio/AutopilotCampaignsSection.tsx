@@ -64,15 +64,10 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
   const router = useRouter();
   const { data, isLoading, isError } = useAutopilotCampaignRecommendations(clientId);
   const { data: channels } = useChannelSettings(clientId);
-  // Phase 2 — only the dismiss mutation has a real backend.
-  // Generate / approve / convert routes ship in Phases 3 / 4 / 4.
-  // We keep the mutation hook references for type stability, but
-  // route the click handlers through a notifyComingSoon helper
-  // instead of firing the 404-prone calls.
+  // Phase 3 — dismiss + generate now have real backends. Approve
+  // / convert still ship in Phase 4 (handlers route to coming-soon).
   const dismissMutation = useDismissAutopilotCampaign(clientId);
-  // Reserved — not invoked in Phase 2 (see notifyComingSoon).
-  // Kept so future-phase wire-up is a one-line change.
-  useGenerateAutopilotCampaign(clientId);
+  const generateMutation = useGenerateAutopilotCampaign(clientId);
   useApproveAutopilotCampaign(clientId);
   useConvertAutopilotCampaign(clientId);
 
@@ -109,18 +104,50 @@ function CampaignInboxLive({ clientId }: AutopilotCampaignsSectionProps) {
 
   const detailRec = recommendations.find((r) => r.id === detailRecId) ?? null;
 
-  // Phase 2 — generate / approve / convert backend routes ship
-  // in subsequent phases. We DO NOT fire those mutations yet;
-  // the click handlers route to a "coming soon" notice so the
-  // user understands why the button doesn't act.
+  // Phase 4 — approve / convert backend routes still in flight.
+  // Their handlers route to a coming-soon notice. Generate is wired.
   const notifyComingSoon = (label: string) => {
     if (typeof window !== 'undefined') {
       window.alert(
-        `${label} is coming in the next release. For now, Autopilot surfaces opportunities here and lets you dismiss them.`,
+        `${label} is coming in the next release. For now, Autopilot can prepare drafts from a recommendation and let you review them in the regular Drafts UI.`,
       );
     }
   };
-  const handleGenerate = () => notifyComingSoon('Generating drafts from a recommendation');
+  const handleGenerate = (id: string) => {
+    generateMutation.mutate(id, {
+      onSuccess: (result) => {
+        if (typeof window === 'undefined') return;
+        if (result.alreadyGenerated) {
+          window.alert(
+            `Drafts for this recommendation already exist (${result.drafts.length}). Find them in your Drafts.`,
+          );
+          return;
+        }
+        if (result.status === 'failed') {
+          window.alert(
+            `Couldn't generate drafts: ${result.reason ?? 'unknown error'}`,
+          );
+          return;
+        }
+        const skippedText =
+          result.skipped.length > 0
+            ? `\n\nSkipped:\n${result.skipped.map((s) => `• ${s.channel}: ${s.reason}`).join('\n')}`
+            : '';
+        const headline =
+          result.status === 'partial_success'
+            ? `Generated ${result.drafts.length} draft${result.drafts.length === 1 ? '' : 's'} — some channels were skipped.`
+            : `Generated ${result.drafts.length} draft${result.drafts.length === 1 ? '' : 's'}. Review them in your Drafts.`;
+        window.alert(headline + skippedText);
+      },
+      onError: (err: unknown) => {
+        if (typeof window !== 'undefined') {
+          window.alert(
+            err instanceof Error ? err.message : 'Generate failed; please try again.',
+          );
+        }
+      },
+    });
+  };
   const handleApprove = () => notifyComingSoon('Approving a campaign recommendation');
 
   const handleDismiss = (id: string) => {
