@@ -53,11 +53,14 @@ import {
   useUpdatePage,
   usePublishPage,
   useUnpublishPage,
+  useFormStats,
+  useCreateForm,
   type Block,
   type LeadForm,
   type SitePage,
   type SiteSourceType,
   type SitePageGoal,
+  type FormFieldDef,
 } from '@/hooks/useSites';
 import { useDataItem } from '@/hooks/useSquadpitch';
 import { ApiError } from '@/lib/apiFetch';
@@ -642,6 +645,8 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
                     forms={forms}
                     property={property}
                     clientId={clientId}
+                    pageId={page.id}
+                    pageSourceType={page.sourceType}
                     isFirst={idx === 0}
                     isLast={idx === items.length - 1}
                     onChange={(patch) => updateBlock(it.id, patch)}
@@ -727,6 +732,8 @@ interface SortableBlockCardProps {
   forms: LeadForm[];
   property: NormalizedProperty | null;
   clientId: string;
+  pageId: string;
+  pageSourceType: SiteSourceType | null;
   isFirst: boolean;
   isLast: boolean;
   onChange: (patch: Partial<Block>) => void;
@@ -741,6 +748,8 @@ function SortableBlockCard({
   forms,
   property,
   clientId,
+  pageId,
+  pageSourceType,
   isFirst,
   isLast,
   onChange,
@@ -835,6 +844,8 @@ function SortableBlockCard({
               forms={forms}
               property={property}
               clientId={clientId}
+              pageId={pageId}
+              pageSourceType={pageSourceType}
               onChange={onChange}
             />
           )}
@@ -851,10 +862,20 @@ interface BlockFieldsProps {
   forms: LeadForm[];
   property: NormalizedProperty | null;
   clientId: string;
+  pageId: string;
+  pageSourceType: SiteSourceType | null;
   onChange: (patch: Partial<Block>) => void;
 }
 
-function BlockFields({ block, forms, property, clientId, onChange }: BlockFieldsProps) {
+function BlockFields({
+  block,
+  forms,
+  property,
+  clientId,
+  pageId,
+  pageSourceType,
+  onChange,
+}: BlockFieldsProps) {
   const propertyImages = property?.images ?? undefined;
   if (block.type === 'hero') {
     const pullFromProperty = property
@@ -988,72 +1009,15 @@ function BlockFields({ block, forms, property, clientId, onChange }: BlockFields
   }
 
   if (block.type === 'lead_form') {
-    const selected = forms.find((f) => f.id === block.formId) ?? null;
-    const fieldCount = selected?.fieldsJson?.length ?? 0;
     return (
-      <div className="space-y-3" data-testid="lead-form-block-fields">
-        <Field label="Form">
-          <select
-            className="input"
-            value={block.formId}
-            onChange={(e) => onChange({ formId: e.target.value } as Partial<Block>)}
-          >
-            <option value="">Select a form…</option>
-            {forms.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {forms.length === 0 ? (
-          <p className="text-xs text-amber-300">
-            No forms in this workspace yet.{' '}
-            <Link
-              href={`/workspaces/${clientId}/sites?tab=forms`}
-              className="underline hover:no-underline"
-            >
-              Create one first
-            </Link>
-            .
-          </p>
-        ) : !block.formId ? (
-          <p className="text-xs text-white-50">
-            Pick a form so this block can render on the published page.
-          </p>
-        ) : selected ? (
-          <div
-            data-testid="lead-form-block-context"
-            className="rounded-lg border border-white-10 bg-white-3 p-3 text-xs text-white-70 space-y-2"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-semibold text-white-100">{selected.name}</p>
-                <p className="text-[11px] text-white-50">
-                  {fieldCount} field{fieldCount === 1 ? '' : 's'}
-                  {selected.notifyEmail ? ` · notifies ${selected.notifyEmail}` : ''}
-                </p>
-              </div>
-              <Link
-                href={`/workspaces/${clientId}/sites?tab=forms&formId=${selected.id}`}
-                className="text-[11px] text-accent-green-110 hover:underline"
-              >
-                Edit form →
-              </Link>
-            </div>
-            <Link
-              href={`/workspaces/${clientId}/sites?tab=submissions&formId=${selected.id}`}
-              className="inline-block text-[11px] text-white-60 hover:text-white-100 hover:underline"
-            >
-              View submissions
-            </Link>
-          </div>
-        ) : (
-          <p className="text-xs text-amber-300">
-            Selected form not found. Pick another.
-          </p>
-        )}
-      </div>
+      <LeadFormBlockFields
+        block={block}
+        forms={forms}
+        clientId={clientId}
+        pageId={pageId}
+        pageSourceType={pageSourceType}
+        onChange={onChange}
+      />
     );
   }
 
@@ -1368,6 +1332,304 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+// Spinstr427 — lead-form block field component. Extracted so it
+// can own its own state for the stats fetch + inline-create modal.
+function LeadFormBlockFields({
+  block,
+  forms,
+  clientId,
+  pageId,
+  pageSourceType,
+  onChange,
+}: {
+  block: Extract<Block, { type: 'lead_form' }>;
+  forms: LeadForm[];
+  clientId: string;
+  pageId: string;
+  pageSourceType: SiteSourceType | null;
+  onChange: (patch: Partial<Block>) => void;
+}) {
+  const [showCreate, setShowCreate] = useState(false);
+  const selected = forms.find((f) => f.id === block.formId) ?? null;
+  const fieldCount = selected?.fieldsJson?.length ?? 0;
+  const { data: stats } = useFormStats(
+    clientId,
+    selected?.id ?? undefined,
+    pageId,
+  );
+
+  return (
+    <div className="space-y-3" data-testid="lead-form-block-fields">
+      <Field label="Form">
+        <select
+          className="input"
+          value={block.formId}
+          onChange={(e) => onChange({ formId: e.target.value } as Partial<Block>)}
+        >
+          <option value="">Select a form…</option>
+          {forms.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <button
+        type="button"
+        onClick={() => setShowCreate(true)}
+        data-testid="lead-form-create-new"
+        className="text-[11px] text-accent-green-110 hover:underline"
+      >
+        + Create a new form
+      </button>
+
+      {forms.length === 0 && !selected && (
+        <p className="text-xs text-amber-300">
+          No forms in this workspace yet. Use <em>Create a new form</em> above
+          or build one from the Forms tab.
+        </p>
+      )}
+      {forms.length > 0 && !block.formId && (
+        <p className="text-xs text-white-50">
+          Pick a form so this block can render on the published page.
+        </p>
+      )}
+      {block.formId && !selected && (
+        <p className="text-xs text-amber-300">
+          Selected form not found. Pick another or create a new one.
+        </p>
+      )}
+      {selected && (
+        <div
+          data-testid="lead-form-block-context"
+          className="rounded-lg border border-white-10 bg-white-3 p-3 text-xs text-white-70 space-y-2"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold text-white-100">{selected.name}</p>
+              <p className="text-[11px] text-white-50">
+                {fieldCount} field{fieldCount === 1 ? '' : 's'}
+                {selected.notifyEmail ? ` · notifies ${selected.notifyEmail}` : ''}
+              </p>
+            </div>
+            <Link
+              href={`/workspaces/${clientId}/sites?tab=forms&formId=${selected.id}`}
+              className="text-[11px] text-accent-green-110 hover:underline"
+            >
+              Edit form →
+            </Link>
+          </div>
+          {stats && stats.count >= 0 && (
+            <p
+              data-testid="lead-form-stats"
+              className="text-[11px] text-white-60"
+            >
+              {stats.count === 0
+                ? 'No submissions on this page yet.'
+                : `${stats.count} submission${stats.count === 1 ? '' : 's'} from this page${
+                    stats.lastSubmissionAt
+                      ? ` · last ${new Date(stats.lastSubmissionAt).toLocaleDateString()}`
+                      : ''
+                  }`}
+            </p>
+          )}
+          <Link
+            href={`/workspaces/${clientId}/sites?tab=submissions&formId=${selected.id}&pageId=${pageId}`}
+            className="inline-block text-[11px] text-white-60 hover:text-white-100 hover:underline"
+          >
+            View submissions
+          </Link>
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateLeadFormModal
+          clientId={clientId}
+          pageSourceType={pageSourceType}
+          onClose={() => setShowCreate(false)}
+          onCreated={(formId) => {
+            onChange({ formId } as Partial<Block>);
+            setShowCreate(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Spinstr427 — inline create-form modal so the user never has to
+// leave the page editor to wire a lead form. Defaults the field
+// set based on the page's source type / template intent.
+function CreateLeadFormModal({
+  clientId,
+  pageSourceType,
+  onClose,
+  onCreated,
+}: {
+  clientId: string;
+  pageSourceType: SiteSourceType | null;
+  onClose: () => void;
+  onCreated: (formId: string) => void;
+}) {
+  const create = useCreateForm(clientId);
+  const defaultTemplate: FormTemplate =
+    pageSourceType === 'PROPERTY' ? 'property_inquiry' : 'general';
+  const [name, setName] = useState(FORM_TEMPLATE_DEFAULT_NAMES[defaultTemplate]);
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [template, setTemplate] = useState<FormTemplate>(defaultTemplate);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!name.trim()) {
+      setError('Form name is required.');
+      return;
+    }
+    try {
+      const result = await create.mutateAsync({
+        name: name.trim(),
+        fieldsJson: FORM_TEMPLATE_FIELDS[template],
+        successAction: {
+          type: 'message',
+          message: "Thanks — we'll be in touch shortly.",
+        },
+        notifyEmail: notifyEmail.trim() || null,
+      });
+      onCreated(result.form.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create the form.');
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-md rounded-2xl bg-sp-card border border-white-10 shadow-2xl">
+        <header className="flex items-center justify-between p-4 border-b border-white-10">
+          <h2 className="text-sm font-semibold text-white-100">Create a new form</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-md text-white-40 hover:text-white-100 hover:bg-white-10"
+            aria-label="Close"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </header>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          <Field label="Form name">
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              autoFocus
+            />
+          </Field>
+          <Field label="Template">
+            <select
+              className="input"
+              value={template}
+              onChange={(e) => {
+                const t = e.target.value as FormTemplate;
+                setTemplate(t);
+                setName(FORM_TEMPLATE_DEFAULT_NAMES[t]);
+              }}
+            >
+              <option value="general">General lead form</option>
+              <option value="property_inquiry">Property inquiry</option>
+              <option value="seller_lead">Seller lead</option>
+              <option value="buyer_lead">Buyer lead</option>
+            </select>
+            <p className="text-[11px] text-white-50 mt-1">
+              Default fields:{' '}
+              {FORM_TEMPLATE_FIELDS[template]
+                .map((f) => f.label)
+                .join(', ')}
+              .
+            </p>
+          </Field>
+          <Field label="Notification email (optional)">
+            <input
+              className="input"
+              type="email"
+              value={notifyEmail}
+              onChange={(e) => setNotifyEmail(e.target.value)}
+              placeholder="agent@example.com"
+              maxLength={320}
+            />
+          </Field>
+          {error && (
+            <p className="text-xs text-accent-red bg-accent-red/10 border border-accent-red/20 rounded-md px-2 py-1.5">
+              {error}
+            </p>
+          )}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2 rounded-lg text-sm text-white-60 hover:bg-white-10"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={create.isPending}
+              className="px-3 py-2 rounded-lg text-sm font-semibold bg-accent-green-110 text-black hover:bg-accent-green-110/90 disabled:opacity-60"
+            >
+              {create.isPending ? 'Creating…' : 'Create form'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+type FormTemplate = 'general' | 'property_inquiry' | 'seller_lead' | 'buyer_lead';
+
+const FORM_TEMPLATE_DEFAULT_NAMES: Record<FormTemplate, string> = {
+  general: 'Contact form',
+  property_inquiry: 'Property inquiry form',
+  seller_lead: 'Seller lead form',
+  buyer_lead: 'Buyer lead form',
+};
+
+const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormFieldDef[]> = {
+  general: [
+    { key: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'phone', label: 'Phone', type: 'phone' },
+    { key: 'message', label: 'Message', type: 'textarea' },
+  ],
+  property_inquiry: [
+    { key: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'phone', label: 'Phone', type: 'phone' },
+    { key: 'message', label: 'Question about this property', type: 'textarea' },
+  ],
+  seller_lead: [
+    { key: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'phone', label: 'Phone', type: 'phone' },
+    { key: 'address', label: 'Property address', type: 'text' },
+    { key: 'timeline', label: 'When are you thinking of selling?', type: 'text' },
+  ],
+  buyer_lead: [
+    { key: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'phone', label: 'Phone', type: 'phone' },
+    { key: 'budget', label: 'Budget range', type: 'text' },
+    { key: 'preferences', label: 'What are you looking for?', type: 'textarea' },
+  ],
+};
 
 // Sites-06 — categorized block picker. Shows a "Suggested" group at
 // the top for property-linked pages, then standard categories.
