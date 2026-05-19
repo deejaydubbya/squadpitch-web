@@ -69,6 +69,8 @@ import Link from 'next/link';
 import { Home as HomeIcon, Sparkles, AlertTriangle } from 'lucide-react';
 import { ImageField } from './ImageField';
 import { GalleryField } from './GalleryField';
+import { PreviewRenderer } from './PreviewRenderer';
+import { Monitor, Smartphone, Pencil } from 'lucide-react';
 
 interface PageEditorProps {
   clientId: string;
@@ -160,6 +162,10 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
   const [showSeo, setShowSeo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  // Sites-04 — in-app preview. mode toggles between editor and the
+  // mirrored public renderer; viewport chooses the iframe width.
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [viewport, setViewport] = useState<'desktop' | 'mobile'>('desktop');
 
   // Reset local state when the underlying page changes (e.g. after
   // a publish refetch). useEffect with the row's updatedAt as the
@@ -316,10 +322,40 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
               <StatusPill status={page.status} />
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {saveStatus === 'saved' && (
               <span className="text-xs text-accent-green-110">Saved</span>
             )}
+            <div className="inline-flex rounded-lg border border-white-15 overflow-hidden">
+              <button
+                type="button"
+                data-testid="editor-mode-edit"
+                onClick={() => setMode('edit')}
+                className={cn(
+                  'px-2.5 py-1.5 text-xs font-medium inline-flex items-center gap-1.5 transition-colors',
+                  mode === 'edit'
+                    ? 'bg-accent-green-110/10 text-accent-green-110'
+                    : 'text-white-50 hover:bg-white-5',
+                )}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </button>
+              <button
+                type="button"
+                data-testid="editor-mode-preview"
+                onClick={() => setMode('preview')}
+                className={cn(
+                  'px-2.5 py-1.5 text-xs font-medium inline-flex items-center gap-1.5 transition-colors border-l border-white-15',
+                  mode === 'preview'
+                    ? 'bg-accent-green-110/10 text-accent-green-110'
+                    : 'text-white-50 hover:bg-white-5',
+                )}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Preview
+              </button>
+            </div>
             <button
               type="button"
               className="btn btn-ghost border border-white-15 text-sm inline-flex items-center gap-1.5"
@@ -355,6 +391,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
                 href={liveUrl}
                 target="_blank"
                 rel="noreferrer"
+                data-testid="editor-view-live"
                 className="btn btn-ghost border border-white-15 text-sm inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -368,6 +405,25 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
           <div className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg px-3 py-2">
             {error}
           </div>
+        )}
+
+        {/* Sites-04 — be truthful about what save/publish does. */}
+        {isPublished ? (
+          <p
+            data-testid="page-editor-status-note-published"
+            className="text-xs text-yellow-300 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-3 py-2"
+          >
+            <span className="font-semibold">This page is published.</span>{' '}
+            Saving changes updates the working page and may appear live after the site refreshes.
+          </p>
+        ) : (
+          <p
+            data-testid="page-editor-status-note-draft"
+            className="text-xs text-white-60 bg-white-3 border border-white-10 rounded-lg px-3 py-2"
+          >
+            <span className="font-semibold">Drafts are private until you publish.</span>{' '}
+            Use Preview to see what the page will look like.
+          </p>
         )}
 
         {isPropertyPage && property ? (
@@ -494,36 +550,46 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
         </details>
       </div>
 
-      {/* Block list */}
-      <div className="space-y-3">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={items.map((it) => it.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-3">
-              {items.map((it) => (
-                <SortableBlockCard
-                  key={it.id}
-                  id={it.id}
-                  block={it.block}
-                  forms={forms}
-                  property={property}
-                  clientId={clientId}
-                  onChange={(patch) => updateBlock(it.id, patch)}
-                  onRemove={() => removeBlock(it.id)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+      {/* Sites-04 — Edit vs Preview swap. Preview reuses local
+          unsaved state so what you see is what the page will look
+          like after Save (and Publish, if you're on a draft). */}
+      {mode === 'preview' ? (
+        <PreviewViewport
+          viewport={viewport}
+          onViewportChange={setViewport}
+          blocks={items.map((it) => it.block)}
+        />
+      ) : (
+        /* Block list */
+        <div className="space-y-3">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map((it) => it.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {items.map((it) => (
+                  <SortableBlockCard
+                    key={it.id}
+                    id={it.id}
+                    block={it.block}
+                    forms={forms}
+                    property={property}
+                    clientId={clientId}
+                    onChange={(patch) => updateBlock(it.id, patch)}
+                    onRemove={() => removeBlock(it.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
 
-        {items.length === 0 && (
-          <div className="card p-8 text-center space-y-2">
-            <p className="text-sm font-medium text-white-80">No blocks yet</p>
-            <p className="text-xs text-white-50">
-              Add a hero, paragraph, image, CTA, or lead-form block to start
-              composing this page.
-            </p>
-          </div>
-        )}
+          {items.length === 0 && (
+            <div className="card p-8 text-center space-y-2">
+              <p className="text-sm font-medium text-white-80">No blocks yet</p>
+              <p className="text-xs text-white-50">
+                Add a hero, paragraph, image, CTA, or lead-form block to start
+                composing this page.
+              </p>
+            </div>
+          )}
 
         {/* Block adder */}
         <div className="card p-4">
@@ -552,10 +618,11 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Preview URL hint */}
-      {previewUrl && (
+      {previewUrl && mode === 'edit' && (
         <p className="text-xs text-white-40 text-center">
           Preview at{' '}
           <span className="font-mono">{previewUrl.replace(/^https:\/\//, '')}</span>{' '}
@@ -1121,6 +1188,77 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+// Sites-04 — preview viewport. Renders the local unsaved blocks in
+// the mirrored PreviewRenderer with a Desktop/Mobile width toggle.
+// "Draft Preview" label is explicit so the user knows this is not
+// the live URL.
+function PreviewViewport({
+  viewport,
+  onViewportChange,
+  blocks,
+}: {
+  viewport: 'desktop' | 'mobile';
+  onViewportChange: (v: 'desktop' | 'mobile') => void;
+  blocks: Block[];
+}) {
+  const width = viewport === 'mobile' ? 390 : 1080;
+  return (
+    <div className="space-y-3" data-testid="preview-viewport">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] uppercase tracking-wider font-semibold bg-yellow-500/15 text-yellow-300 border border-yellow-500/20">
+          <Eye className="w-3 h-3" />
+          Draft preview
+        </span>
+        <div className="inline-flex rounded-lg border border-white-10 overflow-hidden">
+          <button
+            type="button"
+            data-testid="preview-viewport-desktop"
+            onClick={() => onViewportChange('desktop')}
+            className={cn(
+              'px-2 py-1.5 text-xs inline-flex items-center gap-1.5 transition-colors',
+              viewport === 'desktop'
+                ? 'bg-white-10 text-white-100'
+                : 'text-white-50 hover:bg-white-5',
+            )}
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            Desktop
+          </button>
+          <button
+            type="button"
+            data-testid="preview-viewport-mobile"
+            onClick={() => onViewportChange('mobile')}
+            className={cn(
+              'px-2 py-1.5 text-xs inline-flex items-center gap-1.5 transition-colors border-l border-white-10',
+              viewport === 'mobile'
+                ? 'bg-white-10 text-white-100'
+                : 'text-white-50 hover:bg-white-5',
+            )}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            Mobile
+          </button>
+        </div>
+      </div>
+      <div className="flex justify-center">
+        <div
+          style={{
+            width,
+            maxWidth: '100%',
+            backgroundColor: '#0b0c0e',
+            color: '#e8e9ea',
+            borderRadius: 16,
+            overflow: 'hidden',
+            boxShadow: '0 6px 30px rgba(0,0,0,0.4)',
+          }}
+        >
+          <PreviewRenderer blocks={blocks} />
+        </div>
+      </div>
     </div>
   );
 }
