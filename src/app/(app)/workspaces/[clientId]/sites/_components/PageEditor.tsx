@@ -22,11 +22,15 @@ import {
   MousePointerClick,
   ClipboardList,
   ChevronDown,
+  ChevronRight,
   Images,
   List,
   Quote,
   HelpCircle,
   Phone,
+  ArrowUp,
+  ArrowDown,
+  Copy,
 } from 'lucide-react';
 import {
   DndContext,
@@ -90,17 +94,60 @@ function indexBlocks(blocks: Block[]): IndexedBlock[] {
   return blocks.map((block, i) => ({ id: `b-${i}-${block.type}`, block }));
 }
 
-const BLOCK_PALETTE: { type: Block['type']; label: string; Icon: typeof TypeIcon }[] = [
-  { type: 'hero', label: 'Hero', Icon: TypeIcon },
-  { type: 'paragraph', label: 'Paragraph', Icon: AlignLeft },
-  { type: 'image', label: 'Image', Icon: ImageIcon },
-  { type: 'gallery', label: 'Gallery', Icon: Images },
-  { type: 'key_details', label: 'Key details', Icon: List },
-  { type: 'testimonial', label: 'Testimonial', Icon: Quote },
-  { type: 'faq', label: 'FAQ', Icon: HelpCircle },
-  { type: 'cta', label: 'Call to action', Icon: MousePointerClick },
-  { type: 'lead_form', label: 'Lead form', Icon: ClipboardList },
-  { type: 'contact', label: 'Contact', Icon: Phone },
+// Sites-06 — refined block labels + categorized add-picker.
+const BLOCK_LABELS: Record<Block['type'], string> = {
+  hero: 'Hero',
+  paragraph: 'Paragraph / Story',
+  image: 'Image',
+  cta: 'Call to action',
+  lead_form: 'Lead Capture Form',
+  gallery: 'Photo Gallery',
+  key_details: 'Property Details',
+  testimonial: 'Testimonial',
+  faq: 'FAQ',
+  contact: 'Agent Contact',
+};
+
+interface BlockPaletteEntry {
+  type: Block['type'];
+  label: string;
+  Icon: typeof TypeIcon;
+}
+
+const BLOCK_PALETTE: BlockPaletteEntry[] = [
+  { type: 'hero', label: BLOCK_LABELS.hero, Icon: TypeIcon },
+  { type: 'paragraph', label: BLOCK_LABELS.paragraph, Icon: AlignLeft },
+  { type: 'image', label: BLOCK_LABELS.image, Icon: ImageIcon },
+  { type: 'gallery', label: BLOCK_LABELS.gallery, Icon: Images },
+  { type: 'key_details', label: BLOCK_LABELS.key_details, Icon: List },
+  { type: 'testimonial', label: BLOCK_LABELS.testimonial, Icon: Quote },
+  { type: 'faq', label: BLOCK_LABELS.faq, Icon: HelpCircle },
+  { type: 'cta', label: BLOCK_LABELS.cta, Icon: MousePointerClick },
+  { type: 'lead_form', label: BLOCK_LABELS.lead_form, Icon: ClipboardList },
+  { type: 'contact', label: BLOCK_LABELS.contact, Icon: Phone },
+];
+
+// Block-picker categories for the Add Block flow. "Suggested" is
+// computed at render time when the page has a PROPERTY source —
+// it shows the blocks that benefit most from autofill.
+const BLOCK_CATEGORIES: Array<{
+  label: string;
+  types: Block['type'][];
+}> = [
+  { label: 'Headline & copy', types: ['hero', 'paragraph', 'image'] },
+  { label: 'Property info', types: ['key_details', 'gallery'] },
+  { label: 'Trust & objections', types: ['testimonial', 'faq'] },
+  { label: 'Conversion', types: ['cta', 'lead_form', 'contact'] },
+];
+
+const PROPERTY_SUGGESTED: Block['type'][] = [
+  'hero',
+  'key_details',
+  'gallery',
+  'paragraph',
+  'cta',
+  'lead_form',
+  'contact',
 ];
 
 // Mirrors the SiteSourceType enum. Used in the source-attribution
@@ -223,6 +270,28 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
 
   function removeBlock(id: string) {
     setItems((prev) => prev.filter((it) => it.id !== id));
+  }
+
+  function duplicateBlock(id: string) {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.id === id);
+      if (idx < 0) return prev;
+      const source = prev[idx];
+      const copy: IndexedBlock = {
+        id: `b-${Date.now()}-${source.block.type}`,
+        block: structuredClone(source.block),
+      };
+      return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+    });
+  }
+
+  function moveBlock(id: string, dir: -1 | 1) {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.id === id);
+      const target = idx + dir;
+      if (idx < 0 || target < 0 || target >= prev.length) return prev;
+      return arrayMove(prev, idx, target);
+    });
   }
 
   function addBlock(type: Block['type']) {
@@ -565,7 +634,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={items.map((it) => it.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-3">
-                {items.map((it) => (
+                {items.map((it, idx) => (
                   <SortableBlockCard
                     key={it.id}
                     id={it.id}
@@ -573,8 +642,12 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
                     forms={forms}
                     property={property}
                     clientId={clientId}
+                    isFirst={idx === 0}
+                    isLast={idx === items.length - 1}
                     onChange={(patch) => updateBlock(it.id, patch)}
                     onRemove={() => removeBlock(it.id)}
+                    onDuplicate={() => duplicateBlock(it.id)}
+                    onMove={(dir) => moveBlock(it.id, dir)}
                   />
                 ))}
               </div>
@@ -603,19 +676,13 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
               Add block
             </button>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              {BLOCK_PALETTE.map(({ type, label, Icon }) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => addBlock(type)}
-                  className="flex flex-col items-center gap-2 p-4 rounded-xl border border-white-10 hover:border-accent-green-110 hover:bg-accent-green-110/5 transition-colors"
-                >
-                  <Icon className="w-5 h-5 text-white-50" />
-                  <span className="text-xs font-medium text-white-80">{label}</span>
-                </button>
-              ))}
-            </div>
+            <BlockPicker
+              showSuggested={Boolean(property)}
+              onAdd={(type) => {
+                addBlock(type);
+                setShowAdder(false);
+              }}
+            />
           )}
         </div>
         </div>
@@ -660,13 +727,30 @@ interface SortableBlockCardProps {
   forms: LeadForm[];
   property: NormalizedProperty | null;
   clientId: string;
+  isFirst: boolean;
+  isLast: boolean;
   onChange: (patch: Partial<Block>) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
+  onMove: (dir: -1 | 1) => void;
 }
 
-function SortableBlockCard({ id, block, forms, property, clientId, onChange, onRemove }: SortableBlockCardProps) {
+function SortableBlockCard({
+  id,
+  block,
+  forms,
+  property,
+  clientId,
+  isFirst,
+  isLast,
+  onChange,
+  onRemove,
+  onDuplicate,
+  onMove,
+}: SortableBlockCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
+  const [collapsed, setCollapsed] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -675,7 +759,7 @@ function SortableBlockCard({ id, block, forms, property, clientId, onChange, onR
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="card p-4">
+    <div ref={setNodeRef} style={style} className="card p-4" data-testid="sortable-block-card">
       <div className="flex items-start gap-3">
         <button
           type="button"
@@ -687,26 +771,73 @@ function SortableBlockCard({ id, block, forms, property, clientId, onChange, onR
           <GripVertical className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="text-xs font-semibold text-white-50 uppercase tracking-wider">
-              {block.type.replace('_', ' ')}
-            </span>
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
             <button
               type="button"
-              onClick={onRemove}
-              className="p-1 rounded text-white-30 hover:text-accent-red hover:bg-accent-red/10"
-              aria-label="Remove block"
+              onClick={() => setCollapsed((v) => !v)}
+              data-testid="block-collapse-toggle"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white-60 hover:text-white-100 uppercase tracking-wider"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              {collapsed ? (
+                <ChevronRight className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+              {BLOCK_LABELS[block.type] ?? block.type}
             </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => onMove(-1)}
+                disabled={isFirst}
+                data-testid="block-move-up"
+                className="p-1 rounded text-white-30 hover:text-white-100 hover:bg-white-10 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Move up"
+                title="Move up"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(1)}
+                disabled={isLast}
+                data-testid="block-move-down"
+                className="p-1 rounded text-white-30 hover:text-white-100 hover:bg-white-10 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Move down"
+                title="Move down"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onDuplicate}
+                data-testid="block-duplicate"
+                className="p-1 rounded text-white-30 hover:text-white-100 hover:bg-white-10"
+                aria-label="Duplicate block"
+                title="Duplicate"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                className="p-1 rounded text-white-30 hover:text-accent-red hover:bg-accent-red/10"
+                aria-label="Remove block"
+                title="Remove"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <BlockFields
-            block={block}
-            forms={forms}
-            property={property}
-            clientId={clientId}
-            onChange={onChange}
-          />
+          {!collapsed && (
+            <BlockFields
+              block={block}
+              forms={forms}
+              property={property}
+              clientId={clientId}
+              onChange={onChange}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -857,26 +988,72 @@ function BlockFields({ block, forms, property, clientId, onChange }: BlockFields
   }
 
   if (block.type === 'lead_form') {
+    const selected = forms.find((f) => f.id === block.formId) ?? null;
+    const fieldCount = selected?.fieldsJson?.length ?? 0;
     return (
-      <Field label="Form">
-        <select
-          className="input"
-          value={block.formId}
-          onChange={(e) => onChange({ formId: e.target.value } as Partial<Block>)}
-        >
-          <option value="">Select a form…</option>
-          {forms.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-        {forms.length === 0 && (
-          <p className="text-xs text-amber-300 mt-2">
-            No forms in this workspace yet. Create one from the Forms tab first.
+      <div className="space-y-3" data-testid="lead-form-block-fields">
+        <Field label="Form">
+          <select
+            className="input"
+            value={block.formId}
+            onChange={(e) => onChange({ formId: e.target.value } as Partial<Block>)}
+          >
+            <option value="">Select a form…</option>
+            {forms.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {forms.length === 0 ? (
+          <p className="text-xs text-amber-300">
+            No forms in this workspace yet.{' '}
+            <Link
+              href={`/workspaces/${clientId}/sites?tab=forms`}
+              className="underline hover:no-underline"
+            >
+              Create one first
+            </Link>
+            .
+          </p>
+        ) : !block.formId ? (
+          <p className="text-xs text-white-50">
+            Pick a form so this block can render on the published page.
+          </p>
+        ) : selected ? (
+          <div
+            data-testid="lead-form-block-context"
+            className="rounded-lg border border-white-10 bg-white-3 p-3 text-xs text-white-70 space-y-2"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-white-100">{selected.name}</p>
+                <p className="text-[11px] text-white-50">
+                  {fieldCount} field{fieldCount === 1 ? '' : 's'}
+                  {selected.notifyEmail ? ` · notifies ${selected.notifyEmail}` : ''}
+                </p>
+              </div>
+              <Link
+                href={`/workspaces/${clientId}/sites?tab=forms&formId=${selected.id}`}
+                className="text-[11px] text-accent-green-110 hover:underline"
+              >
+                Edit form →
+              </Link>
+            </div>
+            <Link
+              href={`/workspaces/${clientId}/sites?tab=submissions&formId=${selected.id}`}
+              className="inline-block text-[11px] text-white-60 hover:text-white-100 hover:underline"
+            >
+              View submissions
+            </Link>
+          </div>
+        ) : (
+          <p className="text-xs text-amber-300">
+            Selected form not found. Pick another.
           </p>
         )}
-      </Field>
+      </div>
     );
   }
 
@@ -1188,6 +1365,55 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+// Sites-06 — categorized block picker. Shows a "Suggested" group at
+// the top for property-linked pages, then standard categories.
+function BlockPicker({
+  showSuggested,
+  onAdd,
+}: {
+  showSuggested: boolean;
+  onAdd: (type: Block['type']) => void;
+}) {
+  const paletteByType = new Map(BLOCK_PALETTE.map((e) => [e.type, e] as const));
+  const groups: Array<{ label: string; types: Block['type'][] }> = [
+    ...(showSuggested
+      ? [{ label: 'Suggested for property pages', types: PROPERTY_SUGGESTED }]
+      : []),
+    ...BLOCK_CATEGORIES,
+  ];
+
+  return (
+    <div className="space-y-4" data-testid="block-picker">
+      {groups.map((group) => (
+        <div key={group.label}>
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-white-40 mb-2">
+            {group.label}
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {group.types
+              .map((t) => paletteByType.get(t))
+              .filter((e): e is BlockPaletteEntry => Boolean(e))
+              .map(({ type, label, Icon }) => (
+                <button
+                  key={`${group.label}-${type}`}
+                  type="button"
+                  onClick={() => onAdd(type)}
+                  data-testid={`block-picker-${type}`}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl border border-white-10 hover:border-accent-green-110 hover:bg-accent-green-110/5 transition-colors"
+                >
+                  <Icon className="w-4 h-4 text-white-50" />
+                  <span className="text-[11px] font-medium text-white-80 text-center">
+                    {label}
+                  </span>
+                </button>
+              ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
