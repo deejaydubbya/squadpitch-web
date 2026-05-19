@@ -21,7 +21,6 @@ import {
   CheckCircle2,
   Eye,
   RotateCw,
-  Plus,
 } from 'lucide-react';
 import {
   useAdPackage,
@@ -33,6 +32,7 @@ import {
   useExportAdPackage,
   useUpsertCreative,
   type AdCreative,
+  type AdExportResult,
   type AdPackageDetail,
 } from '@/hooks/useAds';
 import { ApiError } from '@/lib/apiFetch';
@@ -68,7 +68,12 @@ export default function AdsDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pkg?.id]);
 
-  const [exportPreview, setExportPreview] = useState<string | null>(null);
+  // Ads-03 — keep the full export result (not just the string) so
+  // the in-modal Download uses the server-issued filename + MIME
+  // type instead of guessing `.txt`. The bundle is unused here but
+  // future tabs (JSON tree view, etc.) can read it without a
+  // second round-trip.
+  const [exportResult, setExportResult] = useState<AdExportResult | null>(null);
 
   if (isLoading) {
     return (
@@ -108,12 +113,27 @@ export default function AdsDetailPage() {
     update.mutate({ packageId: pkg.id, patch: { acknowledgeReview: true } });
   };
 
-  const handleExport = async (format: 'json' | 'markdown') => {
+  // Ads-03 — preview opens the modal without mutating the package.
+  // Download triggers the real export (status flip + history append)
+  // and saves the bytes to disk using the server-issued filename
+  // and MIME type. Keeping the two paths separate means a button
+  // labelled "Preview" can never silently flip status.
+  const handlePreview = async (format: 'json' | 'markdown') => {
     try {
-      const res = await exportPkg.mutateAsync({ format });
-      setExportPreview(res.content);
+      const res = await exportPkg.mutateAsync({ format, mode: 'preview' });
+      setExportResult(res);
     } catch {
-      // Falls through to update.error UI below if relevant.
+      // Falls through to readyError UI below.
+    }
+  };
+
+  const handleDownload = async (format: 'json' | 'markdown') => {
+    try {
+      const res = await exportPkg.mutateAsync({ format, mode: 'download' });
+      saveExportToDisk(res);
+      setExportResult(res);
+    } catch {
+      // Falls through to readyError UI below.
     }
   };
 
@@ -171,24 +191,46 @@ export default function AdsDetailPage() {
               </>
             )}
             {(pkg.status === 'READY' || pkg.status === 'EXPORTED') && (
-              <div className="inline-flex items-center gap-1">
+              <div className="inline-flex items-center gap-1 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => handleExport('json')}
-                  disabled={exportPkg.isPending}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-bg hover:bg-accent-green-100 inline-flex items-center gap-1.5"
-                >
-                  <Download className="w-3 h-3" />
-                  Export JSON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleExport('markdown')}
+                  onClick={() => handlePreview('markdown')}
                   disabled={exportPkg.isPending}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5"
+                  title="Preview the export bundle without marking the package as exported"
                 >
                   <Eye className="w-3 h-3" />
                   Preview markdown
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePreview('json')}
+                  disabled={exportPkg.isPending}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5"
+                  title="Preview the export bundle without marking the package as exported"
+                >
+                  <Eye className="w-3 h-3" />
+                  Preview JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownload('json')}
+                  disabled={exportPkg.isPending}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-bg hover:bg-accent-green-100 inline-flex items-center gap-1.5"
+                  title="Download the export bundle and mark this package as exported"
+                >
+                  <Download className="w-3 h-3" />
+                  Download JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownload('markdown')}
+                  disabled={exportPkg.isPending}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5"
+                  title="Download the export bundle and mark this package as exported"
+                >
+                  <Download className="w-3 h-3" />
+                  Download Markdown
                 </button>
               </div>
             )}
@@ -245,23 +287,43 @@ export default function AdsDetailPage() {
         </section>
       )}
 
-      {exportPreview !== null && (
+      {exportResult && (
         <ExportPreviewModal
-          content={exportPreview}
-          onClose={() => setExportPreview(null)}
-          onDownload={() => {
-            const blob = new Blob([exportPreview], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${pkg.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
+          result={exportResult}
+          isPreview={exportResult.mode !== 'download'}
+          downloading={exportPkg.isPending}
+          onClose={() => setExportResult(null)}
+          onDownload={async () => {
+            // Re-export in download mode so the server appends
+            // export history + flips status. We then save the
+            // freshly-issued bytes using the server's filename
+            // and MIME (no more `.txt` fallback).
+            const format: 'json' | 'markdown' = exportResult.filename.endsWith('.md')
+              ? 'markdown'
+              : 'json';
+            await handleDownload(format);
           }}
         />
       )}
     </div>
   );
+}
+
+// Ads-03 — turn the server's export result into a real save-as
+// using the issued filename + MIME type. Previously this was a
+// hard-coded `.txt` Blob which mis-labelled JSON / Markdown
+// downloads and made them open in the wrong editor.
+function saveExportToDisk(res: AdExportResult) {
+  if (typeof window === 'undefined') return;
+  const blob = new Blob([res.content], { type: res.mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = res.filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ── Compliance banner ──────────────────────────────────────────────────
@@ -318,8 +380,10 @@ function NotLaunchedNotice() {
   return (
     <div className="text-[11px] text-white-50 leading-snug px-1">
       <Sparkles className="w-3 h-3 inline-block mr-1 text-accent-green-110 align-text-bottom" />
-      Squadpitch doesn&apos;t launch ads. Export this package and upload it
-      to Meta Ads Manager / Google Ads / TikTok Ads / etc. yourself.
+      Squadpitch does not launch ads. Exports include copy, targeting
+      suggestions, budget suggestions, destination URLs, and setup notes —
+      your team copies them into Ads Manager, Google Ads, TikTok Ads, or
+      hands them to a paid-media specialist.
     </div>
   );
 }
@@ -832,11 +896,15 @@ function DestinationSection({
 // ── Export preview modal ───────────────────────────────────────────────
 
 function ExportPreviewModal({
-  content,
+  result,
+  isPreview,
+  downloading,
   onClose,
   onDownload,
 }: {
-  content: string;
+  result: AdExportResult;
+  isPreview: boolean;
+  downloading: boolean;
   onClose: () => void;
   onDownload: () => void;
 }) {
@@ -851,17 +919,40 @@ function ExportPreviewModal({
         className="bg-sp-bg border border-white-15 rounded-2xl max-w-3xl w-full max-h-[80vh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white-10">
-          <h2 className="text-sm font-semibold text-white-100">Export preview</h2>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onDownload}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-bg hover:bg-accent-green-100 inline-flex items-center gap-1.5"
-            >
-              <Download className="w-3 h-3" />
-              Download
-            </button>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white-10 gap-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-white-100">
+              {isPreview ? 'Export preview' : 'Exported'}
+            </h2>
+            <p className="text-[11px] text-white-50 mt-0.5 truncate">
+              {result.filename} · {result.mimeType.split(';')[0]}
+              {isPreview && ' · not yet marked as exported'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isPreview ? (
+              <button
+                type="button"
+                onClick={onDownload}
+                disabled={downloading}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-bg hover:bg-accent-green-100 inline-flex items-center gap-1.5 disabled:opacity-50"
+                title="Download the bundle and mark this package as exported"
+              >
+                <Download className="w-3 h-3" />
+                {downloading ? 'Downloading…' : 'Download'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onDownload}
+                disabled={downloading}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5 disabled:opacity-50"
+                title="Re-download the exported bundle"
+              >
+                <Download className="w-3 h-3" />
+                {downloading ? 'Downloading…' : 'Download again'}
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -872,7 +963,7 @@ function ExportPreviewModal({
           </div>
         </div>
         <pre className="flex-1 overflow-auto p-4 text-xs font-mono text-white-80 whitespace-pre-wrap leading-relaxed">
-          {content}
+          {result.content}
         </pre>
       </div>
     </div>

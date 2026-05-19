@@ -178,6 +178,11 @@ export interface AdExportResult {
   mimeType: string;
   content: string;
   bundle: unknown;
+  // Ads-03 — server echoes the resolved mode so the UI knows
+  // whether the call mutated (status flip + history append) or
+  // was a pure preview. The frontend asks for one or the other
+  // explicitly; we don't infer from the button label.
+  mode?: 'preview' | 'download';
 }
 
 // ── Query keys ───────────────────────────────────────────────────────────
@@ -450,6 +455,11 @@ export function useUpdateDestination(clientId: string, packageId: string) {
 
 export interface ExportInput {
   format?: 'json' | 'markdown';
+  // Ads-03 — explicit. Defaults to 'preview' on the server too,
+  // so callers that previously sent only { format } are now safe:
+  // a button labelled "Preview" no longer marks a package as
+  // EXPORTED. Pass mode: 'download' for the real export.
+  mode?: 'preview' | 'download';
 }
 
 export function useExportAdPackage(clientId: string, packageId: string) {
@@ -460,10 +470,16 @@ export function useExportAdPackage(clientId: string, packageId: string) {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adsKeys.detail(clientId, packageId) });
-      qc.invalidateQueries({ queryKey: [...adsKeys.all, 'list', clientId] });
-      qc.invalidateQueries({ queryKey: adsKeys.stats(clientId) });
+    onSuccess: (_data, vars) => {
+      // Only invalidate when a download actually changed state on
+      // the server (status flip + history append). Preview is a
+      // pure read — re-fetching wastes a round-trip and would
+      // flash the detail view's status pill for no reason.
+      if (vars?.mode === 'download') {
+        qc.invalidateQueries({ queryKey: adsKeys.detail(clientId, packageId) });
+        qc.invalidateQueries({ queryKey: [...adsKeys.all, 'list', clientId] });
+        qc.invalidateQueries({ queryKey: adsKeys.stats(clientId) });
+      }
     },
   });
 }

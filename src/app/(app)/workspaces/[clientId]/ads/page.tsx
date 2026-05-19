@@ -74,7 +74,7 @@ export default function AdsIndexPage() {
       <ModuleShell
         Icon={Megaphone}
         title="Generate export-ready ad packages"
-        description="Squadpitch doesn't launch ads — you generate the creative, audience, and budget here, then export and upload to Meta / Google / TikTok yourself."
+        description="Squadpitch does not launch ads. Generate the creative, audience, and budget here, then export a structured ad package your team can copy into Ads Manager, Google Ads, TikTok Ads, or hand to a paid-media specialist."
         enabled={false}
         isLoading={flagsLoading}
         links={links}
@@ -96,10 +96,11 @@ export default function AdsIndexPage() {
             <div className="min-w-0">
               <h1 className="text-base font-bold text-white-100 leading-tight">Ad packages</h1>
               <p className="text-xs text-white-50 mt-0.5 leading-snug max-w-prose">
-                Generate ready-to-use ad creative, audience, and budget
-                suggestions for your paid campaigns. Squadpitch doesn&apos;t
-                launch ads — you export the package and upload it to your ad
-                platform yourself.
+                Generate ad creative, audience, and budget suggestions for
+                your paid campaigns. Export a structured ad package your team
+                can copy into Ads Manager, Google Ads, TikTok Ads, or hand to
+                a paid-media specialist — Squadpitch does not launch ads
+                directly.
               </p>
             </div>
           </div>
@@ -284,7 +285,9 @@ function EmptyState({
         <p className="text-xs text-white-50 leading-relaxed">
           Start from a campaign, a SquadSite page, a top-performing post, a
           property, or a free-form idea. Squadpitch generates the copy,
-          audience, and budget — you export and upload to your ad platform.
+          audience, and budget — you export the package and copy it into
+          Ads Manager, Google Ads, TikTok Ads, or hand it to a paid-media
+          specialist.
         </p>
         <div className="flex items-center justify-center gap-2 pt-1">
           <Link

@@ -330,9 +330,10 @@ export default function AdsNewWizardPage() {
 
       <div className="flex items-center justify-between pt-2">
         <p className="text-[11px] text-white-40 leading-snug max-w-md">
-          Squadpitch doesn&apos;t launch this — once generated, you&apos;ll
-          review, then export the package and upload it to your ad platform
-          yourself.
+          Squadpitch does not launch ads. Once generated, you&apos;ll review,
+          then export a structured ad package — copy, targeting, budget,
+          destination URL, and setup notes — to copy into Ads Manager,
+          Google Ads, TikTok Ads, or hand to a paid-media specialist.
         </p>
         <button
           type="button"
