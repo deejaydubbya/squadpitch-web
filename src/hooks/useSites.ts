@@ -275,11 +275,23 @@ export function useCreatePage(clientId: string) {
 
 // ── AI page generation ──────────────────────────────────────────────────
 
+// Sites-05 — template hint. When set, biases the LLM toward a
+// specific scaffold + page intent. Catalog kept in lockstep with
+// SITE_TEMPLATES on the API.
+export type SiteTemplate =
+  | 'property_listing'
+  | 'open_house'
+  | 'just_sold'
+  | 'seller_lead'
+  | 'buyer_lead'
+  | 'neighborhood_guide';
+
 export interface GeneratePageInput {
   sourceType: SiteSourceType;
   sourceId?: string;
   pageGoal: SitePageGoal;
   customPrompt?: string;
+  template?: SiteTemplate;
 }
 
 /**
