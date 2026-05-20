@@ -584,11 +584,15 @@ function CreativeEditor({
     setAdditionalAssetIds(creative.additionalAssetIdsJson ?? []);
   }, [creative.id]);
 
-  // Pull every asset in the workspace once so we can render
-  // thumbnails for already-attached ids. Cached by useAssets so
-  // switching variants doesn't refetch. Backend re-validates on
-  // upsert; this is purely for display.
-  const { data: allAssets } = useAssets(clientId, { status: 'READY', limit: 500 });
+  // Pull a page of assets so we can render thumbnails for
+  // already-attached ids. Backend caps `limit` at 200 — bumping
+  // higher 400s the request. For workspaces with > 200 assets,
+  // already-attached items that fall outside this page still
+  // render via the AssetThumb fallback (filename + id) and the
+  // user can replace them through the picker (which has its own
+  // search). Backend re-validates on upsert; this is purely
+  // display.
+  const { data: allAssets } = useAssets(clientId, { status: 'READY', limit: 200 });
   const assetsById = useMemo(() => {
     const m = new Map<string, MediaAsset>();
     for (const a of allAssets ?? []) m.set(a.id, a);
