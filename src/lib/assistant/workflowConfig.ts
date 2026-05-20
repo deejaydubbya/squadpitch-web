@@ -4,7 +4,7 @@ import type {
   AssistantStepId,
   WorkflowStep,
 } from './types';
-import { getAdapter } from './adapterRegistry';
+import { getAdapterSafe } from './adapterRegistry';
 import type { IndustryAdapter, WorkflowOverrides } from './industryAdapter';
 
 // ── Step Definitions (shared base) ──────────────────────────────────────
@@ -60,8 +60,15 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
  * Returns workflow steps for a given mode, filtered by industry overrides.
  * Steps with `exclude: true` in the adapter's workflowOverrides are removed.
  */
-export function getStepsForMode(mode: AssistantMode, industryKey?: string): WorkflowStep[] {
-  const overrides = industryKey ? getAdapter(industryKey).workflowOverrides : undefined;
+// industry-01 — `industryKey` is nullable. A null key uses the
+// base WORKFLOW_STEPS list with no industry overrides applied,
+// keeping no-industry workspaces functional.
+export function getStepsForMode(
+  mode: AssistantMode,
+  industryKey?: string | null,
+): WorkflowStep[] {
+  const adapter = industryKey ? getAdapterSafe(industryKey) : null;
+  const overrides = adapter?.workflowOverrides;
   return WORKFLOW_STEPS
     .filter((step) => step.modes.includes(mode))
     .filter((step) => {
@@ -70,7 +77,11 @@ export function getStepsForMode(mode: AssistantMode, industryKey?: string): Work
     });
 }
 
-export function getStepIndex(mode: AssistantMode, stepId: AssistantStepId, industryKey?: string): number {
+export function getStepIndex(
+  mode: AssistantMode,
+  stepId: AssistantStepId,
+  industryKey?: string | null,
+): number {
   const steps = getStepsForMode(mode, industryKey);
   return steps.findIndex((s) => s.id === stepId);
 }
@@ -82,7 +93,10 @@ export function isStepSkippable(
   stepId: AssistantStepId,
   session: AssistantSessionState
 ): boolean {
-  const overrides = getAdapter(session.industryKey).workflowOverrides;
+  // industry-01 — adapter may be null on no-industry sessions.
+  // Without overrides we fall through to the base rules.
+  const adapter = session.industryKey ? getAdapterSafe(session.industryKey) : null;
+  const overrides = adapter?.workflowOverrides;
   const stepOverride = overrides?.steps?.[stepId];
 
   // Explicit adapter override
@@ -120,19 +134,28 @@ export function isStepComplete(
  * Returns the display label for a workflow step, adapted to the active industry.
  * Priority: adapter step override label > adapter terminology > base label.
  */
-export function getStepLabel(step: WorkflowStep, industryKey: string = 'real_estate'): string {
-  const adapter = getAdapter(industryKey);
-  const stepOverride = adapter.workflowOverrides?.steps?.[step.id];
+export function getStepLabel(
+  step: WorkflowStep,
+  industryKey: string | null | undefined,
+): string {
+  const adapter = industryKey ? getAdapterSafe(industryKey) : null;
+  const stepOverride = adapter?.workflowOverrides?.steps?.[step.id];
 
   if (stepOverride?.label) return stepOverride.label;
-  if (step.id === 'property_select') return adapter.terminology.selectItemLabel;
+  if (step.id === 'property_select' && adapter) {
+    return adapter.terminology.selectItemLabel;
+  }
   return step.label;
 }
 
 /**
  * Returns an optional description/hint for a step from the adapter.
  */
-export function getStepDescription(stepId: AssistantStepId, industryKey: string = 'real_estate'): string | undefined {
-  const adapter = getAdapter(industryKey);
-  return adapter.workflowOverrides?.steps?.[stepId]?.description;
+export function getStepDescription(
+  stepId: AssistantStepId,
+  industryKey: string | null | undefined,
+): string | undefined {
+  if (!industryKey) return undefined;
+  const adapter = getAdapterSafe(industryKey);
+  return adapter?.workflowOverrides?.steps?.[stepId]?.description;
 }

@@ -19,9 +19,12 @@ export function CampaignTypeCard({ session, onSelection }: Props) {
   // Intelligence recommendation only applies to property-sourced
   // campaigns — recommendCampaignType examines fields (price/status/
   // openHouseAt) that only exist on property dataJson.
+  // industry-01 — also requires an adapter (no recommendations for
+  // no-industry workspaces).
   const recommendation = useMemo(() => {
     if (session.campaignSourceType !== 'property') return null;
     if (!session.propertyData) return null;
+    if (!adapter) return null;
     try {
       return recommendCampaignType(session.propertyData, adapter);
     } catch {

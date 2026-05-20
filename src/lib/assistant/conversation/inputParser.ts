@@ -268,7 +268,11 @@ export function parseUserInput(
   if (!session.campaignType || isRevision) {
     let bestMatch: { value: string; label: string; conf: number } | null = null;
 
-    for (const ct of adapter.campaignTypes) {
+    // industry-01 — no-industry sessions skip industry-specific
+    // campaign-type label matching. Generic campaign types are
+    // matched elsewhere (the GENERIC_CAMPAIGN_TYPE_OPTIONS path).
+    const campaignTypes = adapter?.campaignTypes ?? [];
+    for (const ct of campaignTypes) {
       const labelPattern = new RegExp(`\\b${escapeRegex(ct.label)}\\b`, 'i');
       const valuePattern = new RegExp(`\\b${ct.value.replace(/_/g, '[_ ]')}\\b`, 'i');
 

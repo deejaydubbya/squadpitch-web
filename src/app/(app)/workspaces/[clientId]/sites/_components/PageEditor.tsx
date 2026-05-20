@@ -98,6 +98,10 @@ function indexBlocks(blocks: Block[]): IndexedBlock[] {
 }
 
 // Sites-06 — refined block labels + categorized add-picker.
+// industry-01 — labels were `'Property Details'` and `'Agent
+// Contact'` which leaked real-estate copy into every workspace.
+// Now neutral; a future industry-aware label registry can override
+// per industryKey if a vertical wants more specific wording.
 const BLOCK_LABELS: Record<Block['type'], string> = {
   hero: 'Hero',
   paragraph: 'Paragraph / Story',
@@ -105,10 +109,10 @@ const BLOCK_LABELS: Record<Block['type'], string> = {
   cta: 'Call to action',
   lead_form: 'Lead Capture Form',
   gallery: 'Photo Gallery',
-  key_details: 'Property Details',
+  key_details: 'Key Details',
   testimonial: 'Testimonial',
   faq: 'FAQ',
-  contact: 'Agent Contact',
+  contact: 'Contact',
 };
 
 interface BlockPaletteEntry {

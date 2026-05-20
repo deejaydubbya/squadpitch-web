@@ -58,8 +58,11 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
     cardType: 'property_select',
     priority: 10,
     label: (s) => {
-      const t = getAdapterSafe(s.industryKey).terminology;
-      return t.itemSingular.charAt(0).toUpperCase() + t.itemSingular.slice(1);
+      // industry-01 — neutral fallback when no industry adapter is
+      // available (no-industry workspace). "Item" capitalized.
+      const adapter = getAdapterSafe(s.industryKey);
+      const itemSingular = adapter?.terminology.itemSingular ?? 'item';
+      return itemSingular.charAt(0).toUpperCase() + itemSingular.slice(1);
     },
     displayValue: (s) => {
       if (!s.propertyData) return null;
@@ -133,8 +136,10 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
       // The current type can be either an adapter-specific
       // (property) value or a generic cross-industry value, so look in
       // both lists.
+      // industry-01 — null adapter (no-industry session) skips
+      // straight to the generic options list.
       const adapter = getAdapterSafe(s.industryKey);
-      const fromAdapter = adapter.campaignTypes.find((ct) => ct.value === s.campaignType);
+      const fromAdapter = adapter?.campaignTypes.find((ct) => ct.value === s.campaignType);
       if (fromAdapter) return fromAdapter.label;
       const fromGeneric = GENERIC_CAMPAIGN_TYPE_OPTIONS.find((ct) => ct.value === s.campaignType);
       if (fromGeneric) return fromGeneric.label;
@@ -369,8 +374,10 @@ const STEP_MESSAGES: Record<string, (session: AssistantSessionState) => string> 
   mode: () => "What would you like to create?",
   campaignSourceType: () => "What should this campaign be based on?",
   selectedPropertyId: (s) => {
-    const t = getAdapterSafe(s.industryKey).terminology;
-    return `Which ${t.itemSingular} should this campaign promote?`;
+    // industry-01 — neutral fallback for no-industry sessions.
+    const adapter = getAdapterSafe(s.industryKey);
+    const itemSingular = adapter?.terminology.itemSingular ?? 'item';
+    return `Which ${itemSingular} should this campaign promote?`;
   },
   campaignDataItemId: () => "Which content asset should this campaign use?",
   campaignIdea: () => "What should this campaign be about?",

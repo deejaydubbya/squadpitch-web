@@ -76,8 +76,17 @@ export function buildNextPromptMessage(
   prompt: ResolvedPrompt,
   session: AssistantSessionState
 ): ChatMessage {
+  // industry-01 — neutral terminology when no industry is selected
+  // so no-industry sessions don't see real-estate copy
+  // ("Which listing should this campaign promote?").
   const adapter = getAdapterSafe(session.industryKey);
-  const t = adapter.terminology;
+  const t = adapter?.terminology ?? {
+    itemSingular: 'item',
+    itemPlural: 'items',
+    selectItemLabel: 'Pick an item',
+    itemDataLabel: 'Item details',
+    priceLabel: 'Price',
+  };
 
   switch (prompt.cardType) {
     case 'mode_select':

@@ -324,11 +324,18 @@ const FIELD_DEPENDENCIES: Record<string, string[]> = {
 
 // ── Main Hook ────────────────────────────────────────────────────────────
 
-export function useConversationalAssistant(workspaceId?: string | null, industryKey?: string) {
+export function useConversationalAssistant(
+  workspaceId?: string | null,
+  industryKey?: string | null,
+) {
   const initialSession: AssistantSessionState = {
     ...INITIAL_SESSION,
     workspaceId: workspaceId ?? null,
-    industryKey: industryKey || 'real_estate',
+    // industry-01 — no silent real-estate fallback. If the
+    // workspace's Client.industryKey is missing, the session
+    // stays at null and downstream consumers render neutral UI
+    // (no property chips, no listing terminology).
+    industryKey: industryKey ?? null,
   };
 
   const [session, dispatchSession] = useReducer(sessionReducer, initialSession);

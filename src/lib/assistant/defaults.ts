@@ -1,6 +1,6 @@
 import type { Channel } from '@/hooks/useSquadpitch';
 import type { AssistantCampaignType, AssistantSessionState, SessionMemory } from './types';
-import { getAdapter } from './adapterRegistry';
+import { getAdapter, getAdapterSafe } from './adapterRegistry';
 import type { CampaignTypeOption } from './industryAdapter';
 
 // ── Initial Memory ──────────────────────────────────────────────────────
@@ -17,7 +17,12 @@ export const INITIAL_MEMORY: SessionMemory = {
 
 export const INITIAL_SESSION: AssistantSessionState = {
   mode: null,
-  industryKey: 'real_estate',
+  // industry-01 — was hardcoded `'real_estate'`, which silently
+  // forced every new session into real-estate behavior. The
+  // session now starts with no industry; the assistant resolves
+  // the workspace's actual industryKey from the Client record
+  // before rendering any industry-specific UI.
+  industryKey: null,
   workspaceId: null,
 
   campaignSourceType: null,
@@ -154,8 +159,13 @@ export const GENERIC_DEFAULT_CHANNELS: Record<string, Channel[]> = {
 
 // ── Adapter-Aware Helpers ───────────────────────────────────────────────
 
+// industry-01 — both helpers now REQUIRE an explicit industryKey
+// arg (was defaulting to 'real_estate'). For null/unknown industry
+// they fall through to the GENERIC list instead of silently picking
+// real-estate. Callers reading these must resolve industryKey from
+// the workspace first.
 export function getCampaignTypeOptions(
-  industryKey: string = 'real_estate',
+  industryKey: string | null | undefined,
   // URL-02: 'url' is accepted but produces no options — the URL
   // card is mid-flow at this point and the next state transition
   // (SET_PROPERTY) will flip the source to 'property' before the
@@ -164,17 +174,24 @@ export function getCampaignTypeOptions(
 ): CampaignTypeOption[] {
   // Property source → adapter's industry-specific types (just_listed
   // etc. for real estate). Anything else → generic cross-industry list.
-  if (sourceType === 'property') {
-    return getAdapter(industryKey).campaignTypes;
+  if (sourceType === 'property' && industryKey) {
+    const adapter = getAdapterSafe(industryKey);
+    if (adapter) return adapter.campaignTypes;
   }
   if (sourceType === 'url') return [];
   return GENERIC_CAMPAIGN_TYPE_OPTIONS;
 }
 
-export function getDefaultChannels(campaignType: string, industryKey: string = 'real_estate'): Channel[] {
-  return (
-    getAdapter(industryKey).defaultChannelsByCampaignType[campaignType] ??
-    GENERIC_DEFAULT_CHANNELS[campaignType] ??
-    []
-  );
+export function getDefaultChannels(
+  campaignType: string,
+  industryKey: string | null | undefined,
+): Channel[] {
+  if (industryKey) {
+    const adapter = getAdapterSafe(industryKey);
+    if (adapter) {
+      const fromAdapter = adapter.defaultChannelsByCampaignType[campaignType];
+      if (fromAdapter) return fromAdapter;
+    }
+  }
+  return GENERIC_DEFAULT_CHANNELS[campaignType] ?? [];
 }

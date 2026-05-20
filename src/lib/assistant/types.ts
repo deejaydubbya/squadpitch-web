@@ -155,7 +155,12 @@ export interface ScheduleSlot {
 
 export interface AssistantSessionState {
   mode: AssistantMode | null;
-  industryKey: IndustryKey;
+  // industry-01 — nullable so no-industry workspaces don't silently
+  // become real-estate. Callers reading this must handle null
+  // (typical: getAdapterSafe(industryKey) → null, branch to
+  // neutral UI). Resolved from the workspace's Client.industryKey
+  // before any industry-specific UI renders.
+  industryKey: IndustryKey | null;
   workspaceId: string | null;
 
   // Campaign / single-post source
