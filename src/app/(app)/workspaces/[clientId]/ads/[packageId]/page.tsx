@@ -9,7 +9,7 @@
 // keeps the wizard's submit fast — the AI work happens here, where
 // we can show progress.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
@@ -19,7 +19,9 @@ import {
   Loader2,
   Download,
   CheckCircle2,
+  ImageIcon,
   RotateCw,
+  X,
 } from 'lucide-react';
 import {
   useAdPackage,
@@ -38,6 +40,8 @@ import { ApiError } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
 import { ExportPanel } from '../_components/ExportPanel';
 import { SitePagePicker } from '../_components/SitePagePicker';
+import { AssetPicker } from '../_components/AssetPicker';
+import { useAssets, type MediaAsset } from '@/hooks/useSquadpitch';
 
 export default function AdsDetailPage() {
   const params = useParams<{ clientId: string; packageId: string }>();
@@ -516,23 +520,34 @@ function CreativesSection({
         </div>
       </header>
 
-      {active && <CreativeEditor creative={active} onSave={(input) => upsert.mutate(input)} pending={upsert.isPending} />}
+      {active && (
+        <CreativeEditor
+          creative={active}
+          clientId={clientId}
+          onSave={(input) => upsert.mutate(input)}
+          pending={upsert.isPending}
+        />
+      )}
     </section>
   );
 }
 
 function CreativeEditor({
   creative,
+  clientId,
   onSave,
   pending,
 }: {
   creative: AdCreative;
+  clientId: string;
   onSave: (input: {
     variantIndex: number;
     headline: string;
     primaryText: string;
     description?: string | null;
     cta?: string | null;
+    primaryAssetId?: string | null;
+    additionalAssetIds?: string[];
     rationale?: string | null;
   }) => void;
   pending: boolean;
@@ -541,6 +556,16 @@ function CreativeEditor({
   const [primaryText, setPrimaryText] = useState(creative.primaryText);
   const [description, setDescription] = useState(creative.description ?? '');
   const [cta, setCta] = useState(creative.cta ?? '');
+  // Ads-10 — asset picker state. We round-trip these alongside the
+  // text fields on Save so the user can adjust copy + assets in
+  // one motion.
+  const [primaryAssetId, setPrimaryAssetId] = useState<string | null>(
+    creative.primaryAssetId,
+  );
+  const [additionalAssetIds, setAdditionalAssetIds] = useState<string[]>(
+    creative.additionalAssetIdsJson ?? [],
+  );
+  const [pickerMode, setPickerMode] = useState<'primary' | 'additional' | null>(null);
 
   // Re-sync when the user switches variants.
   useEffect(() => {
@@ -548,13 +573,31 @@ function CreativeEditor({
     setPrimaryText(creative.primaryText);
     setDescription(creative.description ?? '');
     setCta(creative.cta ?? '');
+    setPrimaryAssetId(creative.primaryAssetId);
+    setAdditionalAssetIds(creative.additionalAssetIdsJson ?? []);
   }, [creative.id]);
+
+  // Pull every asset in the workspace once so we can render
+  // thumbnails for already-attached ids. Cached by useAssets so
+  // switching variants doesn't refetch. Backend re-validates on
+  // upsert; this is purely for display.
+  const { data: allAssets } = useAssets(clientId, { status: 'READY', limit: 500 });
+  const assetsById = useMemo(() => {
+    const m = new Map<string, MediaAsset>();
+    for (const a of allAssets ?? []) m.set(a.id, a);
+    return m;
+  }, [allAssets]);
+
+  const arraysEqual = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((v, i) => v === b[i]);
 
   const dirty =
     headline !== creative.headline ||
     primaryText !== creative.primaryText ||
     (description ?? '') !== (creative.description ?? '') ||
-    (cta ?? '') !== (creative.cta ?? '');
+    (cta ?? '') !== (creative.cta ?? '') ||
+    primaryAssetId !== creative.primaryAssetId ||
+    !arraysEqual(additionalAssetIds, creative.additionalAssetIdsJson ?? []);
 
   return (
     <div className="space-y-3">
@@ -597,6 +640,30 @@ function CreativeEditor({
           />
         </Field>
       </div>
+
+      {/* Ads-10 — asset attachment. Primary (single) + additional
+          (multi). Backend tenant-validates each id on upsert; UI
+          only shows assets from this workspace. */}
+      <Field label="Primary asset">
+        <PrimaryAssetSlot
+          assetsById={assetsById}
+          assetId={primaryAssetId}
+          onPick={() => setPickerMode('primary')}
+          onClear={() => setPrimaryAssetId(null)}
+        />
+      </Field>
+
+      <Field label="Additional assets (optional)">
+        <AdditionalAssetGrid
+          assetsById={assetsById}
+          ids={additionalAssetIds}
+          onAdd={() => setPickerMode('additional')}
+          onRemove={(id) =>
+            setAdditionalAssetIds((prev) => prev.filter((x) => x !== id))
+          }
+        />
+      </Field>
+
       {creative.rationale && (
         <p className="text-[11px] text-white-50 italic leading-snug">
           <Sparkles className="w-3 h-3 inline-block mr-1 text-accent-green-110 align-text-bottom" />
@@ -613,6 +680,8 @@ function CreativeEditor({
               primaryText,
               description: description.trim() || null,
               cta: cta.trim() || null,
+              primaryAssetId,
+              additionalAssetIds,
             })
           }
           disabled={!dirty || pending}
@@ -624,8 +693,197 @@ function CreativeEditor({
           {pending ? 'Saving…' : dirty ? 'Save variant' : 'Saved'}
         </button>
       </div>
+
+      {pickerMode && (
+        <AssetPicker
+          clientId={clientId}
+          mode={pickerMode}
+          excludeIds={
+            pickerMode === 'primary'
+              ? primaryAssetId
+                ? [primaryAssetId]
+                : []
+              : additionalAssetIds
+          }
+          onClose={() => setPickerMode(null)}
+          onSelect={(a) => {
+            if (pickerMode === 'primary') {
+              setPrimaryAssetId(a.id);
+            } else {
+              setAdditionalAssetIds((prev) =>
+                prev.includes(a.id) ? prev : [...prev, a.id],
+              );
+            }
+          }}
+        />
+      )}
     </div>
   );
+}
+
+function PrimaryAssetSlot({
+  assetsById,
+  assetId,
+  onPick,
+  onClear,
+}: {
+  assetsById: Map<string, MediaAsset>;
+  assetId: string | null;
+  onPick: () => void;
+  onClear: () => void;
+}) {
+  const asset = assetId ? assetsById.get(assetId) ?? null : null;
+
+  if (!assetId) {
+    return (
+      <div className="rounded-lg border border-dashed border-white-15 bg-white-5 px-3 py-3 space-y-2">
+        <p className="text-[11px] text-white-50 leading-snug">
+          <AlertCircle className="w-3 h-3 inline-block mr-1 text-amber-200 align-text-bottom" />
+          No primary asset attached — you can still mark this package Ready,
+          but you&apos;ll need to upload the creative manually in the ad
+          platform when you launch.
+        </p>
+        <button
+          type="button"
+          onClick={onPick}
+          className="text-xs font-medium px-2.5 py-1 rounded-md border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5"
+        >
+          <ImageIcon className="w-3 h-3" /> Pick from library
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-white-10 bg-white-5 p-2 flex items-center gap-3">
+      <AssetThumb asset={asset} idFallback={assetId} />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-white-90 truncate">
+          {asset?.filename ?? assetId}
+        </p>
+        <p className="text-[10px] text-white-50 truncate">
+          {assetMetaLine(asset)}
+        </p>
+        {asset?.altText && (
+          <p className="text-[10px] text-white-40 truncate italic">
+            {asset.altText}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={onPick}
+          className="text-[11px] font-medium px-2 py-1 rounded border border-white-15 text-white-80 hover:bg-white-10"
+        >
+          Replace
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-[11px] font-medium px-2 py-1 rounded text-white-50 hover:text-white-100"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AdditionalAssetGrid({
+  assetsById,
+  ids,
+  onAdd,
+  onRemove,
+}: {
+  assetsById: Map<string, MediaAsset>;
+  ids: string[];
+  onAdd: () => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {ids.length === 0 ? (
+        <p className="text-[11px] text-white-50 italic leading-snug">
+          None attached — useful for carousel ads or alternate-aspect uploads.
+        </p>
+      ) : (
+        <ul className="flex flex-wrap gap-2">
+          {ids.map((id) => {
+            const a = assetsById.get(id) ?? null;
+            return (
+              <li
+                key={id}
+                className="relative rounded-lg border border-white-10 bg-white-5 overflow-hidden w-20"
+              >
+                <AssetThumb asset={a} idFallback={id} small />
+                <button
+                  type="button"
+                  onClick={() => onRemove(id)}
+                  className="absolute top-0.5 right-0.5 bg-black/60 text-white-100 rounded p-0.5 hover:bg-black/80"
+                  aria-label="Remove asset"
+                  title="Remove"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="text-xs font-medium px-2.5 py-1 rounded-md border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5"
+      >
+        <ImageIcon className="w-3 h-3" /> Add asset
+      </button>
+    </div>
+  );
+}
+
+function AssetThumb({
+  asset,
+  idFallback,
+  small = false,
+}: {
+  asset: MediaAsset | null;
+  idFallback: string;
+  small?: boolean;
+}) {
+  const previewUrl = asset?.thumbnailUrl || asset?.url || null;
+  const sizeClass = small ? 'w-20 h-20' : 'w-14 h-14';
+  if (previewUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={previewUrl}
+        alt={asset?.altText ?? asset?.filename ?? ''}
+        className={cn(sizeClass, 'object-cover rounded')}
+      />
+    );
+  }
+  return (
+    <div
+      className={cn(
+        sizeClass,
+        'rounded bg-white-10 flex items-center justify-center text-white-40',
+      )}
+      title={asset?.id ?? idFallback}
+    >
+      <ImageIcon className="w-4 h-4" />
+    </div>
+  );
+}
+
+function assetMetaLine(a: MediaAsset | null): string {
+  if (!a) return 'Asset not in this workspace (resolves on next refresh)';
+  const parts: string[] = [];
+  if (a.assetType) parts.push(a.assetType);
+  if (a.width && a.height) parts.push(`${a.width}×${a.height}`);
+  if (a.mimeType) parts.push(a.mimeType);
+  if (a.videoDurationSec) parts.push(`${a.videoDurationSec}s`);
+  return parts.join(' · ') || a.id;
 }
 
 // ── Audience ───────────────────────────────────────────────────────────
