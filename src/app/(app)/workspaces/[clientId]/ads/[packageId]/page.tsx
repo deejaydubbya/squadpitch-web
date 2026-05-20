@@ -19,7 +19,6 @@ import {
   Loader2,
   Download,
   CheckCircle2,
-  Eye,
   RotateCw,
 } from 'lucide-react';
 import {
@@ -37,6 +36,8 @@ import {
 } from '@/hooks/useAds';
 import { ApiError } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
+import { ExportPanel } from '../_components/ExportPanel';
+import { SitePagePicker } from '../_components/SitePagePicker';
 
 export default function AdsDetailPage() {
   const params = useParams<{ clientId: string; packageId: string }>();
@@ -118,28 +119,46 @@ export default function AdsDetailPage() {
   // and saves the bytes to disk using the server-issued filename
   // and MIME type. Keeping the two paths separate means a button
   // labelled "Preview" can never silently flip status.
-  const handlePreview = async (format: 'json' | 'markdown') => {
+  //
+  // Ads-09 — `format` is now any registered exporter slug; the FE
+  // doesn't enumerate them itself, the ExportPanel pulls the
+  // catalog from /export-formats.
+  const [exportingFormat, setExportingFormat] = useState<string | null>(null);
+  const handlePreview = async (format: string) => {
+    setExportingFormat(format);
     try {
       const res = await exportPkg.mutateAsync({ format, mode: 'preview' });
       setExportResult(res);
     } catch {
-      // Falls through to readyError UI below.
+      // Falls through to errorBanner UI below.
+    } finally {
+      setExportingFormat(null);
     }
   };
 
-  const handleDownload = async (format: 'json' | 'markdown') => {
+  const handleDownload = async (format: string) => {
+    setExportingFormat(format);
     try {
       const res = await exportPkg.mutateAsync({ format, mode: 'download' });
       saveExportToDisk(res);
       setExportResult(res);
     } catch {
-      // Falls through to readyError UI below.
+      // Falls through to errorBanner UI below.
+    } finally {
+      setExportingFormat(null);
     }
   };
 
-  const readyError =
-    update.error instanceof ApiError ? update.error.message : null;
   const generating = generate.isPending;
+  // Ads-09 — surface the API's checklist-style errors:
+  // READY_PRECONDITIONS_FAILED carries `missing[]` (what to fix
+  // before mark-ready), COMPLIANCE_COPY_REVIEW_FAILED carries
+  // `findings[]` (which variant/field has risky language). Anything
+  // else falls back to the flat message.
+  const latestError =
+    (update.error instanceof ApiError && update.error) ||
+    (exportPkg.error instanceof ApiError && exportPkg.error) ||
+    null;
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -190,60 +209,17 @@ export default function AdsDetailPage() {
                 </button>
               </>
             )}
-            {(pkg.status === 'READY' || pkg.status === 'EXPORTED') && (
-              <div className="inline-flex items-center gap-1 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handlePreview('markdown')}
-                  disabled={exportPkg.isPending}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5"
-                  title="Preview the export bundle without marking the package as exported"
-                >
-                  <Eye className="w-3 h-3" />
-                  Preview markdown
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePreview('json')}
-                  disabled={exportPkg.isPending}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5"
-                  title="Preview the export bundle without marking the package as exported"
-                >
-                  <Eye className="w-3 h-3" />
-                  Preview JSON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownload('json')}
-                  disabled={exportPkg.isPending}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-bg hover:bg-accent-green-100 inline-flex items-center gap-1.5"
-                  title="Download the export bundle and mark this package as exported"
-                >
-                  <Download className="w-3 h-3" />
-                  Download JSON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownload('markdown')}
-                  disabled={exportPkg.isPending}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white-15 text-white-80 hover:bg-white-10 inline-flex items-center gap-1.5"
-                  title="Download the export bundle and mark this package as exported"
-                >
-                  <Download className="w-3 h-3" />
-                  Download Markdown
-                </button>
-              </div>
-            )}
+            {/*
+              Ads-09 — export buttons moved into <ExportPanel/> below.
+              The header keeps only the package-state actions (generate,
+              mark-ready) so the export catalog can render with proper
+              cards, badges, and disabled-with-reason states.
+            */}
           </div>
         </div>
       </header>
 
-      {readyError && (
-        <div className="card p-3 text-xs text-amber-200 bg-amber-400/5 border-amber-400/30 flex items-start gap-2">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          <span>{readyError}</span>
-        </div>
-      )}
+      {latestError && <ReadinessErrorBanner error={latestError} />}
 
       {pkg.specialCategory !== 'NONE' && (
         <ComplianceBanner
@@ -276,6 +252,15 @@ export default function AdsDetailPage() {
       <BudgetSection pkg={pkg} clientId={clientId} />
       <DestinationSection pkg={pkg} clientId={clientId} />
 
+      <ExportPanel
+        clientId={clientId}
+        pkg={pkg}
+        exporting={exportPkg.isPending}
+        exportingFormat={exportingFormat}
+        onPreview={handlePreview}
+        onDownload={handleDownload}
+      />
+
       {pkg.reviewNotes && (
         <section className="card p-4 space-y-2">
           <h2 className="text-xs font-semibold text-white-40 uppercase tracking-wider">
@@ -294,16 +279,61 @@ export default function AdsDetailPage() {
           downloading={exportPkg.isPending}
           onClose={() => setExportResult(null)}
           onDownload={async () => {
-            // Re-export in download mode so the server appends
-            // export history + flips status. We then save the
-            // freshly-issued bytes using the server's filename
-            // and MIME (no more `.txt` fallback).
-            const format: 'json' | 'markdown' = exportResult.filename.endsWith('.md')
-              ? 'markdown'
-              : 'json';
+            // Ads-09 — re-export in download mode using the exact
+            // format slug the server echoed back. No more
+            // ".md" → "markdown" guessing — works for every
+            // exporter the registry exposes.
+            const format = exportResult.format ?? 'squadads_json';
             await handleDownload(format);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Readiness error banner ─────────────────────────────────────────────
+
+function ReadinessErrorBanner({ error }: { error: ApiError }) {
+  const isReadiness = error.code === 'READY_PRECONDITIONS_FAILED';
+  const isCompliance = error.code === 'COMPLIANCE_COPY_REVIEW_FAILED';
+  const heading = isReadiness
+    ? 'Fix these before marking the package Ready'
+    : isCompliance
+      ? 'Compliance review — protected-class language flagged'
+      : 'Action needed';
+
+  return (
+    <div className="card p-3 text-xs text-amber-200 bg-amber-400/5 border-amber-400/30 space-y-2">
+      <div className="flex items-start gap-2">
+        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <div className="min-w-0">
+          <p className="font-semibold text-amber-100">{heading}</p>
+          {!isReadiness && !isCompliance && (
+            <p className="mt-0.5 text-amber-200/90">{error.message}</p>
+          )}
+        </div>
+      </div>
+      {isReadiness && Array.isArray(error.missing) && error.missing.length > 0 && (
+        <ul className="list-disc list-inside space-y-0.5 pl-1 text-amber-200/90">
+          {error.missing.map((m) => (
+            <li key={m}>{m}</li>
+          ))}
+        </ul>
+      )}
+      {isCompliance && Array.isArray(error.findings) && error.findings.length > 0 && (
+        <ul className="list-disc list-inside space-y-0.5 pl-1 text-amber-200/90">
+          {error.findings.map((f, i) => (
+            <li key={`${f.variantIndex ?? '?'}-${f.field ?? '?'}-${f.phrase ?? i}`}>
+              {f.variantIndex != null && (
+                <span className="font-semibold">Variant {f.variantIndex}</span>
+              )}
+              {f.field && <> · <code className="text-amber-100">{f.field}</code></>}
+              {f.phrase && <> · phrase: <em>&ldquo;{f.phrase}&rdquo;</em></>}
+              {f.reason && <> — {f.reason}</>}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -827,15 +857,17 @@ function DestinationSection({
       </div>
       {kind === 'SITE_PAGE' && (
         <>
-          <Field label="SitePage id">
-            <input
-              type="text"
-              value={sitePageId}
-              onChange={(e) => setSitePageId(e.target.value)}
-              placeholder="paste a site page id"
-              className="w-full bg-white-5 border border-white-10 rounded-lg px-3 py-2 text-sm text-white-90 placeholder:text-white-40 focus:outline-none focus:border-white-30"
-            />
-          </Field>
+          {/*
+            Ads-09 — replaced the raw "paste a site page id" input with
+            a real picker. Lists every page in the workspace with title,
+            slug, and a status pill so the user can tell published from
+            draft at a glance.
+          */}
+          <SitePagePicker
+            clientId={clientId}
+            selectedId={sitePageId || null}
+            onSelect={(id) => setSitePageId(id ?? '')}
+          />
           {preview?.resolvedUrl && (
             <div className="text-[11px] text-white-50 leading-snug">
               <span className="text-white-40">Will export as:</span>{' '}

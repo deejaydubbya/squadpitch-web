@@ -183,6 +183,48 @@ export interface AdExportResult {
   // was a pure preview. The frontend asks for one or the other
   // explicitly; we don't infer from the button label.
   mode?: 'preview' | 'download';
+  // Ads-04 — server returns the resolved exporter descriptor so
+  // the UI can render an honest "what is this file" hint
+  // (Google Editor CSV vs Meta launch sheet etc.).
+  format?: string;
+  label?: string;
+  extension?: string;
+  platform?: string;
+  isDirectImport?: boolean;
+  // Ads-05 — null when the exporter isn't tied to a specific
+  // platform import path (e.g. squadads_json, agency_markdown).
+  importStyle?: string | null;
+  platformNotes?: string;
+  // Ads-06 — true for renderers that need the user to download a
+  // platform-specific template first (TikTok bulk edit).
+  requiresPlatformTemplateReview?: boolean;
+  // Ads-05 — machine-readable per-field warnings (e.g. Google CSV
+  // truncates a headline > 30 chars).
+  warnings?: AdExportWarning[];
+}
+
+export interface AdExportWarning {
+  code: string;
+  field: string;
+  limit?: number;
+  variantIndex?: number | null;
+  message: string;
+}
+
+// Ads-09 — descriptor metadata for the export-formats catalog.
+// Matches the shape returned by GET /workspaces/:id/ads/export-formats
+// (exporters/index.js listExporters() on the API).
+export interface ExportFormatDescriptor {
+  format: string;
+  aliases: string[];
+  label: string;
+  mimeType: string;
+  extension: string;
+  platform: string;
+  isDirectImport: boolean;
+  importStyle: string | null;
+  requiresPlatformTemplateReview: boolean;
+  notes: string;
 }
 
 // ── Query keys ───────────────────────────────────────────────────────────
@@ -194,6 +236,11 @@ export const adsKeys = {
   detail: (clientId: string, packageId: string) =>
     [...adsKeys.all, 'detail', clientId, packageId] as const,
   stats: (clientId: string) => [...adsKeys.all, 'stats', clientId] as const,
+  // Ads-09 — format catalog is workspace-independent on the server
+  // but we still key by clientId so the React Query devtools group
+  // it next to the rest of the ads surface.
+  exportFormats: (clientId: string) =>
+    [...adsKeys.all, 'export-formats', clientId] as const,
 };
 
 const base = (clientId: string) => `workspaces/${clientId}/ads`;
@@ -454,7 +501,11 @@ export function useUpdateDestination(clientId: string, packageId: string) {
 }
 
 export interface ExportInput {
-  format?: 'json' | 'markdown';
+  // Ads-04+ — any format slug from useExportFormats() (e.g.
+  // 'squadads_json', 'meta_launch_sheet', 'google_ads_editor_csv').
+  // Server validates against the registry's enum; unknown values
+  // are rejected with invalid_enum_value before the renderer runs.
+  format?: string;
   // Ads-03 — explicit. Defaults to 'preview' on the server too,
   // so callers that previously sent only { format } are now safe:
   // a button labelled "Preview" no longer marks a package as
@@ -481,5 +532,20 @@ export function useExportAdPackage(clientId: string, packageId: string) {
         qc.invalidateQueries({ queryKey: adsKeys.stats(clientId) });
       }
     },
+  });
+}
+
+// Ads-09 — exporter catalog. The list is static for the lifetime of
+// the deployed API, so we cache it indefinitely once fetched.
+export function useExportFormats(clientId: string | undefined) {
+  return useQuery({
+    queryKey: adsKeys.exportFormats(clientId ?? ''),
+    queryFn: () =>
+      apiFetch<{ formats: ExportFormatDescriptor[] }>(
+        `${base(clientId!)}/export-formats`,
+      ),
+    enabled: Boolean(clientId),
+    select: (data) => data.formats,
+    staleTime: 60 * 60 * 1000, // 1 hour — descriptor catalog rarely changes
   });
 }
