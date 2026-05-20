@@ -44,6 +44,7 @@ import { PlanBadge } from '@/components/billing/PlanBadge';
 import { UsageMeter } from '@/components/billing/UsageMeter';
 import { trackActivationEvent } from '@/lib/activationTracking';
 import type { NextActionItem } from '@/components/studio/OpportunitiesSection';
+import { buildCampaignRouteFromInput } from '@/lib/assistant/urlDetect';
 
 export default function OverviewPage() {
   const params = useParams<{ clientId: string }>();
@@ -620,17 +621,13 @@ function CampaignInput({ base }: { base: string }) {
   const [campaignInput, setCampaignInput] = useState('');
 
   const handleSubmit = () => {
-    const trimmed = campaignInput.trim();
-    if (!trimmed) return;
-    // The assistant can interpret raw URLs (listing import) directly
-    // from the `prompt` param, so we don't need to detect URLs here —
-    // we always pass the input as `prompt` and let the assistant pick
-    // the right source. `sourceType=idea` is the safe default; if the
-    // input is a URL the assistant's input parser will re-route it
-    // into the property-import path on the next step.
-    router.push(
-      `${base}/create?intent=campaign&sourceType=idea&prompt=${encodeURIComponent(trimmed)}`,
-    );
+    // URL-03 — let buildCampaignRouteFromInput decide between the
+    // URL-intake flow and the idea flow. Pasted URLs land in the
+    // assistant's URL card with the URL already prefilled; plain
+    // text continues to land in the idea flow as before.
+    const target = buildCampaignRouteFromInput(base, campaignInput);
+    if (!target) return;
+    router.push(target);
   };
 
   return (
@@ -644,7 +641,7 @@ function CampaignInput({ base }: { base: string }) {
             handleSubmit();
           }
         }}
-        placeholder="Describe what you want to create, paste a listing URL, or mention a saved content asset…"
+        placeholder="Paste a listing URL or describe the campaign you want to create…"
         className="flex-1 px-4 py-3 rounded-xl bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
       />
       <button

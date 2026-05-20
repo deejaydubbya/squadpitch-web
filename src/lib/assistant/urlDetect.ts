@@ -39,3 +39,28 @@ export function extractFirstUrl(input: string | null | undefined): string | null
   if (/^www\./i.test(url)) url = `https://${url}`;
   return url;
 }
+
+// URL-03 — shared route builder for the dashboard quick-input.
+//
+// Decides between the URL-intake flow and the idea flow based on
+// `extractFirstUrl`, then returns the assistant `/create` URL
+// ready for `router.push`. Pure function so the dashboard
+// CampaignInput can stay thin and the routing logic is testable
+// without a router or React.
+//
+// `base` is the workspace-scoped prefix (e.g.
+// `/workspaces/cm123…`). The caller never has to remember which
+// query keys to use — and the FE can change source-type slugs
+// later without touching every entry point.
+export function buildCampaignRouteFromInput(
+  base: string,
+  rawInput: string,
+): string | null {
+  const trimmed = rawInput.trim();
+  if (!trimmed) return null;
+  const url = extractFirstUrl(trimmed);
+  if (url) {
+    return `${base}/create?intent=campaign&sourceType=url&sourceUrl=${encodeURIComponent(url)}`;
+  }
+  return `${base}/create?intent=campaign&sourceType=idea&prompt=${encodeURIComponent(trimmed)}`;
+}
