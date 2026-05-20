@@ -211,6 +211,13 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
   const [showAdder, setShowAdder] = useState(false);
   const [showSeo, setShowSeo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sites validation fix — when the API rejects a save with
+  // VALIDATION_ERROR, we stash the per-field issues here so the
+  // editor can render which field (and which block index)
+  // failed. Cleared on every save attempt.
+  const [validationIssues, setValidationIssues] = useState<
+    Array<{ path: Array<string | number>; message: string }>
+  >([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
   // Sites-04 — in-app preview. mode toggles between editor and the
   // mirrored public renderer; viewport chooses the iframe width.
@@ -308,6 +315,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
 
   async function save() {
     setError(null);
+    setValidationIssues([]);
     setSaveStatus('idle');
     try {
       const blocksJson = items.map((it) => it.block);
@@ -325,11 +333,15 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to save');
+      if (err instanceof ApiError && Array.isArray(err.issues)) {
+        setValidationIssues(err.issues);
+      }
     }
   }
 
   async function publish() {
     setError(null);
+    setValidationIssues([]);
     try {
       // Save current edits first, then publish, so the runtime
       // doesn't reveal a stale draft.
@@ -347,6 +359,9 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
       await publishPage.mutateAsync();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to publish');
+      if (err instanceof ApiError && Array.isArray(err.issues)) {
+        setValidationIssues(err.issues);
+      }
     }
   }
 
@@ -474,8 +489,24 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
         </div>
 
         {error && (
-          <div className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg px-3 py-2">
-            {error}
+          <div className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg px-3 py-2 space-y-1.5">
+            <p>{error}</p>
+            {/* Sites validation fix: surface zod issue paths inline so
+                a save failure tells the user WHICH field (and for
+                blocksJson, WHICH block) needs fixing instead of just
+                "Validation failed". Reads ApiError.issues forwarded
+                by apiFetch.ts. */}
+            {validationIssues.length > 0 && (
+              <ul className="list-disc list-inside text-xs text-accent-red/90 space-y-0.5 pl-1">
+                {validationIssues.map((iss, i) => (
+                  <li key={`${formatIssuePath(iss.path)}-${i}`}>
+                    <code className="text-accent-red">{formatIssuePath(iss.path)}</code>
+                    {' — '}
+                    {iss.message}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -1834,4 +1865,22 @@ function PropertySourcePanel({
       </Link>
     </div>
   );
+}
+
+// Format a Zod issue path tuple like ['blocksJson', 5, 'imageUrls']
+// into a humane string ('blocksJson[5].imageUrls') so the editor
+// can show where the validation failed without dumping the raw
+// JSON path array.
+function formatIssuePath(path: Array<string | number>): string {
+  if (!Array.isArray(path) || path.length === 0) return '(unknown field)';
+  let out = String(path[0]);
+  for (let i = 1; i < path.length; i++) {
+    const seg = path[i];
+    if (typeof seg === 'number') {
+      out += `[${seg}]`;
+    } else {
+      out += `.${seg}`;
+    }
+  }
+  return out;
 }

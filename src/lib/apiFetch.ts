@@ -5,6 +5,18 @@ export interface CopyComplianceFinding {
   reason?: string;
 }
 
+// Standard Zod issue shape forwarded by the API's validationError()
+// helper. `path` is a tuple — e.g. ['blocksJson', 5, 'imageUrls']
+// for "the 6th block's imageUrls array failed". The FE renders
+// this as "blocksJson[5].imageUrls" so the user knows WHERE the
+// problem is, not just THAT something failed.
+export interface ValidationIssue {
+  code: string;
+  message: string;
+  path: Array<string | number>;
+  [k: string]: unknown;
+}
+
 export class ApiError extends Error {
   code: string;
   status: number;
@@ -15,12 +27,23 @@ export class ApiError extends Error {
   // top-level message.
   missing?: string[];
   findings?: CopyComplianceFinding[];
+  // Standard VALIDATION_ERROR shape (zodToFieldErrors + raw
+  // issues). Used by surfaces like the Sites page editor + Ads
+  // package editor to render which field broke, not just the
+  // generic "Validation failed" headline.
+  fieldErrors?: Record<string, string>;
+  issues?: ValidationIssue[];
 
   constructor(
     message: string,
     status: number,
     code: string,
-    extras: { missing?: string[]; findings?: CopyComplianceFinding[] } = {},
+    extras: {
+      missing?: string[];
+      findings?: CopyComplianceFinding[];
+      fieldErrors?: Record<string, string>;
+      issues?: ValidationIssue[];
+    } = {},
   ) {
     super(message);
     this.name = 'ApiError';
@@ -28,6 +51,8 @@ export class ApiError extends Error {
     this.code = code;
     if (extras.missing) this.missing = extras.missing;
     if (extras.findings) this.findings = extras.findings;
+    if (extras.fieldErrors) this.fieldErrors = extras.fieldErrors;
+    if (extras.issues) this.issues = extras.issues;
   }
 }
 
@@ -52,9 +77,18 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     // Ads-09 — forward checklist-style fields (READY validator's
     // missing[] and copy linter's findings[]) so callers can
     // render an actionable fix-list, not just the headline.
-    const extras: { missing?: string[]; findings?: CopyComplianceFinding[] } = {};
+    const extras: {
+      missing?: string[];
+      findings?: CopyComplianceFinding[];
+      fieldErrors?: Record<string, string>;
+      issues?: ValidationIssue[];
+    } = {};
     if (Array.isArray(body?.missing)) extras.missing = body.missing;
     if (Array.isArray(body?.findings)) extras.findings = body.findings;
+    if (body?.fieldErrors && typeof body.fieldErrors === 'object') {
+      extras.fieldErrors = body.fieldErrors as Record<string, string>;
+    }
+    if (Array.isArray(body?.issues)) extras.issues = body.issues as ValidationIssue[];
 
     // Session expired: the proxy couldn't produce a fresh access token
     // (refresh token missing, revoked, or Auth0 refresh failed). Send
