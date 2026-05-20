@@ -79,6 +79,13 @@ export default function AdsDetailPage() {
   // future tabs (JSON tree view, etc.) can read it without a
   // second round-trip.
   const [exportResult, setExportResult] = useState<AdExportResult | null>(null);
+  // Ads-09 — which format the user is currently previewing or
+  // downloading, so the ExportPanel can show a busy state on the
+  // right card. MUST live above the early-return guards below —
+  // React tracks hooks by call order, so a useState declared
+  // after a conditional return crashes on the second render with
+  // "Rendered more hooks than during the previous render."
+  const [exportingFormat, setExportingFormat] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -126,8 +133,8 @@ export default function AdsDetailPage() {
   //
   // Ads-09 — `format` is now any registered exporter slug; the FE
   // doesn't enumerate them itself, the ExportPanel pulls the
-  // catalog from /export-formats.
-  const [exportingFormat, setExportingFormat] = useState<string | null>(null);
+  // catalog from /export-formats. exportingFormat state lives
+  // above the early-return guards (hook order).
   const handlePreview = async (format: string) => {
     setExportingFormat(format);
     try {
