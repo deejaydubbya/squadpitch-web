@@ -32,6 +32,10 @@ export const INITIAL_SESSION: AssistantSessionState = {
 
   campaignIdea: null,
 
+  // URL-02
+  campaignSourceUrl: null,
+  campaignUrlAnalyzeResult: null,
+
   campaignType: null,
   channels: [],
   scheduleMode: 'ai_proposed',
@@ -152,13 +156,18 @@ export const GENERIC_DEFAULT_CHANNELS: Record<string, Channel[]> = {
 
 export function getCampaignTypeOptions(
   industryKey: string = 'real_estate',
-  sourceType: 'property' | 'data_item' | 'idea' | null = 'property',
+  // URL-02: 'url' is accepted but produces no options — the URL
+  // card is mid-flow at this point and the next state transition
+  // (SET_PROPERTY) will flip the source to 'property' before the
+  // campaign-type card needs real data.
+  sourceType: 'property' | 'data_item' | 'idea' | 'url' | null = 'property',
 ): CampaignTypeOption[] {
   // Property source → adapter's industry-specific types (just_listed
   // etc. for real estate). Anything else → generic cross-industry list.
   if (sourceType === 'property') {
     return getAdapter(industryKey).campaignTypes;
   }
+  if (sourceType === 'url') return [];
   return GENERIC_CAMPAIGN_TYPE_OPTIONS;
 }
 

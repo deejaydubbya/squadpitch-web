@@ -100,6 +100,29 @@ const CAMPAIGN_FIELDS: FieldDef[] = [
     isComplete: (s) => s.campaignIdea !== null && s.campaignIdea.trim().length > 0,
     isRelevant: (s) => s.campaignSourceType === 'idea',
   },
+  // URL-02 — URL source card. Stays active until the user
+  // confirms a listing (at which point the URL card dispatches
+  // SET_PROPERTY, which flips campaignSourceType to 'property'
+  // and this entry becomes irrelevant).
+  {
+    field: 'campaignSourceUrl',
+    cardType: 'campaign_url_source',
+    priority: 10,
+    label: 'URL',
+    displayValue: (s) => {
+      if (!s.campaignSourceUrl) return null;
+      return s.campaignSourceUrl.length > 60
+        ? s.campaignSourceUrl.slice(0, 60) + '…'
+        : s.campaignSourceUrl;
+    },
+    // "Complete" means a listing has been picked AND saved — at
+    // that point selectedPropertyId is set. While we're still in
+    // the URL flow (URL set, no property yet), the card stays
+    // active.
+    isComplete: (s) =>
+      s.campaignSourceUrl !== null && s.selectedPropertyId !== null,
+    isRelevant: (s) => s.campaignSourceType === 'url',
+  },
   {
     field: 'campaignType',
     cardType: 'campaign_type',

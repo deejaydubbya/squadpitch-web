@@ -64,7 +64,38 @@ export type AssistantCampaignType = PropertyCampaignType | GenericCampaignType;
 
 // What is this campaign / single post based on? Decides which picker
 // the assistant shows next and which campaign-type options appear.
-export type CampaignSourceType = 'property' | 'data_item' | 'idea';
+// URL-02: 'url' added so the assistant can show the URL-intake card
+// before falling through to the existing property flow (once the
+// URL resolves to a saved WorkspaceDataItem, the source effectively
+// becomes 'property' and the existing pickers + state-resolver
+// gates take over).
+export type CampaignSourceType = 'property' | 'data_item' | 'idea' | 'url';
+
+// URL-02 — shape returned by POST /campaign-intake/url/analyze.
+// Mirrors the backend service's analyzeUrl() response. Stored on
+// the session so the URL card can re-render previews without
+// re-hitting the analyze endpoint when the user navigates back.
+export interface CampaignUrlListingPreview {
+  previewId: string;
+  sourceUrl: string;
+  normalized: Record<string, unknown>;
+  validation?: { valid: boolean; issues: string[] } | null;
+  quality?: { grade: string; score: number; extracted?: string[]; missing?: string[]; message?: string } | null;
+}
+
+export interface CampaignUrlAnalyzeResult {
+  url: string;
+  detectedType: 'single_listing' | 'listing_index' | 'business_page' | 'unknown';
+  confidence: number;
+  listings: CampaignUrlListingPreview[];
+  suggestedNextStep:
+    | 'review_listing'
+    | 'choose_listing'
+    | 'use_as_idea'
+    | 'import_business_page';
+  preferredIntent?: 'campaign' | 'single_post' | null;
+  reason?: string;
+}
 
 export type ScheduleMode = 'ai_proposed' | 'manual';
 
@@ -145,6 +176,14 @@ export interface AssistantSessionState {
   // Idea source — user describes the campaign in their own words
   campaignIdea: string | null;
 
+  // URL-02: URL source — user pasted a listing or page-of-listings
+  // URL. campaignSourceUrl is the original input; the analyze
+  // result drives the UrlSourceCard. Once the user confirms a
+  // listing, the existing SET_PROPERTY action fires so the rest of
+  // the campaign flow uses the property path unchanged.
+  campaignSourceUrl: string | null;
+  campaignUrlAnalyzeResult: CampaignUrlAnalyzeResult | null;
+
   // Campaign config
   campaignType: AssistantCampaignType | null;
   channels: Channel[];
@@ -208,6 +247,11 @@ export type AssistantAction =
       payload: { id: string; title: string; itemType: string; data: Record<string, unknown> } | null;
     }
   | { type: 'SET_CAMPAIGN_IDEA'; payload: string | null }
+  // URL-02 — URL source actions. Used by the URL card before it
+  // dispatches the standard SET_PROPERTY action to hand off to
+  // the existing property flow.
+  | { type: 'SET_CAMPAIGN_SOURCE_URL'; payload: string | null }
+  | { type: 'SET_CAMPAIGN_URL_ANALYZE_RESULT'; payload: CampaignUrlAnalyzeResult | null }
   | { type: 'SET_CAMPAIGN_TYPE'; payload: AssistantCampaignType }
   | { type: 'SET_CHANNELS'; payload: Channel[]; source?: 'user' | 'auto' }
   | { type: 'SET_SCHEDULE_MODE'; payload: ScheduleMode }

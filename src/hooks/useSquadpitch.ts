@@ -4864,6 +4864,52 @@ export function useListingUrlConfirm(clientId: string) {
   });
 }
 
+// URL-02 — campaign URL intake.
+// Wraps the new /campaign-intake/url/{analyze,confirm} endpoints.
+// Analyze is non-mutating (no DB writes); confirm persists the
+// selected listing as a WorkspaceDataItem and is the one that
+// invalidates the data-items query.
+
+import type { CampaignUrlAnalyzeResult } from '@/lib/assistant/types';
+
+export interface CampaignUrlConfirmResponse {
+  dataItemId: string;
+  created: boolean;
+  existingId: string | null;
+  propertyData: {
+    id: string;
+    title: string | null;
+    summary: string | null;
+    tags: string[];
+    dataJson: Record<string, unknown> | null;
+  } | null;
+  createUrl: string;
+}
+
+export function useCampaignUrlAnalyze(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { url: string; preferredIntent?: 'campaign' | 'single_post' }) =>
+      apiFetch<CampaignUrlAnalyzeResult>(
+        `workspaces/${clientId}/campaign-intake/url/analyze`,
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+  });
+}
+
+export function useCampaignUrlConfirm(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { url?: string; selectedListing: Record<string, unknown> }) =>
+      apiFetch<CampaignUrlConfirmResponse>(
+        `workspaces/${clientId}/campaign-intake/url/confirm`,
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
 // ── Property Data Lookup ────────────────────────────────────────────────
 
 export interface PropertyLookupResult {

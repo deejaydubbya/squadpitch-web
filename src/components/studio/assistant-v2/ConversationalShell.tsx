@@ -24,9 +24,14 @@ import { getDefaultCampaignTypeForSource } from '@/lib/assistant/contentPreferen
 // applies synchronously on mount.
 export interface AssistantPrefill {
   mode?: 'campaign' | 'quick_post';
-  sourceType?: 'property' | 'data_item' | 'idea';
+  // URL-02: 'url' added so deep links like
+  // /create?intent=campaign&sourceType=url&sourceUrl=https://…
+  // open the assistant straight into the URL-intake card.
+  sourceType?: 'property' | 'data_item' | 'idea' | 'url';
   /** WorkspaceDataItem id when sourceType=property or data_item */
   sourceId?: string;
+  /** URL-02: the URL to analyze when sourceType=url. */
+  sourceUrl?: string;
   /** Freeform idea text — set as campaignIdea (campaign) or quickPostGuidance (single post) */
   prompt?: string;
   campaignType?: string;
@@ -121,6 +126,19 @@ export function ConversationalShell({
       // avoids needing an extra round-trip through the picker.
       if (prefill.sourceType === 'idea' && prefill.prompt && prefill.prompt.trim()) {
         actions.push({ type: 'SET_CAMPAIGN_IDEA', payload: prefill.prompt.trim() });
+      }
+      // URL-02 — sourceType=url + sourceUrl. The URL card
+      // auto-fires analyze on mount when campaignSourceUrl is set,
+      // so we don't need to kick anything else off here.
+      if (
+        prefill.sourceType === 'url' &&
+        prefill.sourceUrl &&
+        prefill.sourceUrl.trim()
+      ) {
+        actions.push({
+          type: 'SET_CAMPAIGN_SOURCE_URL',
+          payload: prefill.sourceUrl.trim(),
+        });
       }
     } else if (prefill.mode === 'quick_post') {
       // For single post, the assistant's source enum is 'data' | 'idea'
@@ -521,5 +539,6 @@ function describePrefillForConfirmation(p: AssistantPrefill): string {
   if (p.sourceType === 'property') parts.push('Source: Property / Listing');
   if (p.sourceType === 'data_item') parts.push('Source: Content Asset');
   if (p.sourceType === 'idea') parts.push('Source: Idea');
+  if (p.sourceType === 'url') parts.push('Source: URL');
   return parts.join(' | ') || 'Prefilled from link';
 }

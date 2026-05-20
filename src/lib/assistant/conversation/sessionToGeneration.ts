@@ -1,4 +1,12 @@
 import type { AssistantSessionState, CampaignSourceType } from '../types';
+// URL-02: the generator only sees the 3 narrow source types. A
+// session with campaignSourceType === 'url' is still mid-flow
+// (the URL card hasn't dispatched SET_PROPERTY yet), so
+// mapSessionToCampaignInput returns null and the assistant stays
+// on the URL card. Once the user confirms a listing, SET_PROPERTY
+// flips campaignSourceType to 'property' and we land in the
+// existing branch unchanged.
+type GeneratableSourceType = Exclude<CampaignSourceType, 'url'>;
 import type { CampaignType, DraftKind, Channel, CampaignImageContext } from '@/hooks/useSquadpitch';
 import { CAMPAIGN_PHASES } from '../campaignStrategy';
 import type { CampaignPhaseKey } from '../campaignStrategy.types';
@@ -22,9 +30,11 @@ export interface CampaignGenerationInput {
   /**
    * What kind of source this campaign is built from. Backend prompts
    * differ for property (listing-aware framing) vs data_item/idea
-   * (generic content campaign framing).
+   * (generic content campaign framing). 'url' is not generatable —
+   * it resolves to 'property' via SET_PROPERTY before generation
+   * is reachable.
    */
-  sourceType?: CampaignSourceType;
+  sourceType?: GeneratableSourceType;
   campaignType?: CampaignType;
   dataItemId?: string;
   slots: Array<{
@@ -71,7 +81,14 @@ export function mapSessionToCampaignInput(
   // Resolve the source-derived context object that we send to the
   // backend as `propertyData`. Default to property for legacy
   // sessions that haven't picked a source type yet.
-  const sourceType: CampaignSourceType = session.campaignSourceType ?? 'property';
+  // URL-02: a 'url' source means the URL card is mid-flow — block
+  // generation until SET_PROPERTY backfills the source to
+  // 'property'. The state resolver also keeps the URL card active
+  // until a listing is confirmed, so this should be unreachable
+  // in normal flow.
+  const rawSourceType: CampaignSourceType = session.campaignSourceType ?? 'property';
+  if (rawSourceType === 'url') return null;
+  const sourceType: GeneratableSourceType = rawSourceType;
   let sourceData: Record<string, unknown> | null = null;
   let dataItemId: string | undefined;
 

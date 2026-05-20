@@ -3,6 +3,7 @@ import type { Channel, DraftKind } from '@/hooks/useSquadpitch';
 import type { ParseResult } from './types';
 import { getAdapterSafe } from '../adapterRegistry';
 import { resolveNextPrompts } from './stateResolver';
+import { extractFirstUrl } from '../urlDetect';
 
 // ── Pattern Matchers ─────────────────────────────────────────────────────
 
@@ -206,13 +207,47 @@ export function parseUserInput(
 
   const effectiveMode = session.mode ?? inferredModeFromActions(actions);
 
+  // ── URL-02: Detect pasted URL FIRST ─────────────────────────────
+  //
+  // A pasted URL should never become a generic idea — that was the
+  // pre-URL-02 behavior and it produced bad campaigns (the LLM
+  // tried to riff on the URL text instead of extracting property
+  // data). Detect URLs before any other source-type / idea
+  // pattern so the URL flow takes priority. Runs in campaign mode
+  // only (single-post + URL is out of scope for URL-02; future
+  // work can extend this).
+  if (
+    effectiveMode === 'campaign' &&
+    (!session.campaignSourceType ||
+      session.campaignSourceType === 'idea' ||
+      isRevision)
+  ) {
+    const url = extractFirstUrl(text);
+    if (url) {
+      actions.push({ type: 'SET_CAMPAIGN_SOURCE_TYPE', payload: 'url' });
+      actions.push({ type: 'SET_CAMPAIGN_SOURCE_URL', payload: url });
+      detectedFields.push(`source: Listing URL`);
+      confidence['campaignSourceType'] = 0.95;
+      confidence['campaignSourceUrl'] = 0.95;
+    }
+  }
+
   // ── Detect campaign source type ──
   //
   // Runs only in campaign mode. Without this block, command-bar
   // chips ("use a property", "use a content asset", "from an idea")
   // and typed equivalents would fall through to the unknown-input
   // fallback even though the UI surfaced them as valid options.
-  if (effectiveMode === 'campaign' && (!session.campaignSourceType || isRevision)) {
+  // URL detection above wins when a URL is present; the source-
+  // type pattern check is skipped in that case.
+  const urlAlreadyDetected = actions.some(
+    (a) => a.type === 'SET_CAMPAIGN_SOURCE_TYPE' && a.payload === 'url',
+  );
+  if (
+    effectiveMode === 'campaign' &&
+    !urlAlreadyDetected &&
+    (!session.campaignSourceType || isRevision)
+  ) {
     for (const { pattern, source, confidence: conf } of CAMPAIGN_SOURCE_PATTERNS) {
       if (pattern.test(text)) {
         actions.push({ type: 'SET_CAMPAIGN_SOURCE_TYPE', payload: source });

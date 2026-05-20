@@ -1,3 +1,5 @@
+import { extractFirstUrl, looksLikeUrl } from './urlDetect';
+
 // Standardized query-param parser for /create.
 //
 // The Create route is the central entry point for the assistant
@@ -14,9 +16,11 @@
 //   /create?intent=campaign&sourceType=property&sourceId=...
 //   /create?intent=campaign&sourceType=content_asset&sourceId=...
 //   /create?intent=campaign&sourceType=idea&prompt=...
+//   /create?intent=campaign&sourceType=url&sourceUrl=...   [URL-02]
 //   /create?intent=single_post&sourceType=property&sourceId=...
 //   /create?intent=single_post&sourceType=content_asset&sourceId=...
 //   /create?intent=single_post&sourceType=idea&prompt=...
+//   /create?intent=single_post&sourceType=url&sourceUrl=... [URL-02]
 //
 // Optional add-ons (any intent): campaignType, channel, guidance,
 // templateType.
@@ -31,12 +35,17 @@
 //   input=<text>           → prompt=<text>
 
 export type CreateIntent = 'campaign' | 'single_post';
-export type CreateSourceType = 'property' | 'content_asset' | 'idea';
+// URL-02: 'url' added as a first-class source type so users can
+// paste a listing URL or page-of-listings URL into Create and have
+// the assistant analyze it before turning it into a property.
+export type CreateSourceType = 'property' | 'content_asset' | 'idea' | 'url';
 
 export interface CreateRouteParams {
   intent?: CreateIntent;
   sourceType?: CreateSourceType;
   sourceId?: string;
+  /** URL-02: present when sourceType === 'url'. */
+  sourceUrl?: string;
   campaignType?: string;
   prompt?: string;
   channel?: string;
@@ -76,6 +85,8 @@ function normalizeSourceType(raw: string | undefined): CreateSourceType | undefi
     return 'content_asset';
   }
   if (v === 'idea' || v === 'prompt') return 'idea';
+  // URL-02
+  if (v === 'url' || v === 'link') return 'url';
   return undefined;
 }
 
@@ -112,10 +123,11 @@ export function parseCreateRouteParams(
 
   const newSourceType = normalizeSourceType(readParam(searchParams, 'sourceType'));
   const newSourceId = readParam(searchParams, 'sourceId');
+  const newSourceUrl = readParam(searchParams, 'sourceUrl');
   const legacyListingId = readParam(searchParams, 'listingId');
   // listingId implies property source. Only used when no
   // canonical sourceType/sourceId was provided.
-  const sourceType =
+  let sourceType: CreateSourceType | undefined =
     newSourceType ?? (legacyListingId ? ('property' as const) : undefined);
   const sourceId = newSourceId ?? legacyListingId;
 
@@ -123,6 +135,28 @@ export function parseCreateRouteParams(
     readParam(searchParams, 'campaignType') ?? readParam(searchParams, 'type');
 
   const prompt = readParam(searchParams, 'prompt') ?? readParam(searchParams, 'input');
+
+  // URL-02: an old deep link like `sourceType=idea&prompt=https://…`
+  // should route through the new URL intake flow instead of
+  // creating a generic idea-based campaign. We normalize here so
+  // every caller (dashboard, CRM, planner) keeps working without
+  // updating the URL builder on their side.
+  //
+  // Three cases all resolve to sourceType=url:
+  //   1. Explicit sourceType=url (with or without sourceUrl).
+  //   2. sourceType=idea where the prompt is obviously a URL.
+  //   3. No sourceType at all, but a sourceUrl was supplied.
+  let sourceUrl: string | undefined = newSourceUrl;
+  if (sourceType === 'idea' && looksLikeUrl(prompt)) {
+    sourceType = 'url';
+    sourceUrl = extractFirstUrl(prompt) ?? prompt;
+  } else if (!sourceType && sourceUrl) {
+    sourceType = 'url';
+  } else if (sourceType === 'url' && !sourceUrl && looksLikeUrl(prompt)) {
+    // sourceType=url with the URL provided via `prompt` (rare,
+    // but lets callers reuse the same param name across flows).
+    sourceUrl = extractFirstUrl(prompt) ?? prompt;
+  }
 
   const channel = readParam(searchParams, 'channel');
   const guidance = readParam(searchParams, 'guidance');
@@ -140,6 +174,7 @@ export function parseCreateRouteParams(
     intent,
     sourceType,
     sourceId,
+    sourceUrl,
     campaignType,
     prompt,
     channel,
@@ -157,7 +192,9 @@ export function parseCreateRouteParams(
 // changes.
 
 export type AssistantMode = 'campaign' | 'quick_post';
-export type AssistantCampaignSourceType = 'property' | 'data_item' | 'idea';
+// URL-02: 'url' added so the assistant can show the URL-intake
+// card before falling through to the existing property flow.
+export type AssistantCampaignSourceType = 'property' | 'data_item' | 'idea' | 'url';
 
 export function intentToAssistantMode(
   intent: CreateIntent | undefined,
@@ -173,5 +210,6 @@ export function sourceTypeToAssistantSource(
   if (sourceType === 'property') return 'property';
   if (sourceType === 'content_asset') return 'data_item';
   if (sourceType === 'idea') return 'idea';
+  if (sourceType === 'url') return 'url';
   return undefined;
 }

@@ -9,6 +9,7 @@ import { CampaignTypeCard } from './cards/CampaignTypeCard';
 import { CampaignSourceCard } from './cards/CampaignSourceCard';
 import { CampaignDataItemCard } from './cards/CampaignDataItemCard';
 import { CampaignIdeaCard } from './cards/CampaignIdeaCard';
+import { CampaignUrlSourceCard } from './cards/CampaignUrlSourceCard';
 import { PropertySelectCard } from './cards/PropertySelectCard';
 import { ChannelSelectCard } from './cards/ChannelSelectCard';
 import { MediaSelectCard } from './cards/MediaSelectCard';
@@ -165,6 +166,14 @@ function CardRenderer({
       return <CampaignDataItemCard session={session} clientId={clientId} onSelection={onSelection} />;
     case 'campaign_idea':
       return <CampaignIdeaCard session={session} onSelection={onSelection} />;
+    case 'campaign_url_source':
+      return (
+        <CampaignUrlSourceCard
+          session={session}
+          clientId={clientId}
+          onSelection={onSelection}
+        />
+      );
     case 'channel_select':
       return <ChannelSelectCard session={session} clientId={clientId} onSelection={onSelection} />;
     case 'media_select':
