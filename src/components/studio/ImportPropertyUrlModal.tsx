@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Loader2, Link as LinkIcon, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { X, Loader2, Link as LinkIcon, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
 import {
   useListingUrlImport,
   useListingUrlConfirm,
@@ -70,6 +71,7 @@ function listingToFields(listing: CanonicalListing): ReviewFields {
 }
 
 export function ImportPropertyUrlModal({ clientId, onClose }: Props) {
+  const router = useRouter();
   const analyze = useListingUrlImport(clientId);
   const confirm = useListingUrlConfirm(clientId);
 
@@ -82,6 +84,12 @@ export function ImportPropertyUrlModal({ clientId, onClose }: Props) {
   const [normalized, setNormalized] = useState<CanonicalListing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // URL-04 — after save we capture the resolved dataItemId so the
+  // "Create campaign from this listing" CTA can route directly to
+  // the property campaign flow. Falls back to existingId for the
+  // duplicate path so the CTA always points at the right row.
+  const [savedDataItemId, setSavedDataItemId] = useState<string | null>(null);
+  const [savedWasDuplicate, setSavedWasDuplicate] = useState(false);
 
   const setField = <K extends keyof ReviewFields>(k: K, v: ReviewFields[K]) =>
     setFields((prev) => (prev ? { ...prev, [k]: v } : prev));
@@ -140,19 +148,45 @@ export function ImportPropertyUrlModal({ clientId, onClose }: Props) {
     };
     try {
       const result = await confirm.mutateAsync(payload as unknown as Record<string, unknown>);
-      if (!result.created && result.existingId) {
+      // URL-04 — normalize the dataItemId resolution across the
+      // new / duplicate shapes. listing.id is the canonical id of
+      // the saved row in both cases; existingId is the dedupe
+      // hit's id (matches listing.id for the duplicate path per
+      // listingIngestion.service.js but kept here for clarity).
+      const dataItemId =
+        result.listing?.id ?? result.existingId ?? null;
+      setSavedDataItemId(dataItemId);
+      const isDuplicate = !result.created && Boolean(result.existingId);
+      setSavedWasDuplicate(isDuplicate);
+      if (isDuplicate) {
+        // URL-04 — friendlier wording that points the user at the
+        // next action (start a campaign) instead of just narrating
+        // what happened.
         setInfo(
-          'A property at this address (or MLS / URL) already existed. Autopilot merged your edits into the existing record.',
+          'This listing already exists. We updated it and you can create a campaign from the saved listing.',
         );
       } else {
         setInfo('Property added to your library.');
       }
       setStage('done');
-      setTimeout(() => onClose(), 1600);
+      // URL-04 — no auto-close. The "Create campaign from this
+      // listing" CTA needs to be reachable; auto-closing 1.6s
+      // after save robbed the user of the next-step.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the property.');
       setStage('review');
     }
+  };
+
+  // URL-04 — route to the property campaign flow using the saved
+  // dataItemId. Mirrors the deep-link shape every other entry
+  // point uses (Planner, Dashboard, CRM, URL-01 confirm response).
+  const handleCreateCampaign = () => {
+    if (!savedDataItemId) return;
+    onClose();
+    router.push(
+      `/workspaces/${clientId}/create?intent=campaign&sourceType=property&sourceId=${encodeURIComponent(savedDataItemId)}`,
+    );
   };
 
   const pending = analyze.isPending || confirm.isPending;
@@ -273,9 +307,29 @@ export function ImportPropertyUrlModal({ clientId, onClose }: Props) {
           )}
 
           {stage === 'done' && (
-            <div className="text-center py-10">
-              <CheckCircle2 className="w-10 h-10 text-accent-green-110 mx-auto mb-2" />
+            <div className="text-center py-8 space-y-4">
+              <CheckCircle2 className="w-10 h-10 text-accent-green-110 mx-auto" />
               <p className="text-sm text-white-80">{info ?? 'Saved.'}</p>
+              {savedDataItemId && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleCreateCampaign}
+                    className={cn(
+                      'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold',
+                      'bg-accent-green-110 text-black hover:bg-accent-green-110/90 transition-colors',
+                    )}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Create campaign from this listing
+                  </button>
+                  <p className="text-[11px] text-white-40">
+                    {savedWasDuplicate
+                      ? 'Routes you to the existing listing in the campaign flow.'
+                      : 'Routes you straight into the Create assistant with this property selected.'}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -328,6 +382,15 @@ export function ImportPropertyUrlModal({ clientId, onClose }: Props) {
                 Save property
               </button>
             </>
+          )}
+          {stage === 'done' && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2 rounded-lg text-sm text-white-60 hover:bg-white-10 transition-colors"
+            >
+              Done
+            </button>
           )}
         </footer>
       </div>
