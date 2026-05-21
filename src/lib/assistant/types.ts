@@ -83,11 +83,41 @@ export interface CampaignUrlListingPreview {
   quality?: { grade: string; score: number; extracted?: string[]; missing?: string[]; message?: string } | null;
 }
 
+// industry-04 — neutral generic-page preview shape returned by
+// the API's generic URL analyzer (modules/generic/urlExtraction.js).
+// Used when the workspace's industryKey isn't `real_estate` —
+// the URL card renders this instead of the listing previews.
+// Critically: NO property / listing / MLS / beds / baths fields.
+export interface CampaignUrlGenericPreview {
+  kind: 'generic_url';
+  url: string;
+  title: string | null;
+  description: string | null;
+  siteName: string | null;
+  ogImage: string | null;
+  images: string[];
+  bodySummary: string | null;
+  links: string[];
+  detectedBusinessName: string | null;
+  confidence: number;
+  warnings: string[];
+}
+
 export interface CampaignUrlAnalyzeResult {
   url: string;
-  detectedType: 'single_listing' | 'listing_index' | 'business_page' | 'unknown';
+  // industry-04 — 'generic_page' is the new non-real-estate
+  // detection; the previous 'unsupported_industry' string is gone
+  // (the generic analyzer now actually returns something useful).
+  detectedType:
+    | 'single_listing'
+    | 'listing_index'
+    | 'business_page'
+    | 'generic_page'
+    | 'unknown';
   confidence: number;
   listings: CampaignUrlListingPreview[];
+  // industry-04 — present when detectedType === 'generic_page'.
+  genericPreview?: CampaignUrlGenericPreview | null;
   suggestedNextStep:
     | 'review_listing'
     | 'choose_listing'

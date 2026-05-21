@@ -128,22 +128,43 @@ export function CampaignUrlSourceCard({ session, clientId, onSelection }: Props)
   };
 
   // ── INPUT (no URL on session yet) ────────────────────────────
+  // industry-04 — copy + placeholder branch on industryKey so
+  // non-real-estate workspaces never see Zillow / MLS / property
+  // language. The actual extraction routing is decided server-side
+  // (urlCampaignIntake calls real-estate vs generic analyzer
+  // based on the workspace's industryKey), so this is purely
+  // a copy gate.
+  const isRealEstateSession = session.industryKey === 'real_estate';
   if (!session.campaignSourceUrl) {
     return (
       <div className="space-y-2.5">
         <div className="flex items-start gap-2 p-2 rounded-lg bg-blue-400/5 border border-blue-400/20">
           <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
           <p className="text-[11px] text-white-60">
-            Paste a single listing URL <em>or</em> a page of listings
-            (your MLS, Zillow / Redfin / Realtor.com, your own site).
-            Squadpitch extracts the property data — review before saving.
+            {isRealEstateSession ? (
+              <>
+                Paste a single listing URL <em>or</em> a page of listings
+                (your MLS, Zillow / Redfin / Realtor.com, your own site).
+                Squadpitch extracts the property data — review before saving.
+              </>
+            ) : (
+              <>
+                Paste any page URL. Squadpitch will pull the title +
+                description + a short summary so you can use the page as a
+                freeform idea source for your campaign.
+              </>
+            )}
           </p>
         </div>
         <input
           type="url"
           value={urlInput}
           onChange={(e) => setUrlInput(e.target.value)}
-          placeholder="https://www.zillow.com/homedetails/…"
+          placeholder={
+            isRealEstateSession
+              ? 'https://www.zillow.com/homedetails/…'
+              : 'https://example.com/'
+          }
           className="w-full px-2.5 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
         />
         <div className="flex justify-end">
@@ -197,8 +218,101 @@ export function CampaignUrlSourceCard({ session, clientId, onSelection }: Props)
     return null; // brief gap between analyze settling and re-render
   }
 
-  // ── REVIEW / CHOOSE / UNKNOWN ────────────────────────────────
-  const { detectedType, listings, suggestedNextStep } = analyzeResult;
+  // ── REVIEW / CHOOSE / GENERIC / UNKNOWN ──────────────────────
+  const { detectedType, listings, suggestedNextStep, genericPreview } = analyzeResult;
+
+  // industry-04 — non-real-estate workspaces get the neutral
+  // generic preview (title / description / siteName / og image).
+  // Surfaced as a small read-only card with one CTA: "Use as idea"
+  // (which routes the URL into the idea flow). Saving a generic
+  // URL as a data item is a future industry prompt.
+  if (detectedType === 'generic_page' && genericPreview) {
+    return (
+      <div className="space-y-2.5">
+        <div className="flex items-start gap-2 p-2 rounded-lg bg-blue-400/5 border border-blue-400/20">
+          <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1 text-[11px] text-white-60">
+            <p>
+              Squadpitch pulled this page from the URL. Use it as a freeform
+              idea — Squadpitch doesn&apos;t extract structured listings
+              outside real-estate workspaces yet.
+            </p>
+            <p className="text-white-40 mt-0.5 truncate">
+              <code>{analyzeResult.url}</code>
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-white-10 bg-white-5 p-2.5 space-y-1.5">
+          {genericPreview.title && (
+            <p className="text-xs font-semibold text-white-100 truncate">
+              {genericPreview.title}
+            </p>
+          )}
+          {genericPreview.siteName && genericPreview.siteName !== genericPreview.title && (
+            <p className="text-[10px] uppercase tracking-wider text-white-40">
+              {genericPreview.siteName}
+            </p>
+          )}
+          {genericPreview.description && (
+            <p className="text-[11px] text-white-60 leading-snug">
+              {genericPreview.description}
+            </p>
+          )}
+          {!genericPreview.title && !genericPreview.description && genericPreview.bodySummary && (
+            <p className="text-[11px] text-white-60 leading-snug line-clamp-3">
+              {genericPreview.bodySummary}
+            </p>
+          )}
+          {genericPreview.warnings.length > 0 && (
+            <p className="text-[10px] text-amber-300/80">
+              <AlertCircle className="w-2.5 h-2.5 inline-block mr-1 align-text-bottom" />
+              {genericPreview.warnings[0]}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              onSelection(
+                [
+                  { type: 'SET_CAMPAIGN_SOURCE_URL', payload: null },
+                  { type: 'SET_CAMPAIGN_URL_ANALYZE_RESULT', payload: null },
+                ],
+                'Try a different URL',
+              );
+            }}
+            className="text-[11px] text-white-50 hover:text-white-100"
+          >
+            ← Try another URL
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const ideaText =
+                genericPreview.title ||
+                genericPreview.description ||
+                genericPreview.bodySummary ||
+                analyzeResult.url;
+              onSelection(
+                [
+                  { type: 'SET_CAMPAIGN_SOURCE_TYPE', payload: 'idea' },
+                  { type: 'SET_CAMPAIGN_IDEA', payload: ideaText },
+                ],
+                'Use the URL as an idea',
+              );
+            }}
+            className="py-1.5 px-4 rounded-lg bg-accent-green-110 text-sp-surface font-semibold text-xs flex items-center gap-2 hover:bg-accent-green-120 transition-colors"
+          >
+            <ArrowRight className="w-3 h-3" />
+            Use as idea
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (listings.length === 0) {
     return (
