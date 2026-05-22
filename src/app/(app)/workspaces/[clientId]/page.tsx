@@ -75,20 +75,17 @@ export default function OverviewPage() {
   const acceptRec = useAcceptRecommendation(clientId);
   const dismissRec = useDismissRecommendation(clientId);
 
-  if (!client) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-6 h-6 border-2 border-white-20 border-t-accent-green-110 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  // Note: the early-return-on-loading block lives BELOW the
+  // useMemo wall — React's rules-of-hooks forbids hooks called
+  // conditionally, so the early return must come after all
+  // hooks. Each useMemo body is null-safe on its own inputs.
   const base = `/workspaces/${clientId}`;
 
   const enabledChannels = channels?.filter((c) => c.isEnabled) ?? [];
   const connectedCount = connectionStatus.size;
   const disconnectedCount = enabledChannels.filter((c) => !connectionStatus.get(c.channel)).length;
   const summary = recommendations?.summary;
-  const isRE = client.industryKey === 'real_estate';
+  const isRE = client?.industryKey === 'real_estate';
 
   // ── Activation state ────────────────────────────────────────────────
   const activation = deriveActivationState({
@@ -275,6 +272,16 @@ export default function OverviewPage() {
 
     return items.sort((a, b) => a.priority - b.priority).slice(0, 4);
   }, [analytics, summary, connectedCount, recommendations, base]);
+
+  // Loading state — must come AFTER every hook to satisfy
+  // react-hooks/rules-of-hooks.
+  if (!client) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-6 h-6 border-2 border-white-20 border-t-accent-green-110 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const handleRecommendationAction = (rec: DashboardRecommendation) => {
     acceptRec.mutate(rec.id);

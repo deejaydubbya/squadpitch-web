@@ -256,7 +256,7 @@ export function mergeDrafts(drafts: AgentProfileDraft[]): AgentProfileDraft {
     for (const draft of sorted) {
       const val = draft[field];
       if (val && String(val).trim()) {
-        (merged as Record<string, unknown>)[field] = val;
+        (merged as unknown as Record<string, unknown>)[field] = val;
         break;
       }
     }
@@ -275,7 +275,7 @@ export function mergeDrafts(drafts: AgentProfileDraft[]): AgentProfileDraft {
     }
     if (all.length > 0) {
       const seen = new Set<string>();
-      (merged as Record<string, unknown>)[field] = all.filter((v) => {
+      (merged as unknown as Record<string, unknown>)[field] = all.filter((v) => {
         const key = v.toLowerCase().trim();
         if (seen.has(key)) return false;
         seen.add(key);
