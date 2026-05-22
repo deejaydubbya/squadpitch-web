@@ -382,8 +382,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     if (session.heroImageId) {
       const heroAsset = assetMap.get(session.heroImageId);
       if (heroAsset) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ha = heroAsset as any;
+        const ha = heroAsset as unknown as { tags?: string[]; altText?: string };
         pool.push({
           id: session.heroImageId,
           label: heroAsset.filename || session.heroImageId,
@@ -409,8 +408,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       if (id.startsWith('property_img_') || id.startsWith('item_img_')) continue;
       const asset = assetMap.get(id);
       if (asset) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const a = asset as any;
+        const a = asset as unknown as { tags?: string[]; altText?: string };
         pool.push({
           id,
           label: asset.filename || asset.id,
