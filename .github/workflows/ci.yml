@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint + Build + Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      # `next build` reads NEXT_PUBLIC_* at build time. Match the
+      # values set in fly.toml so the CI build mirrors prod as
+      # closely as possible without leaking real secrets.
+      NEXT_PUBLIC_META_APP_REVIEW_DEMO: "true"
+      NEXT_PUBLIC_AUTOPILOT_CAMPAIGN_INBOX_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Vitest
+        run: npm test
+
+      # `next build` performs the TypeScript typecheck pass, so we
+      # don't need a separate `tsc --noEmit` step here. Keeping it
+      # as the last (slowest) CI step so faster signals (lint,
+      # test) fail-fast on bad pushes.
+      - name: Build
+        run: npm run build
