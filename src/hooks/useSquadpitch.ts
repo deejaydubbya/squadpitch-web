@@ -314,6 +314,13 @@ export interface Draft {
   campaignOrder: number | null;
   campaignTotal: number | null;
 
+  /**
+   * Phase 1 multilingual — ISO 639-1 code the draft was generated
+   * in (today "en" or "es"). Null on legacy drafts written before
+   * Phase 1; UIs should treat null as English for display.
+   */
+  language: string | null;
+
   mediaUrl: string | null;
   mediaType: 'image' | 'video' | null;
   mediaAssets: {
@@ -1276,6 +1283,12 @@ export interface GenerateContentInput {
   templateType?: string;
   dataItemId?: string;
   blueprintId?: string;
+  /**
+   * Phase 1 multilingual — optional per-generation language override.
+   * Omit to inherit the workspace `defaultLanguage`. Today gated to
+   * the SUPPORTED_LANGUAGES allow-list ("en" | "es").
+   */
+  language?: string;
 }
 
 export interface GenerateMediaInput {
@@ -2022,11 +2035,13 @@ export interface RemixDraft extends Draft {
 export function useRemixContent(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (draftId: string) =>
-      apiFetch<{ drafts: RemixDraft[] }>(`workspaces/${clientId}/remix`, {
-        method: 'POST',
-        body: JSON.stringify({ draftId }),
-      }),
+    mutationFn: (input: string | { draftId: string; language?: string }) => {
+      const payload = typeof input === 'string' ? { draftId: input } : input;
+      return apiFetch<{ drafts: RemixDraft[] }>(
+        `workspaces/${clientId}/remix`,
+        { method: 'POST', body: JSON.stringify(payload) },
+      );
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
     },
@@ -5154,6 +5169,11 @@ export function useGenerateListingCampaign(clientId: string) {
       imageContext?: CampaignImageContext[];
       slots?: Array<{ label: string; channel: string; campaignDay: number; slotType?: string; angle?: string }>;
       preferencesContext?: string;
+      // Phase 1 multilingual — per-campaign language override. When
+      // unset, backend resolves via campaign → contentPreferences →
+      // client default → "en".
+      language?: string;
+      campaignId?: string;
     }) =>
       apiFetch<ListingCampaignResult>(
         `workspaces/${clientId}/listing-campaign/generate`,
@@ -5182,6 +5202,10 @@ export function useRegeneratePost(clientId: string) {
       sourceDataItemType?: string | null;
       /** Raw idea text when sourceType=idea (propertyData carries it server-side too). */
       campaignIdea?: string | null;
+      /** Phase 1 multilingual — per-call override; falls back to the parent campaign's language. */
+      language?: string;
+      /** Lets the backend look up the parent campaign's language. */
+      campaignId?: string;
     }) =>
       apiFetch<{ post: CampaignPost }>(
         `workspaces/${clientId}/listing-campaign/regenerate-post`,
@@ -5379,6 +5403,8 @@ export function useSaveCampaignDrafts(clientId: string) {
       sourceDataItemType?: string | null;
       /** Raw idea text when sourceType=idea (used for campaign naming) */
       campaignIdea?: string | null;
+      /** Phase 1 multilingual — persisted as Campaign.language + every spawned Draft.language. */
+      language?: string;
     }) =>
       apiFetch<SaveCampaignDraftsResult>(
         `workspaces/${clientId}/listing-campaign/save-drafts`,

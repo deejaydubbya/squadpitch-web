@@ -144,6 +144,10 @@ export function campaignPostToNormalized(
     contentType: deriveContentType(post.angle),
     campaignMeta,
     mediaPlan: post.mediaPlan ?? null,
+    // Campaign posts in the review card haven't been persisted yet,
+    // so no per-post language exists; the parent campaign carries
+    // it and the save step writes it onto each Draft.
+    language: null,
     _originalCampaignPost: post,
   };
 }
@@ -257,6 +261,7 @@ export function draftToNormalized(draft: Draft): NormalizedPost {
         }
       : null,
     mediaPlan: draft.mediaPlan ?? null,
+    language: draft.language ?? null,
     _originalDraft: draft,
   };
 }

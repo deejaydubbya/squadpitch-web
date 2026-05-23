@@ -52,6 +52,7 @@ function makeDraft(overrides: Partial<Draft> = {}): Draft {
     campaignDay: null,
     campaignOrder: null,
     campaignTotal: null,
+    language: null,
     mediaUrl: null,
     mediaType: null,
     mediaAssets: [],
