@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "groupDo": "Do",
+    "groupManage": "Manage",
+    "groupSuite": "Suite",
+    "home": "Home",
+    "create": "Create",
+    "planner": "Planner",
+    "autopilot": "Autopilot",
+    "data": "Data",
+    "media": "Media",
+    "analytics": "Analytics",
+    "sites": "Sites",
+    "inbox": "Inbox",
+    "ads": "Ads",
+    "activity": "Activity",
+    "settings": "Settings"
+  },
+  "settings": {
+    "contentLanguage": {
+      "title": "Content language",
+      "label": "Content language",
+      "description": "Default language Squadpitch uses when generating campaigns, posts, landing pages, and AI replies. Doesn’t affect this dashboard’s UI text."
+    },
+    "appLanguage": {
+      "title": "App language",
+      "label": "App language",
+      "description": "Changes only the dashboard interface — your customer-facing content language stays unchanged."
+    }
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "error": "Something went wrong",
+    "success": "Success"
+  }
+}

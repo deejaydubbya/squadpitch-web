@@ -16,6 +16,13 @@ import {
   DEFAULT_LANGUAGE,
   normalizeLanguage,
 } from '@/lib/languages';
+import { useTranslations } from 'next-intl';
+import { useUILanguage } from '@/components/i18n/UILocaleProvider';
+import {
+  SUPPORTED_UI_LANGUAGES,
+  getUILanguageLabel,
+  type SupportedUILanguage,
+} from '@/lib/uiLanguage';
 
 export default function SettingsPage() {
   const params = useParams<{ clientId: string }>();
@@ -25,6 +32,13 @@ export default function SettingsPage() {
   const { data: client, isLoading } = useClient(clientId);
   const update = useUpdateClient(clientId);
   const archive = useArchiveClient(clientId);
+
+  // Phase 3 multilingual — dashboard UI language. Separate state
+  // from `defaultLanguage` (content language) on purpose so a user
+  // can speak Spanish to their dashboard while still generating
+  // English posts for an English client, or vice versa.
+  const t = useTranslations();
+  const { language: uiLanguage, setLanguage: setUILanguage } = useUILanguage();
 
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -152,7 +166,7 @@ export default function SettingsPage() {
 
         <div>
           <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
-            Content language
+            {t('settings.contentLanguage.label')}
           </label>
           <select
             value={defaultLanguage}
@@ -167,15 +181,42 @@ export default function SettingsPage() {
             ))}
           </select>
           <p className="text-[11px] text-white-30 mt-1">
-            Default language Squadpitch uses when generating campaigns, posts,
-            landing pages, and AI replies. Doesn{'’'}t affect this dashboard{'’'}s UI text.
+            {t('settings.contentLanguage.description')}
+          </p>
+        </div>
+
+        {/* Phase 3 multilingual — App language. Stored separately
+            from Content language so an agent can pick a different
+            language for the dashboard chrome vs the content their
+            workspace produces. Persisted in localStorage (per-
+            browser) — moves to User.uiLanguage when that column
+            lands. */}
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+            {t('settings.appLanguage.label')}
+          </label>
+          <select
+            value={uiLanguage}
+            onChange={(e) =>
+              setUILanguage(e.target.value as SupportedUILanguage)
+            }
+            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+          >
+            {SUPPORTED_UI_LANGUAGES.map((code) => (
+              <option key={code} value={code}>
+                {getUILanguageLabel(code)}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-white-30 mt-1">
+            {t('settings.appLanguage.description')}
           </p>
         </div>
 
         {update.error && (
           <StatusBanner error={(update.error as Error).message} />
         )}
-        {showSaved && <StatusBanner success message="Saved" />}
+        {showSaved && <StatusBanner success message={t('common.saved')} />}
 
         <div className="flex gap-2">
           <button
@@ -188,7 +229,7 @@ export default function SettingsPage() {
             ) : (
               <Save className="w-3 h-3" />
             )}
-            Save
+            {update.isPending ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>

@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "groupDo": "Crear",
+    "groupManage": "Gestionar",
+    "groupSuite": "Suite",
+    "home": "Inicio",
+    "create": "Crear",
+    "planner": "Calendario",
+    "autopilot": "Piloto automático",
+    "data": "Datos",
+    "media": "Multimedia",
+    "analytics": "Analíticas",
+    "sites": "Sitios",
+    "inbox": "Bandeja de entrada",
+    "ads": "Anuncios",
+    "activity": "Actividad",
+    "settings": "Configuración"
+  },
+  "settings": {
+    "contentLanguage": {
+      "title": "Idioma del contenido",
+      "label": "Idioma del contenido",
+      "description": "Idioma predeterminado que Squadpitch usa al generar campañas, publicaciones, páginas de aterrizaje y respuestas de IA. No afecta el texto de la interfaz del panel."
+    },
+    "appLanguage": {
+      "title": "Idioma de la aplicación",
+      "label": "Idioma de la aplicación",
+      "description": "Cambia únicamente la interfaz del panel; el idioma del contenido para tus clientes no se modifica."
+    }
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "loading": "Cargando…",
+    "saving": "Guardando…",
+    "saved": "Guardado",
+    "error": "Algo salió mal",
+    "success": "Listo"
+  }
+}
