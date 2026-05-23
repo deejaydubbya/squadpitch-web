@@ -5630,3 +5630,50 @@ export function useTimingSuggestions() {
     staleTime: 60 * 60 * 1000,
   });
 }
+
+// ── Sites — page translation (Phase 2 multilingual) ─────────────────────
+//
+// Calls POST /api/v1/workspaces/:id/site/pages/:pageId/translate to
+// produce a sibling SitePage in the requested language. Idempotent
+// on the server — duplicate calls return the existing sibling with
+// `existing: true` so the UI can pick a different toast/copy.
+//
+// PageEditor is on a feature branch as of Phase 2 ship; this hook
+// is the wiring the editor will call once it merges:
+//
+//   const translate = useTranslateSitePage(clientId);
+//   await translate.mutateAsync({ pageId, to: 'es' });
+
+/** Minimal SitePage shape returned by the translate endpoint. */
+export interface SitePageRef {
+  id: string;
+  slug: string;
+  title: string;
+  language: string;
+  /** Other-language sibling id (null until a translation exists). */
+  siblingPageId: string | null;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  updatedAt: string;
+}
+
+export interface TranslateSitePageResult {
+  existing: boolean;
+  source: SitePageRef;
+  translated: SitePageRef;
+}
+
+export function useTranslateSitePage(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ pageId, to }: { pageId: string; to: 'en' | 'es' }) =>
+      apiFetch<TranslateSitePageResult>(
+        `workspaces/${clientId}/site/pages/${pageId}/translate`,
+        { method: 'POST', body: JSON.stringify({ to }) },
+      ),
+    onSuccess: () => {
+      // Invalidate any site-page caches so the editor sees the
+      // newly-linked sibling on next read.
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'sitePages'] });
+    },
+  });
+}
