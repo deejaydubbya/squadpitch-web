@@ -11,6 +11,11 @@ import {
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { listAdapterKeys, getAdapter } from '@/lib/assistant/adapterRegistry';
+import {
+  SUPPORTED_LANGUAGES,
+  DEFAULT_LANGUAGE,
+  normalizeLanguage,
+} from '@/lib/languages';
 
 export default function SettingsPage() {
   const params = useParams<{ clientId: string }>();
@@ -24,6 +29,7 @@ export default function SettingsPage() {
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [industryKey, setIndustryKey] = useState('real_estate');
+  const [defaultLanguage, setDefaultLanguage] = useState<string>(DEFAULT_LANGUAGE);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
@@ -37,12 +43,18 @@ export default function SettingsPage() {
       setName(client.name);
       setLogoUrl(client.logoUrl ?? '');
       setIndustryKey(client.industryKey ?? 'real_estate');
+      setDefaultLanguage(normalizeLanguage(client.defaultLanguage));
     }
   }, [client]);
 
   const handleSave = () => {
     update.mutate(
-      { name: name.trim(), logoUrl: logoUrl.trim() || null, industryKey },
+      {
+        name: name.trim(),
+        logoUrl: logoUrl.trim() || null,
+        industryKey,
+        defaultLanguage,
+      },
       { onSuccess: () => setSavedAt(Date.now()) }
     );
   };
@@ -135,6 +147,28 @@ export default function SettingsPage() {
           </select>
           <p className="text-[11px] text-white-30 mt-1">
             Controls campaign types, terminology, and intelligence rules used by the assistant.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+            Content language
+          </label>
+          <select
+            value={defaultLanguage}
+            onChange={(e) => setDefaultLanguage(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.label}
+                {lang.nativeLabel !== lang.label ? ` (${lang.nativeLabel})` : ''}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-white-30 mt-1">
+            Default language Squadpitch uses when generating campaigns, posts,
+            landing pages, and AI replies. Doesn{'’'}t affect this dashboard{'’'}s UI text.
           </p>
         </div>
 

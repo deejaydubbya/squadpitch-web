@@ -216,6 +216,13 @@ export interface Client {
   industryKey: string | null;
   /** IANA timezone — e.g. "America/New_York". Defaults to "UTC". */
   timezone?: string;
+  /**
+   * Workspace-wide default language for *generated content* (not
+   * dashboard UI). ISO 639-1 code; today gated to "en" | "es".
+   * Phase 0 of multilingual support — API persists, FE displays
+   * the picker, Phase 1 wires it through to generation.
+   */
+  defaultLanguage?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -1401,6 +1408,12 @@ export interface CreateClientInput {
   status?: ClientStatus;
   /** IANA timezone, e.g. "America/New_York". Only present on updates. */
   timezone?: string;
+  /**
+   * Workspace-wide default language for generated content
+   * (ISO 639-1; "en" | "es"). Onboarding sets this from the
+   * LanguageSelectCard. Omit → DB default "en".
+   */
+  defaultLanguage?: string;
 }
 
 export function useCreateClient() {
@@ -3688,6 +3701,13 @@ export interface ContentPreferences {
   preferredPostingDays: PostingDay[];
   /** "HH:mm" — interpreted in Client.timezone. */
   preferredPostingTime: string | null;
+
+  /**
+   * Per-workspace override of `Client.defaultLanguage` for generated
+   * content. Null means "inherit from workspace default". Phase 0
+   * stores it; Phase 1 wires it into the resolution chain.
+   */
+  defaultLanguage: string | null;
 
   updatedAt: string;
 }
