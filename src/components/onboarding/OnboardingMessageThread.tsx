@@ -6,6 +6,7 @@ import type { OnboardingChatMessage, OnboardingCardType } from '@/lib/onboarding
 import type { useOnboardingEngine } from '@/hooks/useOnboardingEngine';
 
 import { IndustrySelectCard } from './cards/IndustrySelectCard';
+import { LanguageSelectCard } from './cards/LanguageSelectCard';
 import { StarterOptionsCard } from './cards/StarterOptionsCard';
 import { SourceInputCard } from './cards/SourceInputCard';
 import { AnalysisProgressCard } from './cards/AnalysisProgressCard';
@@ -38,7 +39,7 @@ type Engine = ReturnType<typeof useOnboardingEngine>;
 // ── Step grouping ────────────────────────────────────────────────────────
 
 const STEP_GROUP: Partial<Record<OnboardingCardType, string>> = {
-  quick_start_input: 'setup', industry_select: 'setup', starter_options: 'setup', fallback_starter: 'setup',
+  quick_start_input: 'setup', industry_select: 'setup', language_select: 'setup', starter_options: 'setup', fallback_starter: 'setup',
   re_starter: 'setup', source_input: 'setup', fallback_source: 'setup',
   re_listing_source: 'setup', re_listing_form: 'setup', re_content_goal: 'setup',
   re_content_prompt: 'setup', fallback_content_prompt: 'setup',
@@ -60,7 +61,7 @@ const STEP_LABEL: Record<string, string> = {
 
 // Cards that render at full width without chat bubble wrapper
 const WIDE_CARDS = new Set<OnboardingCardType>([
-  'quick_start_input', 'industry_select', 'starter_options', 'source_input',
+  'quick_start_input', 'industry_select', 'language_select', 'starter_options', 'source_input',
   'content_preview', 'property_review', 'brand_preview',
   'enrichment_review', 'enrichment_menu', 're_listing_form', 're_agent_profile',
   're_starter', 're_listing_source', 're_content_goal', 're_content_prompt',
@@ -269,6 +270,13 @@ function CardRouter({
       );
     case 'industry_select':
       return <IndustrySelectCard onSelect={engine.selectIndustry} />;
+    case 'language_select':
+      return (
+        <LanguageSelectCard
+          value={engine.session.defaultLanguage ?? 'en'}
+          onSelect={engine.selectLanguage}
+        />
+      );
     case 'starter_options':
       return (
         <StarterOptionsCard

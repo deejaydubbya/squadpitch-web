@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, MessageCircle } from 'lucide-react';
+import { X, MessageCircle, Languages } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { VersionPicker } from './VersionPicker';
@@ -10,6 +10,7 @@ import { HooksRanking } from './HooksRanking';
 import { ImproveMenu } from './ImproveMenu';
 import { CTA_PRESETS } from './constants';
 import type { PostEditorCardProps } from './types';
+import { getLanguageLabel } from '@/lib/languages';
 
 /**
  * Composed post-editor UI: version selector, post strength meter, body
@@ -61,9 +62,20 @@ export function PostEditorCard({
 
       {/* Post Body */}
       <div className="space-y-1.5">
-        <label className="block text-[10px] font-medium text-white-40 uppercase tracking-wider">
-          Post Body
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label className="block text-[10px] font-medium text-white-40 uppercase tracking-wider">
+            Post Body
+          </label>
+          {normalizedPost.language && normalizedPost.language !== 'en' && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] text-accent-green-110 bg-accent-green-110/10 px-1.5 py-0.5 rounded"
+              title={`This post was generated in ${getLanguageLabel(normalizedPost.language)}`}
+            >
+              <Languages className="w-2.5 h-2.5" />
+              {getLanguageLabel(normalizedPost.language)}
+            </span>
+          )}
+        </div>
         <textarea
           value={editedBody}
           onChange={(e) => onBodyChange(e.target.value)}

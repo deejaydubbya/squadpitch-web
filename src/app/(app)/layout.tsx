@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { initWebSentry } from '@/lib/sentry';
 import { initAnalytics } from '@/lib/analytics';
+import { UILocaleProvider } from '@/components/i18n/UILocaleProvider';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -25,9 +26,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-sp-bg text-white-100">
-        {children}
-      </div>
+      {/* Phase 3 multilingual — dashboard UI strings flow through
+          next-intl below this provider. Provider-only (no locale
+          routing) so workspace URLs stay unchanged. */}
+      <UILocaleProvider>
+        <div className="min-h-screen bg-sp-bg text-white-100">
+          {children}
+        </div>
+      </UILocaleProvider>
     </QueryClientProvider>
   );
 }

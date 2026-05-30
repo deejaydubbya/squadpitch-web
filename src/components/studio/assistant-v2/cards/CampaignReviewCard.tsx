@@ -40,6 +40,8 @@ import { CHANNEL_REGISTRY } from '@/lib/channelRegistry';
 import { usePreferencesContext } from '@/hooks/useContentPreferences';
 import { useContentPreferences } from '@/hooks/useSquadpitch';
 import { useUsage } from '@/hooks/useBilling';
+import { SUPPORTED_LANGUAGES, getLanguageLabel, normalizeLanguage } from '@/lib/languages';
+import { useClient } from '@/hooks/useSquadpitch';
 import { mapSessionToCampaignInput } from '@/lib/assistant/conversation/sessionToGeneration';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { AssetPreviewModal } from './AssetPreviewModal';
@@ -155,6 +157,18 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   const alwaysRequireReview = contentPreferences?.alwaysRequireReview ?? true;
   const { data: assetsData } = useAssets(clientId, { status: 'READY' });
   const { data: mediaProfile } = useMediaProfile(clientId);
+  // Phase 1 multilingual — workspace default for the picker initial
+  // value. `contentPreferences.defaultLanguage` overrides the
+  // workspace default when present.
+  const { data: clientForLang } = useClient(clientId);
+  const initialCampaignLanguage = normalizeLanguage(
+    contentPreferences?.defaultLanguage ?? clientForLang?.defaultLanguage,
+  );
+  const [campaignLanguage, setCampaignLanguage] = useState<string>(initialCampaignLanguage);
+  // Sync state when the resolved default changes (e.g. settings edit).
+  useEffect(() => {
+    setCampaignLanguage(initialCampaignLanguage);
+  }, [initialCampaignLanguage]);
   const generateMedia = useGenerateMedia(clientId);
   const generateVideoMutation = useGenerateVideo(clientId);
   const { data: usage } = useUsage();
@@ -382,8 +396,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     if (session.heroImageId) {
       const heroAsset = assetMap.get(session.heroImageId);
       if (heroAsset) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ha = heroAsset as any;
+        const ha = heroAsset as unknown as { tags?: string[]; altText?: string };
         pool.push({
           id: session.heroImageId,
           label: heroAsset.filename || session.heroImageId,
@@ -409,8 +422,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
       if (id.startsWith('property_img_') || id.startsWith('item_img_')) continue;
       const asset = assetMap.get(id);
       if (asset) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const a = asset as any;
+        const a = asset as unknown as { tags?: string[]; altText?: string };
         pool.push({
           id,
           label: asset.filename || asset.id,
@@ -884,6 +896,9 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         sourceDataItemType:
           sourceType === 'data_item' ? session.campaignDataItemType ?? null : null,
         campaignIdea: sourceType === 'idea' ? session.campaignIdea ?? null : null,
+        // Phase 1 multilingual — persisted as Campaign.language and
+        // mirrored onto every spawned Draft.language by the API.
+        language: campaignLanguage,
         // Pass the user's confirmed schedule through so the backend
         // honors the chosen start date + slot positions instead of
         // re-deriving from a generic preset starting "today".
@@ -1133,23 +1148,46 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
         </div>
       )}
 
-      {/* Campaign header with auto mode toggle */}
+      {/* Campaign header with language picker + auto mode toggle */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] text-white-40 font-medium uppercase tracking-wider truncate">
           {result.campaign.campaignName}
         </p>
-        <button
-          onClick={() => setAutoMode(!autoMode)}
-          className="flex items-center gap-1 text-[10px] text-white-40 hover:text-white-60 transition-colors shrink-0"
-          title={autoMode ? 'Auto mode: ready posts collapsed' : 'Auto mode off'}
-        >
-          {autoMode ? (
-            <ToggleRight className="w-4 h-4 text-accent-green-110" />
-          ) : (
-            <ToggleLeft className="w-4 h-4" />
-          )}
-          Auto
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <label className="flex items-center gap-1 text-[10px] text-white-40">
+            <span className="hidden sm:inline">Language:</span>
+            <select
+              value={campaignLanguage}
+              onChange={(e) => setCampaignLanguage(e.target.value)}
+              className="bg-white-5 border border-white-10 rounded px-1.5 py-0.5 text-[11px] text-white-80 focus:outline-none focus:border-accent-green-110"
+              title="Language the campaign will be generated and saved in"
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span
+            className="text-[10px] text-accent-green-110/80"
+            title={`Posts will be saved as ${getLanguageLabel(campaignLanguage)}`}
+          >
+            Language: {getLanguageLabel(campaignLanguage)}
+          </span>
+          <button
+            onClick={() => setAutoMode(!autoMode)}
+            className="flex items-center gap-1 text-[10px] text-white-40 hover:text-white-60 transition-colors"
+            title={autoMode ? 'Auto mode: ready posts collapsed' : 'Auto mode off'}
+          >
+            {autoMode ? (
+              <ToggleRight className="w-4 h-4 text-accent-green-110" />
+            ) : (
+              <ToggleLeft className="w-4 h-4" />
+            )}
+            Auto
+          </button>
+        </div>
       </div>
 
       {/* Post list grouped by content type */}

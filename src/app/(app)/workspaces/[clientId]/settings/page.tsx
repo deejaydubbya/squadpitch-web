@@ -11,6 +11,18 @@ import {
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { StatusBanner } from '@/components/common/StatusBanner';
 import { listAdapterKeys, getAdapter } from '@/lib/assistant/adapterRegistry';
+import {
+  SUPPORTED_LANGUAGES,
+  DEFAULT_LANGUAGE,
+  normalizeLanguage,
+} from '@/lib/languages';
+import { useTranslations } from 'next-intl';
+import { useUILanguage } from '@/components/i18n/UILocaleProvider';
+import {
+  SUPPORTED_UI_LANGUAGES,
+  getUILanguageLabel,
+  type SupportedUILanguage,
+} from '@/lib/uiLanguage';
 
 export default function SettingsPage() {
   const params = useParams<{ clientId: string }>();
@@ -21,9 +33,17 @@ export default function SettingsPage() {
   const update = useUpdateClient(clientId);
   const archive = useArchiveClient(clientId);
 
+  // Phase 3 multilingual — dashboard UI language. Separate state
+  // from `defaultLanguage` (content language) on purpose so a user
+  // can speak Spanish to their dashboard while still generating
+  // English posts for an English client, or vice versa.
+  const t = useTranslations();
+  const { language: uiLanguage, setLanguage: setUILanguage } = useUILanguage();
+
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [industryKey, setIndustryKey] = useState('real_estate');
+  const [defaultLanguage, setDefaultLanguage] = useState<string>(DEFAULT_LANGUAGE);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
@@ -37,12 +57,18 @@ export default function SettingsPage() {
       setName(client.name);
       setLogoUrl(client.logoUrl ?? '');
       setIndustryKey(client.industryKey ?? 'real_estate');
+      setDefaultLanguage(normalizeLanguage(client.defaultLanguage));
     }
   }, [client]);
 
   const handleSave = () => {
     update.mutate(
-      { name: name.trim(), logoUrl: logoUrl.trim() || null, industryKey },
+      {
+        name: name.trim(),
+        logoUrl: logoUrl.trim() || null,
+        industryKey,
+        defaultLanguage,
+      },
       { onSuccess: () => setSavedAt(Date.now()) }
     );
   };
@@ -138,10 +164,59 @@ export default function SettingsPage() {
           </p>
         </div>
 
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+            {t('settings.contentLanguage.label')}
+          </label>
+          <select
+            value={defaultLanguage}
+            onChange={(e) => setDefaultLanguage(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.label}
+                {lang.nativeLabel !== lang.label ? ` (${lang.nativeLabel})` : ''}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-white-30 mt-1">
+            {t('settings.contentLanguage.description')}
+          </p>
+        </div>
+
+        {/* Phase 3 multilingual — App language. Stored separately
+            from Content language so an agent can pick a different
+            language for the dashboard chrome vs the content their
+            workspace produces. Persisted in localStorage (per-
+            browser) — moves to User.uiLanguage when that column
+            lands. */}
+        <div>
+          <label className="block text-xs font-medium text-white-40 uppercase tracking-wider mb-1.5">
+            {t('settings.appLanguage.label')}
+          </label>
+          <select
+            value={uiLanguage}
+            onChange={(e) =>
+              setUILanguage(e.target.value as SupportedUILanguage)
+            }
+            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+          >
+            {SUPPORTED_UI_LANGUAGES.map((code) => (
+              <option key={code} value={code}>
+                {getUILanguageLabel(code)}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-white-30 mt-1">
+            {t('settings.appLanguage.description')}
+          </p>
+        </div>
+
         {update.error && (
           <StatusBanner error={(update.error as Error).message} />
         )}
-        {showSaved && <StatusBanner success message="Saved" />}
+        {showSaved && <StatusBanner success message={t('common.saved')} />}
 
         <div className="flex gap-2">
           <button
@@ -154,7 +229,7 @@ export default function SettingsPage() {
             ) : (
               <Save className="w-3 h-3" />
             )}
-            Save
+            {update.isPending ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>

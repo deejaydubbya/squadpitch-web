@@ -24,6 +24,7 @@ import { useAutopilotCampaignStats, useSuiteFlags } from '@/hooks/useSquadpitch'
 import { useUsage } from '@/hooks/useBilling';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { NotificationBell } from './NotificationBell';
+import { useTranslations } from 'next-intl';
 
 
 interface Props {
@@ -33,6 +34,9 @@ interface Props {
 export function Sidebar({ client }: Props) {
   const pathname = usePathname();
   const base = `/workspaces/${client.id}`;
+  // Phase 3 multilingual — dashboard nav labels via next-intl.
+  // Keys live in `messages/{en,es}.json` under `nav.*`.
+  const t = useTranslations('nav');
 
   const isSettingsRoute = pathname.startsWith(`${base}/settings`);
   const { data: usage } = useUsage();
@@ -44,10 +48,10 @@ export function Sidebar({ client }: Props) {
   // one-time hit per session.
   const { data: suiteFlags } = useSuiteFlags(client.id);
   const suiteItems = [
-    suiteFlags?.sites && { href: `${base}/sites`, icon: Globe, label: 'Sites' },
-    suiteFlags?.inbox && { href: `${base}/inbox`, icon: InboxIcon, label: 'Inbox' },
-    suiteFlags?.ads && { href: `${base}/ads`, icon: Megaphone, label: 'Ads' },
-  ].filter(Boolean) as Array<{ href: string; icon: typeof Globe; label: string }>;
+    suiteFlags?.sites && { href: `${base}/sites`, icon: Globe, label: t('sites'), key: 'sites' },
+    suiteFlags?.inbox && { href: `${base}/inbox`, icon: InboxIcon, label: t('inbox'), key: 'inbox' },
+    suiteFlags?.ads && { href: `${base}/ads`, icon: Megaphone, label: t('ads'), key: 'ads' },
+  ].filter(Boolean) as Array<{ href: string; icon: typeof Globe; label: string; key: string }>;
 
 
   const statusClass =
@@ -59,16 +63,16 @@ export function Sidebar({ client }: Props) {
 
   // ── "Do" group ──
   const doItems = [
-    { href: `${base}/create`, icon: Sparkles, label: 'Create', primary: true },
-    { href: `${base}/planner`, icon: CalendarDays, label: 'Planner' },
-    { href: `${base}/autopilot`, icon: Zap, label: 'Autopilot' },
+    { href: `${base}/create`, icon: Sparkles, label: t('create'), key: 'create', primary: true },
+    { href: `${base}/planner`, icon: CalendarDays, label: t('planner'), key: 'planner' },
+    { href: `${base}/autopilot`, icon: Zap, label: t('autopilot'), key: 'autopilot' },
   ];
 
   // ── "Manage" group ──
   const manageItems = [
-    { href: `${base}/data`, icon: Database, label: 'Data' },
-    { href: `${base}/media`, icon: ImageIcon, label: 'Media' },
-    { href: `${base}/analytics`, icon: BarChart3, label: 'Analytics' },
+    { href: `${base}/data`, icon: Database, label: t('data'), key: 'data' },
+    { href: `${base}/media`, icon: ImageIcon, label: t('media'), key: 'media' },
+    { href: `${base}/analytics`, icon: BarChart3, label: t('analytics'), key: 'analytics' },
   ];
 
   const isActive = (href: string, exact?: boolean) => {
@@ -112,11 +116,11 @@ export function Sidebar({ client }: Props) {
           )}
         >
           <LayoutDashboard className="w-4.5 h-4.5" />
-          <span>Home</span>
+          <span>{t('home')}</span>
         </Link>
 
         {/* ── Do ── */}
-        <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">Do</p>
+        <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">{t('groupDo')}</p>
         {doItems.map((item) => {
           const active = isActive(item.href);
           return (
@@ -134,7 +138,7 @@ export function Sidebar({ client }: Props) {
             >
               <item.icon className={cn('w-4.5 h-4.5', item.primary && !active ? 'text-green-400' : '')} />
               <span className="flex-1">{item.label}</span>
-              {item.label === 'Autopilot' && autopilotBadgeCount > 0 && (
+              {item.key === 'autopilot' && autopilotBadgeCount > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-green-500/20 text-green-400">
                   {autopilotBadgeCount}
                 </span>
@@ -144,7 +148,7 @@ export function Sidebar({ client }: Props) {
         })}
 
         {/* ── Manage ── */}
-        <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">Manage</p>
+        <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">{t('groupManage')}</p>
         {manageItems.map((item) => {
           const active = isActive(item.href);
           return (
@@ -167,7 +171,7 @@ export function Sidebar({ client }: Props) {
         {/* ── Suite ── (flag-gated) */}
         {suiteItems.length > 0 && (
           <>
-            <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">Suite</p>
+            <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white-30">{t('groupSuite')}</p>
             {suiteItems.map((item) => {
               const active = isActive(item.href);
               return (
@@ -204,7 +208,7 @@ export function Sidebar({ client }: Props) {
           )}
         >
           <Activity className="w-4.5 h-4.5" />
-          Activity
+          {t('activity')}
         </Link>
 
         {/* Divider */}
@@ -223,7 +227,7 @@ export function Sidebar({ client }: Props) {
           )}
         >
           <Settings className="w-4.5 h-4.5" />
-          Settings
+          {t('settings')}
         </Link>
       </nav>
 

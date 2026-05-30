@@ -94,6 +94,7 @@ function looksLikeBusinessOrAgentName(name: string): boolean {
 const initialSession: OnboardingSessionState = {
   phase: 'industry_select',
   industryKey: null,
+  defaultLanguage: null,
   starterMethod: null,
   primaryInput: null,
   sources: [],
@@ -135,6 +136,8 @@ function sessionReducer(state: OnboardingSessionState, action: OnboardingAction)
   switch (action.type) {
     case 'SET_INDUSTRY':
       return { ...state, industryKey: action.industryKey, phase: 'quick_start' };
+    case 'SET_LANGUAGE':
+      return { ...state, defaultLanguage: action.language };
     case 'SET_STARTER_METHOD':
       return { ...state, starterMethod: action.method };
     case 'SET_PRIMARY_INPUT':
@@ -364,18 +367,39 @@ export function useOnboardingEngine() {
     dispatchSession({ type: 'SET_INDUSTRY', industryKey });
     addMessage(buildConfirmation(industryLabel));
 
+    // Phase 0 multilingual — show the language picker as the next
+    // step. Post-language routing (push starter card) happens in
+    // `selectLanguage` once the user picks.
+    addMessage(buildInteractivePrompt(
+      'What language should Squadpitch create content in? You can change this later.',
+      'language_select',
+    ));
+  }, [addMessage]);
+
+  const selectLanguage = useCallback((language: string, languageLabel: string) => {
+    dispatchSession({ type: 'SET_LANGUAGE', language });
+    addMessage(buildConfirmation(languageLabel));
+
+    const industryKey = session.industryKey;
+    if (!industryKey) {
+      // Defensive — shouldn't happen because language_select only
+      // shows after industry_select, but fall back gracefully.
+      addMessage(buildInteractivePrompt(
+        'Pick your industry first.',
+        'industry_select',
+      ));
+      return;
+    }
+
     const config = getOnboardingConfig(industryKey);
     if (config.useREFlow) {
-      // Real estate flow — show RE starter
       addMessage(buildInteractivePrompt(config.welcomeMessage, 're_starter'));
     } else if (config.useFallbackFlow) {
-      // Fallback flow — show intent-based starter
       addMessage(buildInteractivePrompt(config.welcomeMessage, 'fallback_starter'));
     } else {
-      // Industry-specific flow — show starter options
       addMessage(buildInteractivePrompt(config.welcomeMessage, 'starter_options'));
     }
-  }, [addMessage]);
+  }, [addMessage, session.industryKey]);
 
   const selectStarter = useCallback((method: StarterMethod, label: string) => {
     dispatchSession({ type: 'SET_STARTER_METHOD', method });
@@ -479,6 +503,7 @@ export function useOnboardingEngine() {
           name: workspaceName,
           slug: slugify(workspaceName),
           industryKey: session.industryKey ?? undefined,
+          defaultLanguage: session.defaultLanguage ?? undefined,
           status: 'DRAFT',
         });
         dispatchSession({ type: 'SET_CREATED_CLIENT', clientId: client.id });
@@ -763,6 +788,7 @@ export function useOnboardingEngine() {
         name: workspaceName,
         slug: slugify(workspaceName),
         industryKey: session.industryKey ?? undefined,
+        defaultLanguage: session.defaultLanguage ?? undefined,
         status: 'DRAFT',
       });
       dispatchSession({ type: 'SET_CREATED_CLIENT', clientId: client.id });
@@ -1258,6 +1284,7 @@ export function useOnboardingEngine() {
         slug: slugify(brandName),
         logoUrl: session.analyzeResult?.brandData.logoUrl ?? null,
         industryKey: session.industryKey ?? undefined,
+        defaultLanguage: session.defaultLanguage ?? undefined,
         status: 'DRAFT',
       });
       dispatchSession({ type: 'SET_CREATED_CLIENT', clientId: client.id });
@@ -2495,6 +2522,7 @@ export function useOnboardingEngine() {
 
     // Standard actions
     selectIndustry,
+    selectLanguage,
     selectStarter,
     submitInput,
     submitFiles,

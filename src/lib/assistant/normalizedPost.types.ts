@@ -90,6 +90,13 @@ export interface NormalizedPost {
   campaignMeta: CampaignMeta | null;
   mediaPlan: MediaPlan | null;
 
+  /**
+   * Phase 1 multilingual — ISO 639-1 code the post was generated in
+   * ("en" or "es"). Null on legacy posts where the column hadn't
+   * been backfilled; UIs should treat null as English.
+   */
+  language: string | null;
+
   /** Preserved original for the reverse adapter (campaign flow) */
   _originalCampaignPost?: CampaignPost;
   /** Preserved original for the reverse adapter (quick post flow) */

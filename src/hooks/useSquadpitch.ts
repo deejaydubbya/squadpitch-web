@@ -216,6 +216,13 @@ export interface Client {
   industryKey: string | null;
   /** IANA timezone — e.g. "America/New_York". Defaults to "UTC". */
   timezone?: string;
+  /**
+   * Workspace-wide default language for *generated content* (not
+   * dashboard UI). ISO 639-1 code; today gated to "en" | "es".
+   * Phase 0 of multilingual support — API persists, FE displays
+   * the picker, Phase 1 wires it through to generation.
+   */
+  defaultLanguage?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -306,6 +313,13 @@ export interface Draft {
   campaignDay: number | null;
   campaignOrder: number | null;
   campaignTotal: number | null;
+
+  /**
+   * Phase 1 multilingual — ISO 639-1 code the draft was generated
+   * in (today "en" or "es"). Null on legacy drafts written before
+   * Phase 1; UIs should treat null as English for display.
+   */
+  language: string | null;
 
   mediaUrl: string | null;
   mediaType: 'image' | 'video' | null;
@@ -1269,6 +1283,12 @@ export interface GenerateContentInput {
   templateType?: string;
   dataItemId?: string;
   blueprintId?: string;
+  /**
+   * Phase 1 multilingual — optional per-generation language override.
+   * Omit to inherit the workspace `defaultLanguage`. Today gated to
+   * the SUPPORTED_LANGUAGES allow-list ("en" | "es").
+   */
+  language?: string;
 }
 
 export interface GenerateMediaInput {
@@ -1401,6 +1421,12 @@ export interface CreateClientInput {
   status?: ClientStatus;
   /** IANA timezone, e.g. "America/New_York". Only present on updates. */
   timezone?: string;
+  /**
+   * Workspace-wide default language for generated content
+   * (ISO 639-1; "en" | "es"). Onboarding sets this from the
+   * LanguageSelectCard. Omit → DB default "en".
+   */
+  defaultLanguage?: string;
 }
 
 export function useCreateClient() {
@@ -2009,11 +2035,13 @@ export interface RemixDraft extends Draft {
 export function useRemixContent(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (draftId: string) =>
-      apiFetch<{ drafts: RemixDraft[] }>(`workspaces/${clientId}/remix`, {
-        method: 'POST',
-        body: JSON.stringify({ draftId }),
-      }),
+    mutationFn: (input: string | { draftId: string; language?: string }) => {
+      const payload = typeof input === 'string' ? { draftId: input } : input;
+      return apiFetch<{ drafts: RemixDraft[] }>(
+        `workspaces/${clientId}/remix`,
+        { method: 'POST', body: JSON.stringify(payload) },
+      );
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'drafts'] });
     },
@@ -3689,6 +3717,13 @@ export interface ContentPreferences {
   /** "HH:mm" — interpreted in Client.timezone. */
   preferredPostingTime: string | null;
 
+  /**
+   * Per-workspace override of `Client.defaultLanguage` for generated
+   * content. Null means "inherit from workspace default". Phase 0
+   * stores it; Phase 1 wires it into the resolution chain.
+   */
+  defaultLanguage: string | null;
+
   updatedAt: string;
 }
 
@@ -5134,6 +5169,11 @@ export function useGenerateListingCampaign(clientId: string) {
       imageContext?: CampaignImageContext[];
       slots?: Array<{ label: string; channel: string; campaignDay: number; slotType?: string; angle?: string }>;
       preferencesContext?: string;
+      // Phase 1 multilingual — per-campaign language override. When
+      // unset, backend resolves via campaign → contentPreferences →
+      // client default → "en".
+      language?: string;
+      campaignId?: string;
     }) =>
       apiFetch<ListingCampaignResult>(
         `workspaces/${clientId}/listing-campaign/generate`,
@@ -5162,6 +5202,10 @@ export function useRegeneratePost(clientId: string) {
       sourceDataItemType?: string | null;
       /** Raw idea text when sourceType=idea (propertyData carries it server-side too). */
       campaignIdea?: string | null;
+      /** Phase 1 multilingual — per-call override; falls back to the parent campaign's language. */
+      language?: string;
+      /** Lets the backend look up the parent campaign's language. */
+      campaignId?: string;
     }) =>
       apiFetch<{ post: CampaignPost }>(
         `workspaces/${clientId}/listing-campaign/regenerate-post`,
@@ -5359,6 +5403,8 @@ export function useSaveCampaignDrafts(clientId: string) {
       sourceDataItemType?: string | null;
       /** Raw idea text when sourceType=idea (used for campaign naming) */
       campaignIdea?: string | null;
+      /** Phase 1 multilingual — persisted as Campaign.language + every spawned Draft.language. */
+      language?: string;
     }) =>
       apiFetch<SaveCampaignDraftsResult>(
         `workspaces/${clientId}/listing-campaign/save-drafts`,
@@ -5582,5 +5628,52 @@ export function useTimingSuggestions() {
     queryKey: ['timingSuggestions'],
     queryFn: () => apiFetch<Record<string, TimingSuggestion>>('timing-suggestions'),
     staleTime: 60 * 60 * 1000,
+  });
+}
+
+// ── Sites — page translation (Phase 2 multilingual) ─────────────────────
+//
+// Calls POST /api/v1/workspaces/:id/site/pages/:pageId/translate to
+// produce a sibling SitePage in the requested language. Idempotent
+// on the server — duplicate calls return the existing sibling with
+// `existing: true` so the UI can pick a different toast/copy.
+//
+// PageEditor is on a feature branch as of Phase 2 ship; this hook
+// is the wiring the editor will call once it merges:
+//
+//   const translate = useTranslateSitePage(clientId);
+//   await translate.mutateAsync({ pageId, to: 'es' });
+
+/** Minimal SitePage shape returned by the translate endpoint. */
+export interface SitePageRef {
+  id: string;
+  slug: string;
+  title: string;
+  language: string;
+  /** Other-language sibling id (null until a translation exists). */
+  siblingPageId: string | null;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  updatedAt: string;
+}
+
+export interface TranslateSitePageResult {
+  existing: boolean;
+  source: SitePageRef;
+  translated: SitePageRef;
+}
+
+export function useTranslateSitePage(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ pageId, to }: { pageId: string; to: 'en' | 'es' }) =>
+      apiFetch<TranslateSitePageResult>(
+        `workspaces/${clientId}/site/pages/${pageId}/translate`,
+        { method: 'POST', body: JSON.stringify({ to }) },
+      ),
+    onSuccess: () => {
+      // Invalidate any site-page caches so the editor sees the
+      // newly-linked sibling on next read.
+      qc.invalidateQueries({ queryKey: [...squadpitchKeys.all, 'sitePages'] });
+    },
   });
 }

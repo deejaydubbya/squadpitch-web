@@ -42,6 +42,7 @@ export type OnboardingPhase =
 export type OnboardingCardType =
   | 'quick_start_input'
   | 'industry_select'
+  | 'language_select'
   | 'starter_options'
   | 'source_input'
   | 'analysis_progress'
@@ -187,6 +188,14 @@ export interface OnboardingChatMessage {
 export interface OnboardingSessionState {
   phase: OnboardingPhase;
   industryKey: string | null;
+  /**
+   * Phase 0 multilingual support — workspace-wide default language
+   * for generated content. Captured by the language_select card
+   * after IndustrySelectCard, persisted to Client.defaultLanguage
+   * at workspace creation. Null means "user hasn't picked yet";
+   * Client.defaultLanguage will default to "en" server-side.
+   */
+  defaultLanguage: string | null;
   starterMethod: StarterMethod | null;
   primaryInput: string | null;
   sources: AgentProfileDraft[];
@@ -280,6 +289,7 @@ export interface StreamCallbacks {
 
 export type OnboardingAction =
   | { type: 'SET_INDUSTRY'; industryKey: string }
+  | { type: 'SET_LANGUAGE'; language: string }
   | { type: 'SET_STARTER_METHOD'; method: StarterMethod }
   | { type: 'SET_PRIMARY_INPUT'; input: string }
   | { type: 'SET_PHASE'; phase: OnboardingPhase }
