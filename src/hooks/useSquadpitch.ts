@@ -1923,7 +1923,9 @@ export function useSyncMetaInsights(clientId: string) {
 // App Review tool is retired.
 
 export interface MetaAppReviewCheckResult {
-  scope: 'read_insights' | 'instagram_manage_insights';
+  // IG-03 — Instagram migrated to the Business Login scope family.
+  // FB Page Insights still uses `read_insights`.
+  scope: 'read_insights' | 'instagram_business_manage_insights';
   attempted: boolean;
   success: boolean;
   endpoint: string;

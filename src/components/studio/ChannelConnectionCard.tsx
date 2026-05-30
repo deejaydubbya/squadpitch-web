@@ -29,6 +29,11 @@ import { useOAuthPopup } from '@/hooks/useOAuthPopup';
 import { cn } from '@/lib/utils';
 import { PinterestBoardPicker } from './PinterestBoardPicker';
 import { GbpLocationPicker } from './GbpLocationPicker';
+import {
+  INSTAGRAM_CONNECTION_DESCRIPTION,
+  INSTAGRAM_RECONNECT_BANNER,
+  instagramConnectionNeedsReconnect,
+} from '@/lib/instagramScopes';
 
 export type ChannelRecommendationTier = 'primary' | 'secondary' | 'optional';
 
@@ -50,7 +55,16 @@ const CHANNEL_META: Record<
     description?: string;
   }
 > = {
-  INSTAGRAM: { label: 'Instagram', icon: Instagram, real: true },
+  INSTAGRAM: {
+    label: 'Instagram',
+    icon: Instagram,
+    real: true,
+    // IG-04 — show the four Business Login scope explanations
+    // before the user clicks Connect so reviewers + users can see
+    // exactly which permissions get requested. Single source of
+    // truth lives in `lib/instagramScopes.ts`.
+    description: INSTAGRAM_CONNECTION_DESCRIPTION,
+  },
   TIKTOK: { label: 'TikTok', icon: Music2, real: true },
   LINKEDIN: { label: 'LinkedIn Personal Profile', icon: Linkedin, real: true },
   LINKEDIN_ORGANIZATION_PAGE: {
@@ -155,6 +169,16 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
     typeof connection?.lastError === 'string' &&
     connection.lastError.startsWith('REVIEW_API_ACCESS_DENIED:');
 
+  // IG-04 — flag existing Instagram connections that still carry
+  // the pre-Business-Login scope shape so the user reconnects
+  // before publishing / insights / comments start failing on Meta's
+  // side. Stays false for non-IG channels and for fresh Business
+  // Login connections.
+  const instagramNeedsReconnect =
+    channel === 'INSTAGRAM' &&
+    isConnected &&
+    instagramConnectionNeedsReconnect(connection?.scopes);
+
   const handleConnect = () => oauthPopup.connect(channel);
 
   const handleDisconnect = () => {
@@ -241,6 +265,22 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
             <div className="mt-2 flex items-start gap-1.5 text-xs text-accent-red">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>{connection.lastError}</span>
+            </div>
+          )}
+
+          {instagramNeedsReconnect && (
+            <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-zone-yellow/10 text-zone-yellow text-xs">
+              <div className="flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>{INSTAGRAM_RECONNECT_BANNER}</span>
+              </div>
+              <button
+                onClick={handleConnect}
+                disabled={oauthPopup.isPending}
+                className="text-[11px] font-medium px-2 py-1 rounded-md bg-zone-yellow/20 hover:bg-zone-yellow/30 disabled:opacity-50"
+              >
+                Reconnect
+              </button>
             </div>
           )}
 

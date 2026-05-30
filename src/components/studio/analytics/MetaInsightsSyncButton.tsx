@@ -7,7 +7,8 @@
 // and hits the Graph API insights endpoints. Used to satisfy Meta App
 // Review's "required API call" detection — a reviewer or on-call dev
 // triggers this after reconnecting an account with the new
-// read_insights / instagram_manage_insights scopes.
+// read_insights (Facebook Page) / instagram_business_manage_insights
+// (Instagram Login / Business Login) scopes.
 //
 // Visibility gate: rendered only for users with admin/developer roles
 // OR when NEXT_PUBLIC_META_APP_REVIEW_DEMO=true. The backend route

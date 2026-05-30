@@ -5,7 +5,8 @@
 // Renders a single button that POSTs to
 // /api/v1/workspaces/:id/dev/meta/app-review-checks. The backend hits
 // one Page-level Insights endpoint (read_insights) and one IG
-// user-level Insights endpoint (instagram_manage_insights), then
+// user-level Insights endpoint (instagram_business_manage_insights —
+// the new Instagram Login / Business Login scope name), then
 // returns a structured pass/fail per platform.
 //
 // Visibility gates (any one is sufficient):
@@ -77,7 +78,7 @@ export function MetaAppReviewChecksButton({ clientId }: Props) {
         Makes one Facebook Page Insights call (proves{' '}
         <code className="text-white-100">read_insights</code>) and one Instagram
         Insights call (proves{' '}
-        <code className="text-white-100">instagram_manage_insights</code>).
+        <code className="text-white-100">instagram_business_manage_insights</code>).
         After both succeed, Meta&apos;s App Review dashboard typically updates
         within 30–60 minutes.
       </p>
@@ -119,7 +120,7 @@ export function MetaAppReviewChecksButton({ clientId }: Props) {
                 <ScopeLine
                   label="Instagram"
                   scopes={result.tokenScopes.instagram}
-                  required="instagram_manage_insights"
+                  required="instagram_business_manage_insights"
                 />
               )}
             </div>
