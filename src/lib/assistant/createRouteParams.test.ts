@@ -119,10 +119,69 @@ describe('intentToAssistantMode / sourceTypeToAssistantSource', () => {
     expect(intentToAssistantMode(undefined)).toBeUndefined();
   });
 
-  it('maps source type to assistant source (property | data_item | idea)', () => {
+  it('maps source type to assistant source (property | data_item | idea | url)', () => {
     expect(sourceTypeToAssistantSource('property')).toBe('property');
     expect(sourceTypeToAssistantSource('content_asset')).toBe('data_item');
     expect(sourceTypeToAssistantSource('idea')).toBe('idea');
+    expect(sourceTypeToAssistantSource('url')).toBe('url');
     expect(sourceTypeToAssistantSource(undefined)).toBeUndefined();
+  });
+});
+
+// URL-02 — URL source type handling.
+describe('parseCreateRouteParams — URL source (URL-02)', () => {
+  it('parses sourceType=url + sourceUrl', () => {
+    const r = parseCreateRouteParams(
+      p('intent=campaign&sourceType=url&sourceUrl=' +
+        encodeURIComponent('https://www.zillow.com/homedetails/123')),
+    );
+    expect(r.intent).toBe('campaign');
+    expect(r.sourceType).toBe('url');
+    expect(r.sourceUrl).toBe('https://www.zillow.com/homedetails/123');
+  });
+
+  it("accepts 'link' as an alias for url", () => {
+    expect(parseCreateRouteParams(p('sourceType=link')).sourceType).toBe('url');
+  });
+
+  it("normalizes sourceType=idea&prompt=<URL> → url (back-compat for old dashboard links)", () => {
+    const r = parseCreateRouteParams(
+      p('intent=campaign&sourceType=idea&prompt=' +
+        encodeURIComponent('https://example.com/listing/456 with a trailing note')),
+    );
+    expect(r.sourceType).toBe('url');
+    expect(r.sourceUrl).toBe('https://example.com/listing/456');
+  });
+
+  it("normalizes sourceType=idea&prompt='www.example.com' → url with https:// prepended", () => {
+    const r = parseCreateRouteParams(
+      p('sourceType=idea&prompt=' + encodeURIComponent('www.example.com/listing')),
+    );
+    expect(r.sourceType).toBe('url');
+    expect(r.sourceUrl).toBe('https://www.example.com/listing');
+  });
+
+  it('leaves a regular idea prompt alone (no URL → no rewrite)', () => {
+    const r = parseCreateRouteParams(
+      p('sourceType=idea&prompt=' +
+        encodeURIComponent('Promote our new buyer concierge service')),
+    );
+    expect(r.sourceType).toBe('idea');
+    expect(r.sourceUrl).toBeUndefined();
+    expect(r.prompt).toBe('Promote our new buyer concierge service');
+  });
+
+  it('promotes sourceUrl alone to sourceType=url when sourceType is missing', () => {
+    const r = parseCreateRouteParams(
+      p('sourceUrl=' + encodeURIComponent('https://example.com/listing/789')),
+    );
+    expect(r.sourceType).toBe('url');
+    expect(r.sourceUrl).toBe('https://example.com/listing/789');
+  });
+
+  it("preserves existing property + content_asset + idea flows unchanged", () => {
+    expect(parseCreateRouteParams(p('sourceType=property&sourceId=p1')).sourceType).toBe('property');
+    expect(parseCreateRouteParams(p('sourceType=content_asset&sourceId=c1')).sourceType).toBe('content_asset');
+    expect(parseCreateRouteParams(p('sourceType=idea&prompt=plain%20idea')).sourceType).toBe('idea');
   });
 });

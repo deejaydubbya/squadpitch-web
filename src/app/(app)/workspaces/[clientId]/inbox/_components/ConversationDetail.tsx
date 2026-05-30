@@ -1,8 +1,10 @@
 'use client';
 
 // Center pane — thread + notes + composer + AI suggestions for one
-// conversation. Opening a conversation here flips workspaceReadAt
-// so the unread badge clears (see the mark-read effect).
+// conversation. Sticky header keeps the contact + actions visible
+// while the user scrolls, source-context strip surfaces which page/
+// campaign drove the lead, and the first FORM_SUBMISSION renders as
+// a LeadCard hero rather than a generic chat bubble.
 //
 // Outbound delivery is intentionally NOT implemented for MVP. The
 // composer logs a WORKSPACE-side Message so the thread keeps
@@ -10,20 +12,28 @@
 // via an integrated channel).
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   ArrowLeft,
   CheckCircle2,
   ShieldAlert,
   RotateCcw,
   StickyNote,
-  Send,
-  ChevronDown,
+  ExternalLink,
+  Globe,
+  Target,
+  User,
 } from 'lucide-react';
 import {
   useInboxConversation,
   useUpdateConversation,
   useCreateNote,
   useLogManualMessage,
+  useSendInboxEmail,
+  useSendGbpReviewReply,
+  useSendYouTubeCommentReply,
+  useSendThreadsReply,
+  useSendInboxSms,
   type InboxConversationDetail as Conversation,
   type InboxMessage,
   type InboxAiSuggestion,
@@ -32,26 +42,35 @@ import {
 import { ApiError } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
 import { AiReplyPanel } from './AiReplyPanel';
+import { Composer, type ComposerMode } from './Composer';
+import { LeadCard } from './LeadCard';
+import { contactHeadline, formatDateTime, humanizeKey } from './inbox.helpers';
 
 interface ConversationDetailProps {
   clientId: string;
   conversationId: string;
   /** Mobile back arrow handler — desktop ignores. */
   onBack?: () => void;
-  /** Rendered to the right of the header for the sidebar trigger on mobile. */
-  rightAction?: React.ReactNode;
+  /** Open the contact / lead details slide-over. Required since the
+   *  contact info has no permanent column anymore. */
+  onOpenDetails: () => void;
 }
 
 export function ConversationDetail({
   clientId,
   conversationId,
   onBack,
-  rightAction,
+  onOpenDetails,
 }: ConversationDetailProps) {
   const { data, isLoading, error } = useInboxConversation(clientId, conversationId);
   const updateConv = useUpdateConversation(clientId);
   const logMessage = useLogManualMessage(clientId, conversationId);
   const createNote = useCreateNote(clientId, conversationId);
+  const sendEmail = useSendInboxEmail(clientId, conversationId);
+  const sendGbpReply = useSendGbpReviewReply(clientId, conversationId);
+  const sendYouTubeReply = useSendYouTubeCommentReply(clientId, conversationId);
+  const sendThreadsReply = useSendThreadsReply(clientId, conversationId);
+  const sendSms = useSendInboxSms(clientId, conversationId);
 
   // Mark read whenever a new unread conversation is opened. Stamp the
   // last-message id so we don't re-fire on every re-render while the
@@ -68,9 +87,45 @@ export function ConversationDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id, data?.unread]);
 
-  const [composerMode, setComposerMode] = useState<'reply' | 'note'>('reply');
+  // Default composer mode is "email" when the conversation supports
+  // it (real outbound). Otherwise fall back to "reply" (log-only).
+  // The user can always switch tabs explicitly.
+  const [composerMode, setComposerMode] = useState<ComposerMode>('reply');
   const [composerBody, setComposerBody] = useState('');
   const [fromSuggestionId, setFromSuggestionId] = useState<string | null>(null);
+  // AI panel collapses to a compact strip after "Use this" so the
+  // suggestion text isn't duplicated alongside the now-filled
+  // composer. Resets when the external reply is logged.
+  const [aiCollapsed, setAiCollapsed] = useState(false);
+  // Inline send error so users see what failed instead of an opaque
+  // "request failed" — Postmark rejections, rate-limit, etc.
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // Promote the email tab to default the first time the data
+  // arrives if email is available. Stamp the conversation id so a
+  // subsequent capability change for the same conversation doesn't
+  // override an explicit user tab switch.
+  const defaultedForId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    if (defaultedForId.current === data.id) return;
+    defaultedForId.current = data.id;
+    if (data.replyCapabilities?.email.available) {
+      setComposerMode('email');
+    }
+  }, [data?.id, data?.replyCapabilities?.email.available]);
+
+  // The first inbound FORM_SUBMISSION gets hero rendering; subsequent
+  // CONTACT messages fall back to the standard bubble layout. Computed
+  // before the early returns so the hook order stays stable.
+  const heroMessageId = useMemo(() => {
+    if (!data) return null;
+    return (
+      data.messages.find(
+        (m) => m.party === 'CONTACT' && m.channel === 'FORM_SUBMISSION',
+      )?.id ?? null
+    );
+  }, [data]);
 
   if (isLoading) {
     return <CenteredMessage>Loading conversation…</CenteredMessage>;
@@ -90,7 +145,71 @@ export function ConversationDetail({
   const handleSubmit = () => {
     const body = composerBody.trim();
     if (!body) return;
-    if (composerMode === 'reply') {
+    setSendError(null);
+    if (composerMode === 'email') {
+      // Mint a fresh idempotency key per Send click. Pure browser
+      // randomUUID — no PII, no server roundtrip. A double-click or
+      // network retry on this exact mutate call will reuse the key
+      // (React Query keeps the same input on retry) and the API
+      // returns the existing Message instead of a duplicate send.
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      // Conversation provider drives WHICH send endpoint the
+      // "email" composer tab dispatches to. For Google Business
+      // Profile review conversations the primary action is a
+      // public review reply (PUT updateReply via /reply-review),
+      // not an outbound email — the contact has no email address
+      // and the reply is on the public Google listing.
+      const sendMutation =
+        conv.provider === 'GOOGLE_BUSINESS'
+          ? sendGbpReply
+          : conv.provider === 'YOUTUBE'
+            ? sendYouTubeReply
+            : conv.provider === 'THREADS'
+              ? sendThreadsReply
+              : sendEmail;
+      sendMutation.mutate(
+        {
+          body,
+          fromSuggestionId: fromSuggestionId ?? undefined,
+          idempotencyKey,
+        },
+        {
+          onSuccess: () => {
+            setComposerBody('');
+            setFromSuggestionId(null);
+            setAiCollapsed(false);
+          },
+          onError: (err) => {
+            setSendError(err instanceof ApiError ? err.message : 'Send failed');
+          },
+        },
+      );
+    } else if (composerMode === 'sms') {
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sendSms.mutate(
+        {
+          body,
+          fromSuggestionId: fromSuggestionId ?? undefined,
+          idempotencyKey,
+        },
+        {
+          onSuccess: () => {
+            setComposerBody('');
+            setFromSuggestionId(null);
+            setAiCollapsed(false);
+          },
+          onError: (err) => {
+            setSendError(err instanceof ApiError ? err.message : 'Send failed');
+          },
+        },
+      );
+    } else if (composerMode === 'reply') {
       logMessage.mutate(
         {
           body,
@@ -101,6 +220,9 @@ export function ConversationDetail({
           onSuccess: () => {
             setComposerBody('');
             setFromSuggestionId(null);
+            // After a successful log, reset the AI panel so the next
+            // suggestion starts from the full default view.
+            setAiCollapsed(false);
           },
         },
       );
@@ -111,118 +233,219 @@ export function ConversationDetail({
     }
   };
 
+  // Retry a FAILED outbound email. Re-sends the prior body with a
+  // FRESH idempotency key (the failed attempt already burned its
+  // key — reusing it would short-circuit back to the same FAILED
+  // Message). Whether the user sees the new row or the old one
+  // depends on how the API handles repeated failed sends; for now
+  // we just kick off a brand-new attempt.
+  const handleRetryFailedEmail = (failed: InboxMessage) => {
+    setSendError(null);
+    const idempotencyKey =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    sendEmail.mutate(
+      {
+        body: failed.body,
+        fromSuggestionId: failed.fromSuggestionId ?? undefined,
+        idempotencyKey,
+      },
+      {
+        onError: (err) => {
+          setSendError(err instanceof ApiError ? err.message : 'Retry failed');
+        },
+      },
+    );
+  };
+
   const handleUseSuggestion = (suggestion: InboxAiSuggestion) => {
-    setComposerMode('reply');
+    // Prefer the real send channel if it's available — the user
+    // almost certainly meant to send, not log.
+    const nextMode: ComposerMode = conv.replyCapabilities?.email.available
+      ? 'email'
+      : 'reply';
+    setComposerMode(nextMode);
     setComposerBody(suggestion.body);
     setFromSuggestionId(suggestion.id);
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <ConversationHeader
+    <div className="flex flex-col h-full bg-sp-bg">
+      <DetailHeader
         conv={conv}
+        clientId={clientId}
         onBack={onBack}
-        rightAction={rightAction}
+        onOpenDetails={onOpenDetails}
         onPatch={(patch) =>
           updateConv.mutate({ conversationId: conv.id, patch })
         }
         patchPending={updateConv.isPending}
+        onAddNote={() => setComposerMode('note')}
       />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        <ThreadTimeline conversation={conv} />
-      </div>
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+        {heroMessageId && (
+          <LeadCard
+            message={conv.messages.find((m) => m.id === heroMessageId)!}
+            page={conv.page}
+            campaign={conv.campaign}
+          />
+        )}
 
-      <div className="border-t border-white-10 p-3 space-y-3">
+        <ThreadTimeline
+          conversation={conv}
+          skipMessageId={heroMessageId}
+          onRetryFailedEmail={handleRetryFailedEmail}
+          retryPending={sendEmail.isPending}
+        />
+
         <AiReplyPanel
           clientId={clientId}
           conversationId={conv.id}
           latestSuggestion={latestSuggestion}
           onUseSuggestion={handleUseSuggestion}
           disabled={!hasInbound}
+          contextLabel={buildContextLabel(conv)}
+          channel={composerMode === 'note' ? 'note' : composerMode === 'reply' ? 'reply' : 'email'}
+          collapsed={aiCollapsed}
+          onCollapse={() => setAiCollapsed(true)}
+          onExpand={() => setAiCollapsed(false)}
         />
+      </div>
 
+      <div className="border-t border-white-10 px-4 sm:px-6 py-3 bg-sp-bg">
         <Composer
+          clientId={clientId}
           mode={composerMode}
           onModeChange={(m) => {
             setComposerMode(m);
+            setSendError(null);
             if (m === 'note') setFromSuggestionId(null);
           }}
           body={composerBody}
           onBodyChange={setComposerBody}
           onSubmit={handleSubmit}
-          pending={logMessage.isPending || createNote.isPending}
+          pending={
+            sendEmail.isPending ||
+            sendGbpReply.isPending ||
+            sendYouTubeReply.isPending ||
+            sendThreadsReply.isPending ||
+            sendSms.isPending ||
+            logMessage.isPending ||
+            createNote.isPending
+          }
           fromSuggestion={Boolean(fromSuggestionId)}
+          capabilities={
+            conv.replyCapabilities ?? {
+              email: { available: false, reason: 'Loading…' },
+              logExternal: { available: true, reason: null },
+              note: { available: true, reason: null },
+            }
+          }
+          availableActions={conv.availableReplyActions ?? []}
+          provider={conv.provider}
+          sendError={sendError}
         />
       </div>
     </div>
   );
 }
 
-// ── Header ──────────────────────────────────────────────────────────────
+// ── Sticky header + source strip ────────────────────────────────────────
 
 interface HeaderProps {
   conv: Conversation;
+  clientId: string;
   onBack?: () => void;
-  rightAction?: React.ReactNode;
+  onOpenDetails: () => void;
   onPatch: (patch: { status?: ConversationStatus; spam?: boolean }) => void;
   patchPending: boolean;
+  onAddNote: () => void;
 }
 
-function ConversationHeader({
+function DetailHeader({
   conv,
+  clientId,
   onBack,
-  rightAction,
+  onOpenDetails,
   onPatch,
   patchPending,
+  onAddNote,
 }: HeaderProps) {
-  const title =
-    conv.contact.name || conv.contact.email || conv.contact.phone || 'Unknown lead';
+  const title = contactHeadline(conv.contact);
   const sub = [conv.contact.email, conv.contact.phone].filter(Boolean).join(' · ');
 
   return (
-    <div className="border-b border-white-10 p-3 flex items-center gap-2">
-      {onBack && (
-        <button
-          type="button"
-          onClick={onBack}
-          className="lg:hidden p-1.5 rounded-lg text-white-60 hover:text-white-100 hover:bg-white-10"
-          aria-label="Back to inbox"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-      )}
-      <div className="min-w-0 flex-1">
-        <h2 className="text-sm font-semibold text-white-100 truncate">{title}</h2>
-        {sub && <p className="text-[11px] text-white-50 truncate">{sub}</p>}
+    <div className="sticky top-0 z-10 border-b border-white-10 bg-sp-bg/95 backdrop-blur supports-[backdrop-filter]:bg-sp-bg/80">
+      <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="lg:hidden p-1.5 rounded-lg text-white-60 hover:text-white-100 hover:bg-white-10"
+            aria-label="Back to inbox"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-sm font-semibold text-white-100 truncate">
+              {title}
+            </h2>
+            <StatusPill status={conv.status} spam={conv.spam} />
+          </div>
+          {sub && (
+            <p className="text-[11px] text-white-50 truncate mt-0.5">{sub}</p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          <HeaderButton
+            icon={<StickyNote className="w-3.5 h-3.5" />}
+            label="Add note"
+            onClick={onAddNote}
+            pending={false}
+          />
+          {conv.status !== 'CLOSED' ? (
+            <HeaderButton
+              icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+              label="Resolve"
+              onClick={() => onPatch({ status: 'CLOSED' })}
+              pending={patchPending}
+            />
+          ) : (
+            <HeaderButton
+              icon={<RotateCcw className="w-3.5 h-3.5" />}
+              label="Reopen"
+              onClick={() => onPatch({ status: 'OPEN' })}
+              pending={patchPending}
+            />
+          )}
+          <HeaderButton
+            icon={<ShieldAlert className="w-3.5 h-3.5" />}
+            label={conv.spam ? 'Not spam' : 'Mark spam'}
+            onClick={() => onPatch({ spam: !conv.spam })}
+            pending={patchPending}
+            tone={conv.spam ? 'active' : 'default'}
+          />
+          {/* Divider keeps the lead-details affordance visually
+              distinct from the conversation-state actions. */}
+          <span className="hidden sm:inline-block w-px h-5 bg-white-10 mx-0.5" />
+          <button
+            type="button"
+            onClick={onOpenDetails}
+            className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-white-15 text-white-80 hover:text-white-100 hover:bg-white-10 hover:border-white-20 transition-colors inline-flex items-center gap-1.5"
+            title="Open lead details"
+          >
+            <User className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Lead details</span>
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1">
-        {conv.status !== 'CLOSED' && (
-          <HeaderButton
-            icon={<CheckCircle2 className="w-3.5 h-3.5" />}
-            label="Resolve"
-            onClick={() => onPatch({ status: 'CLOSED' })}
-            pending={patchPending}
-          />
-        )}
-        {conv.status === 'CLOSED' && (
-          <HeaderButton
-            icon={<RotateCcw className="w-3.5 h-3.5" />}
-            label="Reopen"
-            onClick={() => onPatch({ status: 'OPEN' })}
-            pending={patchPending}
-          />
-        )}
-        <HeaderButton
-          icon={<ShieldAlert className="w-3.5 h-3.5" />}
-          label={conv.spam ? 'Not spam' : 'Spam'}
-          onClick={() => onPatch({ spam: !conv.spam })}
-          pending={patchPending}
-          tone={conv.spam ? 'active' : 'default'}
-        />
-        {rightAction}
-      </div>
+      <SourceStrip conv={conv} clientId={clientId} />
     </div>
   );
 }
@@ -245,10 +468,11 @@ function HeaderButton({
       type="button"
       onClick={onClick}
       disabled={pending}
+      title={label}
       className={cn(
-        'text-xs font-medium px-2.5 py-1 rounded-lg transition-colors inline-flex items-center gap-1.5',
+        'text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5',
         tone === 'active'
-          ? 'bg-amber-400/15 text-amber-300'
+          ? 'bg-amber-400/15 text-amber-200'
           : 'text-white-60 hover:text-white-100 hover:bg-white-10',
         pending && 'opacity-50 cursor-not-allowed',
       )}
@@ -259,22 +483,85 @@ function HeaderButton({
   );
 }
 
+const STATUS_TONE: Record<ConversationStatus | 'SPAM', string> = {
+  OPEN: 'bg-accent-green-110/15 text-accent-green-110',
+  PENDING: 'bg-blue-400/15 text-blue-300',
+  CLOSED: 'bg-white-10 text-white-50',
+  SNOOZED: 'bg-purple-400/15 text-purple-300',
+  SPAM: 'bg-amber-400/15 text-amber-200',
+};
+
+function StatusPill({ status, spam }: { status: ConversationStatus; spam: boolean }) {
+  const key = spam ? 'SPAM' : status;
+  const label = spam ? 'spam' : status.toLowerCase();
+  return (
+    <span
+      className={cn(
+        'inline-block text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
+        STATUS_TONE[key as keyof typeof STATUS_TONE] ?? 'bg-white-10 text-white-50',
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+// Below-header strip showing the page + campaign the lead came from.
+// Renders nothing when no source context is available so we don't
+// add visual noise for non-form conversations.
+function SourceStrip({ conv, clientId }: { conv: Conversation; clientId: string }) {
+  if (!conv.page && !conv.campaign) return null;
+  return (
+    <div className="px-4 sm:px-6 py-2 flex items-center gap-3 text-[11px] text-white-50 border-t border-white-10/50 bg-white-3 flex-wrap">
+      {conv.page && (
+        <Link
+          href={`/workspaces/${clientId}/sites/pages/${conv.page.id}`}
+          className="inline-flex items-center gap-1.5 hover:text-white-100 transition-colors group"
+        >
+          <Globe className="w-3 h-3" />
+          <span>From</span>
+          <span className="text-white-90 font-medium group-hover:text-accent-green-110">
+            {conv.page.title}
+          </span>
+          <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </Link>
+      )}
+      {conv.campaign && (
+        <div className="inline-flex items-center gap-1.5">
+          <Target className="w-3 h-3" />
+          <span>Campaign</span>
+          <span className="text-white-90 font-medium">{conv.campaign.name}</span>
+          <span className="text-white-30 lowercase">
+            ({conv.campaign.campaignType.toLowerCase()})
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Thread + notes timeline ─────────────────────────────────────────────
 
-function ThreadTimeline({ conversation }: { conversation: Conversation }) {
+function ThreadTimeline({
+  conversation,
+  skipMessageId,
+  onRetryFailedEmail,
+  retryPending,
+}: {
+  conversation: Conversation;
+  /** Message id rendered as a LeadCard above — exclude from the timeline so it doesn't double-render. */
+  skipMessageId: string | null;
+  onRetryFailedEmail: (message: InboxMessage) => void;
+  retryPending: boolean;
+}) {
   type Entry =
     | { kind: 'message'; at: string; data: InboxMessage }
     | { kind: 'note'; at: string; data: { id: string; body: string; authorUserId: string } };
 
-  // Interleave messages + notes by timestamp so the thread tells the
-  // full story (note about a contact appears near the message it
-  // refers to).
   const entries = useMemo<Entry[]>(() => {
-    const messages: Entry[] = conversation.messages.map((m) => ({
-      kind: 'message',
-      at: m.createdAt,
-      data: m,
-    }));
+    const messages: Entry[] = conversation.messages
+      .filter((m) => m.id !== skipMessageId)
+      .map((m) => ({ kind: 'message', at: m.createdAt, data: m }));
     const notes: Entry[] = conversation.notes.map((n) => ({
       kind: 'note',
       at: n.createdAt,
@@ -283,17 +570,20 @@ function ThreadTimeline({ conversation }: { conversation: Conversation }) {
     return [...messages, ...notes].sort(
       (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
     );
-  }, [conversation.messages, conversation.notes]);
+  }, [conversation.messages, conversation.notes, skipMessageId]);
 
-  if (entries.length === 0) {
-    return <CenteredMessage>No messages yet.</CenteredMessage>;
-  }
+  if (entries.length === 0) return null;
 
   return (
     <ul className="space-y-3">
-      {entries.map((entry, idx) =>
+      {entries.map((entry) =>
         entry.kind === 'message' ? (
-          <MessageBubble key={`m-${entry.data.id}`} message={entry.data} />
+          <MessageBubble
+            key={`m-${entry.data.id}`}
+            message={entry.data}
+            onRetry={onRetryFailedEmail}
+            retryPending={retryPending}
+          />
         ) : (
           <NoteBubble key={`n-${entry.data.id}`} note={entry.data} />
         ),
@@ -302,33 +592,46 @@ function ThreadTimeline({ conversation }: { conversation: Conversation }) {
   );
 }
 
-function MessageBubble({ message }: { message: InboxMessage }) {
+function MessageBubble({
+  message,
+  onRetry,
+  retryPending,
+}: {
+  message: InboxMessage;
+  onRetry: (message: InboxMessage) => void;
+  retryPending: boolean;
+}) {
   const isContact = message.party === 'CONTACT';
   const isSystem = message.party === 'SYSTEM';
 
   if (isSystem) {
     return (
-      <li className="text-center">
-        <span className="text-[11px] text-white-40 italic">{message.body}</span>
+      <li className="text-center py-1">
+        <span className="text-[10px] text-white-40 italic">{message.body}</span>
       </li>
     );
   }
+
+  // Delivery state for outbound real-channel sends. Only EMAIL (and
+  // future SMS/social) carry a meaningful lifecycle; FORM_SUBMISSION
+  // and MANUAL_LOG come back with null deliveryStatus.
+  const isFailed = !isContact && message.deliveryStatus === 'FAILED';
+  const isSending = !isContact && message.deliveryStatus === 'SENDING';
 
   return (
     <li className={cn('flex', isContact ? 'justify-start' : 'justify-end')}>
       <div
         className={cn(
-          'max-w-[80%] rounded-2xl px-3 py-2 space-y-1',
+          'max-w-[80%] rounded-2xl px-3.5 py-2.5 space-y-1',
           isContact
             ? 'bg-white-10 text-white-90 rounded-tl-sm'
-            : 'bg-accent-green-110/15 text-white-100 rounded-tr-sm',
+            : isFailed
+              ? 'bg-amber-400/10 text-white-100 rounded-tr-sm border border-amber-400/40'
+              : 'bg-accent-green-110/15 text-white-100 rounded-tr-sm border border-accent-green-110/20',
         )}
       >
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.body}</p>
-        {message.channel === 'FORM_SUBMISSION' && message.payloadJson && (
-          <FormPayload payload={message.payloadJson} />
-        )}
-        <div className="flex items-center gap-2 text-[10px] text-white-40 pt-1">
+        <div className="flex items-center gap-2 text-[10px] text-white-40 pt-1 flex-wrap">
           <span>{formatDateTime(message.createdAt)}</span>
           {message.channel && (
             <>
@@ -338,42 +641,50 @@ function MessageBubble({ message }: { message: InboxMessage }) {
               </span>
             </>
           )}
+          {isSending && (
+            <>
+              <span>·</span>
+              <span className="uppercase tracking-wider text-white-50">Sending…</span>
+            </>
+          )}
+          {isFailed && (
+            <>
+              <span>·</span>
+              <span className="uppercase tracking-wider text-amber-300 font-medium">
+                Failed
+              </span>
+            </>
+          )}
         </div>
+        {isFailed && (
+          <div className="flex items-start justify-between gap-2 pt-1 border-t border-amber-400/20 mt-1">
+            <p className="text-[11px] text-amber-200/80 leading-snug flex-1 min-w-0">
+              {message.errorReason
+                ? `Send failed: ${truncateReason(message.errorReason)}`
+                : 'Send failed. Try again or check provider settings.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => onRetry(message)}
+              disabled={retryPending}
+              className={cn(
+                'text-[11px] font-semibold px-2 py-1 rounded-md inline-flex items-center gap-1 transition-colors shrink-0',
+                'bg-amber-400/20 text-amber-100 hover:bg-amber-400/30 border border-amber-400/30',
+                retryPending && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              {retryPending ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
+        )}
       </div>
     </li>
   );
 }
 
-function FormPayload({ payload }: { payload: Record<string, unknown> }) {
-  const [open, setOpen] = useState(false);
-  const entries = Object.entries(payload).filter(
-    ([, v]) => typeof v === 'string' && v.trim().length > 0,
-  );
-  if (entries.length === 0) return null;
-  return (
-    <div className="mt-2 border-t border-white-10/50 pt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="text-[10px] text-white-40 hover:text-white-70 inline-flex items-center gap-1 uppercase tracking-wider"
-      >
-        <ChevronDown
-          className={cn('w-3 h-3 transition-transform', !open && '-rotate-90')}
-        />
-        Form fields ({entries.length})
-      </button>
-      {open && (
-        <div className="mt-1.5 space-y-1">
-          {entries.map(([k, v]) => (
-            <div key={k} className="text-[11px]">
-              <span className="text-white-40">{humanize(k)}:</span>{' '}
-              <span className="text-white-80">{String(v)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function truncateReason(reason: string): string {
+  const stripped = reason.replace(/^\d+:\s*/, '');
+  return stripped.length > 160 ? `${stripped.slice(0, 157)}…` : stripped;
 }
 
 function NoteBubble({
@@ -383,8 +694,8 @@ function NoteBubble({
 }) {
   return (
     <li className="flex justify-center">
-      <div className="max-w-[80%] bg-amber-400/10 border border-amber-400/20 rounded-xl px-3 py-2">
-        <div className="flex items-center gap-1.5 text-[10px] text-amber-300 uppercase tracking-wider">
+      <div className="max-w-[80%] bg-amber-400/8 border border-amber-400/20 rounded-xl px-3.5 py-2.5">
+        <div className="flex items-center gap-1.5 text-[10px] text-amber-300 uppercase tracking-wider font-semibold">
           <StickyNote className="w-3 h-3" />
           Internal note
         </div>
@@ -393,105 +704,6 @@ function NoteBubble({
         </p>
       </div>
     </li>
-  );
-}
-
-// ── Composer ────────────────────────────────────────────────────────────
-
-interface ComposerProps {
-  mode: 'reply' | 'note';
-  onModeChange: (m: 'reply' | 'note') => void;
-  body: string;
-  onBodyChange: (s: string) => void;
-  onSubmit: () => void;
-  pending: boolean;
-  fromSuggestion: boolean;
-}
-
-function Composer({
-  mode,
-  onModeChange,
-  body,
-  onBodyChange,
-  onSubmit,
-  pending,
-  fromSuggestion,
-}: ComposerProps) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => onModeChange('reply')}
-          className={cn(
-            'text-xs font-medium px-2.5 py-1 rounded-lg transition-colors',
-            mode === 'reply'
-              ? 'bg-accent-green-110/15 text-accent-green-110'
-              : 'text-white-50 hover:text-white-100 hover:bg-white-10',
-          )}
-        >
-          Log a reply
-        </button>
-        <button
-          type="button"
-          onClick={() => onModeChange('note')}
-          className={cn(
-            'text-xs font-medium px-2.5 py-1 rounded-lg transition-colors',
-            mode === 'note'
-              ? 'bg-amber-400/15 text-amber-300'
-              : 'text-white-50 hover:text-white-100 hover:bg-white-10',
-          )}
-        >
-          Internal note
-        </button>
-        {fromSuggestion && mode === 'reply' && (
-          <span className="ml-auto text-[10px] text-accent-green-110 uppercase tracking-wider">
-            From AI draft
-          </span>
-        )}
-      </div>
-
-      <textarea
-        value={body}
-        onChange={(e) => onBodyChange(e.target.value)}
-        placeholder={
-          mode === 'reply'
-            ? 'Type the reply you sent externally — it gets logged on the thread.'
-            : 'Internal note for the team. Not visible to the lead.'
-        }
-        rows={3}
-        className="w-full bg-white-5 border border-white-10 rounded-lg px-3 py-2 text-sm text-white-90 placeholder:text-white-30 focus:outline-none focus:border-white-20 resize-none"
-      />
-
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] text-white-40">
-          {mode === 'reply'
-            ? 'Outbound delivery is logged only — channels ship in a later phase.'
-            : 'Notes stay inside the workspace.'}
-        </p>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={pending || !body.trim()}
-          className={cn(
-            'text-xs font-semibold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-colors',
-            mode === 'reply'
-              ? 'bg-accent-green-110 text-sp-bg hover:bg-accent-green-100'
-              : 'bg-amber-400/20 text-amber-200 hover:bg-amber-400/30',
-            (pending || !body.trim()) && 'opacity-50 cursor-not-allowed',
-          )}
-        >
-          <Send className="w-3 h-3" />
-          {pending
-            ? mode === 'reply'
-              ? 'Logging…'
-              : 'Saving…'
-            : mode === 'reply'
-              ? 'Log reply'
-              : 'Save note'}
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -505,35 +717,21 @@ function CenteredMessage({ children }: { children: React.ReactNode }) {
   );
 }
 
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const today = new Date();
-  const sameDay =
-    d.getFullYear() === today.getFullYear() &&
-    d.getMonth() === today.getMonth() &&
-    d.getDate() === today.getDate();
-  if (sameDay) {
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-  return d.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function humanize(key: string): string {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/^./, (c) => c.toUpperCase());
-}
-
 function humanizeChannel(channel: string): string {
   if (channel === 'FORM_SUBMISSION') return 'form';
   if (channel === 'MANUAL_LOG') return 'logged';
   if (channel === 'SOCIAL_DM') return 'DM';
   return channel.toLowerCase();
+}
+
+// Short summary of what the AI will see, shown in the AI reply panel
+// so the user can trust the suggestion is grounded. Page wins as
+// the primary anchor because that's what the lead actually saw;
+// campaign adds when present.
+function buildContextLabel(conv: Conversation): string | null {
+  const parts: string[] = [];
+  if (conv.page?.title) parts.push(conv.page.title);
+  if (conv.campaign?.name) parts.push(conv.campaign.name);
+  if (parts.length === 0) return null;
+  return parts.join(' · ');
 }

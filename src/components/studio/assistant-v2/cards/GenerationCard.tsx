@@ -312,7 +312,10 @@ function QuickPostReviewInner({
   }, [session.propertyData]);
 
   // Data item images for synthetic item_img_N resolution
-  const { data: dataItem } = useDataItem(session.quickPostDataItemId ?? undefined);
+  const { data: dataItem } = useDataItem(
+    clientId,
+    session.quickPostDataItemId ?? undefined,
+  );
   const itemImages = useMemo(() => {
     if (!dataItem) return [];
     const dataJson = dataItem.dataJson as Record<string, unknown> | undefined;

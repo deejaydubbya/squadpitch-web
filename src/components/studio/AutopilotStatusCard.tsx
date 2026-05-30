@@ -7,9 +7,13 @@ import { cn } from '@/lib/utils';
 
 const MODE_LABELS: Record<string, string> = {
   off: 'Off',
-  draft_only: 'Draft Only',
-  schedule_approved: 'Schedule Approved',
-  auto_publish: 'Auto Publish',
+  recommend_only: 'Recommendations only',
+  draft_on_click: 'Generate drafts manually',
+  auto_generate_drafts: 'Auto-prepare drafts',
+  schedule_after_approval: 'Auto-schedule approved',
+  auto_publish_guarded: 'Auto-publish (coming soon)',
+  // Legacy alias.
+  draft_only: 'Generate drafts manually',
 };
 
 function formatRelative(iso: string | null): string {

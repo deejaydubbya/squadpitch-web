@@ -18,7 +18,12 @@ import { apiFetch } from '@/lib/apiFetch';
 export type ConversationStatus = 'OPEN' | 'PENDING' | 'CLOSED' | 'SNOOZED';
 export type ConversationParty = 'CONTACT' | 'WORKSPACE' | 'SYSTEM';
 export type ConversationSource = 'FORM' | 'EMAIL' | 'SOCIAL' | 'MANUAL';
-export type ContactStatus = 'NEW' | 'ENGAGED' | 'CUSTOMER' | 'LOST' | 'ARCHIVED';
+export type ContactStatus =
+  | 'NEW'
+  | 'ENGAGED'
+  | 'QUALIFIED'
+  | 'CONVERTED'
+  | 'ARCHIVED';
 export type ContactSourceType = 'FORM' | 'IMPORT' | 'MANUAL';
 export type MessageChannel =
   | 'FORM_SUBMISSION'
@@ -26,7 +31,67 @@ export type MessageChannel =
   | 'SMS'
   | 'SOCIAL_DM'
   | 'MANUAL_LOG';
+export type MessageDeliveryStatus = 'DRAFT' | 'SENDING' | 'SENT' | 'FAILED';
 export type ReplyTone = 'professional' | 'friendly' | 'concise';
+// AI reply channel framing — drives the system prompt:
+//   email — outbound email draft (greeting + sign-off-ready)
+//   reply — logged-external paste (brief, no greeting)
+//   note  — internal team note (third-person, no greeting)
+export type AiReplyChannel = 'email' | 'reply' | 'note';
+
+export interface ReplyCapability {
+  available: boolean;
+  reason: string | null;
+}
+
+export interface ReplyCapabilities {
+  email: ReplyCapability;
+  logExternal: ReplyCapability;
+  note: ReplyCapability;
+}
+
+// Channel-aware action types mirrored from
+// squadpitch-api/domains/inbox/inbox.replyActions.js. Provider
+// columns may extend this set later (REPLY_PUBLIC_COMMENT for
+// social, REPLY_REVIEW for GBP/FB, etc.).
+export type ReplyActionId =
+  | 'SEND_EMAIL'
+  | 'SEND_SMS'
+  | 'REPLY_PUBLIC_COMMENT'
+  | 'REPLY_DM'
+  | 'REPLY_REVIEW'
+  | 'LOG_EXTERNAL_REPLY'
+  | 'INTERNAL_NOTE';
+
+export interface ReplyActionDescriptor {
+  action: ReplyActionId;
+  label: string;
+  available: boolean;
+  reason: string | null;
+  /** True when the action needs workspace-level provider config
+   *  (e.g. Postmark or Twilio creds) before it can ever go live —
+   *  drives "Connect <provider>" copy in the UI. False when the
+   *  blocker is per-conversation (e.g. lead has no phone). */
+  requiresConfig: boolean;
+}
+
+export type ConversationProvider =
+  | 'SQUADSITES'
+  | 'EMAIL'
+  | 'SMS'
+  | 'FACEBOOK'
+  | 'INSTAGRAM'
+  | 'GOOGLE_BUSINESS'
+  | 'YOUTUBE'
+  | 'LINKEDIN'
+  | 'X'
+  | 'TIKTOK'
+  | 'THREADS'
+  | 'PINTEREST'
+  | 'WEB_CHAT'
+  | 'MANUAL';
+
+export type MessageVisibility = 'PUBLIC' | 'PRIVATE' | 'INTERNAL';
 
 export interface InboxContact {
   id: string;
@@ -55,6 +120,17 @@ export interface InboxMessage {
   externalMessageId: string | null;
   authorUserId: string | null;
   fromSuggestionId: string | null;
+  // Outbound delivery lifecycle. Null for legacy thread events
+  // (FORM_SUBMISSION, MANUAL_LOG) that didn't go through a provider.
+  deliveryStatus: MessageDeliveryStatus | null;
+  providerMessageId: string | null;
+  errorReason: string | null;
+  lastAttemptedAt: string | null;
+  // Privacy framing — drives composer rendering + AI prompt filtering.
+  visibility: MessageVisibility;
+  // Public-surface link (social comment URL, etc.). Null for direct
+  // channels (email/SMS/form submissions).
+  sourceUrl: string | null;
   createdAt: string;
 }
 
@@ -87,6 +163,10 @@ export interface InboxConversationListRow {
   sourceFormSubmissionId: string | null;
   pageId: string | null;
   campaignId: string | null;
+  /** Per-network origin — drives the list-row badge and the
+   *  reply-action resolver. SQUADSITES for form-intake; FACEBOOK /
+   *  INSTAGRAM / etc. for social ingestion. */
+  provider: ConversationProvider;
   status: ConversationStatus;
   spam: boolean;
   lastMessageAt: string;
@@ -100,16 +180,79 @@ export interface InboxConversationListRow {
   messages: Pick<InboxMessage, 'id' | 'body' | 'party' | 'createdAt'>[];
 }
 
+// Lean shapes returned by getConversation — whitelisted on the
+// server side; never expose blocksJson/themeJson here.
+export interface InboxPageSummary {
+  id: string;
+  title: string;
+  slug: string;
+  status: string;
+}
+
+export interface InboxCampaignSummary {
+  id: string;
+  name: string;
+  campaignType: string;
+  status: string;
+}
+
 export interface InboxConversationDetail extends InboxConversationListRow {
   contact: InboxContact;
   messages: InboxMessage[];
   notes: InboxNote[];
   aiReplies: InboxAiSuggestion[];
+  page: InboxPageSummary | null;
+  campaign: InboxCampaignSummary | null;
+  /** Legacy 3-tab capability shape — kept for back-compat. New
+   *  surface lives on availableReplyActions. */
+  replyCapabilities: ReplyCapabilities;
+  /** Channel-aware action list, server-derived per spinstr07. */
+  availableReplyActions: ReplyActionDescriptor[];
+  /** Per-network provider for the conversation. SQUADSITES for
+   *  every form-intake conversation; EMAIL when the inbound email
+   *  webhook created the thread without a prior form. */
+  provider: ConversationProvider;
+  externalThreadId: string | null;
 }
 
 export interface InboxStats {
   unreadCount: number;
   openCount: number;
+  pendingCount: number;
+  closedCount: number;
+  spamCount: number;
+  totalCount: number;
+  // Windowed analytics — the server computes over the last
+  // `windowDays` days (server default: 30). UI surfaces this in
+  // a compact analytics bar under the header pills.
+  windowDays: number;
+  // Granular source attribution — Threads vs YouTube comments
+  // are separate buckets; DMs and SMS are their own categories.
+  // Buckets with zero volume render as 0 (UI may hide them).
+  bySource: {
+    forms: number;
+    email: number;
+    threadsComments: number;
+    youtubeComments: number;
+    otherSocialComments: number;
+    reviews: number;
+    dms: number;
+    sms: number;
+    manual: number;
+  };
+  messageCounts: {
+    emailSent: number;
+    smsSent: number;
+    socialReplySent: number;
+    loggedExternal: number;
+    internalNotes: number;
+  };
+  aiSuggestionsGenerated: number;
+  aiSuggestionsUsed: number;
+  // null when no conversations had both an inbound + an outbound
+  // within the window. UI shows "—" rather than 0 in that case.
+  avgFirstResponseSeconds: number | null;
+  firstResponseSampleSize: number;
 }
 
 // ── Query keys ───────────────────────────────────────────────────────────
@@ -263,12 +406,229 @@ export function useLogManualMessage(clientId: string, conversationId: string) {
   });
 }
 
+// ── Send email (real outbound) ───────────────────────────────────────────
+//
+// First real send channel. Backed by Postmark on the API side and
+// capability-gated — the route returns 412 if the lead has no email
+// or the provider isn't configured. Never call this without first
+// checking conversation.replyCapabilities.email.available.
+
+export interface SendEmailInput {
+  body: string;
+  subject?: string;
+  fromSuggestionId?: string;
+  // Fresh UUID minted by the composer on each Send click. Lets a
+  // retried POST (double-click, network retry, server-restart-mid-call)
+  // return the existing Message instead of firing a duplicate send.
+  // Optional for type-safety, but the composer always supplies one.
+  idempotencyKey?: string;
+}
+
+// ── Send Google Business Profile public review reply ────────────────────
+//
+// Mirrors useSendInboxEmail (same idempotency-key-as-header pattern,
+// same {body, fromSuggestionId, idempotencyKey} input shape) so the
+// composer can dispatch to whichever send endpoint matches the
+// conversation provider without restructuring its handler.
+
+export interface SendGbpReviewReplyInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendGbpReviewReply(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendGbpReviewReplyInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/reply-review`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
+// ── Send YouTube public comment reply ──────────────────────────────────
+//
+// Same {body, fromSuggestionId, idempotencyKey} contract as the
+// other outbound hooks so the composer can dispatch by provider
+// without restructuring. POSTs to the provider-aware
+// reply-comment route which routes to inbox.outbound.youtube on
+// YOUTUBE conversations.
+export interface SendYouTubeCommentReplyInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendYouTubeCommentReply(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendYouTubeCommentReplyInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/reply-comment`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
+// ── Send Threads public reply ──────────────────────────────────────────
+//
+// Same /reply-comment route — provider-aware dispatch on the
+// server picks the Threads outbound service when conv.provider
+// is THREADS. Same {body, fromSuggestionId, idempotencyKey}
+// contract so the composer doesn't care which network it's
+// posting to.
+export interface SendThreadsReplyInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+// ── Send SMS reply ──────────────────────────────────────────────────────
+//
+// POSTs to /send-sms. Hard-gated server-side on env.SMS_SENDING_ENABLED
+// + env.SMS_A2P_APPROVED; this hook fires only when the resolver
+// has already flipped SEND_SMS to available, so a 412 from the
+// server is treated as a (rare) stale-cache race.
+export interface SendSmsInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendInboxSms(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendSmsInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/send-sms`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
+export function useSendThreadsReply(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendThreadsReplyInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/reply-comment`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
+export function useSendInboxEmail(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendEmailInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/send-email`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
+// ── Contact mutation (CRM-lite) ──────────────────────────────────────────
+
+export interface ContactPatch {
+  status?: ContactStatus;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  /** Replace the full tag set. Pass [] to clear. */
+  tags?: string[];
+}
+
+export function useUpdateContact(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      contactId,
+      patch,
+    }: {
+      contactId: string;
+      patch: ContactPatch;
+    }) =>
+      apiFetch<{ contact: InboxContact }>(
+        `workspaces/${clientId}/contacts/${contactId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        },
+      ),
+    onSuccess: () => {
+      // The contact rides along with multiple Inbox queries — list
+      // rows surface its email/name/status, the detail view embeds
+      // the full row. Blanket-invalidate to keep both in sync.
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversation', clientId] });
+    },
+  });
+}
+
 // ── AI reply suggestion ──────────────────────────────────────────────────
 
 export function useGenerateAiReply(clientId: string, conversationId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { tone?: ReplyTone } = {}) =>
+    mutationFn: (input: { tone?: ReplyTone; channel?: AiReplyChannel } = {}) =>
       apiFetch<{ suggestion: InboxAiSuggestion }>(
         `${base(clientId)}/conversations/${conversationId}/ai-reply`,
         {

@@ -46,6 +46,10 @@ export default function CreatePage() {
       mode,
       sourceType: sourceTypeToAssistantSource(parsed.sourceType),
       sourceId: parsed.sourceId,
+      // URL-02: forward sourceUrl so the URL-intake card receives
+      // the URL via prefill instead of waiting for the user to
+      // paste it again.
+      sourceUrl: parsed.sourceUrl,
       prompt: parsed.prompt,
       campaignType: parsed.campaignType,
       channel: parsed.channel,

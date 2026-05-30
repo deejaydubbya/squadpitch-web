@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/apiFetch';
+import { isAutopilotCampaignInboxEnabled } from '@/lib/autopilotCampaignInbox';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -17,7 +18,11 @@ export type Channel =
   | 'YOUTUBE'
   | 'PINTEREST'
   | 'THREADS'
-  | 'REDDIT';
+  | 'REDDIT'
+  // Inbox-only channel (no publishing). Reviews ingestion + reply
+  // land in a follow-up prompt; the tile in Settings → Channels
+  // exists today as a disabled "Coming soon" placeholder.
+  | 'GOOGLE_BUSINESS_PROFILE';
 
 export type MediaMode =
   | 'BRAND_ASSETS_ONLY'
@@ -1058,13 +1063,20 @@ export type AutopilotTriggerType =
   | 'price_drop'
   | 'open_house_added'
   | 'open_house_updated'
-  | 'status_changed';
+  | 'status_changed'
+  // Spinstr05
+  | 'just_sold'
+  | 'stale_listing'
+  | 'seasonal'
+  | 'new_review'
+  | 'inactivity_gap';
 
 export type AutopilotCampaignStatus =
   | 'pending'
   | 'generating'
   | 'ready'
   | 'approved'
+  | 'scheduled'
   | 'dismissed'
   | 'expired'
   | 'converted'
@@ -2393,6 +2405,84 @@ export function useSelectPinterestBoard(clientId: string) {
 // Pinterest's sandbox host has no UI for creating boards, so trial
 // apps can't otherwise seed a destination. Production / Standard
 // access apps can also use this if they want — there's no harm.
+// ── Google Business Profile location picker ──────────────────────────
+// Mirrors the Pinterest board picker pattern. After GBP OAuth, the
+// ChannelConnection has the user's tokens but externalAccountId is
+// the sentinel "accounts/{a}" — the location picker upgrades that
+// to "accounts/{a}/locations/{l}" before review polling/reply fire.
+
+export interface GbpLocation {
+  name: string; // "accounts/{a}/locations/{l}" canonical resource name
+  title: string | null;
+  address: string | null;
+  accountId: string;
+  accountName: string;
+}
+
+// Picker response can be one of three states. The UI branches on
+// `status` so the empty / access-denied paths render dedicated
+// copy rather than a misleading "no locations" message.
+export interface GbpLocationsResponse {
+  status: 'ok' | 'empty' | 'access_denied';
+  locations: GbpLocation[];
+  message?: string;
+  providerMessage?: string | null;
+}
+
+export function useGbpLocations(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ['gbp-locations', clientId ?? ''],
+    queryFn: () =>
+      apiFetch<GbpLocationsResponse>(
+        `workspaces/${clientId}/connections/GOOGLE_BUSINESS_PROFILE/locations`,
+      ),
+    enabled: Boolean(clientId),
+    staleTime: 60_000,
+  });
+}
+
+// Manual probe — fires reviews.list pageSize=1 against the
+// connection's selected location. Returns the resolved access
+// state without any fake ingestion. Invalidates the connections
+// query on completion so the Settings tile rerenders with the
+// new lastError state immediately.
+export interface GbpAccessCheckResult {
+  status: 'ok' | 'access_denied' | 'no_location' | 'error';
+  message: string;
+  providerMessage?: string;
+}
+
+export function useCheckGbpReviewAccess(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<GbpAccessCheckResult>(
+        `workspaces/${clientId}/connections/GOOGLE_BUSINESS_PROFILE/check-review-access`,
+        { method: 'POST' },
+      ),
+    onSettled: () => {
+      // Whether the check succeeded or failed, the connection's
+      // lastError may have flipped — refetch so the access-pending
+      // banner appears/disappears immediately.
+      qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+    },
+  });
+}
+
+export function useSelectGbpLocation(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { locationName: string; locationTitle?: string }) =>
+      apiFetch<{ connection: ChannelConnection }>(
+        `workspaces/${clientId}/connections/GOOGLE_BUSINESS_PROFILE/locations/select`,
+        { method: 'POST', body: JSON.stringify(input) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+    },
+  });
+}
+
 export function useCreatePinterestBoard(clientId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
@@ -3028,6 +3118,9 @@ export function useSuiteFlags(clientId: string | undefined) {
 
 export interface DataItemFilters {
   type?: DataItemType;
+  /** Spinstr425 — Content Assets passes ['PROPERTY'] so the
+   *  generic asset view doesn't list property rows. */
+  excludeTypes?: DataItemType[];
   status?: DataItemStatus;
   search?: string;
   limit?: number;
@@ -3036,7 +3129,12 @@ export interface DataItemFilters {
 export function useDataItems(clientId: string, filters: DataItemFilters = {}) {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') query.set(k, String(v));
+    if (v === undefined || v === null || v === '') return;
+    if (Array.isArray(v)) {
+      if (v.length > 0) query.set(k, v.join(','));
+      return;
+    }
+    query.set(k, String(v));
   });
   const qs = query.toString();
   const path = `workspaces/${clientId}/business-data${qs ? `?${qs}` : ''}`;
@@ -3052,11 +3150,15 @@ export function useProperties(clientId: string, filters?: Omit<DataItemFilters, 
   return useDataItems(clientId, { ...filters, type: 'PROPERTY' });
 }
 
-export function useDataItem(id: string | undefined) {
+export function useDataItem(
+  clientId: string | undefined,
+  id: string | undefined,
+) {
   return useQuery({
     queryKey: squadpitchKeys.dataItem(id ?? ''),
-    queryFn: () => apiFetch<WorkspaceDataItem>(`business-data/${id}`),
-    enabled: Boolean(id),
+    queryFn: () =>
+      apiFetch<WorkspaceDataItem>(`workspaces/${clientId}/business-data/${id}`),
+    enabled: Boolean(clientId && id),
   });
 }
 
@@ -3088,10 +3190,13 @@ export function useUpdateDataItem(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: Partial<CreateDataItemInput> & { id: string }) =>
-      apiFetch<WorkspaceDataItem>(`business-data/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      }),
+      apiFetch<WorkspaceDataItem>(
+        `workspaces/${clientId}/business-data/${id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        },
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
@@ -3102,9 +3207,10 @@ export function useArchiveDataItem(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<WorkspaceDataItem>(`business-data/${id}/archive`, {
-        method: 'POST',
-      }),
+      apiFetch<WorkspaceDataItem>(
+        `workspaces/${clientId}/business-data/${id}/archive`,
+        { method: 'POST' },
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
@@ -3115,7 +3221,10 @@ export function useDeleteDataItem(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<{ ok: boolean }>(`business-data/${id}`, { method: 'DELETE' }),
+      apiFetch<{ ok: boolean }>(
+        `workspaces/${clientId}/business-data/${id}`,
+        { method: 'DELETE' },
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
     },
@@ -3344,15 +3453,18 @@ export function useContentOpportunities(clientId: string) {
   });
 }
 
-export function useItemOpportunities(itemId: string | undefined) {
+export function useItemOpportunities(
+  clientId: string | undefined,
+  itemId: string | undefined,
+) {
   return useQuery({
     queryKey: squadpitchKeys.itemOpportunities(itemId ?? ''),
     queryFn: () =>
       apiFetch<{ opportunities: ItemOpportunity[] }>(
-        `business-data/${itemId}/opportunities`
+        `workspaces/${clientId}/business-data/${itemId}/opportunities`
       ),
     select: (data) => data.opportunities,
-    enabled: Boolean(itemId),
+    enabled: Boolean(clientId && itemId),
   });
 }
 
@@ -3449,7 +3561,22 @@ export function useAutopilotExecute(clientId: string) {
 
 // ── Autopilot Settings ───────────────────────────────────────────────────
 
-export type AutopilotMode = 'off' | 'draft_only' | 'schedule_approved' | 'auto_publish';
+// Spinstr01 — full automation mode ladder. auto_publish_guarded
+// renders in the UI as a locked Coming Soon card; the backend
+// schema rejects it on save. The type includes it for
+// label-mapping purposes; the picker filters it from the
+// selectable set. Legacy 'draft_only' rows persist and the API
+// normalizes them to 'draft_on_click' on read.
+export type AutopilotMode =
+  | 'off'
+  | 'recommend_only'
+  | 'draft_on_click'
+  | 'auto_generate_drafts'
+  | 'schedule_after_approval'
+  | 'auto_publish_guarded'
+  // Accepted on the wire for backward compat; normalized to
+  // 'draft_on_click' on read.
+  | 'draft_only';
 
 export interface AutopilotSettings {
   enabled: boolean;
@@ -3566,6 +3693,74 @@ export function useAutopilotStatus(clientId: string | undefined) {
 
 // ── Autopilot Campaign Recommendations ─────────────────────────────────
 
+// Phase 5 — Autopilot run history. Each row is one evaluator
+// pass (manual, scheduled, or internal evaluate-all). reason
+// explains WHY Autopilot did nothing on a given tick.
+// Spinstr04 — detector summary returned per run for the
+// explainability surface. All fields are optional so older runs
+// without summary metadata still parse.
+export interface AutopilotRunSummary {
+  eligibleListings?: number;
+  duplicatesSuppressed?: number;
+  listingsCappedByRunLimit?: number;
+  openHouseCandidates?: number;
+  openHouseEmitted?: number;
+  reviewsConsidered?: number;
+  reviewsEmitted?: number;
+  inactivityEmitted?: boolean;
+  noActionReason?: string | null;
+}
+
+export interface AutopilotRunAutoGenerate {
+  draftsCreated?: number;
+  recommendationsGenerated?: number;
+  skipped?: Array<{ recommendationId: string; reason: string }>;
+}
+
+export interface AutopilotRunMetadata {
+  summary?: AutopilotRunSummary;
+  autoGenerate?: AutopilotRunAutoGenerate;
+  schedulerTickId?: string;
+}
+
+export interface AutopilotRun {
+  id: string;
+  triggerSource: 'manual' | 'scheduled' | 'event';
+  status:
+    | 'created_recommendations'
+    | 'updated_recommendations'
+    | 'no_action'
+    | 'skipped'
+    | 'error';
+  reason: string | null;
+  recommendationsCreated: number;
+  recommendationsUpdated: number;
+  recommendationsExpired: number;
+  startedAt: string;
+  finishedAt: string | null;
+  errorMessage: string | null;
+  metadata: AutopilotRunMetadata | null;
+}
+
+export interface AutopilotRunsResponse {
+  runs: AutopilotRun[];
+  total: number;
+}
+
+export function useAutopilotRuns(clientId: string | undefined) {
+  return useQuery({
+    queryKey: [...squadpitchKeys.all, 'autopilot-runs', clientId ?? ''],
+    queryFn: () =>
+      apiFetch<AutopilotRunsResponse>(`workspaces/${clientId}/autopilot/runs`),
+    enabled: Boolean(clientId),
+    staleTime: 30_000,
+  });
+}
+
+// Both Campaign Inbox readers gate on the feature flag — the
+// backend routes don't exist yet (Phase 2 of the audit doc will
+// land them). Until the flag flips, the queries never fire and
+// the UI renders an empty / coming-soon state instead.
 export function useAutopilotCampaignRecommendations(clientId: string | undefined) {
   return useQuery({
     queryKey: squadpitchKeys.autopilotCampaigns(clientId ?? ''),
@@ -3573,7 +3768,7 @@ export function useAutopilotCampaignRecommendations(clientId: string | undefined
       apiFetch<AutopilotCampaignRecommendationsResponse>(
         `workspaces/${clientId}/autopilot/campaign-recommendations`,
       ),
-    enabled: Boolean(clientId),
+    enabled: Boolean(clientId) && isAutopilotCampaignInboxEnabled(),
     refetchInterval: 60_000,
   });
 }
@@ -3585,16 +3780,29 @@ export function useAutopilotCampaignStats(clientId: string | undefined) {
       apiFetch<AutopilotCampaignStatsResponse>(
         `workspaces/${clientId}/autopilot/campaign-stats`,
       ),
-    // Backend route not yet implemented
-    enabled: false,
+    enabled: Boolean(clientId) && isAutopilotCampaignInboxEnabled(),
   });
+}
+
+// Phase 3 — the generate endpoint returns a fan-out result, not
+// the recommendation alone. Surface drafts + skipped reasons so
+// the UI can render both ("Generated 2 drafts; Instagram skipped:
+// no image").
+export interface AutopilotGenerateResult {
+  status: 'success' | 'partial_success' | 'noop' | 'failed';
+  drafts: Array<{ id: string; channel: string; status: string; templateType?: string }>;
+  skipped: Array<{ channel: string; reason: string }>;
+  recommendation: AutopilotCampaignRecommendation | null;
+  recommendationId: string;
+  alreadyGenerated?: boolean;
+  reason?: string;
 }
 
 export function useGenerateAutopilotCampaign(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (recommendationId: string) =>
-      apiFetch<AutopilotCampaignRecommendation>(
+      apiFetch<AutopilotGenerateResult>(
         `workspaces/${clientId}/autopilot/campaign-recommendations/${recommendationId}/generate`,
         { method: 'POST' },
       ),
@@ -3605,13 +3813,34 @@ export function useGenerateAutopilotCampaign(clientId: string) {
   });
 }
 
+// Phase 4 — approve result. Each child draft's outcome is
+// returned so the UI can show "3 drafts approved" or "2 of 3
+// approved — 1 was already published".
+export interface AutopilotApproveResult {
+  status: 'success' | 'partial_success' | 'noop';
+  drafts: Array<{
+    draftId: string;
+    channel: string;
+    status: string;
+    scheduled: boolean;
+    skipped: boolean;
+    error?: string;
+  }>;
+  scheduledAt: string | null;
+  recommendation: AutopilotCampaignRecommendation | null;
+  recommendationId: string;
+}
+
 export function useApproveAutopilotCampaign(clientId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { recommendationId: string; addToPlanner: boolean }) =>
-      apiFetch<{ success: boolean }>(
+    mutationFn: (input: { recommendationId: string; scheduleAt?: string | null }) =>
+      apiFetch<AutopilotApproveResult>(
         `workspaces/${clientId}/autopilot/campaign-recommendations/${input.recommendationId}/approve`,
-        { method: 'POST', body: JSON.stringify({ addToPlanner: input.addToPlanner }) },
+        {
+          method: 'POST',
+          body: JSON.stringify({ scheduleAt: input.scheduleAt ?? null }),
+        },
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.autopilotCampaigns(clientId) });
@@ -4174,10 +4403,17 @@ export interface IndustryContentTypeLabel {
   label: string;
 }
 
+export type IndustryStatus = 'active' | 'coming_soon';
+
 export interface IndustryProfile {
   key: string;
   label: string;
   description: string;
+  // spinstr421 — present on every profile returned by the server.
+  // Older callers that don't read these can ignore them; the
+  // onboarding grid uses them to render coming-soon cards.
+  status?: IndustryStatus;
+  isComplianceSensitive?: boolean;
   onboarding: IndustryOnboarding;
   content: {
     starterBlueprintSlugs: string[];
@@ -4656,6 +4892,52 @@ export function useListingUrlConfirm(clientId: string) {
       apiFetch<ManualListingResult>(
         `workspaces/${clientId}/listings/url/confirm`,
         { method: 'POST', body: JSON.stringify(body) }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });
+    },
+  });
+}
+
+// URL-02 — campaign URL intake.
+// Wraps the new /campaign-intake/url/{analyze,confirm} endpoints.
+// Analyze is non-mutating (no DB writes); confirm persists the
+// selected listing as a WorkspaceDataItem and is the one that
+// invalidates the data-items query.
+
+import type { CampaignUrlAnalyzeResult } from '@/lib/assistant/types';
+
+export interface CampaignUrlConfirmResponse {
+  dataItemId: string;
+  created: boolean;
+  existingId: string | null;
+  propertyData: {
+    id: string;
+    title: string | null;
+    summary: string | null;
+    tags: string[];
+    dataJson: Record<string, unknown> | null;
+  } | null;
+  createUrl: string;
+}
+
+export function useCampaignUrlAnalyze(clientId: string) {
+  return useMutation({
+    mutationFn: (body: { url: string; preferredIntent?: 'campaign' | 'single_post' }) =>
+      apiFetch<CampaignUrlAnalyzeResult>(
+        `workspaces/${clientId}/campaign-intake/url/analyze`,
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+  });
+}
+
+export function useCampaignUrlConfirm(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { url?: string; selectedListing: Record<string, unknown> }) =>
+      apiFetch<CampaignUrlConfirmResponse>(
+        `workspaces/${clientId}/campaign-intake/url/confirm`,
+        { method: 'POST', body: JSON.stringify(body) },
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.dataItems(clientId) });

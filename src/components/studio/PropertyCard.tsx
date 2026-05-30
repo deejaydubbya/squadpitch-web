@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Home, Archive, ArrowRight, ImageIcon, Camera, Calendar } from 'lucide-react';
+import { Home, Archive, ArrowRight, ImageIcon, Camera, Calendar, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceDataItem } from '@/hooks/useSquadpitch';
 
@@ -24,15 +24,30 @@ interface Props {
   item: WorkspaceDataItem;
   clientId: string;
   onArchive: (id: string) => void;
+  onEdit?: () => void;
   onClick?: () => void;
 }
 
-export function PropertyCard({ item, clientId, onArchive, onClick }: Props) {
+export function PropertyCard({ item, clientId, onArchive, onEdit, onClick }: Props) {
   const router = useRouter();
   const d = item.dataJson as Record<string, unknown>;
-  const imageUrl = d.imageUrl as string | undefined;
+
+  // Image precedence (spinstr-sites-01):
+  //   _photos[isPrimary].url  > imageUrl > images[0]
+  // Photo count is the union of all three sources, deduped.
+  const photoMeta = Array.isArray(d._photos)
+    ? (d._photos as Array<{ url?: string; isPrimary?: boolean }>)
+    : [];
+  const primaryFromMeta = photoMeta.find((p) => p?.isPrimary === true)?.url;
+  const imageUrl = (d.imageUrl as string | undefined) ?? undefined;
   const images = (d.images as string[] | undefined) ?? [];
-  const photoCount = images.length + (imageUrl && !images.includes(imageUrl) ? 1 : 0);
+  const heroImage = primaryFromMeta ?? imageUrl ?? images[0] ?? undefined;
+  const allUrls = new Set<string>();
+  if (heroImage) allUrls.add(heroImage);
+  for (const p of photoMeta) if (typeof p?.url === 'string') allUrls.add(p.url);
+  for (const u of images) if (typeof u === 'string') allUrls.add(u);
+  if (imageUrl) allUrls.add(imageUrl);
+  const photoCount = allUrls.size;
 
   // Address
   const street = d.street as string | undefined;
@@ -88,10 +103,10 @@ export function PropertyCard({ item, clientId, onArchive, onClick }: Props) {
       )}
     >
       {/* Image or placeholder */}
-      {imageUrl ? (
+      {heroImage ? (
         <div className="relative w-full h-32 rounded-lg overflow-hidden bg-white/[0.02]">
           <img
-            src={imageUrl}
+            src={heroImage}
             alt={address}
             className="w-full h-full object-cover"
           />
@@ -156,9 +171,25 @@ export function PropertyCard({ item, clientId, onArchive, onClick }: Props) {
         >
           New Campaign <ArrowRight className="w-3 h-3" />
         </button>
+        {onEdit && (
+          <button
+            data-testid="property-card-edit"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="ml-auto p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors"
+            title="Edit"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           onClick={handleArchive}
-          className="ml-auto p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors"
+          className={cn(
+            'p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors',
+            !onEdit && 'ml-auto',
+          )}
           title="Archive"
         >
           <Archive className="w-3.5 h-3.5" />

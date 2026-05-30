@@ -9,7 +9,7 @@
 // resolver then routes to the matching picker (property_select,
 // campaign_data_item, or campaign_idea) on the next turn.
 
-import { Home, FileText, Lightbulb, ArrowRight } from 'lucide-react';
+import { Home, FileText, Lightbulb, ArrowRight, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AssistantAction, AssistantSessionState } from '@/lib/assistant/types';
 import { useIndustryTerminology } from '@/hooks/useIndustryTerminology';
@@ -46,6 +46,30 @@ export function CampaignSourceCard({ session, onSelection }: Props) {
           <p className="text-xs font-medium text-white-100">{itemLabel} / Listing</p>
           <p className="text-[11px] text-white-40 mt-0.5">
             Promote a {t.itemSingular.toLowerCase()}, open house, price change, or listing update.
+          </p>
+        </div>
+        <ArrowRight className="w-3.5 h-3.5 text-white-20 shrink-0 mt-0.5" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          onSelection(
+            { type: 'SET_CAMPAIGN_SOURCE_TYPE', payload: 'url' },
+            'Source: Listing URL',
+          )
+        }
+        className={cn(
+          'w-full flex items-start gap-3 p-2.5 rounded-lg border text-left transition-colors border-white-10',
+          SOURCE_BLUE,
+        )}
+      >
+        <Globe className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-white-100">Listing URL / Listings Page</p>
+          <p className="text-[11px] text-white-40 mt-0.5">
+            Paste a property listing or a page of listings — Squadpitch will
+            extract the property data.
           </p>
         </div>
         <ArrowRight className="w-3.5 h-3.5 text-white-20 shrink-0 mt-0.5" />

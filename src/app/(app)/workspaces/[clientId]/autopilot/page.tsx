@@ -27,7 +27,7 @@ import {
   type AutopilotSettings,
   type AutopilotActivityItem,
 } from '@/hooks/useSquadpitch';
-import { AutopilotCampaignsSection } from '@/components/studio/AutopilotCampaignsSection';
+import { AutopilotCommandCenter } from '@/components/studio/autopilot/AutopilotCommandCenter';
 import { AutopilotInboxBanner } from '@/components/studio/AutopilotInboxBanner';
 import { cn } from '@/lib/utils';
 import { useSubscription, type PlanTier } from '@/hooks/useBilling';
@@ -39,27 +39,63 @@ type AutopilotTab = 'inbox' | 'settings';
 
 const MODE_CONFIG: Record<
   AutopilotMode,
-  { label: string; description: string; accent: string }
+  {
+    label: string;
+    description: string;
+    accent: string;
+    /** True when the user can pick this mode today. False = Coming Soon card. */
+    selectable: boolean;
+  }
 > = {
   off: {
     label: 'Off',
-    description: 'Autopilot is disabled. No drafts are generated automatically.',
+    description: 'Autopilot is disabled. No recommendations, no drafts.',
     accent: 'border-white-20 text-white-60',
+    selectable: true,
   },
-  draft_only: {
-    label: 'Draft Only',
-    description: 'Autopilot generates drafts for your review. Nothing is published without your approval.',
+  recommend_only: {
+    label: 'Recommendations only',
+    description:
+      'Autopilot finds opportunities and adds them to your inbox. You choose what to create.',
+    accent: 'border-cyan-500 text-cyan-400',
+    selectable: true,
+  },
+  draft_on_click: {
+    label: 'Generate drafts manually',
+    description:
+      'Autopilot recommends campaigns. You click Generate Drafts when you want content prepared.',
     accent: 'border-blue-500 text-blue-400',
+    selectable: true,
   },
-  schedule_approved: {
-    label: 'Schedule Approved',
-    description: 'Autopilot generates and schedules drafts. You review before they go live.',
-    accent: 'border-yellow-500 text-yellow-400',
+  auto_generate_drafts: {
+    label: 'Auto-prepare drafts for review',
+    description:
+      'Autopilot prepares drafts for high-confidence opportunities. Nothing publishes without your approval.',
+    accent: 'border-violet-500 text-violet-400',
+    selectable: true,
   },
-  auto_publish: {
-    label: 'Auto Publish',
-    description: 'Autopilot generates and publishes posts automatically. Use with caution.',
-    accent: 'border-green-500 text-green-400',
+  schedule_after_approval: {
+    label: 'Auto-schedule approved drafts',
+    description:
+      'After you approve campaign drafts, Autopilot can place them on your content calendar.',
+    accent: 'border-amber-500 text-amber-400',
+    selectable: true,
+  },
+  auto_publish_guarded: {
+    label: 'Auto-publish guarded campaigns',
+    description: 'Coming soon. Requires strict safety controls before it can be enabled.',
+    accent: 'border-white-15 text-white-40',
+    selectable: false,
+  },
+  // Legacy — server normalizes this to draft_on_click on read,
+  // but include for type stability in case it appears in cached
+  // settings before the next fetch.
+  draft_only: {
+    label: 'Generate drafts manually',
+    description:
+      'Autopilot recommends campaigns. You click Generate Drafts when you want content prepared.',
+    accent: 'border-blue-500 text-blue-400',
+    selectable: true,
   },
 };
 
@@ -138,7 +174,7 @@ export default function AutopilotPage() {
 
   if (settingsLoading) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="max-w-6xl space-y-6">
         <div className="h-8 w-48 bg-white-10 rounded animate-pulse" />
         <div className="h-40 bg-white-10 rounded animate-pulse" />
       </div>
@@ -147,7 +183,7 @@ export default function AutopilotPage() {
 
   if (isBelowPro) {
     return (
-      <div className="max-w-4xl space-y-6">
+      <div className="max-w-6xl space-y-6">
         {/* Header — same as normal */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -157,7 +193,7 @@ export default function AutopilotPage() {
             <div>
               <h1 className="text-xl font-bold text-white-100">Autopilot</h1>
               <p className="text-sm text-white-40">
-                Automated content generation and scheduling
+                AI-prepared campaigns for your review
               </p>
             </div>
           </div>
@@ -201,7 +237,7 @@ export default function AutopilotPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-6xl space-y-6">
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -211,7 +247,7 @@ export default function AutopilotPage() {
           <div>
             <h1 className="text-xl font-bold text-white-100">Autopilot</h1>
             <p className="text-sm text-white-40">
-              Automated content generation and scheduling
+              AI campaign opportunities prepared for your review
             </p>
           </div>
         </div>
@@ -255,30 +291,7 @@ export default function AutopilotPage() {
       {activeTab === 'inbox' && (
         <>
           <AutopilotInboxBanner clientId={clientId} />
-          <AutopilotCampaignsSection clientId={clientId} />
-
-          {/* Compact recent activity preview */}
-          {activity && activity.length > 0 && (
-            <div className="card p-4 border-white-10 mt-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-white-40" />
-                  <span className="text-xs font-semibold text-white-60 uppercase tracking-wider">Recent Activity</span>
-                </div>
-                <button
-                  onClick={() => setActiveTab('settings')}
-                  className="text-xs text-accent-green-110 hover:underline"
-                >
-                  View all →
-                </button>
-              </div>
-              <div className="space-y-2">
-                {activity.slice(0, 3).map((item) => (
-                  <ActivityRow key={item.id} item={item} base={base} />
-                ))}
-              </div>
-            </div>
-          )}
+          <AutopilotCommandCenter clientId={clientId} />
         </>
       )}
 
@@ -380,51 +393,75 @@ export default function AutopilotPage() {
             <div className="flex items-center gap-2 mb-4">
               <Settings2 className="w-4 h-4 text-accent-green-110" />
               <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-                Operating Mode
+                Automation level
               </h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {(Object.keys(MODE_CONFIG) as AutopilotMode[]).map((mode) => {
-                const cfg = MODE_CONFIG[mode];
-                const isActive = currentMode === mode;
-                const isAvailable = readiness?.availableModes?.includes(mode) ?? mode === 'off';
-                const isDisabled = !isAvailable && mode !== 'off';
-                const failingChecks = readiness?.checks.filter((c) => !c.met) ?? [];
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(Object.keys(MODE_CONFIG) as AutopilotMode[])
+                // Hide the legacy 'draft_only' duplicate — it's a
+                // type-stability alias for draft_on_click and would
+                // render twice if shown.
+                .filter((mode) => mode !== 'draft_only')
+                .map((mode) => {
+                  const cfg = MODE_CONFIG[mode];
+                  const isActive = currentMode === mode;
+                  // 'auto_publish_guarded' is in the type union but
+                  // permanently locked — it's not in availableModes.
+                  const isLocked = !cfg.selectable;
+                  const isAvailable =
+                    cfg.selectable && (readiness?.availableModes?.includes(mode) ?? mode === 'off');
+                  const isDisabled = isLocked || (!isAvailable && mode !== 'off');
+                  const failingChecks = readiness?.checks.filter((c) => !c.met) ?? [];
 
-                return (
-                  <button
-                    key={mode}
-                    onClick={() => !isDisabled && handleModeChange(mode)}
-                    disabled={isDisabled || updateSettings.isPending}
-                    className={cn(
-                      'p-4 rounded-xl border-2 text-left transition-all',
-                      isActive
-                        ? `${cfg.accent} bg-white-5`
-                        : isDisabled
-                          ? 'border-white-10 opacity-40 cursor-not-allowed'
-                          : 'border-white-10 hover:border-white-20 hover:bg-white-5 cursor-pointer',
-                    )}
-                  >
-                    <p className={cn('text-sm font-semibold', isActive ? '' : 'text-white-100')}>
-                      {cfg.label}
-                    </p>
-                    <p className="text-xs text-white-40 mt-1 leading-relaxed">
-                      {cfg.description}
-                    </p>
-                    {isDisabled && failingChecks.length > 0 && (
-                      <p className="text-[10px] text-orange-400 mt-2">
-                        Missing: {failingChecks.map((c) => c.label).join(', ')}
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => !isDisabled && handleModeChange(mode)}
+                      disabled={isDisabled || updateSettings.isPending}
+                      className={cn(
+                        'p-4 rounded-xl border-2 text-left transition-all',
+                        isActive
+                          ? `${cfg.accent} bg-white-5`
+                          : isDisabled
+                            ? 'border-white-10 opacity-40 cursor-not-allowed'
+                            : 'border-white-10 hover:border-white-20 hover:bg-white-5 cursor-pointer',
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className={cn('text-sm font-semibold', isActive ? '' : 'text-white-100')}>
+                          {cfg.label}
+                        </p>
+                        {isLocked && (
+                          <span className="text-[10px] uppercase tracking-wider font-semibold text-white-40 bg-white-5 border border-white-10 rounded-full px-1.5 py-0.5 shrink-0">
+                            Soon
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-white-40 mt-1 leading-relaxed">
+                        {cfg.description}
                       </p>
-                    )}
-                    {isDisabled && failingChecks.length === 0 && (
-                      <p className="text-[10px] text-orange-400 mt-2">
-                        Complete setup to unlock
-                      </p>
-                    )}
-                  </button>
-                );
-              })}
+                      {!isLocked && isDisabled && failingChecks.length > 0 && (
+                        <p className="text-[10px] text-orange-400 mt-2">
+                          Missing: {failingChecks.map((c) => c.label).join(', ')}
+                        </p>
+                      )}
+                      {!isLocked && isDisabled && failingChecks.length === 0 && (
+                        <p className="text-[10px] text-orange-400 mt-2">
+                          Complete setup to unlock
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
             </div>
+            {/* Persistent safety note — required by spinstr01. The
+                user's biggest fear about an automation product is
+                that something will post for them. Tell them
+                outright that it can't. */}
+            <p className="text-[11px] text-white-50 mt-4 leading-snug">
+              Autopilot will not publish content without your approval.
+              Auto-publish is on the roadmap behind strict safety controls.
+            </p>
           </div>
 
           {/* ── Channel Permissions ────────────────────────────────────── */}

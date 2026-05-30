@@ -146,6 +146,20 @@ export interface LeadForm {
   _count?: { submissions: number };
 }
 
+// Spinstr427 — sourceContext joined through pageId by the API so
+// the submissions page can render "Property: 508 King George
+// Court" without N+1 round-trips. Null when the submission has no
+// pageId (older submissions, direct API submits, etc.).
+export interface SubmissionSourceContext {
+  pageId: string;
+  pageTitle: string;
+  pageSlug: string;
+  sourceType: 'CAMPAIGN' | 'PROPERTY' | 'DATA_ITEM' | 'IDEA' | null;
+  sourceId: string | null;
+  /** Title of the underlying property when sourceType === PROPERTY. */
+  sourceTitle: string | null;
+}
+
 export interface FormSubmission {
   id: string;
   formId: string;
@@ -157,6 +171,19 @@ export interface FormSubmission {
   status: SubmissionStatus;
   createdAt: string;
   form: { id: string; name: string };
+  // Conversation created by Inbox intake for this submission. Null
+  // when intake skipped the submission (no usable email/phone).
+  inboxConversationId: string | null;
+  // Spinstr427.
+  sourceContext: SubmissionSourceContext | null;
+}
+
+// Spinstr427 — form stats for the editor's lead-form block card.
+export interface FormStats {
+  formId: string;
+  pageId: string | null;
+  count: number;
+  lastSubmissionAt: string | null;
 }
 
 // ── Query keys ───────────────────────────────────────────────────────────
@@ -272,11 +299,23 @@ export function useCreatePage(clientId: string) {
 
 // ── AI page generation ──────────────────────────────────────────────────
 
+// Sites-05 — template hint. When set, biases the LLM toward a
+// specific scaffold + page intent. Catalog kept in lockstep with
+// SITE_TEMPLATES on the API.
+export type SiteTemplate =
+  | 'property_listing'
+  | 'open_house'
+  | 'just_sold'
+  | 'seller_lead'
+  | 'buyer_lead'
+  | 'neighborhood_guide';
+
 export interface GeneratePageInput {
   sourceType: SiteSourceType;
   sourceId?: string;
   pageGoal: SitePageGoal;
   customPrompt?: string;
+  template?: SiteTemplate;
 }
 
 /**
@@ -455,6 +494,8 @@ export function useDeleteForm(clientId: string) {
 export interface SubmissionFilters {
   status?: SubmissionStatus;
   formId?: string;
+  /** Spinstr427 — narrow to submissions from a single page. */
+  pageId?: string;
   limit?: number;
   cursor?: string;
 }
@@ -466,6 +507,7 @@ export function useSubmissions(
   const params = new URLSearchParams();
   if (filters.status) params.set('status', filters.status);
   if (filters.formId) params.set('formId', filters.formId);
+  if (filters.pageId) params.set('pageId', filters.pageId);
   if (filters.limit) params.set('limit', String(filters.limit));
   if (filters.cursor) params.set('cursor', filters.cursor);
   const qs = params.toString();
@@ -476,6 +518,30 @@ export function useSubmissions(
     queryFn: () =>
       apiFetch<{ submissions: FormSubmission[]; nextCursor: string | null }>(path),
     enabled: Boolean(clientId),
+  });
+}
+
+// Spinstr427 — lightweight form stats for the lead-form context
+// card. Returns null silently on 404 / failure so the card
+// doesn't block editing if stats are unavailable.
+export function useFormStats(
+  clientId: string | undefined,
+  formId: string | undefined,
+  pageId?: string,
+) {
+  const params = new URLSearchParams();
+  if (pageId) params.set('pageId', pageId);
+  const qs = params.toString();
+  const path =
+    clientId && formId
+      ? `${base(clientId)}/forms/${formId}/stats${qs ? `?${qs}` : ''}`
+      : null;
+  return useQuery({
+    queryKey: [...sitesKeys.all, 'form-stats', clientId ?? '', formId ?? '', pageId ?? ''],
+    queryFn: () => apiFetch<FormStats>(path!),
+    enabled: Boolean(path),
+    retry: false,
+    staleTime: 30_000,
   });
 }
 

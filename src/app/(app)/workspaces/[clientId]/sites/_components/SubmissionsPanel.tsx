@@ -7,6 +7,8 @@
 // ships in a later phase.
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
   Inbox as InboxIcon,
   Mail,
@@ -14,10 +16,13 @@ import {
   X,
   CheckCircle2,
   ShieldAlert,
+  ExternalLink,
+  Filter,
 } from 'lucide-react';
 import {
   useSubmissions,
   useUpdateSubmissionStatus,
+  useForms,
   type FormSubmission,
   type SubmissionStatus,
 } from '@/hooks/useSites';
@@ -35,14 +40,39 @@ const STATUS_FILTERS: { value: SubmissionStatus | 'ALL'; label: string }[] = [
 ];
 
 export function SubmissionsPanel({ clientId }: SubmissionsPanelProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const formIdFilter = searchParams.get('formId') ?? undefined;
+  const pageIdFilter = searchParams.get('pageId') ?? undefined;
+
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | 'ALL'>('NEW');
   const { data, isLoading } = useSubmissions(clientId, {
     status: statusFilter === 'ALL' ? undefined : statusFilter,
+    formId: formIdFilter,
+    pageId: pageIdFilter,
     limit: 100,
   });
+  const { data: forms } = useForms(clientId);
   const [selected, setSelected] = useState<FormSubmission | null>(null);
 
   const submissions = data?.submissions ?? [];
+  const formName = forms?.find((f) => f.id === formIdFilter)?.name ?? null;
+  // Page title can be resolved from any returned submission's
+  // sourceContext (they all match the filter).
+  const pageTitle = pageIdFilter
+    ? submissions.find((s) => s.sourceContext?.pageId === pageIdFilter)?.sourceContext
+        ?.pageTitle ?? null
+    : null;
+  const hasUrlFilter = Boolean(formIdFilter || pageIdFilter);
+
+  const clearFilters = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('formId');
+    params.delete('pageId');
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`);
+  };
 
   return (
     <div className="space-y-4">
@@ -64,13 +94,48 @@ export function SubmissionsPanel({ clientId }: SubmissionsPanelProps) {
         ))}
       </div>
 
+      {hasUrlFilter && (
+        <div
+          data-testid="submissions-filter-chips"
+          className="flex items-center gap-2 flex-wrap"
+        >
+          <Filter className="w-3.5 h-3.5 text-white-40" />
+          {formIdFilter && (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] bg-white-5 border border-white-10 text-white-70">
+              <span className="text-white-40">Form:</span>{' '}
+              {formName ?? formIdFilter}
+            </span>
+          )}
+          {pageIdFilter && (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] bg-white-5 border border-white-10 text-white-70">
+              <span className="text-white-40">Page:</span>{' '}
+              {pageTitle ?? pageIdFilter}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={clearFilters}
+            data-testid="submissions-clear-filters"
+            className="text-[11px] text-accent-green-110 hover:underline"
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
+
       {isLoading && <div className="card p-6 text-sm text-white-50">Loading submissions…</div>}
 
       {!isLoading && submissions.length === 0 && (
         <div className="card p-8 text-center space-y-2">
           <InboxIcon className="w-8 h-8 text-white-30 mx-auto" />
           <p className="text-sm font-medium text-white-80">
-            {statusFilter === 'NEW' ? 'No new submissions' : 'No submissions yet'}
+            {pageIdFilter
+              ? 'No submissions for this page yet.'
+              : formIdFilter
+                ? 'No submissions for this form yet.'
+                : statusFilter === 'NEW'
+                  ? 'No new submissions'
+                  : 'No submissions yet'}
           </p>
           <p className="text-xs text-white-50">
             Leads captured from your pages will land here.
@@ -95,6 +160,7 @@ export function SubmissionsPanel({ clientId }: SubmissionsPanelProps) {
                 <th className="text-left text-xs font-medium text-white-50 uppercase tracking-wider px-4 py-3">
                   Status
                 </th>
+                <th className="text-right text-xs font-medium text-white-50 uppercase tracking-wider px-2 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -127,6 +193,19 @@ export function SubmissionsPanel({ clientId }: SubmissionsPanelProps) {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={s.status} />
+                  </td>
+                  <td className="px-2 py-3 text-right">
+                    {s.inboxConversationId && (
+                      <Link
+                        href={`/workspaces/${clientId}/inbox?c=${s.inboxConversationId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-white-50 hover:text-accent-green-110 whitespace-nowrap"
+                        title="Open in Inbox"
+                      >
+                        Inbox
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}

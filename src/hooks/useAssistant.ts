@@ -77,11 +77,16 @@ function assistantReducer(
 
 // ── Hook ─────────────────────────────────────────────────────────────────
 
-export function useAssistant(workspaceId?: string | null, industryKey?: string) {
+export function useAssistant(
+  workspaceId?: string | null,
+  industryKey?: string | null,
+) {
   const initialState: AssistantSessionState = {
     ...INITIAL_SESSION,
     workspaceId: workspaceId ?? null,
-    industryKey: industryKey || 'real_estate',
+    // industry-01 — no silent real-estate fallback. See
+    // useConversationalAssistant for the same change rationale.
+    industryKey: industryKey ?? null,
   };
 
   const [session, dispatch] = useReducer(assistantReducer, initialState);

@@ -17,6 +17,7 @@ export type MessageStatus = 'active' | 'resolved' | 'invalidated';
 export type CardType =
   | 'mode_select'
   | 'campaign_source'
+  | 'campaign_url_source'
   | 'property_select'
   | 'campaign_data_item'
   | 'campaign_idea'

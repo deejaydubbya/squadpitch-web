@@ -18,8 +18,15 @@ export default function DataPage() {
   const isRE = client?.industryKey === 'real_estate';
   const knowledgeLabel = isRE ? 'Content Assets' : 'Knowledge';
 
-  const initialTab = searchParams.get('tab') === 'properties' ? 'properties' : 'knowledge';
-  const [tab, setTab] = useState<Tab>(initialTab as Tab);
+  // Spinstr425 — legacy deep-links used `?type=PROPERTY` to land
+  // on the property list inside Content Assets. Properties now live
+  // on their own tab; treat the old URL as a Properties-tab link
+  // so bookmarks keep working.
+  const tabParam = searchParams.get('tab');
+  const typeParam = searchParams.get('type');
+  const initialTab: Tab =
+    tabParam === 'properties' || typeParam === 'PROPERTY' ? 'properties' : 'knowledge';
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'knowledge', label: knowledgeLabel },

@@ -22,11 +22,15 @@ import {
   MousePointerClick,
   ClipboardList,
   ChevronDown,
+  ChevronRight,
   Images,
   List,
   Quote,
   HelpCircle,
   Phone,
+  ArrowUp,
+  ArrowDown,
+  Copy,
 } from 'lucide-react';
 import {
   DndContext,
@@ -49,14 +53,31 @@ import {
   useUpdatePage,
   usePublishPage,
   useUnpublishPage,
+  useFormStats,
+  useCreateForm,
   type Block,
   type LeadForm,
   type SitePage,
   type SiteSourceType,
   type SitePageGoal,
+  type FormFieldDef,
 } from '@/hooks/useSites';
+import { useDataItem } from '@/hooks/useSquadpitch';
 import { ApiError } from '@/lib/apiFetch';
+import {
+  normalizeProperty,
+  buildKeyDetailItems,
+  buildHeroSubheadline,
+  buildSafeDescription,
+  type NormalizedProperty,
+} from '@/lib/property/normalize';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import { Home as HomeIcon, Sparkles, AlertTriangle } from 'lucide-react';
+import { ImageField } from './ImageField';
+import { GalleryField } from './GalleryField';
+import { PreviewRenderer } from './PreviewRenderer';
+import { Monitor, Smartphone, Pencil } from 'lucide-react';
 
 interface PageEditorProps {
   clientId: string;
@@ -76,17 +97,64 @@ function indexBlocks(blocks: Block[]): IndexedBlock[] {
   return blocks.map((block, i) => ({ id: `b-${i}-${block.type}`, block }));
 }
 
-const BLOCK_PALETTE: { type: Block['type']; label: string; Icon: typeof TypeIcon }[] = [
-  { type: 'hero', label: 'Hero', Icon: TypeIcon },
-  { type: 'paragraph', label: 'Paragraph', Icon: AlignLeft },
-  { type: 'image', label: 'Image', Icon: ImageIcon },
-  { type: 'gallery', label: 'Gallery', Icon: Images },
-  { type: 'key_details', label: 'Key details', Icon: List },
-  { type: 'testimonial', label: 'Testimonial', Icon: Quote },
-  { type: 'faq', label: 'FAQ', Icon: HelpCircle },
-  { type: 'cta', label: 'Call to action', Icon: MousePointerClick },
-  { type: 'lead_form', label: 'Lead form', Icon: ClipboardList },
-  { type: 'contact', label: 'Contact', Icon: Phone },
+// Sites-06 — refined block labels + categorized add-picker.
+// industry-01 — labels were `'Property Details'` and `'Agent
+// Contact'` which leaked real-estate copy into every workspace.
+// Now neutral; a future industry-aware label registry can override
+// per industryKey if a vertical wants more specific wording.
+const BLOCK_LABELS: Record<Block['type'], string> = {
+  hero: 'Hero',
+  paragraph: 'Paragraph / Story',
+  image: 'Image',
+  cta: 'Call to action',
+  lead_form: 'Lead Capture Form',
+  gallery: 'Photo Gallery',
+  key_details: 'Key Details',
+  testimonial: 'Testimonial',
+  faq: 'FAQ',
+  contact: 'Contact',
+};
+
+interface BlockPaletteEntry {
+  type: Block['type'];
+  label: string;
+  Icon: typeof TypeIcon;
+}
+
+const BLOCK_PALETTE: BlockPaletteEntry[] = [
+  { type: 'hero', label: BLOCK_LABELS.hero, Icon: TypeIcon },
+  { type: 'paragraph', label: BLOCK_LABELS.paragraph, Icon: AlignLeft },
+  { type: 'image', label: BLOCK_LABELS.image, Icon: ImageIcon },
+  { type: 'gallery', label: BLOCK_LABELS.gallery, Icon: Images },
+  { type: 'key_details', label: BLOCK_LABELS.key_details, Icon: List },
+  { type: 'testimonial', label: BLOCK_LABELS.testimonial, Icon: Quote },
+  { type: 'faq', label: BLOCK_LABELS.faq, Icon: HelpCircle },
+  { type: 'cta', label: BLOCK_LABELS.cta, Icon: MousePointerClick },
+  { type: 'lead_form', label: BLOCK_LABELS.lead_form, Icon: ClipboardList },
+  { type: 'contact', label: BLOCK_LABELS.contact, Icon: Phone },
+];
+
+// Block-picker categories for the Add Block flow. "Suggested" is
+// computed at render time when the page has a PROPERTY source —
+// it shows the blocks that benefit most from autofill.
+const BLOCK_CATEGORIES: Array<{
+  label: string;
+  types: Block['type'][];
+}> = [
+  { label: 'Headline & copy', types: ['hero', 'paragraph', 'image'] },
+  { label: 'Property info', types: ['key_details', 'gallery'] },
+  { label: 'Trust & objections', types: ['testimonial', 'faq'] },
+  { label: 'Conversion', types: ['cta', 'lead_form', 'contact'] },
+];
+
+const PROPERTY_SUGGESTED: Block['type'][] = [
+  'hero',
+  'key_details',
+  'gallery',
+  'paragraph',
+  'cta',
+  'lead_form',
+  'contact',
 ];
 
 // Mirrors the SiteSourceType enum. Used in the source-attribution
@@ -147,7 +215,18 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
   const [showAdder, setShowAdder] = useState(false);
   const [showSeo, setShowSeo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sites validation fix — when the API rejects a save with
+  // VALIDATION_ERROR, we stash the per-field issues here so the
+  // editor can render which field (and which block index)
+  // failed. Cleared on every save attempt.
+  const [validationIssues, setValidationIssues] = useState<
+    Array<{ path: Array<string | number>; message: string }>
+  >([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  // Sites-04 — in-app preview. mode toggles between editor and the
+  // mirrored public renderer; viewport chooses the iframe width.
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [viewport, setViewport] = useState<'desktop' | 'mobile'>('desktop');
 
   // Reset local state when the underlying page changes (e.g. after
   // a publish refetch). useEffect with the row's updatedAt as the
@@ -168,6 +247,16 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
   const updatePage = useUpdatePage(clientId, page.id);
   const publishPage = usePublishPage(clientId, page.id);
   const unpublishPage = useUnpublishPage(clientId, page.id);
+
+  // Sites-02 — load the source property when the page is linked to
+  // one. Hook always fires (with undefined id when no source) so
+  // the rules-of-hooks contract holds. PROPERTY pages get a rich
+  // source pill + per-block "Pull from property" actions.
+  const isPropertyPage = page.sourceType === 'PROPERTY' && Boolean(page.sourceId);
+  const propertySourceItem = useDataItem(clientId, isPropertyPage ? page.sourceId ?? undefined : undefined);
+  const property = isPropertyPage ? normalizeProperty(propertySourceItem.data ?? null) : null;
+  const propertyMissing =
+    isPropertyPage && !propertySourceItem.isLoading && !propertySourceItem.data;
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -197,6 +286,28 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
     setItems((prev) => prev.filter((it) => it.id !== id));
   }
 
+  function duplicateBlock(id: string) {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.id === id);
+      if (idx < 0) return prev;
+      const source = prev[idx];
+      const copy: IndexedBlock = {
+        id: `b-${Date.now()}-${source.block.type}`,
+        block: structuredClone(source.block),
+      };
+      return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+    });
+  }
+
+  function moveBlock(id: string, dir: -1 | 1) {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.id === id);
+      const target = idx + dir;
+      if (idx < 0 || target < 0 || target >= prev.length) return prev;
+      return arrayMove(prev, idx, target);
+    });
+  }
+
   function addBlock(type: Block['type']) {
     const next = makeBlock(type);
     setItems((prev) => [
@@ -208,6 +319,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
 
   async function save() {
     setError(null);
+    setValidationIssues([]);
     setSaveStatus('idle');
     try {
       const blocksJson = items.map((it) => it.block);
@@ -225,11 +337,15 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to save');
+      if (err instanceof ApiError && Array.isArray(err.issues)) {
+        setValidationIssues(err.issues);
+      }
     }
   }
 
   async function publish() {
     setError(null);
+    setValidationIssues([]);
     try {
       // Save current edits first, then publish, so the runtime
       // doesn't reveal a stale draft.
@@ -247,6 +363,9 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
       await publishPage.mutateAsync();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to publish');
+      if (err instanceof ApiError && Array.isArray(err.issues)) {
+        setValidationIssues(err.issues);
+      }
     }
   }
 
@@ -294,10 +413,40 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
               <StatusPill status={page.status} />
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {saveStatus === 'saved' && (
               <span className="text-xs text-accent-green-110">Saved</span>
             )}
+            <div className="inline-flex rounded-lg border border-white-15 overflow-hidden">
+              <button
+                type="button"
+                data-testid="editor-mode-edit"
+                onClick={() => setMode('edit')}
+                className={cn(
+                  'px-2.5 py-1.5 text-xs font-medium inline-flex items-center gap-1.5 transition-colors',
+                  mode === 'edit'
+                    ? 'bg-accent-green-110/10 text-accent-green-110'
+                    : 'text-white-50 hover:bg-white-5',
+                )}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </button>
+              <button
+                type="button"
+                data-testid="editor-mode-preview"
+                onClick={() => setMode('preview')}
+                className={cn(
+                  'px-2.5 py-1.5 text-xs font-medium inline-flex items-center gap-1.5 transition-colors border-l border-white-15',
+                  mode === 'preview'
+                    ? 'bg-accent-green-110/10 text-accent-green-110'
+                    : 'text-white-50 hover:bg-white-5',
+                )}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Preview
+              </button>
+            </div>
             <button
               type="button"
               className="btn btn-ghost border border-white-15 text-sm inline-flex items-center gap-1.5"
@@ -333,6 +482,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
                 href={liveUrl}
                 target="_blank"
                 rel="noreferrer"
+                data-testid="editor-view-live"
                 className="btn btn-ghost border border-white-15 text-sm inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -343,12 +493,60 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
         </div>
 
         {error && (
-          <div className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg px-3 py-2">
-            {error}
+          <div className="text-sm text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-lg px-3 py-2 space-y-1.5">
+            <p>{error}</p>
+            {/* Sites validation fix: surface zod issue paths inline so
+                a save failure tells the user WHICH field (and for
+                blocksJson, WHICH block) needs fixing instead of just
+                "Validation failed". Reads ApiError.issues forwarded
+                by apiFetch.ts. */}
+            {validationIssues.length > 0 && (
+              <ul className="list-disc list-inside text-xs text-accent-red/90 space-y-0.5 pl-1">
+                {validationIssues.map((iss, i) => (
+                  <li key={`${formatIssuePath(iss.path)}-${i}`}>
+                    <code className="text-accent-red">{formatIssuePath(iss.path)}</code>
+                    {' — '}
+                    {iss.message}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
-        {page.sourceType && (
+        {/* Sites-04 — be truthful about what save/publish does. */}
+        {isPublished ? (
+          <p
+            data-testid="page-editor-status-note-published"
+            className="text-xs text-yellow-300 bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-3 py-2"
+          >
+            <span className="font-semibold">This page is published.</span>{' '}
+            Saving changes updates the working page and may appear live after the site refreshes.
+          </p>
+        ) : (
+          <p
+            data-testid="page-editor-status-note-draft"
+            className="text-xs text-white-60 bg-white-3 border border-white-10 rounded-lg px-3 py-2"
+          >
+            <span className="font-semibold">Drafts are private until you publish.</span>{' '}
+            Use Preview to see what the page will look like.
+          </p>
+        )}
+
+        {isPropertyPage && property ? (
+          <PropertySourcePanel clientId={clientId} property={property} />
+        ) : propertyMissing ? (
+          <div
+            data-testid="page-editor-source-missing"
+            className="flex items-start gap-2 text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>
+              Linked property not found — it may have been archived. Existing page
+              content is safe; edits won&apos;t affect any property.
+            </span>
+          </div>
+        ) : page.sourceType ? (
           <div className="flex items-center gap-2 text-xs text-white-50">
             <span className="text-white-40 uppercase tracking-wider font-medium">
               Source
@@ -362,7 +560,7 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
               </span>
             )}
           </div>
-        )}
+        ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -459,34 +657,52 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
         </details>
       </div>
 
-      {/* Block list */}
-      <div className="space-y-3">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={items.map((it) => it.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-3">
-              {items.map((it) => (
-                <SortableBlockCard
-                  key={it.id}
-                  id={it.id}
-                  block={it.block}
-                  forms={forms}
-                  onChange={(patch) => updateBlock(it.id, patch)}
-                  onRemove={() => removeBlock(it.id)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+      {/* Sites-04 — Edit vs Preview swap. Preview reuses local
+          unsaved state so what you see is what the page will look
+          like after Save (and Publish, if you're on a draft). */}
+      {mode === 'preview' ? (
+        <PreviewViewport
+          viewport={viewport}
+          onViewportChange={setViewport}
+          blocks={items.map((it) => it.block)}
+        />
+      ) : (
+        /* Block list */
+        <div className="space-y-3">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map((it) => it.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {items.map((it, idx) => (
+                  <SortableBlockCard
+                    key={it.id}
+                    id={it.id}
+                    block={it.block}
+                    forms={forms}
+                    property={property}
+                    clientId={clientId}
+                    pageId={page.id}
+                    pageSourceType={page.sourceType}
+                    isFirst={idx === 0}
+                    isLast={idx === items.length - 1}
+                    onChange={(patch) => updateBlock(it.id, patch)}
+                    onRemove={() => removeBlock(it.id)}
+                    onDuplicate={() => duplicateBlock(it.id)}
+                    onMove={(dir) => moveBlock(it.id, dir)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
 
-        {items.length === 0 && (
-          <div className="card p-8 text-center space-y-2">
-            <p className="text-sm font-medium text-white-80">No blocks yet</p>
-            <p className="text-xs text-white-50">
-              Add a hero, paragraph, image, CTA, or lead-form block to start
-              composing this page.
-            </p>
-          </div>
-        )}
+          {items.length === 0 && (
+            <div className="card p-8 text-center space-y-2">
+              <p className="text-sm font-medium text-white-80">No blocks yet</p>
+              <p className="text-xs text-white-50">
+                Add a hero, paragraph, image, CTA, or lead-form block to start
+                composing this page.
+              </p>
+            </div>
+          )}
 
         {/* Block adder */}
         <div className="card p-4">
@@ -500,25 +716,20 @@ export function PageEditor({ clientId, clientSlug, page, forms }: PageEditorProp
               Add block
             </button>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              {BLOCK_PALETTE.map(({ type, label, Icon }) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => addBlock(type)}
-                  className="flex flex-col items-center gap-2 p-4 rounded-xl border border-white-10 hover:border-accent-green-110 hover:bg-accent-green-110/5 transition-colors"
-                >
-                  <Icon className="w-5 h-5 text-white-50" />
-                  <span className="text-xs font-medium text-white-80">{label}</span>
-                </button>
-              ))}
-            </div>
+            <BlockPicker
+              showSuggested={Boolean(property)}
+              onAdd={(type) => {
+                addBlock(type);
+                setShowAdder(false);
+              }}
+            />
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Preview URL hint */}
-      {previewUrl && (
+      {previewUrl && mode === 'edit' && (
         <p className="text-xs text-white-40 text-center">
           Preview at{' '}
           <span className="font-mono">{previewUrl.replace(/^https:\/\//, '')}</span>{' '}
@@ -554,13 +765,36 @@ interface SortableBlockCardProps {
   id: string;
   block: Block;
   forms: LeadForm[];
+  property: NormalizedProperty | null;
+  clientId: string;
+  pageId: string;
+  pageSourceType: SiteSourceType | null;
+  isFirst: boolean;
+  isLast: boolean;
   onChange: (patch: Partial<Block>) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
+  onMove: (dir: -1 | 1) => void;
 }
 
-function SortableBlockCard({ id, block, forms, onChange, onRemove }: SortableBlockCardProps) {
+function SortableBlockCard({
+  id,
+  block,
+  forms,
+  property,
+  clientId,
+  pageId,
+  pageSourceType,
+  isFirst,
+  isLast,
+  onChange,
+  onRemove,
+  onDuplicate,
+  onMove,
+}: SortableBlockCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
+  const [collapsed, setCollapsed] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -569,7 +803,7 @@ function SortableBlockCard({ id, block, forms, onChange, onRemove }: SortableBlo
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="card p-4">
+    <div ref={setNodeRef} style={style} className="card p-4" data-testid="sortable-block-card">
       <div className="flex items-start gap-3">
         <button
           type="button"
@@ -581,20 +815,75 @@ function SortableBlockCard({ id, block, forms, onChange, onRemove }: SortableBlo
           <GripVertical className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="text-xs font-semibold text-white-50 uppercase tracking-wider">
-              {block.type.replace('_', ' ')}
-            </span>
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
             <button
               type="button"
-              onClick={onRemove}
-              className="p-1 rounded text-white-30 hover:text-accent-red hover:bg-accent-red/10"
-              aria-label="Remove block"
+              onClick={() => setCollapsed((v) => !v)}
+              data-testid="block-collapse-toggle"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white-60 hover:text-white-100 uppercase tracking-wider"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              {collapsed ? (
+                <ChevronRight className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+              {BLOCK_LABELS[block.type] ?? block.type}
             </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => onMove(-1)}
+                disabled={isFirst}
+                data-testid="block-move-up"
+                className="p-1 rounded text-white-30 hover:text-white-100 hover:bg-white-10 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Move up"
+                title="Move up"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(1)}
+                disabled={isLast}
+                data-testid="block-move-down"
+                className="p-1 rounded text-white-30 hover:text-white-100 hover:bg-white-10 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Move down"
+                title="Move down"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onDuplicate}
+                data-testid="block-duplicate"
+                className="p-1 rounded text-white-30 hover:text-white-100 hover:bg-white-10"
+                aria-label="Duplicate block"
+                title="Duplicate"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                className="p-1 rounded text-white-30 hover:text-accent-red hover:bg-accent-red/10"
+                aria-label="Remove block"
+                title="Remove"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <BlockFields block={block} forms={forms} onChange={onChange} />
+          {!collapsed && (
+            <BlockFields
+              block={block}
+              forms={forms}
+              property={property}
+              clientId={clientId}
+              pageId={pageId}
+              pageSourceType={pageSourceType}
+              onChange={onChange}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -606,13 +895,37 @@ function SortableBlockCard({ id, block, forms, onChange, onRemove }: SortableBlo
 interface BlockFieldsProps {
   block: Block;
   forms: LeadForm[];
+  property: NormalizedProperty | null;
+  clientId: string;
+  pageId: string;
+  pageSourceType: SiteSourceType | null;
   onChange: (patch: Partial<Block>) => void;
 }
 
-function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
+function BlockFields({
+  block,
+  forms,
+  property,
+  clientId,
+  pageId,
+  pageSourceType,
+  onChange,
+}: BlockFieldsProps) {
+  const propertyImages = property?.images ?? undefined;
   if (block.type === 'hero') {
+    const pullFromProperty = property
+      ? () =>
+          onChange({
+            headline: property.title,
+            subheadline: buildHeroSubheadline(property),
+            imageUrl: property.primaryImage ?? undefined,
+          } as Partial<Block>)
+      : null;
     return (
       <div className="space-y-3">
+        {pullFromProperty && (
+          <PullFromPropertyButton onClick={pullFromProperty} label="Pull from property" />
+        )}
         <Field label="Headline">
           <input
             className="input"
@@ -629,42 +942,64 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
             maxLength={600}
           />
         </Field>
-        <Field label="Image URL (optional)">
-          <input
-            className="input font-mono text-xs"
-            value={block.imageUrl ?? ''}
-            placeholder="https://res.cloudinary.com/…"
-            onChange={(e) => onChange({ imageUrl: e.target.value || undefined } as Partial<Block>)}
+        <ImageField
+          clientId={clientId}
+          label="Hero image (optional)"
+          value={{
+            imageUrl: block.imageUrl ?? null,
+            imageId: (block as { imageId?: string | null }).imageId ?? null,
+          }}
+          propertyImages={propertyImages}
+          onChange={(next) =>
+            onChange({
+              imageUrl: next.imageUrl ?? undefined,
+              imageId: next.imageId ?? undefined,
+            } as Partial<Block>)
+          }
+        />
+      </div>
+    );
+  }
+
+  if (block.type === 'paragraph') {
+    const pullFromProperty = property
+      ? () => onChange({ body: buildSafeDescription(property) } as Partial<Block>)
+      : null;
+    return (
+      <div className="space-y-3">
+        {pullFromProperty && (
+          <PullFromPropertyButton onClick={pullFromProperty} label="Pull description from property" />
+        )}
+        <Field label="Body">
+          <textarea
+            className="input min-h-[120px] resize-y"
+            value={block.body ?? ''}
+            onChange={(e) => onChange({ body: e.target.value } as Partial<Block>)}
+            maxLength={4000}
           />
         </Field>
       </div>
     );
   }
 
-  if (block.type === 'paragraph') {
-    return (
-      <Field label="Body">
-        <textarea
-          className="input min-h-[120px] resize-y"
-          value={block.body ?? ''}
-          onChange={(e) => onChange({ body: e.target.value } as Partial<Block>)}
-          maxLength={4000}
-        />
-      </Field>
-    );
-  }
-
   if (block.type === 'image') {
     return (
       <div className="space-y-3">
-        <Field label="Image URL">
-          <input
-            className="input font-mono text-xs"
-            value={block.imageUrl ?? ''}
-            placeholder="https://…"
-            onChange={(e) => onChange({ imageUrl: e.target.value || undefined } as Partial<Block>)}
-          />
-        </Field>
+        <ImageField
+          clientId={clientId}
+          label="Image"
+          value={{
+            imageUrl: block.imageUrl ?? null,
+            imageId: (block as { imageId?: string | null }).imageId ?? null,
+          }}
+          propertyImages={propertyImages}
+          onChange={(next) =>
+            onChange({
+              imageUrl: next.imageUrl ?? undefined,
+              imageId: next.imageId ?? undefined,
+            } as Partial<Block>)
+          }
+        />
         <Field label="Alt text">
           <input
             className="input"
@@ -710,31 +1045,30 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
 
   if (block.type === 'lead_form') {
     return (
-      <Field label="Form">
-        <select
-          className="input"
-          value={block.formId}
-          onChange={(e) => onChange({ formId: e.target.value } as Partial<Block>)}
-        >
-          <option value="">Select a form…</option>
-          {forms.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-        {forms.length === 0 && (
-          <p className="text-xs text-amber-300 mt-2">
-            No forms in this workspace yet. Create one from the Forms tab first.
-          </p>
-        )}
-      </Field>
+      <LeadFormBlockFields
+        block={block}
+        forms={forms}
+        clientId={clientId}
+        pageId={pageId}
+        pageSourceType={pageSourceType}
+        onChange={onChange}
+      />
     );
   }
 
   if (block.type === 'gallery') {
+    const pullFromProperty =
+      property && property.images.length > 0
+        ? () => onChange({ imageUrls: property.images } as Partial<Block>)
+        : null;
     return (
       <div className="space-y-3">
+        {pullFromProperty && (
+          <PullFromPropertyButton
+            onClick={pullFromProperty}
+            label={`Pull ${property!.images.length} photo${property!.images.length === 1 ? '' : 's'} from property`}
+          />
+        )}
         <Field label="Layout">
           <select
             className="input"
@@ -749,19 +1083,12 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
             <option value="carousel">Carousel</option>
           </select>
         </Field>
-        <Field label="Image URLs (one per line)">
-          <textarea
-            className="input min-h-[120px] resize-y font-mono text-xs"
-            value={block.imageUrls.join('\n')}
-            onChange={(e) =>
-              onChange({
-                imageUrls: e.target.value
-                  .split('\n')
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              } as Partial<Block>)
-            }
-            placeholder={'https://...\nhttps://...'}
+        <Field label="Images">
+          <GalleryField
+            clientId={clientId}
+            imageUrls={block.imageUrls}
+            propertyImages={propertyImages}
+            onChange={(next) => onChange({ imageUrls: next } as Partial<Block>)}
           />
         </Field>
       </div>
@@ -769,8 +1096,14 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
   }
 
   if (block.type === 'key_details') {
+    const pullFromProperty = property
+      ? () => onChange({ items: buildKeyDetailItems(property) } as Partial<Block>)
+      : null;
     return (
       <div className="space-y-3">
+        {pullFromProperty && (
+          <PullFromPropertyButton onClick={pullFromProperty} label="Pull details from property" />
+        )}
         <Field label="Heading (optional)">
           <input
             className="input"
@@ -878,16 +1211,20 @@ function BlockFields({ block, forms, onChange }: BlockFieldsProps) {
             />
           </Field>
         </div>
-        <Field label="Headshot URL (optional)">
-          <input
-            className="input font-mono text-xs"
-            value={block.imageUrl ?? ''}
-            onChange={(e) =>
-              onChange({ imageUrl: e.target.value || undefined } as Partial<Block>)
-            }
-            placeholder="https://..."
-          />
-        </Field>
+        <ImageField
+          clientId={clientId}
+          label="Headshot (optional)"
+          value={{
+            imageUrl: block.imageUrl ?? null,
+            imageId: (block as { imageId?: string | null }).imageId ?? null,
+          }}
+          onChange={(next) =>
+            onChange({
+              imageUrl: next.imageUrl ?? undefined,
+              imageId: next.imageId ?? undefined,
+            } as Partial<Block>)
+          }
+        />
       </div>
     );
   }
@@ -1029,4 +1366,525 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+// Spinstr427 — lead-form block field component. Extracted so it
+// can own its own state for the stats fetch + inline-create modal.
+function LeadFormBlockFields({
+  block,
+  forms,
+  clientId,
+  pageId,
+  pageSourceType,
+  onChange,
+}: {
+  block: Extract<Block, { type: 'lead_form' }>;
+  forms: LeadForm[];
+  clientId: string;
+  pageId: string;
+  pageSourceType: SiteSourceType | null;
+  onChange: (patch: Partial<Block>) => void;
+}) {
+  const [showCreate, setShowCreate] = useState(false);
+  const selected = forms.find((f) => f.id === block.formId) ?? null;
+  const fieldCount = selected?.fieldsJson?.length ?? 0;
+  const { data: stats } = useFormStats(
+    clientId,
+    selected?.id ?? undefined,
+    pageId,
+  );
+
+  return (
+    <div className="space-y-3" data-testid="lead-form-block-fields">
+      <Field label="Form">
+        <select
+          className="input"
+          value={block.formId}
+          onChange={(e) => onChange({ formId: e.target.value } as Partial<Block>)}
+        >
+          <option value="">Select a form…</option>
+          {forms.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <button
+        type="button"
+        onClick={() => setShowCreate(true)}
+        data-testid="lead-form-create-new"
+        className="text-[11px] text-accent-green-110 hover:underline"
+      >
+        + Create a new form
+      </button>
+
+      {forms.length === 0 && !selected && (
+        <p className="text-xs text-amber-300">
+          No forms in this workspace yet. Use <em>Create a new form</em> above
+          or build one from the Forms tab.
+        </p>
+      )}
+      {forms.length > 0 && !block.formId && (
+        <p className="text-xs text-white-50">
+          Pick a form so this block can render on the published page.
+        </p>
+      )}
+      {block.formId && !selected && (
+        <p className="text-xs text-amber-300">
+          Selected form not found. Pick another or create a new one.
+        </p>
+      )}
+      {selected && (
+        <div
+          data-testid="lead-form-block-context"
+          className="rounded-lg border border-white-10 bg-white-3 p-3 text-xs text-white-70 space-y-2"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold text-white-100">{selected.name}</p>
+              <p className="text-[11px] text-white-50">
+                {fieldCount} field{fieldCount === 1 ? '' : 's'}
+                {selected.notifyEmail ? ` · notifies ${selected.notifyEmail}` : ''}
+              </p>
+            </div>
+            <Link
+              href={`/workspaces/${clientId}/sites?tab=forms&formId=${selected.id}`}
+              className="text-[11px] text-accent-green-110 hover:underline"
+            >
+              Edit form →
+            </Link>
+          </div>
+          {stats && stats.count >= 0 && (
+            <p
+              data-testid="lead-form-stats"
+              className="text-[11px] text-white-60"
+            >
+              {stats.count === 0
+                ? 'No submissions on this page yet.'
+                : `${stats.count} submission${stats.count === 1 ? '' : 's'} from this page${
+                    stats.lastSubmissionAt
+                      ? ` · last ${new Date(stats.lastSubmissionAt).toLocaleDateString()}`
+                      : ''
+                  }`}
+            </p>
+          )}
+          <Link
+            href={`/workspaces/${clientId}/sites?tab=submissions&formId=${selected.id}&pageId=${pageId}`}
+            className="inline-block text-[11px] text-white-60 hover:text-white-100 hover:underline"
+          >
+            View submissions
+          </Link>
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateLeadFormModal
+          clientId={clientId}
+          pageSourceType={pageSourceType}
+          onClose={() => setShowCreate(false)}
+          onCreated={(formId) => {
+            onChange({ formId } as Partial<Block>);
+            setShowCreate(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Spinstr427 — inline create-form modal so the user never has to
+// leave the page editor to wire a lead form. Defaults the field
+// set based on the page's source type / template intent.
+function CreateLeadFormModal({
+  clientId,
+  pageSourceType,
+  onClose,
+  onCreated,
+}: {
+  clientId: string;
+  pageSourceType: SiteSourceType | null;
+  onClose: () => void;
+  onCreated: (formId: string) => void;
+}) {
+  const create = useCreateForm(clientId);
+  const defaultTemplate: FormTemplate =
+    pageSourceType === 'PROPERTY' ? 'property_inquiry' : 'general';
+  const [name, setName] = useState(FORM_TEMPLATE_DEFAULT_NAMES[defaultTemplate]);
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [template, setTemplate] = useState<FormTemplate>(defaultTemplate);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!name.trim()) {
+      setError('Form name is required.');
+      return;
+    }
+    try {
+      const result = await create.mutateAsync({
+        name: name.trim(),
+        fieldsJson: FORM_TEMPLATE_FIELDS[template],
+        successAction: {
+          type: 'message',
+          message: "Thanks — we'll be in touch shortly.",
+        },
+        notifyEmail: notifyEmail.trim() || null,
+      });
+      onCreated(result.form.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create the form.');
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-md rounded-2xl bg-sp-card border border-white-10 shadow-2xl">
+        <header className="flex items-center justify-between p-4 border-b border-white-10">
+          <h2 className="text-sm font-semibold text-white-100">Create a new form</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-md text-white-40 hover:text-white-100 hover:bg-white-10"
+            aria-label="Close"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </header>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          <Field label="Form name">
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              autoFocus
+            />
+          </Field>
+          <Field label="Template">
+            <select
+              className="input"
+              value={template}
+              onChange={(e) => {
+                const t = e.target.value as FormTemplate;
+                setTemplate(t);
+                setName(FORM_TEMPLATE_DEFAULT_NAMES[t]);
+              }}
+            >
+              <option value="general">General lead form</option>
+              <option value="property_inquiry">Property inquiry</option>
+              <option value="seller_lead">Seller lead</option>
+              <option value="buyer_lead">Buyer lead</option>
+            </select>
+            <p className="text-[11px] text-white-50 mt-1">
+              Default fields:{' '}
+              {FORM_TEMPLATE_FIELDS[template]
+                .map((f) => f.label)
+                .join(', ')}
+              .
+            </p>
+          </Field>
+          <Field label="Notification email (optional)">
+            <input
+              className="input"
+              type="email"
+              value={notifyEmail}
+              onChange={(e) => setNotifyEmail(e.target.value)}
+              placeholder="agent@example.com"
+              maxLength={320}
+            />
+          </Field>
+          {error && (
+            <p className="text-xs text-accent-red bg-accent-red/10 border border-accent-red/20 rounded-md px-2 py-1.5">
+              {error}
+            </p>
+          )}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2 rounded-lg text-sm text-white-60 hover:bg-white-10"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={create.isPending}
+              className="px-3 py-2 rounded-lg text-sm font-semibold bg-accent-green-110 text-black hover:bg-accent-green-110/90 disabled:opacity-60"
+            >
+              {create.isPending ? 'Creating…' : 'Create form'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+type FormTemplate = 'general' | 'property_inquiry' | 'seller_lead' | 'buyer_lead';
+
+const FORM_TEMPLATE_DEFAULT_NAMES: Record<FormTemplate, string> = {
+  general: 'Contact form',
+  property_inquiry: 'Property inquiry form',
+  seller_lead: 'Seller lead form',
+  buyer_lead: 'Buyer lead form',
+};
+
+const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormFieldDef[]> = {
+  general: [
+    { key: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'phone', label: 'Phone', type: 'phone' },
+    { key: 'message', label: 'Message', type: 'textarea' },
+  ],
+  property_inquiry: [
+    { key: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'phone', label: 'Phone', type: 'phone' },
+    { key: 'message', label: 'Question about this property', type: 'textarea' },
+  ],
+  seller_lead: [
+    { key: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'phone', label: 'Phone', type: 'phone' },
+    { key: 'address', label: 'Property address', type: 'text' },
+    { key: 'timeline', label: 'When are you thinking of selling?', type: 'text' },
+  ],
+  buyer_lead: [
+    { key: 'name', label: 'Name', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'email', required: true },
+    { key: 'phone', label: 'Phone', type: 'phone' },
+    { key: 'budget', label: 'Budget range', type: 'text' },
+    { key: 'preferences', label: 'What are you looking for?', type: 'textarea' },
+  ],
+};
+
+// Sites-06 — categorized block picker. Shows a "Suggested" group at
+// the top for property-linked pages, then standard categories.
+function BlockPicker({
+  showSuggested,
+  onAdd,
+}: {
+  showSuggested: boolean;
+  onAdd: (type: Block['type']) => void;
+}) {
+  const paletteByType = new Map(BLOCK_PALETTE.map((e) => [e.type, e] as const));
+  const groups: Array<{ label: string; types: Block['type'][] }> = [
+    ...(showSuggested
+      ? [{ label: 'Suggested for property pages', types: PROPERTY_SUGGESTED }]
+      : []),
+    ...BLOCK_CATEGORIES,
+  ];
+
+  return (
+    <div className="space-y-4" data-testid="block-picker">
+      {groups.map((group) => (
+        <div key={group.label}>
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-white-40 mb-2">
+            {group.label}
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {group.types
+              .map((t) => paletteByType.get(t))
+              .filter((e): e is BlockPaletteEntry => Boolean(e))
+              .map(({ type, label, Icon }) => (
+                <button
+                  key={`${group.label}-${type}`}
+                  type="button"
+                  onClick={() => onAdd(type)}
+                  data-testid={`block-picker-${type}`}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl border border-white-10 hover:border-accent-green-110 hover:bg-accent-green-110/5 transition-colors"
+                >
+                  <Icon className="w-4 h-4 text-white-50" />
+                  <span className="text-[11px] font-medium text-white-80 text-center">
+                    {label}
+                  </span>
+                </button>
+              ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Sites-04 — preview viewport. Renders the local unsaved blocks in
+// the mirrored PreviewRenderer with a Desktop/Mobile width toggle.
+// "Draft Preview" label is explicit so the user knows this is not
+// the live URL.
+function PreviewViewport({
+  viewport,
+  onViewportChange,
+  blocks,
+}: {
+  viewport: 'desktop' | 'mobile';
+  onViewportChange: (v: 'desktop' | 'mobile') => void;
+  blocks: Block[];
+}) {
+  const width = viewport === 'mobile' ? 390 : 1080;
+  return (
+    <div className="space-y-3" data-testid="preview-viewport">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] uppercase tracking-wider font-semibold bg-yellow-500/15 text-yellow-300 border border-yellow-500/20">
+          <Eye className="w-3 h-3" />
+          Draft preview
+        </span>
+        <div className="inline-flex rounded-lg border border-white-10 overflow-hidden">
+          <button
+            type="button"
+            data-testid="preview-viewport-desktop"
+            onClick={() => onViewportChange('desktop')}
+            className={cn(
+              'px-2 py-1.5 text-xs inline-flex items-center gap-1.5 transition-colors',
+              viewport === 'desktop'
+                ? 'bg-white-10 text-white-100'
+                : 'text-white-50 hover:bg-white-5',
+            )}
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            Desktop
+          </button>
+          <button
+            type="button"
+            data-testid="preview-viewport-mobile"
+            onClick={() => onViewportChange('mobile')}
+            className={cn(
+              'px-2 py-1.5 text-xs inline-flex items-center gap-1.5 transition-colors border-l border-white-10',
+              viewport === 'mobile'
+                ? 'bg-white-10 text-white-100'
+                : 'text-white-50 hover:bg-white-5',
+            )}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            Mobile
+          </button>
+        </div>
+      </div>
+      <div className="flex justify-center">
+        <div
+          style={{
+            width,
+            maxWidth: '100%',
+            backgroundColor: '#0b0c0e',
+            color: '#e8e9ea',
+            borderRadius: 16,
+            overflow: 'hidden',
+            boxShadow: '0 6px 30px rgba(0,0,0,0.4)',
+          }}
+        >
+          <PreviewRenderer blocks={blocks} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Sites-02 — explicit one-shot autofill button. Re-clicking overwrites
+// the block's relevant fields. Kept visually distinct so the user
+// knows this isn't a passive bind — it's a deliberate action.
+function PullFromPropertyButton({
+  onClick,
+  label,
+}: {
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid="pull-from-property-button"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold bg-teal-500/10 text-teal-300 border border-teal-500/20 hover:bg-teal-500/20 transition-colors"
+    >
+      <Sparkles className="w-3 h-3" />
+      {label}
+    </button>
+  );
+}
+
+// Sites-02 — source context panel. Replaces the bare "Source: Property
+// <id>" pill with address / price / specs / thumbnail when the linked
+// property loads.
+function PropertySourcePanel({
+  clientId,
+  property,
+}: {
+  clientId: string;
+  property: NormalizedProperty;
+}) {
+  return (
+    <div
+      data-testid="page-editor-source-panel"
+      className="flex items-start gap-3 rounded-xl border border-teal-500/20 bg-teal-500/5 p-3"
+    >
+      <div className="shrink-0">
+        {property.primaryImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={property.primaryImage}
+            alt={property.title}
+            className="w-16 h-16 rounded-lg object-cover border border-white-10"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-lg bg-white-5 border border-white-10 flex items-center justify-center">
+            <HomeIcon className="w-5 h-5 text-teal-300" />
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0 space-y-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-teal-300">
+            Linked property
+          </span>
+          {property.status && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white-5 text-white-60">
+              {property.status.replace(/_/g, ' ')}
+            </span>
+          )}
+        </div>
+        <p className="text-sm font-semibold text-white-100 truncate">{property.title}</p>
+        {property.addressLine !== property.title && (
+          <p className="text-xs text-white-50 truncate">{property.addressLine}</p>
+        )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-white-60">
+          {property.priceFormatted && <span className="font-medium">{property.priceFormatted}</span>}
+          {property.beds != null && <span>{property.beds} bd</span>}
+          {property.baths != null && <span>{property.baths} ba</span>}
+          {property.sqft != null && <span>{property.sqft.toLocaleString()} sqft</span>}
+          {property.propertyType && <span>{property.propertyType}</span>}
+        </div>
+      </div>
+      <Link
+        href={`/workspaces/${clientId}/data?tab=properties`}
+        className="text-[11px] text-teal-300 hover:underline shrink-0"
+      >
+        View
+      </Link>
+    </div>
+  );
+}
+
+// Format a Zod issue path tuple like ['blocksJson', 5, 'imageUrls']
+// into a humane string ('blocksJson[5].imageUrls') so the editor
+// can show where the validation failed without dumping the raw
+// JSON path array.
+function formatIssuePath(path: Array<string | number>): string {
+  if (!Array.isArray(path) || path.length === 0) return '(unknown field)';
+  let out = String(path[0]);
+  for (let i = 1; i < path.length; i++) {
+    const seg = path[i];
+    if (typeof seg === 'number') {
+      out += `[${seg}]`;
+    } else {
+      out += `.${seg}`;
+    }
+  }
+  return out;
 }

@@ -11,6 +11,7 @@ import {
   Pin,
   AtSign,
   Hash,
+  Star,
 
   Loader2,
   Link2,
@@ -18,6 +19,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import {
+  useCheckGbpReviewAccess,
   useDisconnectChannel,
   type ChannelConnection,
   type Channel,
@@ -26,6 +28,7 @@ import {
 import { useOAuthPopup } from '@/hooks/useOAuthPopup';
 import { cn } from '@/lib/utils';
 import { PinterestBoardPicker } from './PinterestBoardPicker';
+import { GbpLocationPicker } from './GbpLocationPicker';
 
 export type ChannelRecommendationTier = 'primary' | 'secondary' | 'optional';
 
@@ -38,7 +41,14 @@ interface Props {
 
 const CHANNEL_META: Record<
   Channel,
-  { label: string; icon: React.ComponentType<{ className?: string }>; real: boolean }
+  {
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    real: boolean;
+    /** Short copy shown under the label on "coming soon" tiles to
+     *  explain why the channel exists and what it'll unlock. */
+    description?: string;
+  }
 > = {
   INSTAGRAM: { label: 'Instagram', icon: Instagram, real: true },
   TIKTOK: { label: 'TikTok', icon: Music2, real: true },
@@ -54,6 +64,13 @@ const CHANNEL_META: Record<
   PINTEREST: { label: 'Pinterest', icon: Pin, real: true },
   THREADS: { label: 'Threads', icon: AtSign, real: true },
   REDDIT: { label: 'Reddit', icon: Hash, real: false },
+  GOOGLE_BUSINESS_PROFILE: {
+    label: 'Google Business Profile',
+    icon: Star,
+    real: true,
+    description:
+      'Connect your Google Business Profile to bring reviews into SquadInbox and reply publicly. Requires business.manage scope.',
+  },
 };
 
 const STATUS_PILL: Record<ChannelConnectionStatus, string> = {
@@ -88,6 +105,8 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   const oauthPopup = useOAuthPopup(clientId);
   const disconnect = useDisconnectChannel(clientId);
   const [pinterestPickerOpen, setPinterestPickerOpen] = useState(false);
+  const [gbpPickerOpen, setGbpPickerOpen] = useState(false);
+  const checkGbpReviewAccess = useCheckGbpReviewAccess(clientId);
 
   const isConnected = connection && connection.status === 'CONNECTED';
   const isBroken =
@@ -108,6 +127,33 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
     isConnected &&
     !!connection?.externalAccountId &&
     /^\d+$/.test(connection.externalAccountId);
+
+  // GBP needs a location selected after OAuth. The post-OAuth
+  // sentinel is "accounts/{a}"; the full canonical resource name
+  // after picker is "accounts/{a}/locations/{l}". We use the
+  // presence of "/locations/" to distinguish.
+  const gbpNeedsLocation =
+    channel === 'GOOGLE_BUSINESS_PROFILE' &&
+    isConnected &&
+    !!connection?.externalAccountId &&
+    !connection.externalAccountId.includes('/locations/');
+  const gbpHasLocation =
+    channel === 'GOOGLE_BUSINESS_PROFILE' &&
+    isConnected &&
+    !!connection?.externalAccountId &&
+    connection.externalAccountId.includes('/locations/');
+
+  // The poller (and any reply attempt) stash a stable marker on
+  // ChannelConnection.lastError when Google rejects reviews API
+  // calls with the "your project isn't allowlisted" 403. We
+  // surface that with a dedicated banner pointing at Google's
+  // access-request form — distinct from the generic isBroken
+  // banner (status stays CONNECTED in this case; only reviews
+  // are gated, not OAuth itself).
+  const gbpReviewAccessDenied =
+    channel === 'GOOGLE_BUSINESS_PROFILE' &&
+    typeof connection?.lastError === 'string' &&
+    connection.lastError.startsWith('REVIEW_API_ACCESS_DENIED:');
 
   const handleConnect = () => oauthPopup.connect(channel);
 
@@ -172,6 +218,12 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
             </p>
           )}
 
+          {meta.description && !connection && (
+            <p className="text-xs text-white-50 mt-1 leading-snug">
+              {meta.description}
+            </p>
+          )}
+
           {connection && (
             <p className="text-xs text-white-40 mt-1">
               Last validated {formatRelative(connection.lastValidatedAt)}
@@ -222,6 +274,90 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               Change board
             </button>
           )}
+
+          {gbpNeedsLocation && (
+            <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-zone-yellow/10 text-zone-yellow text-xs">
+              <div className="flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>
+                  Pick a Google Business Profile location to start polling reviews.
+                </span>
+              </div>
+              <button
+                onClick={() => setGbpPickerOpen(true)}
+                className="text-[11px] font-medium px-2 py-1 rounded-md bg-zone-yellow/20 hover:bg-zone-yellow/30"
+              >
+                Pick location
+              </button>
+            </div>
+          )}
+
+          {gbpHasLocation && (
+            <div className="mt-1 flex items-center gap-3">
+              <button
+                onClick={() => setGbpPickerOpen(true)}
+                className="text-[11px] text-white-40 hover:text-white-60 underline-offset-2 hover:underline"
+              >
+                Change location
+              </button>
+              <span className="text-white-20">·</span>
+              <button
+                onClick={() => checkGbpReviewAccess.mutate()}
+                disabled={checkGbpReviewAccess.isPending}
+                className="text-[11px] text-white-40 hover:text-white-60 underline-offset-2 hover:underline inline-flex items-center gap-1 disabled:opacity-50"
+                title="Run a single reviews.list call to see if Google has approved review API access yet"
+              >
+                {checkGbpReviewAccess.isPending ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" /> Checking…
+                  </>
+                ) : (
+                  'Check review API access'
+                )}
+              </button>
+            </div>
+          )}
+
+          {checkGbpReviewAccess.data && (
+            <div
+              className={cn(
+                'mt-2 flex items-start gap-2 p-2 rounded-md text-xs',
+                checkGbpReviewAccess.data.status === 'ok'
+                  ? 'bg-accent-green-110/10 text-accent-green-110'
+                  : checkGbpReviewAccess.data.status === 'access_denied'
+                    ? 'bg-zone-yellow/10 text-zone-yellow'
+                    : 'bg-accent-red/10 text-accent-red',
+              )}
+            >
+              {checkGbpReviewAccess.data.status === 'ok' ? (
+                <Link2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              )}
+              <span className="leading-snug">{checkGbpReviewAccess.data.message}</span>
+            </div>
+          )}
+
+          {gbpReviewAccessDenied && (
+            <div className="mt-2 flex items-start gap-2 p-2 rounded-md bg-zone-yellow/10 text-zone-yellow text-xs">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 leading-snug">
+                <p>
+                  Awaiting Google Business Profile API access approval. Account
+                  and location connection works, but review sync requires Google
+                  allowlisting.
+                </p>
+                <a
+                  href="https://developers.google.com/my-business/content/prereqs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-[11px] font-medium underline-offset-2 hover:underline"
+                >
+                  Check status of API access request →
+                </a>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 flex-shrink-0">
@@ -267,6 +403,14 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
           clientId={clientId}
           currentBoardId={connection?.externalAccountId ?? null}
           onClose={() => setPinterestPickerOpen(false)}
+        />
+      )}
+
+      {gbpPickerOpen && (
+        <GbpLocationPicker
+          clientId={clientId}
+          currentLocationName={connection?.externalAccountId ?? null}
+          onClose={() => setGbpPickerOpen(false)}
         />
       )}
     </div>

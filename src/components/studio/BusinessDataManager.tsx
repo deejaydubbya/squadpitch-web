@@ -50,9 +50,11 @@ const TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: 'CUSTOM', label: 'Custom' },
 ];
 
+// Spinstr425 — PROPERTY is intentionally absent. Properties live
+// on the dedicated Properties tab and the API call below passes
+// excludeTypes=['PROPERTY'] so they never reach this view.
 const RE_TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
   { value: '', label: 'All Types' },
-  { value: 'PROPERTY', label: 'Properties' },
   { value: 'TESTIMONIAL', label: 'Testimonials' },
   { value: 'STATISTIC', label: 'Statistics' },
   { value: 'TEAM_SPOTLIGHT', label: 'Team' },
@@ -66,7 +68,6 @@ const RE_TYPE_FILTERS: { value: DataItemType | ''; label: string }[] = [
 ];
 
 const RE_SECTION_LABELS: Record<string, string> = {
-  PROPERTY: 'Properties',
   TESTIMONIAL: 'Testimonials',
   STATISTIC: 'Market Stats',
   TEAM_SPOTLIGHT: 'Team',
@@ -75,7 +76,7 @@ const RE_SECTION_LABELS: Record<string, string> = {
 };
 
 const RE_SECTION_ORDER: DataItemType[] = [
-  'PROPERTY', 'TESTIMONIAL', 'STATISTIC', 'TEAM_SPOTLIGHT', 'CASE_STUDY',
+  'TESTIMONIAL', 'STATISTIC', 'TEAM_SPOTLIGHT', 'CASE_STUDY',
   'EVENT', 'MILESTONE', 'PRODUCT_LAUNCH', 'PROMOTION', 'FAQ', 'INDUSTRY_NEWS',
 ];
 
@@ -145,6 +146,9 @@ export function BusinessDataManager({ clientId }: Props) {
 
   const { data: items, isLoading } = useDataItems(clientId, {
     type: typeFilter || undefined,
+    // Spinstr425 — Content Assets is the generic asset view;
+    // PROPERTY rows live on the dedicated Properties tab.
+    excludeTypes: typeFilter ? undefined : ['PROPERTY'],
     status: statusFilter,
     search: search.trim() || undefined,
   });

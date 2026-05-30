@@ -27,6 +27,7 @@ const CHANNEL_COLORS: Record<Channel, string> = {
   PINTEREST: 'bg-red-600/20 text-red-300',
   THREADS: 'bg-white-20 text-white-60',
   REDDIT: 'bg-orange-500/20 text-orange-400',
+  GOOGLE_BUSINESS_PROFILE: 'bg-amber-500/20 text-amber-400',
 };
 
 export function AttachToPostModal({ assetId, clientId, onClose, onCreated }: Props) {

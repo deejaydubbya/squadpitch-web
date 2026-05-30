@@ -34,6 +34,7 @@ const CHANNELS: Channel[] = [
   'THREADS',
   'X',
   'YOUTUBE',
+  'GOOGLE_BUSINESS_PROFILE',
 ];
 
 const COMING_SOON_CHANNELS: Channel[] = ['REDDIT'];

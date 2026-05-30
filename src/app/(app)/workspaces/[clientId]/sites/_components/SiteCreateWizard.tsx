@@ -1,18 +1,16 @@
 'use client';
 
-// Three-step site-page create wizard:
-//   1. Pick a source type (campaign / property / content asset / idea)
-//   2. Pick the specific source (or compose an idea prompt)
-//   3. Pick the page goal and generate
+// Site-page create wizard. Sites-05 makes this template-first:
+//   1. Pick a template (Property Listing, Open House, Just Sold,
+//      Seller Lead, Buyer Lead, Neighborhood Guide, Custom).
+//   2. For property templates, pick the property; for Custom,
+//      pick a source (campaign / data item / idea).
+//   3. Generate. The API returns a DRAFT SitePage; we route into
+//      the editor.
 //
-// On submit we POST to /pages/from-source which generates the
-// page, auto-creates a LeadForm if the generated content uses one,
-// persists the SitePage as DRAFT, and returns it. We then route
-// the user into the editor.
-//
-// The wizard intentionally keeps each step minimal — the editor
-// is where polish happens. Goal here is "from intent to draft
-// page in under 30 seconds."
+// Custom path preserves the original 3-step flow so the wizard
+// stays backwards-compatible for non-real-estate workspaces and
+// for users who don't want a pre-canned scaffold.
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,6 +19,11 @@ import {
   Home,
   BookOpen,
   Sparkles,
+  Calendar,
+  Trophy,
+  User,
+  MapPin,
+  Pencil,
   ChevronRight,
   ArrowLeft,
   AlertCircle,
@@ -36,9 +39,84 @@ import {
   useGeneratePageFromSource,
   type SiteSourceType,
   type SitePageGoal,
+  type SiteTemplate,
 } from '@/hooks/useSites';
 import { ApiError } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
+
+// Sites-05 — template catalog mirrored from the API's
+// SITE_TEMPLATES. Each entry maps to the same key the API knows.
+type TemplateChoice = SiteTemplate | 'custom';
+
+interface TemplateOption {
+  key: TemplateChoice;
+  label: string;
+  description: string;
+  Icon: typeof Megaphone;
+  /** For property-based templates: which sourceType to set. */
+  sourceType: SiteSourceType | null;
+  /** Default pageGoal. */
+  pageGoal: SitePageGoal | null;
+}
+
+const TEMPLATE_OPTIONS: TemplateOption[] = [
+  {
+    key: 'property_listing',
+    label: 'Property Listing Page',
+    description: 'Photos, key details, and a clear path to request a showing.',
+    Icon: Home,
+    sourceType: 'PROPERTY',
+    pageGoal: 'LISTING',
+  },
+  {
+    key: 'open_house',
+    label: 'Open House Page',
+    description: 'Drive RSVPs to an upcoming open house.',
+    Icon: Calendar,
+    sourceType: 'PROPERTY',
+    pageGoal: 'EVENT',
+  },
+  {
+    key: 'just_sold',
+    label: 'Just Sold Page',
+    description: 'Social proof of a recent sale. Capture future sellers.',
+    Icon: Trophy,
+    sourceType: 'PROPERTY',
+    pageGoal: 'LEAD_CAPTURE',
+  },
+  {
+    key: 'seller_lead',
+    label: 'Seller Lead Page',
+    description: 'Convert potential sellers with a value-prop + FAQ.',
+    Icon: User,
+    sourceType: 'IDEA',
+    pageGoal: 'LEAD_CAPTURE',
+  },
+  {
+    key: 'buyer_lead',
+    label: 'Buyer Lead Page',
+    description: 'Convert potential buyers with a value-prop + FAQ.',
+    Icon: User,
+    sourceType: 'IDEA',
+    pageGoal: 'LEAD_CAPTURE',
+  },
+  {
+    key: 'neighborhood_guide',
+    label: 'Neighborhood Guide',
+    description: 'Educational guide. No fabricated stats or schools.',
+    Icon: MapPin,
+    sourceType: 'IDEA',
+    pageGoal: 'LEAD_CAPTURE',
+  },
+  {
+    key: 'custom',
+    label: 'Custom Page',
+    description: 'Pick a source + goal yourself. Full flexibility.',
+    Icon: Pencil,
+    sourceType: null,
+    pageGoal: null,
+  },
+];
 
 interface SiteCreateWizardProps {
   clientId: string;
@@ -127,17 +205,25 @@ export function SiteCreateWizard({
   const router = useRouter();
   const generate = useGeneratePageFromSource(clientId);
 
-  // Determine the initial step based on which seeds were provided.
-  // - sourceType + sourceId + pageGoal → step 3 (just confirm + generate)
-  // - sourceType only → step 2 (let user pick the specific source)
-  // - nothing → step 1 (default)
-  const initialStep: 1 | 2 | 3 = initialPageGoal
-    ? 3
-    : initialSourceType
-      ? 2
-      : 1;
+  // Sites-05 — initial template + step:
+  // - If the caller seeded a pageGoal we land on the goal step
+  //   (legacy deep-link path, e.g. "Create landing page" from a
+  //   property card). We pre-pick the matching template.
+  // - Otherwise start at the template picker.
+  const initialTemplate: TemplateChoice | null =
+    initialSourceType === 'PROPERTY' && initialPageGoal === 'LISTING'
+      ? 'property_listing'
+      : initialSourceType === 'PROPERTY' && initialPageGoal === 'EVENT'
+        ? 'open_house'
+        : initialSourceType
+          ? 'custom'
+          : null;
+
+  const initialStep: 1 | 2 | 3 =
+    initialPageGoal ? 3 : initialSourceType ? 2 : 1;
 
   const [step, setStep] = useState<1 | 2 | 3>(initialStep);
+  const [template, setTemplate] = useState<TemplateChoice | null>(initialTemplate);
   const [sourceType, setSourceType] = useState<SiteSourceType | null>(
     initialSourceType,
   );
@@ -153,12 +239,25 @@ export function SiteCreateWizard({
     setStep((step - 1) as 1 | 2);
   }
 
+  function chooseTemplate(choice: TemplateChoice) {
+    const tpl = TEMPLATE_OPTIONS.find((t) => t.key === choice);
+    if (!tpl) return;
+    setTemplate(choice);
+    setSourceType(tpl.sourceType);
+    setPageGoal(tpl.pageGoal);
+    setSourceId(null);
+    setIdeaPrompt('');
+    setCustomPrompt('');
+    setStep(2);
+  }
+
   function chooseSource(value: SiteSourceType) {
     setSourceType(value);
     setSourceId(null);
     setIdeaPrompt('');
     setCustomPrompt('');
-    setStep(2);
+    // Custom path — user picks the goal explicitly on step 3.
+    setPageGoal(null);
   }
 
   function step2Continue() {
@@ -168,8 +267,17 @@ export function SiteCreateWizard({
         setError('Describe the page you want to generate');
         return;
       }
-    } else if (!sourceId) {
+    } else if (sourceType && !sourceId) {
       setError('Pick a source to continue');
+      return;
+    } else if (!sourceType) {
+      setError('Pick a source to continue');
+      return;
+    }
+    // For property-based templates, skip step 3 — we already know
+    // the goal from the template choice.
+    if (template && template !== 'custom' && pageGoal) {
+      handleGenerate();
       return;
     }
     setStep(3);
@@ -182,18 +290,22 @@ export function SiteCreateWizard({
       return;
     }
     try {
+      const templateForApi: SiteTemplate | undefined =
+        template && template !== 'custom' ? (template as SiteTemplate) : undefined;
       const input =
         sourceType === 'IDEA'
           ? {
               sourceType,
               pageGoal,
               customPrompt: ideaPrompt.trim(),
+              ...(templateForApi ? { template: templateForApi } : {}),
             }
           : {
               sourceType,
               sourceId: sourceId!,
               pageGoal,
               customPrompt: customPrompt.trim() || undefined,
+              ...(templateForApi ? { template: templateForApi } : {}),
             };
       const result = await generate.mutateAsync(input);
       router.push(`/workspaces/${clientId}/sites/pages/${result.page.id}`);
@@ -206,11 +318,23 @@ export function SiteCreateWizard({
     }
   }
 
+  // For custom path on step 2, the user picks source type via the
+  // legacy source-options grid before picking a specific item.
+  const customNeedsSourceTypePick =
+    template === 'custom' && step === 2 && !sourceType;
+
+  const isPropertyTemplate = template === 'property_listing' || template === 'open_house' || template === 'just_sold';
+
   return (
     <div className="space-y-6">
-      <StepIndicator currentStep={step} />
+      <StepIndicator currentStep={step} template={template} />
 
-      {step === 1 && <Step1Source onChoose={chooseSource} />}
+      {step === 1 && <Step1Template onChoose={chooseTemplate} />}
+
+      {step === 2 && customNeedsSourceTypePick && (
+        <Step1Source onChoose={chooseSource} />
+      )}
+
       {step === 2 && sourceType && (
         <Step2Pick
           clientId={clientId}
@@ -221,8 +345,10 @@ export function SiteCreateWizard({
           setIdeaPrompt={setIdeaPrompt}
           customPrompt={customPrompt}
           setCustomPrompt={setCustomPrompt}
+          requirePropertyLabel={isPropertyTemplate}
         />
       )}
+
       {step === 3 && (
         <Step3Goal pageGoal={pageGoal} setPageGoal={setPageGoal} />
       )}
@@ -282,12 +408,26 @@ export function SiteCreateWizard({
 
 // ── Step indicator ─────────────────────────────────────────────────────
 
-function StepIndicator({ currentStep }: { currentStep: 1 | 2 | 3 }) {
-  const steps = [
-    { n: 1, label: 'Source' },
-    { n: 2, label: 'Details' },
-    { n: 3, label: 'Goal' },
-  ];
+function StepIndicator({
+  currentStep,
+  template,
+}: {
+  currentStep: 1 | 2 | 3;
+  template: TemplateChoice | null;
+}) {
+  // For pre-canned templates we skip the goal step (the template
+  // owns it), so a 2-step indicator reads truer.
+  const showGoalStep = !template || template === 'custom';
+  const steps = showGoalStep
+    ? [
+        { n: 1, label: 'Template' },
+        { n: 2, label: 'Details' },
+        { n: 3, label: 'Goal' },
+      ]
+    : [
+        { n: 1, label: 'Template' },
+        { n: 2, label: 'Details' },
+      ];
   return (
     <div className="flex items-center gap-3">
       {steps.map((s, i) => (
@@ -325,7 +465,42 @@ function StepIndicator({ currentStep }: { currentStep: 1 | 2 | 3 }) {
   );
 }
 
-// ── Step 1: Source type ────────────────────────────────────────────────
+// ── Step 1: Template picker (sites-05) ─────────────────────────────────
+
+function Step1Template({ onChoose }: { onChoose: (t: TemplateChoice) => void }) {
+  return (
+    <div className="space-y-4" data-testid="wizard-step-template">
+      <div>
+        <h2 className="text-lg font-semibold text-white-90">Pick a template</h2>
+        <p className="text-sm text-white-50 mt-0.5">
+          Templates give you a structured page in one click. Pick Custom if you
+          want to compose from scratch.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {TEMPLATE_OPTIONS.map(({ key, label, description, Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChoose(key)}
+            data-testid={`wizard-template-${key}`}
+            className="card-hover p-4 text-left flex items-start gap-3"
+          >
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-accent-green-110/15 text-accent-green-110 shrink-0">
+              <Icon className="w-4.5 h-4.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white-90">{label}</p>
+              <p className="text-xs text-white-50 mt-1">{description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Step 1 (custom path): Source type ──────────────────────────────────
 
 function Step1Source({
   onChoose,
@@ -376,6 +551,8 @@ interface Step2PickProps {
   setIdeaPrompt: (s: string) => void;
   customPrompt: string;
   setCustomPrompt: (s: string) => void;
+  /** When true, the step heading nudges toward "pick the property". */
+  requirePropertyLabel?: boolean;
 }
 
 function Step2Pick({
@@ -387,6 +564,7 @@ function Step2Pick({
   setIdeaPrompt,
   customPrompt,
   setCustomPrompt,
+  requirePropertyLabel,
 }: Step2PickProps) {
   if (sourceType === 'IDEA') {
     return (
@@ -424,7 +602,9 @@ function Step2Pick({
           {sourceType === 'DATA_ITEM' && 'Pick a content asset'}
         </h2>
         <p className="text-sm text-white-50 mt-0.5">
-          We&apos;ll use this as the source material for the page.
+          {requirePropertyLabel
+            ? 'The template will pull photos, address, and key details directly from this property.'
+            : "We'll use this as the source material for the page."}
         </p>
       </div>
       {sourceType === 'CAMPAIGN' && (

@@ -231,7 +231,16 @@ export function getContextualChips(
       // Property campaigns get listing-specific chips; data-item /
       // idea campaigns get the generic cross-industry set. Mirrors
       // the option list logic in CampaignTypeCard.
-      if (session.campaignSourceType === 'property') {
+      //
+      // industry-02 — also require industryKey === 'real_estate'.
+      // The new industry gates prevent non-RE workspaces from
+      // ever having property-typed sources, but if some legacy
+      // row leaks through, no-industry sessions still shouldn't
+      // see "Just Listed" / "Open House" suggestions.
+      if (
+        session.campaignSourceType === 'property' &&
+        session.industryKey === 'real_estate'
+      ) {
         return [
           { label: 'Just Listed', command: 'just listed' },
           { label: 'Open House', command: 'open house' },

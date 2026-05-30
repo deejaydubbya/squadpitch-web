@@ -849,7 +849,14 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
     // content-asset and idea campaigns. The backend uses sourceType
     // (passed separately below) to pick the right campaign name +
     // attribution; propertyData here is just the carrier blob.
-    const sourceType = session.campaignSourceType ?? 'property';
+    // URL-02 — review card is only reachable AFTER the URL flow has
+    // dispatched SET_PROPERTY (which flips campaignSourceType to
+    // 'property'). Defensively coerce any lingering 'url' value to
+    // 'property' so the narrow type expected by saveMutation
+    // (property | data_item | idea) holds.
+    const rawSourceType = session.campaignSourceType ?? 'property';
+    const sourceType: 'property' | 'data_item' | 'idea' =
+      rawSourceType === 'url' ? 'property' : rawSourceType;
     let savePropertyData: Record<string, unknown> | null;
     if (sourceType === 'property') {
       savePropertyData = session.propertyData;

@@ -47,8 +47,25 @@ function sessionReducerCore(
         campaignDataItemType: null,
         campaignDataItemData: null,
         campaignIdea: null,
+        // URL-02 — also clear URL source state on a source switch.
+        campaignSourceUrl: null,
+        campaignUrlAnalyzeResult: null,
         campaignType: null,
       };
+    case 'SET_CAMPAIGN_SOURCE_URL':
+      // Setting a URL backfills campaignSourceType the same way
+      // SET_CAMPAIGN_IDEA / SET_CAMPAIGN_DATA_ITEM do. Clearing the
+      // URL also clears any cached analyze result.
+      return {
+        ...state,
+        campaignSourceUrl: action.payload,
+        campaignUrlAnalyzeResult: action.payload ? state.campaignUrlAnalyzeResult : null,
+        campaignSourceType: action.payload
+          ? (state.campaignSourceType ?? 'url')
+          : state.campaignSourceType,
+      };
+    case 'SET_CAMPAIGN_URL_ANALYZE_RESULT':
+      return { ...state, campaignUrlAnalyzeResult: action.payload };
     case 'SET_PROPERTY':
       // When the user picks a property via the campaign source path,
       // auto-set campaignSourceType so the resolver doesn't try to
@@ -307,11 +324,18 @@ const FIELD_DEPENDENCIES: Record<string, string[]> = {
 
 // ── Main Hook ────────────────────────────────────────────────────────────
 
-export function useConversationalAssistant(workspaceId?: string | null, industryKey?: string) {
+export function useConversationalAssistant(
+  workspaceId?: string | null,
+  industryKey?: string | null,
+) {
   const initialSession: AssistantSessionState = {
     ...INITIAL_SESSION,
     workspaceId: workspaceId ?? null,
-    industryKey: industryKey || 'real_estate',
+    // industry-01 — no silent real-estate fallback. If the
+    // workspace's Client.industryKey is missing, the session
+    // stays at null and downstream consumers render neutral UI
+    // (no property chips, no listing terminology).
+    industryKey: industryKey ?? null,
   };
 
   const [session, dispatchSession] = useReducer(sessionReducer, initialSession);
@@ -702,6 +726,8 @@ function actionToFieldName(action: AssistantAction): string | null {
     case 'SET_CAMPAIGN_SOURCE_TYPE': return 'campaignSourceType';
     case 'SET_CAMPAIGN_DATA_ITEM': return 'campaignDataItemId';
     case 'SET_CAMPAIGN_IDEA': return 'campaignIdea';
+    case 'SET_CAMPAIGN_SOURCE_URL': return 'campaignSourceUrl';
+    case 'SET_CAMPAIGN_URL_ANALYZE_RESULT': return 'campaignUrlAnalyzeResult';
     case 'SET_CAMPAIGN_TYPE': return 'campaignType';
     case 'SET_CHANNELS': return 'channels';
     case 'SET_PROPERTY': return 'selectedPropertyId';
@@ -845,6 +871,8 @@ function getClearAction(field: string): AssistantAction | null {
     case 'selectedPropertyId': return { type: 'CLEAR_PROPERTY' };
     case 'campaignDataItemId': return { type: 'SET_CAMPAIGN_DATA_ITEM', payload: null };
     case 'campaignIdea': return { type: 'SET_CAMPAIGN_IDEA', payload: null };
+    case 'campaignSourceUrl': return { type: 'SET_CAMPAIGN_SOURCE_URL', payload: null };
+    case 'campaignUrlAnalyzeResult': return { type: 'SET_CAMPAIGN_URL_ANALYZE_RESULT', payload: null };
     case 'quickPostSource': return { type: 'SET_QUICK_POST_SOURCE', payload: null as any };
     case 'quickPostChannel': return { type: 'SET_QUICK_POST_CHANNEL', payload: null as any };
     case 'quickPostDataItemId': return { type: 'SET_QUICK_POST_DATA_ITEM', payload: null };

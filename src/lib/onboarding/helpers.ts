@@ -29,6 +29,8 @@ import {
   Mic,
   Store,
   Briefcase,
+  Stethoscope,
+  PartyPopper,
 } from 'lucide-react';
 
 // ── Utilities ────────────────────────────────────────────────────────────
@@ -72,6 +74,8 @@ export const INDUSTRY_ICON_MAP: Record<string, LucideIcon> = {
   Mic,
   Store,
   Briefcase,
+  Stethoscope,
+  PartyPopper,
 };
 
 // ── SSE stream consumer ─────────────────────────────────────────────────

@@ -200,7 +200,9 @@ export interface AutopilotCampaignContext {
 
 /**
  * Composes all intelligence functions into a full context for display.
- * Used by AutopilotCampaignCard to show *why* a campaign was recommended.
+ * Used by AutopilotCampaignDetailModal (and historically by
+ * AutopilotCampaignCard, removed in spinstr06) to show *why* a
+ * campaign was recommended.
  */
 export function buildAutopilotCampaignContext(
   input: {
@@ -275,13 +277,20 @@ function shouldSupersede(
   newTrigger: AutopilotTriggerType,
   existingTrigger: AutopilotTriggerType,
 ): boolean {
-  // Priority order: price_drop > open_house_added > new_listing > status_changed > open_house_updated
+  // Spinstr05 priority order:
+  //   open_house > price_drop > new_listing > just_sold > new_review >
+  //   stale_listing > seasonal > inactivity_gap > status_changed (legacy)
   const priority: Record<AutopilotTriggerType, number> = {
-    price_drop: 5,
-    open_house_added: 4,
-    new_listing: 3,
-    open_house_updated: 2,
-    status_changed: 1,
+    open_house_added: 9,
+    open_house_updated: 8,
+    price_drop: 7,
+    new_listing: 6,
+    just_sold: 5,
+    new_review: 4,
+    stale_listing: 3,
+    seasonal: 2,
+    inactivity_gap: 1,
+    status_changed: 0,
   };
 
   return (priority[newTrigger] ?? 0) > (priority[existingTrigger] ?? 0);
