@@ -2530,6 +2530,21 @@ export function useDisconnectChannel(clientId: string) {
   });
 }
 
+// Subscribe the workspace's IG Business account to the Meta App's
+// `comments` webhook field. Required ONCE per IG connection after
+// OAuth — without it Meta knows about the App-level subscription
+// but not which accounts to fire deliveries for. Idempotent on
+// Meta's side, so a re-click is a safe no-op.
+export function useSubscribeInstagramWebhooks(clientId: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ success: true; igUserId: string }>(
+        `workspaces/${clientId}/connections/INSTAGRAM/subscribe-webhooks`,
+        { method: 'POST' },
+      ),
+  });
+}
+
 // ── Media Assets ────────────────────────────────────────────────────────
 
 export interface AssetsPage {
