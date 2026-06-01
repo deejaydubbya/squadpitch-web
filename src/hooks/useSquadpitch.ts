@@ -2545,6 +2545,21 @@ export function useSubscribeInstagramWebhooks(clientId: string) {
   });
 }
 
+// Manually trigger a Threads /conversation poll for this workspace's
+// THREADS connection. Threads has no inbound webhook for replies so
+// ingestion is poll-driven on a 15-min cron; this lets the user
+// short-circuit the wait after publishing + commenting for testing.
+// Returns 202 (queued) because the underlying worker is async.
+export function useSyncThreadsReplies(clientId: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ status: 'queued'; connectionId: string; message: string }>(
+        `workspaces/${clientId}/connections/THREADS/sync-replies`,
+        { method: 'POST' },
+      ),
+  });
+}
+
 // ── Media Assets ────────────────────────────────────────────────────────
 
 export interface AssetsPage {

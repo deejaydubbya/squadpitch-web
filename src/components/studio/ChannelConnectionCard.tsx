@@ -22,6 +22,7 @@ import {
   useCheckGbpReviewAccess,
   useDisconnectChannel,
   useSubscribeInstagramWebhooks,
+  useSyncThreadsReplies,
   type ChannelConnection,
   type Channel,
   type ChannelConnectionStatus,
@@ -123,6 +124,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   const [gbpPickerOpen, setGbpPickerOpen] = useState(false);
   const checkGbpReviewAccess = useCheckGbpReviewAccess(clientId);
   const subscribeIgWebhooks = useSubscribeInstagramWebhooks(clientId);
+  const syncThreadsReplies = useSyncThreadsReplies(clientId);
 
   const isConnected = connection && connection.status === 'CONNECTED';
   const isBroken =
@@ -313,6 +315,37 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               <span>
                 {(subscribeIgWebhooks.error as Error | null)?.message ??
                   'Failed to subscribe.'}
+              </span>
+            </div>
+          )}
+
+          {channel === 'THREADS' && isConnected && (
+            <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-white-5 text-white-60 text-xs">
+              <div className="flex items-start gap-1.5">
+                <span>
+                  Threads replies sync every 15 min. Force a check now to
+                  pull replies on your recently-published Threads posts.
+                </span>
+              </div>
+              <button
+                onClick={() => syncThreadsReplies.mutate()}
+                disabled={syncThreadsReplies.isPending}
+                className="text-[11px] font-medium px-2 py-1 rounded-md bg-white-10 hover:bg-white-15 disabled:opacity-50 whitespace-nowrap"
+              >
+                {syncThreadsReplies.isPending
+                  ? 'Syncing…'
+                  : syncThreadsReplies.isSuccess
+                    ? 'Queued ✓'
+                    : 'Sync replies now'}
+              </button>
+            </div>
+          )}
+          {syncThreadsReplies.isError && (
+            <div className="mt-1 flex items-start gap-1.5 text-xs text-accent-red">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                {(syncThreadsReplies.error as Error | null)?.message ??
+                  'Failed to sync.'}
               </span>
             </div>
           )}
