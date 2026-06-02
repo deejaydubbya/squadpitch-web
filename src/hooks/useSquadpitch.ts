@@ -2545,6 +2545,38 @@ export function useSyncThreadsReplies(clientId: string) {
   });
 }
 
+// Manually trigger a Facebook comment poll for this workspace's FACEBOOK
+// connection. Facebook Page-post comments are now poll-driven on a
+// 15-min cron (the inbound Meta webhook surface was removed in the
+// webhooks→polling migration); this lets the user short-circuit the
+// wait after publishing + commenting on the Page for testing.
+// Returns 202 (queued) because the underlying worker is async — the
+// poll itself runs in BullMQ and lands comments in the inbox shortly.
+export function useSyncFacebookComments(clientId: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ status: 'queued'; connectionId: string; message: string }>(
+        `workspaces/${clientId}/connections/FACEBOOK/sync-comments`,
+        { method: 'POST' },
+      ),
+  });
+}
+
+// Manually trigger an Instagram comment poll for this workspace's
+// INSTAGRAM connection. Mirrors the Facebook variant above; the
+// underlying API hits the Graph API for comments on the media items
+// Squadpitch has published. Returns 202 (queued); replies surface in
+// the inbox once the BullMQ job completes.
+export function useSyncInstagramComments(clientId: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ status: 'queued'; connectionId: string; message: string }>(
+        `workspaces/${clientId}/connections/INSTAGRAM/sync-comments`,
+        { method: 'POST' },
+      ),
+  });
+}
+
 // ── Media Assets ────────────────────────────────────────────────────────
 
 export interface AssetsPage {

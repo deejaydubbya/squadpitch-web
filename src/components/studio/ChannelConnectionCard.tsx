@@ -21,6 +21,8 @@ import {
 import {
   useCheckGbpReviewAccess,
   useDisconnectChannel,
+  useSyncFacebookComments,
+  useSyncInstagramComments,
   useSyncThreadsReplies,
   type ChannelConnection,
   type Channel,
@@ -123,6 +125,8 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   const [gbpPickerOpen, setGbpPickerOpen] = useState(false);
   const checkGbpReviewAccess = useCheckGbpReviewAccess(clientId);
   const syncThreadsReplies = useSyncThreadsReplies(clientId);
+  const syncFacebookComments = useSyncFacebookComments(clientId);
+  const syncInstagramComments = useSyncInstagramComments(clientId);
 
   const isConnected = connection && connection.status === 'CONNECTED';
   const isBroken =
@@ -312,6 +316,76 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>
                 {(syncThreadsReplies.error as Error | null)?.message ??
+                  'Failed to sync.'}
+              </span>
+            </div>
+          )}
+
+          {/* Meta polling migration — replaces the removed Page-feed
+              webhook subscription. Cron runs every 15 min; this button
+              short-circuits the wait so users (and App Review reviewers)
+              can see freshly-left Page-post comments arrive in Inbox. */}
+          {channel === 'FACEBOOK' && isConnected && (
+            <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-white-5 text-white-60 text-xs">
+              <div className="flex items-start gap-1.5">
+                <span>
+                  Comments on your Squadpitch-published Facebook posts are
+                  polled every 15 min. Force a check now.
+                </span>
+              </div>
+              <button
+                onClick={() => syncFacebookComments.mutate()}
+                disabled={syncFacebookComments.isPending}
+                className="text-[11px] font-medium px-2 py-1 rounded-md bg-white-10 hover:bg-white-15 disabled:opacity-50 whitespace-nowrap"
+              >
+                {syncFacebookComments.isPending
+                  ? 'Syncing…'
+                  : syncFacebookComments.isSuccess
+                    ? 'Queued ✓'
+                    : 'Sync comments now'}
+              </button>
+            </div>
+          )}
+          {syncFacebookComments.isError && (
+            <div className="mt-1 flex items-start gap-1.5 text-xs text-accent-red">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                {(syncFacebookComments.error as Error | null)?.message ??
+                  'Failed to sync.'}
+              </span>
+            </div>
+          )}
+
+          {/* IG sync block — gated on !instagramNeedsReconnect so the
+              reconnect banner stays the only CTA when scopes are stale.
+              Without that gate we'd send users into an IG poll that
+              will 401 against Meta until they reconnect. */}
+          {channel === 'INSTAGRAM' && isConnected && !instagramNeedsReconnect && (
+            <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-white-5 text-white-60 text-xs">
+              <div className="flex items-start gap-1.5">
+                <span>
+                  Comments on your Squadpitch-published Instagram posts are
+                  polled every 15 min. Force a check now.
+                </span>
+              </div>
+              <button
+                onClick={() => syncInstagramComments.mutate()}
+                disabled={syncInstagramComments.isPending}
+                className="text-[11px] font-medium px-2 py-1 rounded-md bg-white-10 hover:bg-white-15 disabled:opacity-50 whitespace-nowrap"
+              >
+                {syncInstagramComments.isPending
+                  ? 'Syncing…'
+                  : syncInstagramComments.isSuccess
+                    ? 'Queued ✓'
+                    : 'Sync comments now'}
+              </button>
+            </div>
+          )}
+          {syncInstagramComments.isError && (
+            <div className="mt-1 flex items-start gap-1.5 text-xs text-accent-red">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                {(syncInstagramComments.error as Error | null)?.message ??
                   'Failed to sync.'}
               </span>
             </div>
