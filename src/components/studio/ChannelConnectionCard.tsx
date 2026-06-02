@@ -21,7 +21,6 @@ import {
 import {
   useCheckGbpReviewAccess,
   useDisconnectChannel,
-  useSubscribeInstagramWebhooks,
   useSyncThreadsReplies,
   type ChannelConnection,
   type Channel,
@@ -123,7 +122,6 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   const [pinterestPickerOpen, setPinterestPickerOpen] = useState(false);
   const [gbpPickerOpen, setGbpPickerOpen] = useState(false);
   const checkGbpReviewAccess = useCheckGbpReviewAccess(clientId);
-  const subscribeIgWebhooks = useSubscribeInstagramWebhooks(clientId);
   const syncThreadsReplies = useSyncThreadsReplies(clientId);
 
   const isConnected = connection && connection.status === 'CONNECTED';
@@ -285,37 +283,6 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               >
                 Reconnect
               </button>
-            </div>
-          )}
-
-          {channel === 'INSTAGRAM' && isConnected && !instagramNeedsReconnect && (
-            <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-white-5 text-white-60 text-xs">
-              <div className="flex items-start gap-1.5">
-                <span>
-                  Subscribe this Instagram account to Meta's comment webhook so
-                  new comments arrive in Squadinbox.
-                </span>
-              </div>
-              <button
-                onClick={() => subscribeIgWebhooks.mutate()}
-                disabled={subscribeIgWebhooks.isPending}
-                className="text-[11px] font-medium px-2 py-1 rounded-md bg-white-10 hover:bg-white-15 disabled:opacity-50 whitespace-nowrap"
-              >
-                {subscribeIgWebhooks.isPending
-                  ? 'Subscribing…'
-                  : subscribeIgWebhooks.isSuccess
-                    ? 'Subscribed ✓'
-                    : 'Subscribe webhooks'}
-              </button>
-            </div>
-          )}
-          {subscribeIgWebhooks.isError && (
-            <div className="mt-1 flex items-start gap-1.5 text-xs text-accent-red">
-              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-              <span>
-                {(subscribeIgWebhooks.error as Error | null)?.message ??
-                  'Failed to subscribe.'}
-              </span>
             </div>
           )}
 

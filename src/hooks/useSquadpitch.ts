@@ -2530,21 +2530,6 @@ export function useDisconnectChannel(clientId: string) {
   });
 }
 
-// Subscribe the workspace's IG Business account to the Meta App's
-// `comments` webhook field. Required ONCE per IG connection after
-// OAuth — without it Meta knows about the App-level subscription
-// but not which accounts to fire deliveries for. Idempotent on
-// Meta's side, so a re-click is a safe no-op.
-export function useSubscribeInstagramWebhooks(clientId: string) {
-  return useMutation({
-    mutationFn: () =>
-      apiFetch<{ success: true; igUserId: string }>(
-        `workspaces/${clientId}/connections/INSTAGRAM/subscribe-webhooks`,
-        { method: 'POST' },
-      ),
-  });
-}
-
 // Manually trigger a Threads /conversation poll for this workspace's
 // THREADS connection. Threads has no inbound webhook for replies so
 // ingestion is poll-driven on a 15-min cron; this lets the user
