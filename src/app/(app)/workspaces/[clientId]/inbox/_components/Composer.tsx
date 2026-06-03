@@ -80,18 +80,22 @@ export function Composer({
   const isReply = mode === 'reply';
   const isNote = mode === 'note';
 
-  // GBP review + YouTube comment conversations repurpose the
-  // primary tab: same mode='email' shape, but the label, helper
-  // copy, and the server endpoint behind handleSubmit all swap to
-  // public-reply semantics. The contact has no email; the public
-  // reply is the only outbound action available.
+  // GBP review + YouTube/Threads/Facebook/Instagram comment
+  // conversations repurpose the primary tab: same mode='email'
+  // shape, but the label, helper copy, and the server endpoint
+  // behind handleSubmit all swap to public-reply semantics. The
+  // contact has no email; the public reply is the only outbound
+  // action available.
   const isGbpReview = provider === 'GOOGLE_BUSINESS';
   const isYouTubeComment = provider === 'YOUTUBE';
   const isThreadsReply = provider === 'THREADS';
-  // For GBP/YouTube/Threads we look at the matching action's
-  // reason instead of the email capability — they're different
-  // gates. YouTube + Threads share REPLY_PUBLIC_COMMENT as the
-  // primary action.
+  const isFacebookComment = provider === 'FACEBOOK';
+  const isInstagramComment = provider === 'INSTAGRAM';
+  const isPublicCommentReply =
+    isYouTubeComment || isThreadsReply || isFacebookComment || isInstagramComment;
+  // For GBP we look at REPLY_REVIEW; for comment providers we look
+  // at REPLY_PUBLIC_COMMENT. Email-only providers fall back to the
+  // email capability.
   const reviewAction = availableActions.find((a) => a.action === 'REPLY_REVIEW');
   const commentAction = availableActions.find(
     (a) => a.action === 'REPLY_PUBLIC_COMMENT',
@@ -100,7 +104,7 @@ export function Composer({
   const commentAvailable = commentAction?.available ?? false;
   const primaryAvailable = isGbpReview
     ? reviewAvailable
-    : isYouTubeComment || isThreadsReply
+    : isPublicCommentReply
       ? commentAvailable
       : capabilities.email.available;
   const primaryReason = isGbpReview
@@ -109,7 +113,11 @@ export function Composer({
       ? commentAction?.reason ?? 'YouTube comment replies aren\'t connected yet.'
       : isThreadsReply
         ? commentAction?.reason ?? 'Threads reply publishing is not enabled.'
-        : capabilities.email.reason ?? 'Email is not available for this conversation.';
+        : isFacebookComment
+          ? commentAction?.reason ?? 'Facebook comment replies aren\'t connected yet.'
+          : isInstagramComment
+            ? commentAction?.reason ?? 'Instagram comment replies aren\'t connected yet.'
+            : capabilities.email.reason ?? 'Email is not available for this conversation.';
 
   const emailDisabledReason = primaryAvailable ? null : primaryReason;
 
@@ -141,8 +149,7 @@ export function Composer({
     // ("Reply to comment" disabled chip below an enabled
     // "Public comment reply" button).
     if (isGbpReview && a.action === 'REPLY_REVIEW') return false;
-    if ((isYouTubeComment || isThreadsReply) && a.action === 'REPLY_PUBLIC_COMMENT')
-      return false;
+    if (isPublicCommentReply && a.action === 'REPLY_PUBLIC_COMMENT') return false;
     // SMS now has its own tab; don't double-render as a chip.
     if (a.action === 'SEND_SMS') return false;
     return true;
@@ -162,7 +169,7 @@ export function Composer({
         >
           {isGbpReview
             ? 'Public review reply'
-            : isYouTubeComment
+            : isYouTubeComment || isFacebookComment || isInstagramComment
               ? 'Public comment reply'
               : isThreadsReply
                 ? 'Public reply'
@@ -216,7 +223,11 @@ export function Composer({
                   ? 'Write a public reply to this YouTube comment…'
                   : isThreadsReply
                     ? 'Write a public reply on Threads…'
-                    : 'Write the reply you want to send to the lead…'
+                    : isFacebookComment
+                      ? 'Write a public reply to this Facebook comment…'
+                      : isInstagramComment
+                        ? 'Write a public reply to this Instagram comment…'
+                        : 'Write the reply you want to send to the lead…'
               : isSms
                 ? 'Type your SMS reply (keep it short — long messages span multiple segments)…'
                 : isReply
@@ -238,7 +249,11 @@ export function Composer({
                 ? 'Posts a public reply under the comment on YouTube. Visible to every viewer of the video.'
                 : isThreadsReply
                   ? 'Posts a public reply under the comment on Threads. Visible in the public conversation.'
-                  : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
+                  : isFacebookComment
+                    ? 'Posts a public reply under the comment on your Facebook Page post. Visible to everyone who can see the post.'
+                    : isInstagramComment
+                      ? 'Posts a public reply under the comment on your Instagram post. Visible to everyone who can see the post.'
+                      : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
             : isSms
               ? 'Sends a real SMS to the lead\'s phone via Twilio. First message includes a STOP-to-opt-out footer for compliance.'
               : isReply
@@ -270,7 +285,7 @@ export function Composer({
           )}
           {pending
             ? isEmail
-              ? isGbpReview || isYouTubeComment || isThreadsReply
+              ? isGbpReview || isPublicCommentReply
                 ? 'Posting…'
                 : 'Sending…'
               : isSms
@@ -279,7 +294,7 @@ export function Composer({
                   ? 'Logging…'
                   : 'Saving…'
             : isEmail
-              ? isGbpReview || isYouTubeComment || isThreadsReply
+              ? isGbpReview || isPublicCommentReply
                 ? 'Post public reply'
                 : 'Send email'
               : isSms

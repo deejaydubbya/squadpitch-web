@@ -33,6 +33,8 @@ import {
   useSendGbpReviewReply,
   useSendYouTubeCommentReply,
   useSendThreadsReply,
+  useSendFacebookCommentReply,
+  useSendInstagramCommentReply,
   useSendInboxSms,
   type InboxConversationDetail as Conversation,
   type InboxMessage,
@@ -70,6 +72,8 @@ export function ConversationDetail({
   const sendGbpReply = useSendGbpReviewReply(clientId, conversationId);
   const sendYouTubeReply = useSendYouTubeCommentReply(clientId, conversationId);
   const sendThreadsReply = useSendThreadsReply(clientId, conversationId);
+  const sendFacebookReply = useSendFacebookCommentReply(clientId, conversationId);
+  const sendInstagramReply = useSendInstagramCommentReply(clientId, conversationId);
   const sendSms = useSendInboxSms(clientId, conversationId);
 
   // Mark read whenever a new unread conversation is opened. Stamp the
@@ -169,7 +173,11 @@ export function ConversationDetail({
             ? sendYouTubeReply
             : conv.provider === 'THREADS'
               ? sendThreadsReply
-              : sendEmail;
+              : conv.provider === 'FACEBOOK'
+                ? sendFacebookReply
+                : conv.provider === 'INSTAGRAM'
+                  ? sendInstagramReply
+                  : sendEmail;
       sendMutation.mutate(
         {
           body,

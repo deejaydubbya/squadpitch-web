@@ -563,6 +563,75 @@ export function useSendThreadsReply(clientId: string, conversationId: string) {
   });
 }
 
+// ── Send Facebook Page public comment reply ────────────────────────────
+//
+// Same /reply-comment route — the server provider-dispatches to
+// inbox.outbound.facebook.service.js when conv.provider is FACEBOOK.
+// {body, fromSuggestionId, idempotencyKey} contract matches the
+// other reply mutations so the composer dispatches by provider
+// without restructuring.
+export interface SendFacebookCommentReplyInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendFacebookCommentReply(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendFacebookCommentReplyInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/reply-comment`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
+// ── Send Instagram public comment reply ────────────────────────────────
+//
+// Same /reply-comment route — provider-dispatches to
+// inbox.outbound.instagram.service.js. IG Business Login user token
+// hits graph.instagram.com/{ig-comment-id}/replies. Required scope:
+// instagram_business_manage_comments.
+export interface SendInstagramCommentReplyInput {
+  body: string;
+  fromSuggestionId?: string;
+  idempotencyKey?: string;
+}
+
+export function useSendInstagramCommentReply(clientId: string, conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ idempotencyKey, ...body }: SendInstagramCommentReplyInput) =>
+      apiFetch<{ message: InboxMessage }>(
+        `${base(clientId)}/conversations/${conversationId}/reply-comment`,
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: inboxKeys.conversation(clientId, conversationId),
+      });
+      qc.invalidateQueries({ queryKey: [...inboxKeys.all, 'conversations', clientId] });
+      qc.invalidateQueries({ queryKey: inboxKeys.stats(clientId) });
+    },
+  });
+}
+
 export function useSendInboxEmail(clientId: string, conversationId: string) {
   const qc = useQueryClient();
   return useMutation({
