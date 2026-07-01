@@ -1,6 +1,7 @@
 'use client';
 
-import type { AnalyticsPost } from '@/hooks/useSquadpitch';
+import type { AnalyticsPost, Channel } from '@/hooks/useSquadpitch';
+import { getChannelLabel } from '@/lib/channelRegistry';
 import { ScoreBadge } from './ScoreBadge';
 
 interface Props {
@@ -9,10 +10,12 @@ interface Props {
   onPostClick?: (postId: string) => void;
 }
 
+// Render the human channel label (e.g. "Instagram") rather than the raw
+// enum ("INSTAGRAM") so each post's source is clearly identified.
 function channelBadge(channel: string) {
   return (
-    <span className="px-1.5 py-0.5 rounded bg-white-10 text-[10px] text-white-60 font-mono">
-      {channel}
+    <span className="px-1.5 py-0.5 rounded bg-white-10 text-[10px] text-white-60 font-medium">
+      {getChannelLabel(channel as Channel)}
     </span>
   );
 }

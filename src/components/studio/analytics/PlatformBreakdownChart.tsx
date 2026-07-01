@@ -9,7 +9,8 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import type { PlatformStat } from '@/hooks/useSquadpitch';
+import type { PlatformStat, Channel } from '@/hooks/useSquadpitch';
+import { getChannelLabel } from '@/lib/channelRegistry';
 
 type MetricKey = 'postCount' | 'totalReach' | 'avgEngagementRate';
 
@@ -79,8 +80,9 @@ export function PlatformBreakdownChart({
             type="category"
             dataKey="channel"
             stroke="#ffffff40"
-            tick={{ fill: '#ffffff80', fontSize: 11, fontFamily: 'monospace' }}
-            width={56}
+            tick={{ fill: '#ffffff80', fontSize: 11 }}
+            tickFormatter={(value: string) => getChannelLabel(value as Channel)}
+            width={72}
           />
           <Tooltip
             contentStyle={{
