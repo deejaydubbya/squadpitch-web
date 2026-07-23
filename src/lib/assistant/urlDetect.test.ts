@@ -12,6 +12,7 @@ describe('looksLikeUrl', () => {
     expect(looksLikeUrl('https://example.com')).toBe(true);
     expect(looksLikeUrl('http://example.com/path')).toBe(true);
     expect(looksLikeUrl('www.example.com/listing')).toBe(true);
+    expect(looksLikeUrl('zillow.com/homedetails/abc')).toBe(true);
   });
 
   it('matches embedded URLs', () => {
@@ -37,6 +38,22 @@ describe('extractFirstUrl', () => {
     expect(extractFirstUrl('www.example.com/listing')).toBe(
       'https://www.example.com/listing',
     );
+  });
+
+  it('prepends https:// for bare domain URLs', () => {
+    expect(extractFirstUrl('zillow.com/homedetails/abc')).toBe(
+      'https://zillow.com/homedetails/abc',
+    );
+  });
+
+  it('extracts bare domains from mixed pasted text', () => {
+    expect(extractFirstUrl('please use zillow.com/homedetails/abc for this')).toBe(
+      'https://zillow.com/homedetails/abc',
+    );
+  });
+
+  it('does not treat email domains as URLs', () => {
+    expect(extractFirstUrl('email me at agent@example.com')).toBeNull();
   });
 
   it('drops trailing punctuation', () => {
@@ -74,6 +91,15 @@ describe('buildCampaignRouteFromInput', () => {
     expect(out).toBe(
       `${BASE}/create?intent=campaign&sourceType=url&sourceUrl=${encodeURIComponent(
         'https://www.example.com/listing',
+      )}`,
+    );
+  });
+
+  it('routes a bare domain URL to the URL-intake flow (with https:// prepended)', () => {
+    const out = buildCampaignRouteFromInput(BASE, 'zillow.com/homedetails/abc');
+    expect(out).toBe(
+      `${BASE}/create?intent=campaign&sourceType=url&sourceUrl=${encodeURIComponent(
+        'https://zillow.com/homedetails/abc',
       )}`,
     );
   });

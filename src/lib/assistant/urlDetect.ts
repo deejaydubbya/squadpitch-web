@@ -15,13 +15,11 @@
 // The full input is allowed to be longer (some users paste a URL
 // + a note) — we extract the first URL.
 
-const URL_TOKEN_RE = /\b(?:https?:\/\/|www\.)[^\s<>"]+/i;
+const URL_TOKEN_RE =
+  /\b(?:(?:https?:\/\/|www\.)[^\s<>"]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?:\/[^\s<>"]*)?)/gi;
 
 export function looksLikeUrl(input: string | null | undefined): boolean {
-  if (!input) return false;
-  const trimmed = String(input).trim();
-  if (trimmed.length === 0) return false;
-  return URL_TOKEN_RE.test(trimmed);
+  return extractFirstUrl(input) !== null;
 }
 
 // Extract the first URL-shaped token from the input. Returns the
@@ -29,15 +27,24 @@ export function looksLikeUrl(input: string | null | undefined): boolean {
 // `https://` to `www.` URLs) before sending to the backend.
 export function extractFirstUrl(input: string | null | undefined): string | null {
   if (!input) return null;
-  const match = String(input).match(URL_TOKEN_RE);
-  if (!match) return null;
-  let url = match[0];
-  // Drop common trailing punctuation that wasn't part of the URL.
-  url = url.replace(/[),.;!?]+$/, '');
-  // www.* gets the protocol added so apiFetch / the URL parser
-  // accept it.
-  if (/^www\./i.test(url)) url = `https://${url}`;
-  return url;
+  const value = String(input);
+  URL_TOKEN_RE.lastIndex = 0;
+
+  let match: RegExpExecArray | null;
+  while ((match = URL_TOKEN_RE.exec(value)) !== null) {
+    const previousChar = match.index > 0 ? value[match.index - 1] : '';
+    if (previousChar === '@') continue;
+
+    let url = match[0];
+    // Drop common trailing punctuation that wasn't part of the URL.
+    url = url.replace(/[),.;!?]+$/, '');
+    // www.* and bare domains get the protocol added so apiFetch /
+    // the URL parser accept them.
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    return url;
+  }
+
+  return null;
 }
 
 // URL-03 — shared route builder for the dashboard quick-input.
