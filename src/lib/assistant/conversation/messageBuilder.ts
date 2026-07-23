@@ -125,6 +125,12 @@ export function buildNextPromptMessage(
         'campaign_idea'
       );
 
+    case 'campaign_url_source':
+      return buildInteractivePrompt(
+        `I'll analyze that URL and pull out the campaign source details.`,
+        'campaign_url_source'
+      );
+
     case 'campaign_type':
       return buildInteractivePrompt(
         `What type of campaign would you like to create?`,
