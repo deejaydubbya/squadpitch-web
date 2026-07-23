@@ -3175,7 +3175,7 @@ export interface DataItemFilters {
   limit?: number;
 }
 
-export function useDataItems(clientId: string, filters: DataItemFilters = {}) {
+export function useDataItems(clientId: string | undefined, filters: DataItemFilters = {}) {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
     if (v === undefined || v === null || v === '') return;
@@ -3187,15 +3187,17 @@ export function useDataItems(clientId: string, filters: DataItemFilters = {}) {
   });
   const qs = query.toString();
   const path = `workspaces/${clientId}/business-data${qs ? `?${qs}` : ''}`;
+  const hasClientId = Boolean(clientId);
 
   return useQuery({
-    queryKey: squadpitchKeys.dataItems(clientId, filters as Record<string, unknown>),
+    queryKey: squadpitchKeys.dataItems(clientId ?? '', filters as Record<string, unknown>),
     queryFn: () => apiFetch<{ dataItems: WorkspaceDataItem[] }>(path),
     select: (data) => data.dataItems,
+    enabled: hasClientId,
   });
 }
 
-export function useProperties(clientId: string, filters?: Omit<DataItemFilters, 'type'>) {
+export function useProperties(clientId: string | undefined, filters?: Omit<DataItemFilters, 'type'>) {
   return useDataItems(clientId, { ...filters, type: 'PROPERTY' });
 }
 
@@ -3452,17 +3454,19 @@ export interface UnusedDataResult {
   }>;
 }
 
-export function useUnusedData(clientId: string) {
+export function useUnusedData(clientId: string | undefined) {
   return useQuery({
-    queryKey: [...squadpitchKeys.dataItems(clientId), 'unused'],
+    queryKey: [...squadpitchKeys.dataItems(clientId ?? ''), 'unused'],
     queryFn: () => apiFetch<UnusedDataResult>(`workspaces/${clientId}/business-data/unused`),
+    enabled: Boolean(clientId),
   });
 }
 
-export function useDataSuggestions(clientId: string) {
+export function useDataSuggestions(clientId: string | undefined) {
   return useQuery({
-    queryKey: [...squadpitchKeys.dataItems(clientId), 'suggestions'],
+    queryKey: [...squadpitchKeys.dataItems(clientId ?? ''), 'suggestions'],
     queryFn: () => apiFetch<DataSuggestionsResult>(`workspaces/${clientId}/business-data/suggestions`),
+    enabled: Boolean(clientId),
   });
 }
 
