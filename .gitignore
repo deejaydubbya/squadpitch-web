@@ -26,6 +26,45 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+!.env.example
+
+# local credentials and generated archives
+*.p8
+*.p12
+*.key
+*.cert
+credentials.*
+*.credentials.*
+secrets.*
+*.secret.*
+service-account*.json
+*-service-account.json
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# AI/ML derived data and private artifacts
+datasets/
+private-datasets/
+customer-data/
+trace-dumps/
+traces/
+eval-runs/
+model-artifacts/
+checkpoints/
+training-runs/
+mlruns/
+wandb/
+notebooks/.ipynb_checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.parquet
+*.sqlite
+*.db
 
 # vercel
 .vercel

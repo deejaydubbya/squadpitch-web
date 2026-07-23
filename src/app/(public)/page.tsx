@@ -70,25 +70,25 @@ function SiteHeader() {
           <a href="#pricing" className="hover:text-gray-900">
             Pricing
           </a>
-          <Link href={LOGIN_HREF} className="hover:text-gray-900">
+          <a href={LOGIN_HREF} className="hover:text-gray-900">
             Log in
-          </Link>
+          </a>
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
+          <a
             href={LOGIN_HREF}
             className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 md:hidden"
           >
             Log in
-          </Link>
-          <Link
+          </a>
+          <a
             href={SIGNUP_HREF}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#1DBF60] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#11A64F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1DBF60] focus-visible:ring-offset-2"
           >
             Start Free
             <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
+          </a>
         </div>
       </div>
     </header>
