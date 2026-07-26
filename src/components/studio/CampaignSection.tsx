@@ -71,7 +71,7 @@ export function CampaignSection({
   // Draft denorm fields keeps everything working when the
   // Campaign row hasn't loaded yet or doesn't exist (legacy
   // grouped drafts pre-backfill, etc.).
-  const { data: campaign } = useCampaign(campaignId);
+  const { data: campaign } = useCampaign(clientId, campaignId);
 
   // ── Computed campaign metadata ──────────────────────────────────────
   const campaignMeta = useMemo(() => {

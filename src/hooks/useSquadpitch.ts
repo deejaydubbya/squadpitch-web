@@ -3123,12 +3123,18 @@ export function useCampaigns(
   });
 }
 
-export function useCampaign(id: string | undefined) {
+export function useCampaign(
+  clientId: string | undefined,
+  id: string | undefined,
+) {
   return useQuery({
-    queryKey: squadpitchKeys.campaign(id ?? ''),
+    queryKey: squadpitchKeys.campaigns(clientId ?? ''),
     queryFn: () =>
-      apiFetch<{ campaign: Campaign }>(`campaigns/${id}`).then((r) => r.campaign),
-    enabled: !!id,
+      apiFetch<{ campaigns: Campaign[] }>(
+        `workspaces/${clientId}/campaigns`,
+      ).then((r) => r.campaigns),
+    enabled: !!clientId && !!id,
+    select: (campaigns) => campaigns.find((campaign) => campaign.id === id),
   });
 }
 
