@@ -43,11 +43,6 @@ import { DataTypePerformanceChart } from '@/components/studio/analytics/DataType
 import { BlueprintPerformanceChart } from '@/components/studio/analytics/BlueprintPerformanceChart';
 import { TopDataItemsList, UnusedDataItemsList } from '@/components/studio/analytics/TopDataItemsList';
 import { BenchmarkSummary } from '@/components/studio/analytics/BenchmarkSummary';
-import { MetaAppReviewBanner } from '@/components/studio/analytics/MetaAppReviewBanner';
-import { ConnectedMetaAccountsCard } from '@/components/studio/analytics/ConnectedMetaAccountsCard';
-import { MetaPlatformPerformanceCards } from '@/components/studio/analytics/MetaPlatformPerformanceCards';
-import { MetaInsightsSyncButton } from '@/components/studio/analytics/MetaInsightsSyncButton';
-import { MetaAppReviewChecksButton } from '@/components/studio/analytics/MetaAppReviewChecksButton';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -116,16 +111,6 @@ export default function AnalyticsPage() {
         </div>
         <RangeSelector value={range} onChange={setRange} />
       </div>
-
-      {/* Meta App Review demo header (only renders when NEXT_PUBLIC_META_APP_REVIEW_DEMO=true) */}
-      <MetaAppReviewBanner />
-      <ConnectedMetaAccountsCard
-        clientId={params.clientId}
-        lastSyncedAt={data?.syncStatus?.lastSyncedAt ?? null}
-      />
-      <MetaInsightsSyncButton clientId={params.clientId} />
-      <MetaAppReviewChecksButton clientId={params.clientId} />
-      {data && <MetaPlatformPerformanceCards platformBreakdown={data.platformBreakdown} />}
 
       {isLoading && (
         <div className="flex items-center gap-2 py-6">
