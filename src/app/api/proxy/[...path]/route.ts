@@ -1,26 +1,28 @@
-import { auth0 } from '@/lib/auth0';
-import { NextRequest, NextResponse } from 'next/server';
+import { auth0 } from "@/lib/auth0";
+import { NextRequest, NextResponse } from "next/server";
+import { squadpitchApiUrl } from "@/lib/serverRuntimeConfig";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 // Allow large request bodies for campaign image uploads (base64 payloads)
 export const maxDuration = 60;
-
-const API_URL = process.env.SQUADPITCH_API_URL || 'http://localhost:4000';
 
 // Returned when the user's session can't produce a valid access token
 // (no session, refresh token missing/expired, or Auth0 refresh call
 // failed). The client sees `code: 'SESSION_EXPIRED'` and redirects.
 function sessionExpiredResponse(message: string) {
   return NextResponse.json(
-    { error: 'SESSION_EXPIRED', code: 'SESSION_EXPIRED', message },
-    { status: 401 }
+    { error: "SESSION_EXPIRED", code: "SESSION_EXPIRED", message },
+    { status: 401 },
   );
 }
 
-async function proxy(request: NextRequest, { params }: { params: { path: string[] } }) {
-  const path = params.path.join('/');
-  const url = `${API_URL}/api/v1/${path}${request.nextUrl.search}`;
+async function proxy(
+  request: NextRequest,
+  { params }: { params: { path: string[] } },
+) {
+  const path = params.path.join("/");
+  const url = `${squadpitchApiUrl()}/api/v1/${path}${request.nextUrl.search}`;
 
   // Token strategy:
   //   1. Read the session. If there is none, return SESSION_EXPIRED.
@@ -35,16 +37,19 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
   try {
     const session = await auth0.getSession(request);
     if (!session) {
-      return sessionExpiredResponse('No active session.');
+      return sessionExpiredResponse("No active session.");
     }
 
     const tokenSet = (session as any).tokenSet ?? null;
     const accessToken: string | undefined = tokenSet?.accessToken;
     // expiresAt is typically unix seconds in v4; tolerate ms just in case.
     const rawExpiresAt: number | undefined = tokenSet?.expiresAt;
-    const expiresAtSec = typeof rawExpiresAt === 'number'
-      ? (rawExpiresAt > 1e12 ? Math.floor(rawExpiresAt / 1000) : rawExpiresAt)
-      : 0;
+    const expiresAtSec =
+      typeof rawExpiresAt === "number"
+        ? rawExpiresAt > 1e12
+          ? Math.floor(rawExpiresAt / 1000)
+          : rawExpiresAt
+        : 0;
     const nowSec = Math.floor(Date.now() / 1000);
     const refreshSkewSec = 60;
 
@@ -56,32 +61,39 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
         token = at?.token ?? accessToken ?? null;
       } catch (refreshErr) {
         console.warn(
-          '[proxy] getAccessToken refresh failed:',
-          (refreshErr as Error)?.message
+          "[proxy] getAccessToken refresh failed:",
+          (refreshErr as Error)?.message,
         );
-        return sessionExpiredResponse('Your session has expired. Please log in again.');
+        return sessionExpiredResponse(
+          "Your session has expired. Please log in again.",
+        );
       }
     }
   } catch (err) {
-    console.error('[proxy] session lookup failed:', (err as Error)?.message);
-    return sessionExpiredResponse('Your session has expired. Please log in again.');
+    console.error("[proxy] session lookup failed:", (err as Error)?.message);
+    return sessionExpiredResponse(
+      "Your session has expired. Please log in again.",
+    );
   }
   if (!token) {
-    return sessionExpiredResponse('Your session has expired. Please log in again.');
+    return sessionExpiredResponse(
+      "Your session has expired. Please log in again.",
+    );
   }
 
   const headers: Record<string, string> = {};
-  const contentType = request.headers.get('content-type');
-  if (contentType) headers['content-type'] = contentType;
-  headers['authorization'] = `Bearer ${token}`;
+  const contentType = request.headers.get("content-type");
+  if (contentType) headers["content-type"] = contentType;
+  headers["authorization"] = `Bearer ${token}`;
   // Forward Idempotency-Key (RFC 5789-style) so callers can dedupe
   // POSTs across browser retries. Currently used by Inbox send-email.
-  const idempotencyKey = request.headers.get('idempotency-key');
-  if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (idempotencyKey) headers["idempotency-key"] = idempotencyKey;
 
-  const body = request.method !== 'GET' && request.method !== 'HEAD'
-    ? await request.arrayBuffer()
-    : undefined;
+  const body =
+    request.method !== "GET" && request.method !== "HEAD"
+      ? await request.arrayBuffer()
+      : undefined;
 
   const res = await fetch(url, {
     method: request.method,
@@ -90,14 +102,14 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
   });
 
   // Stream SSE responses instead of buffering
-  const resContentType = res.headers.get('content-type') || '';
-  if (resContentType.includes('text/event-stream') && res.body) {
+  const resContentType = res.headers.get("content-type") || "";
+  if (resContentType.includes("text/event-stream") && res.body) {
     return new NextResponse(res.body as unknown as ReadableStream, {
       status: res.status,
       headers: {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache, no-transform',
-        'x-accel-buffering': 'no',
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache, no-transform",
+        "x-accel-buffering": "no",
       },
     });
   }
@@ -106,7 +118,7 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
   return new NextResponse(responseBody, {
     status: res.status,
     headers: {
-      'content-type': resContentType || 'application/json',
+      "content-type": resContentType || "application/json",
     },
   });
 }

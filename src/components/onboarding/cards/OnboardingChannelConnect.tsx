@@ -1,15 +1,18 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Link2, CheckCircle, ArrowRight, SkipForward } from 'lucide-react';
+import { useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link2, CheckCircle, ArrowRight, SkipForward } from "lucide-react";
 import {
   useChannelConnections,
   squadpitchKeys,
   type Channel,
-} from '@/hooks/useSquadpitch';
-import { ChannelConnectionCard, type ChannelRecommendationTier } from '@/components/studio/ChannelConnectionCard';
-import { CHANNEL_REGISTRY } from '@/lib/channelRegistry';
+} from "@/hooks/useSquadpitch";
+import {
+  ChannelConnectionCard,
+  type ChannelRecommendationTier,
+} from "@/components/studio/ChannelConnectionCard";
+import { CHANNEL_REGISTRY } from "@/lib/channelRegistry";
 
 interface ChannelRecommendations {
   primary: string[];
@@ -34,9 +37,9 @@ function resolveRecommendationTier(
   recs: ChannelRecommendations | null,
 ): ChannelRecommendationTier | null {
   if (!recs) return null;
-  if (recs.primary.includes(channel)) return 'primary';
-  if (recs.secondary.includes(channel)) return 'secondary';
-  if (recs.optional.includes(channel)) return 'optional';
+  if (recs.primary.includes(channel)) return "primary";
+  if (recs.secondary.includes(channel)) return "secondary";
+  if (recs.optional.includes(channel)) return "optional";
   return null;
 }
 
@@ -53,21 +56,26 @@ export function OnboardingChannelConnect({
     const handler = (event: MessageEvent) => {
       const expectedOrigin =
         process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-      if (event.origin !== expectedOrigin && event.origin !== window.location.origin) {
+      if (
+        event.origin !== expectedOrigin &&
+        event.origin !== window.location.origin
+      ) {
         return;
       }
       const data = event.data as { type?: string } | null;
-      if (data?.type === 'sp-oauth-complete') {
-        qc.invalidateQueries({ queryKey: squadpitchKeys.connections(clientId) });
+      if (data?.type === "sp-oauth-complete") {
+        qc.invalidateQueries({
+          queryKey: squadpitchKeys.connections(clientId),
+        });
       }
     };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
   }, [clientId, qc]);
 
   const connectedList = useMemo(() => {
     return (connections.data ?? [])
-      .filter((c) => c.status === 'CONNECTED')
+      .filter((c) => c.status === "CONNECTED")
       .map((c) => c.channel);
   }, [connections.data]);
 
@@ -79,7 +87,7 @@ export function OnboardingChannelConnect({
     const rest: Channel[] = [];
     for (const ch of CONNECTABLE_CHANNELS) {
       const tier = resolveRecommendationTier(ch, channelRecommendations);
-      if (tier === 'primary') {
+      if (tier === "primary") {
         primary.push(ch);
       } else {
         rest.push(ch);
@@ -101,13 +109,16 @@ export function OnboardingChannelConnect({
           Connect Your Channels
         </div>
         <p className="text-sm text-white-40 max-w-md mx-auto">
-          Connecting channels lets us create posts tailored for each platform and schedule them automatically.
+          Connecting channels lets us create posts tailored for each platform
+          and schedule them automatically.
         </p>
       </div>
 
       {/* Connected count */}
       <div className="flex items-center justify-center gap-2 text-xs text-white-40">
-        <CheckCircle className={`w-3.5 h-3.5 ${connectedCount > 0 ? 'text-accent-green-110' : 'text-white-20'}`} />
+        <CheckCircle
+          className={`w-3.5 h-3.5 ${connectedCount > 0 ? "text-accent-green-110" : "text-white-20"}`}
+        />
         <span>
           {connectedCount} of {CONNECTABLE_CHANNELS.length} connected
         </span>
@@ -125,7 +136,9 @@ export function OnboardingChannelConnect({
                 key={ch}
                 clientId={clientId}
                 channel={ch}
-                connection={connections.data?.find((c) => c.channel === ch) ?? null}
+                connection={
+                  connections.data?.find((c) => c.channel === ch) ?? null
+                }
                 recommendationTier="primary"
               />
             ))}
@@ -137,17 +150,22 @@ export function OnboardingChannelConnect({
       {alsoAvailable.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-xs font-semibold text-white-60 uppercase tracking-wider">
-            {recommended.length > 0 ? 'Also available' : 'Available channels'}
+            {recommended.length > 0 ? "Also available" : "Available channels"}
           </h3>
           <div className="space-y-2">
             {alsoAvailable.map((ch) => {
-              const tier = resolveRecommendationTier(ch, channelRecommendations);
+              const tier = resolveRecommendationTier(
+                ch,
+                channelRecommendations,
+              );
               return (
                 <ChannelConnectionCard
                   key={ch}
                   clientId={clientId}
                   channel={ch}
-                  connection={connections.data?.find((c) => c.channel === ch) ?? null}
+                  connection={
+                    connections.data?.find((c) => c.channel === ch) ?? null
+                  }
                   recommendationTier={tier}
                 />
               );

@@ -10,13 +10,6 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# NEXT_PUBLIC_* values are inlined at build time. Fly's runtime
-# secrets aren't available to `next build`, so we pipe the demo
-# flag through a Docker build ARG. Default off; set to "true" via
-# fly.toml [build.args] (or `fly deploy --build-arg`) when serving
-# the Meta App Review demo workspace.
-ARG NEXT_PUBLIC_META_APP_REVIEW_DEMO
-ENV NEXT_PUBLIC_META_APP_REVIEW_DEMO=$NEXT_PUBLIC_META_APP_REVIEW_DEMO
 ARG NEXT_PUBLIC_AUTOPILOT_CAMPAIGN_INBOX_ENABLED
 ENV NEXT_PUBLIC_AUTOPILOT_CAMPAIGN_INBOX_ENABLED=$NEXT_PUBLIC_AUTOPILOT_CAMPAIGN_INBOX_ENABLED
 

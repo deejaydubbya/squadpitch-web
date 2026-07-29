@@ -164,10 +164,14 @@ export function useCreateCheckout() {
       tier: PlanTier;
       successUrl: string;
       cancelUrl: string;
+      idempotencyKey?: string;
     }) =>
       apiFetch<{ url: string }>('billing/checkout-session', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          idempotencyKey: data.idempotencyKey ?? crypto.randomUUID(),
+        }),
       }),
     onSuccess: (result) => {
       if (result.url) window.location.href = result.url;

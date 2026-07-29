@@ -17,5 +17,8 @@
 // retired.
 
 export function isMetaAppReviewToolsEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_META_APP_REVIEW_TOOLS === 'true';
+  return (
+    process.env.NODE_ENV !== 'production' &&
+    process.env.NEXT_PUBLIC_META_APP_REVIEW_TOOLS === 'true'
+  );
 }

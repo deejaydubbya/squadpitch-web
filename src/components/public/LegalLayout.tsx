@@ -1,12 +1,14 @@
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { authHref } from "@/lib/authFlow";
 
 // Same reasoning as (public)/page.tsx — auth must start on the canonical
 // app origin so the state cookie set at /auth/login is sent back to
 // /auth/callback. See LandingPage for full context.
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://app.squadpitch.com';
-const LOGIN_HREF = `${APP_ORIGIN}/auth/login?returnTo=/workspaces`;
-const SIGNUP_HREF = `${APP_ORIGIN}/auth/login?returnTo=/workspaces`;
+const APP_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_URL || "https://app.squadpitch.com";
+const LOGIN_HREF = authHref(APP_ORIGIN, "login", "/workspaces");
+const SIGNUP_HREF = authHref(APP_ORIGIN, "signup");
 
 /**
  * Shared layout shell for public legal/trust pages (/privacy, /terms, /help).
@@ -90,7 +92,13 @@ export function LegalLayout({
 }
 
 /** Tailwind-friendly helpers used inside the legal pages. */
-export function Section({ heading, children }: { heading: string; children: React.ReactNode }) {
+export function Section({
+  heading,
+  children,
+}: {
+  heading: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="space-y-3">
       <h2 className="text-xl font-semibold text-gray-900">{heading}</h2>

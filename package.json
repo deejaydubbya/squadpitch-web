@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
+    "test:launch": "vitest run src/app/publicAccess.test.ts src/app/auth/signup/route.test.ts src/lib/authFlow.test.ts src/lib/signupPlanHandoff.test.ts src/lib/onboardingRedirect.test.ts src/lib/onboarding/persistence.test.ts src/lib/channelRegistry.test.ts src/lib/publishErrorMessage.test.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },

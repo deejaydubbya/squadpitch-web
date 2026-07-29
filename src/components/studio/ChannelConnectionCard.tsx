@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Instagram,
   Music2,
@@ -12,12 +12,11 @@ import {
   AtSign,
   Hash,
   Star,
-
   Loader2,
   Link2,
   Unlink,
   AlertTriangle,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   useCheckGbpReviewAccess,
   useDisconnectChannel,
@@ -27,18 +26,19 @@ import {
   type ChannelConnection,
   type Channel,
   type ChannelConnectionStatus,
-} from '@/hooks/useSquadpitch';
-import { useOAuthPopup } from '@/hooks/useOAuthPopup';
-import { cn } from '@/lib/utils';
-import { PinterestBoardPicker } from './PinterestBoardPicker';
-import { GbpLocationPicker } from './GbpLocationPicker';
+} from "@/hooks/useSquadpitch";
+import { useOAuthPopup } from "@/hooks/useOAuthPopup";
+import { cn } from "@/lib/utils";
+import { CHANNEL_REGISTRY } from "@/lib/channelRegistry";
+import { PinterestBoardPicker } from "./PinterestBoardPicker";
+import { GbpLocationPicker } from "./GbpLocationPicker";
 import {
   INSTAGRAM_CONNECTION_DESCRIPTION,
   INSTAGRAM_RECONNECT_BANNER,
   instagramConnectionNeedsReconnect,
-} from '@/lib/instagramScopes';
+} from "@/lib/instagramScopes";
 
-export type ChannelRecommendationTier = 'primary' | 'secondary' | 'optional';
+export type ChannelRecommendationTier = "primary" | "secondary" | "optional";
 
 interface Props {
   clientId: string;
@@ -59,7 +59,7 @@ const CHANNEL_META: Record<
   }
 > = {
   INSTAGRAM: {
-    label: 'Instagram',
+    label: "Instagram",
     icon: Instagram,
     real: true,
     // IG-04 — show the four Business Login scope explanations
@@ -68,37 +68,37 @@ const CHANNEL_META: Record<
     // truth lives in `lib/instagramScopes.ts`.
     description: INSTAGRAM_CONNECTION_DESCRIPTION,
   },
-  TIKTOK: { label: 'TikTok', icon: Music2, real: true },
-  LINKEDIN: { label: 'LinkedIn Personal Profile', icon: Linkedin, real: true },
+  TIKTOK: { label: "TikTok", icon: Music2, real: true },
+  LINKEDIN: { label: "LinkedIn Personal Profile", icon: Linkedin, real: true },
   LINKEDIN_ORGANIZATION_PAGE: {
-    label: 'LinkedIn Organization Page',
+    label: "LinkedIn Organization Page",
     icon: Linkedin,
     real: true,
   },
-  X: { label: 'X', icon: Twitter, real: true },
-  FACEBOOK: { label: 'Facebook', icon: Facebook, real: true },
-  YOUTUBE: { label: 'YouTube', icon: Youtube, real: true },
-  PINTEREST: { label: 'Pinterest', icon: Pin, real: true },
-  THREADS: { label: 'Threads', icon: AtSign, real: true },
-  REDDIT: { label: 'Reddit', icon: Hash, real: false },
+  X: { label: "X", icon: Twitter, real: true },
+  FACEBOOK: { label: "Facebook", icon: Facebook, real: true },
+  YOUTUBE: { label: "YouTube", icon: Youtube, real: true },
+  PINTEREST: { label: "Pinterest", icon: Pin, real: true },
+  THREADS: { label: "Threads", icon: AtSign, real: true },
+  REDDIT: { label: "Reddit", icon: Hash, real: false },
   GOOGLE_BUSINESS_PROFILE: {
-    label: 'Google Business Profile',
+    label: "Google Business Profile",
     icon: Star,
     real: true,
     description:
-      'Connect your Google Business Profile to bring reviews into SquadInbox and reply publicly. Requires business.manage scope.',
+      "Connect your Google Business Profile to bring reviews into SquadInbox and reply publicly. Requires business.manage scope.",
   },
 };
 
 const STATUS_PILL: Record<ChannelConnectionStatus, string> = {
-  CONNECTED: 'bg-zone-green/20 text-zone-green',
-  EXPIRED: 'bg-zone-yellow/20 text-zone-yellow',
-  REVOKED: 'bg-accent-red/20 text-accent-red',
-  ERROR: 'bg-accent-red/20 text-accent-red',
+  CONNECTED: "bg-zone-green/20 text-zone-green",
+  EXPIRED: "bg-zone-yellow/20 text-zone-yellow",
+  REVOKED: "bg-accent-red/20 text-accent-red",
+  ERROR: "bg-accent-red/20 text-accent-red",
 };
 
 function formatRelative(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return "—";
   const ms = Date.now() - new Date(iso).getTime();
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s ago`;
@@ -110,14 +110,26 @@ function formatRelative(iso: string | null): string {
   return `${d}d ago`;
 }
 
-const TIER_BADGE: Record<ChannelRecommendationTier, { label: string; className: string }> = {
-  primary: { label: 'Recommended', className: 'bg-accent-green-110/15 text-accent-green-110' },
-  secondary: { label: 'Good fit', className: 'bg-blue-400/15 text-blue-400' },
-  optional: { label: 'Optional', className: 'bg-white-10 text-white-40' },
+const TIER_BADGE: Record<
+  ChannelRecommendationTier,
+  { label: string; className: string }
+> = {
+  primary: {
+    label: "Recommended",
+    className: "bg-accent-green-110/15 text-accent-green-110",
+  },
+  secondary: { label: "Good fit", className: "bg-blue-400/15 text-blue-400" },
+  optional: { label: "Optional", className: "bg-white-10 text-white-40" },
 };
 
-export function ChannelConnectionCard({ clientId, channel, connection, recommendationTier }: Props) {
+export function ChannelConnectionCard({
+  clientId,
+  channel,
+  connection,
+  recommendationTier,
+}: Props) {
   const meta = CHANNEL_META[channel];
+  const availability = CHANNEL_REGISTRY[channel].availability;
   const Icon = meta.icon;
   const oauthPopup = useOAuthPopup(clientId);
   const disconnect = useDisconnectChannel(clientId);
@@ -128,22 +140,22 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   const syncFacebookComments = useSyncFacebookComments(clientId);
   const syncInstagramComments = useSyncInstagramComments(clientId);
 
-  const isConnected = connection && connection.status === 'CONNECTED';
+  const isConnected = connection && connection.status === "CONNECTED";
   const isBroken =
     connection &&
-    (connection.status === 'EXPIRED' ||
-      connection.status === 'ERROR' ||
-      connection.status === 'REVOKED');
+    (connection.status === "EXPIRED" ||
+      connection.status === "ERROR" ||
+      connection.status === "REVOKED");
 
   // Pinterest board ids are numeric. Right after OAuth, externalAccountId
   // is the username; the user must pick a board before publishing works.
   const pinterestNeedsBoard =
-    channel === 'PINTEREST' &&
+    channel === "PINTEREST" &&
     isConnected &&
     !!connection?.externalAccountId &&
     !/^\d+$/.test(connection.externalAccountId);
   const pinterestHasBoard =
-    channel === 'PINTEREST' &&
+    channel === "PINTEREST" &&
     isConnected &&
     !!connection?.externalAccountId &&
     /^\d+$/.test(connection.externalAccountId);
@@ -153,15 +165,15 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   // after picker is "accounts/{a}/locations/{l}". We use the
   // presence of "/locations/" to distinguish.
   const gbpNeedsLocation =
-    channel === 'GOOGLE_BUSINESS_PROFILE' &&
+    channel === "GOOGLE_BUSINESS_PROFILE" &&
     isConnected &&
     !!connection?.externalAccountId &&
-    !connection.externalAccountId.includes('/locations/');
+    !connection.externalAccountId.includes("/locations/");
   const gbpHasLocation =
-    channel === 'GOOGLE_BUSINESS_PROFILE' &&
+    channel === "GOOGLE_BUSINESS_PROFILE" &&
     isConnected &&
     !!connection?.externalAccountId &&
-    connection.externalAccountId.includes('/locations/');
+    connection.externalAccountId.includes("/locations/");
 
   // The poller (and any reply attempt) stash a stable marker on
   // ChannelConnection.lastError when Google rejects reviews API
@@ -171,9 +183,9 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   // banner (status stays CONNECTED in this case; only reviews
   // are gated, not OAuth itself).
   const gbpReviewAccessDenied =
-    channel === 'GOOGLE_BUSINESS_PROFILE' &&
-    typeof connection?.lastError === 'string' &&
-    connection.lastError.startsWith('REVIEW_API_ACCESS_DENIED:');
+    channel === "GOOGLE_BUSINESS_PROFILE" &&
+    typeof connection?.lastError === "string" &&
+    connection.lastError.startsWith("REVIEW_API_ACCESS_DENIED:");
 
   // IG-04 — flag existing Instagram connections that still carry
   // the pre-Business-Login scope shape so the user reconnects
@@ -181,7 +193,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   // side. Stays false for non-IG channels and for fresh Business
   // Login connections.
   const instagramNeedsReconnect =
-    channel === 'INSTAGRAM' &&
+    channel === "INSTAGRAM" &&
     isConnected &&
     instagramConnectionNeedsReconnect(connection?.scopes);
 
@@ -190,7 +202,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   const handleDisconnect = () => {
     if (
       !window.confirm(
-        `Disconnect ${meta.label}? You will need to reconnect to publish again.`
+        `Disconnect ${meta.label}? You will need to reconnect to publish again.`,
       )
     ) {
       return;
@@ -199,10 +211,10 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
   };
 
   const errorMessage = oauthPopup.popupBlocked
-    ? 'Popup blocked. Please allow popups for this site.'
-    : oauthPopup.error?.message ??
+    ? "Popup blocked. Please allow popups for this site."
+    : (oauthPopup.error?.message ??
       (disconnect.error as Error | null)?.message ??
-      null;
+      null);
 
   return (
     <div className="card p-4">
@@ -214,6 +226,11 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-white-100 font-semibold">{meta.label}</h3>
+            {availability === "BETA" && (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-zone-yellow">
+                Beta
+              </span>
+            )}
             {!meta.real && (
               <span className="text-xs text-white-40 font-medium">
                 Coming soon
@@ -222,7 +239,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
             {recommendationTier && (
               <span
                 className={cn(
-                  'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium',
+                  "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium",
                   TIER_BADGE[recommendationTier].className,
                 )}
               >
@@ -232,8 +249,8 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
             {connection && (
               <span
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium',
-                  STATUS_PILL[connection.status]
+                  "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium",
+                  STATUS_PILL[connection.status],
                 )}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -259,8 +276,8 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               Last validated {formatRelative(connection.lastValidatedAt)}
               {connection.tokenExpiresAt && (
                 <>
-                  {' · '}
-                  token expires{' '}
+                  {" · "}
+                  token expires{" "}
                   {new Date(connection.tokenExpiresAt).toLocaleDateString()}
                 </>
               )}
@@ -294,8 +311,8 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
             <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-white-5 text-white-60 text-xs">
               <div className="flex items-start gap-1.5">
                 <span>
-                  Threads replies sync every 15 min. Force a check now to
-                  pull replies on your recently-published Threads posts.
+                  Threads replies sync every 15 min. Force a check now to pull
+                  replies on your recently-published Threads posts.
                 </span>
               </div>
               <button
@@ -304,10 +321,10 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
                 className="text-[11px] font-medium px-2 py-1 rounded-md bg-white-10 hover:bg-white-15 disabled:opacity-50 whitespace-nowrap"
               >
                 {syncThreadsReplies.isPending
-                  ? 'Syncing…'
+                  ? "Syncing…"
                   : syncThreadsReplies.isSuccess
-                    ? 'Queued ✓'
-                    : 'Sync replies now'}
+                    ? "Queued ✓"
+                    : "Sync replies now"}
               </button>
             </div>
           )}
@@ -316,7 +333,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>
                 {(syncThreadsReplies.error as Error | null)?.message ??
-                  'Failed to sync.'}
+                  "Failed to sync."}
               </span>
             </div>
           )}
@@ -351,7 +368,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>
                 {(syncFacebookComments.error as Error | null)?.message ??
-                  'Failed to sync.'}
+                  "Failed to sync."}
               </span>
             </div>
           )}
@@ -361,32 +378,32 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               Without that gate we'd send users into an IG poll that
               will 401 against Meta until they reconnect. */}
           {channel === 'INSTAGRAM' && isConnected && !instagramNeedsReconnect && (
-            <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-white-5 text-white-60 text-xs">
-              <div className="flex items-start gap-1.5">
-                <span>
-                  Comments on your Squadpitch-published Instagram posts are
-                  polled every 15 min. Force a check now.
-                </span>
+              <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-white-5 text-white-60 text-xs">
+                <div className="flex items-start gap-1.5">
+                  <span>
+                    Comments on your Squadpitch-published Instagram posts are
+                    polled every 15 min. Force a check now.
+                  </span>
+                </div>
+                <button
+                  onClick={() => syncInstagramComments.mutate()}
+                  disabled={syncInstagramComments.isPending}
+                  className="text-[11px] font-medium px-2 py-1 rounded-md bg-white-10 hover:bg-white-15 disabled:opacity-50 whitespace-nowrap"
+                >
+                  {syncInstagramComments.isPending
+                    ? "Syncing…"
+                    : syncInstagramComments.isSuccess
+                      ? "Queued ✓"
+                      : "Sync comments now"}
+                </button>
               </div>
-              <button
-                onClick={() => syncInstagramComments.mutate()}
-                disabled={syncInstagramComments.isPending}
-                className="text-[11px] font-medium px-2 py-1 rounded-md bg-white-10 hover:bg-white-15 disabled:opacity-50 whitespace-nowrap"
-              >
-                {syncInstagramComments.isPending
-                  ? 'Syncing…'
-                  : syncInstagramComments.isSuccess
-                    ? 'Queued ✓'
-                    : 'Sync comments now'}
-              </button>
-            </div>
-          )}
+            )}
           {syncInstagramComments.isError && (
             <div className="mt-1 flex items-start gap-1.5 text-xs text-accent-red">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>
                 {(syncInstagramComments.error as Error | null)?.message ??
-                  'Failed to sync.'}
+                  "Failed to sync."}
               </span>
             </div>
           )}
@@ -402,7 +419,9 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
             <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-md bg-zone-yellow/10 text-zone-yellow text-xs">
               <div className="flex items-start gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                <span>Pick a board so Squadpitch knows where to publish Pins.</span>
+                <span>
+                  Pick a board so Squadpitch knows where to publish Pins.
+                </span>
               </div>
               <button
                 onClick={() => setPinterestPickerOpen(true)}
@@ -427,7 +446,8 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               <div className="flex items-start gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                 <span>
-                  Pick a Google Business Profile location to start polling reviews.
+                  Pick a Google Business Profile location to start polling
+                  reviews.
                 </span>
               </div>
               <button
@@ -459,7 +479,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
                     <Loader2 className="w-3 h-3 animate-spin" /> Checking…
                   </>
                 ) : (
-                  'Check review API access'
+                  "Check review API access"
                 )}
               </button>
             </div>
@@ -468,20 +488,22 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
           {checkGbpReviewAccess.data && (
             <div
               className={cn(
-                'mt-2 flex items-start gap-2 p-2 rounded-md text-xs',
-                checkGbpReviewAccess.data.status === 'ok'
-                  ? 'bg-accent-green-110/10 text-accent-green-110'
-                  : checkGbpReviewAccess.data.status === 'access_denied'
-                    ? 'bg-zone-yellow/10 text-zone-yellow'
-                    : 'bg-accent-red/10 text-accent-red',
+                "mt-2 flex items-start gap-2 p-2 rounded-md text-xs",
+                checkGbpReviewAccess.data.status === "ok"
+                  ? "bg-accent-green-110/10 text-accent-green-110"
+                  : checkGbpReviewAccess.data.status === "access_denied"
+                    ? "bg-zone-yellow/10 text-zone-yellow"
+                    : "bg-accent-red/10 text-accent-red",
               )}
             >
-              {checkGbpReviewAccess.data.status === 'ok' ? (
+              {checkGbpReviewAccess.data.status === "ok" ? (
                 <Link2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               ) : (
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               )}
-              <span className="leading-snug">{checkGbpReviewAccess.data.message}</span>
+              <span className="leading-snug">
+                {checkGbpReviewAccess.data.message}
+              </span>
             </div>
           )}
 
@@ -539,7 +561,7 @@ export function ChannelConnectionCard({ clientId, channel, connection, recommend
               ) : (
                 <Link2 className="w-3 h-3" />
               )}
-              {isBroken ? 'Reconnect' : `Connect ${meta.label}`}
+              {isBroken ? "Reconnect" : `Connect ${meta.label}`}
             </button>
           )}
         </div>

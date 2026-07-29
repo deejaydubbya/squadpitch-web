@@ -35,5 +35,8 @@ export function isMetaAppReviewDemo(): boolean {
   // Read at call time. Next.js inlines NEXT_PUBLIC_* at build time,
   // so toggling requires a rebuild — that's the desired behavior
   // for a guarded demo flag.
-  return process.env.NEXT_PUBLIC_META_APP_REVIEW_DEMO === 'true';
+  return (
+    process.env.NODE_ENV !== 'production' &&
+    process.env.NEXT_PUBLIC_META_APP_REVIEW_DEMO === 'true'
+  );
 }

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
   Pencil,
@@ -18,10 +18,9 @@ import {
   ImageIcon,
   Unplug,
   Wand2,
-  Upload,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { apiFetch } from '@/lib/apiFetch';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/apiFetch";
 import {
   useUpdateDraft,
   useApproveDraft,
@@ -30,80 +29,85 @@ import {
   useGenerateContent,
   type Draft,
   type MediaAsset,
-} from '@/hooks/useSquadpitch';
-import { GenerateImageModal } from '../GenerateImageModal';
+} from "@/hooks/useSquadpitch";
+import { GenerateImageModal } from "../GenerateImageModal";
 
 const CHANNEL_COLORS: Record<string, { badge: string; accent: string }> = {
-  INSTAGRAM: { badge: 'bg-pink-500/20 text-pink-300', accent: 'text-pink-300' },
-  TIKTOK:    { badge: 'bg-cyan-500/20 text-cyan-300', accent: 'text-cyan-300' },
-  X:         { badge: 'bg-white-15 text-white-70',     accent: 'text-white-70' },
-  LINKEDIN:  { badge: 'bg-blue-500/20 text-blue-300', accent: 'text-blue-300' },
-  FACEBOOK:  { badge: 'bg-blue-600/20 text-blue-300', accent: 'text-blue-300' },
-  YOUTUBE:   { badge: 'bg-red-500/20 text-red-300',   accent: 'text-red-300' },
+  INSTAGRAM: { badge: "bg-pink-500/20 text-pink-300", accent: "text-pink-300" },
+  TIKTOK: { badge: "bg-cyan-500/20 text-cyan-300", accent: "text-cyan-300" },
+  X: { badge: "bg-white-15 text-white-70", accent: "text-white-70" },
+  LINKEDIN: { badge: "bg-blue-500/20 text-blue-300", accent: "text-blue-300" },
+  FACEBOOK: { badge: "bg-blue-600/20 text-blue-300", accent: "text-blue-300" },
+  YOUTUBE: { badge: "bg-red-500/20 text-red-300", accent: "text-red-300" },
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
-  INSTAGRAM: 'Instagram',
-  TIKTOK: 'TikTok',
-  X: 'X',
-  LINKEDIN: 'LinkedIn',
-  FACEBOOK: 'Facebook',
-  YOUTUBE: 'YouTube',
+  INSTAGRAM: "Instagram",
+  TIKTOK: "TikTok",
+  X: "X",
+  LINKEDIN: "LinkedIn",
+  FACEBOOK: "Facebook",
+  YOUTUBE: "YouTube",
 };
 
-const CONTENT_TYPE_STYLE = 'bg-accent-green-110/12 text-accent-green-110/80 border border-accent-green-110/15';
+const CONTENT_TYPE_STYLE =
+  "bg-accent-green-110/12 text-accent-green-110/80 border border-accent-green-110/15";
 
 const INDUSTRY_ATTRIBUTION: Record<string, string> = {
-  real_estate: 'Based on your listing data',
-  car_sales: 'Based on your inventory',
-  property_management: 'Based on your property data',
-  restaurant: 'Based on your menu & offerings',
-  ecommerce: 'Based on your product catalog',
-  fitness: 'Based on your programs',
-  legal: 'Based on your services',
-  mortgage: 'Based on your services',
-  insurance: 'Based on your coverage options',
-  finance: 'Based on your services',
+  real_estate: "Based on your listing data",
+  car_sales: "Based on your inventory",
+  property_management: "Based on your property data",
+  restaurant: "Based on your menu & offerings",
+  ecommerce: "Based on your product catalog",
+  fitness: "Based on your programs",
+  legal: "Based on your services",
+  mortgage: "Based on your services",
+  insurance: "Based on your coverage options",
+  finance: "Based on your services",
 };
 
-const FAKE_TIMESTAMPS = ['2h ago', '4h ago', '1h ago', '6h ago', '30m ago'];
+const FAKE_TIMESTAMPS = ["2h ago", "4h ago", "1h ago", "6h ago", "30m ago"];
 
 // ── Platform preview config ─────────────────────────────────────────
 
-type PreviewPlatform = 'instagram' | 'facebook' | 'linkedin';
+type PreviewPlatform = "instagram" | "facebook" | "linkedin";
 
-const PREVIEW_TABS: { key: PreviewPlatform; label: string; channel: string }[] = [
-  { key: 'instagram', label: 'Instagram', channel: 'INSTAGRAM' },
-  { key: 'facebook', label: 'Facebook', channel: 'FACEBOOK' },
-  { key: 'linkedin', label: 'LinkedIn', channel: 'LINKEDIN' },
-];
+const PREVIEW_TABS: { key: PreviewPlatform; label: string; channel: string }[] =
+  [
+    { key: "instagram", label: "Instagram", channel: "INSTAGRAM" },
+    { key: "facebook", label: "Facebook", channel: "FACEBOOK" },
+    { key: "linkedin", label: "LinkedIn", channel: "LINKEDIN" },
+  ];
 
-const PLATFORM_CONFIG: Record<PreviewPlatform, {
-  captionLimit: number; // chars before truncation (0 = no truncation)
-  showHashtags: boolean;
-  imageFirst: boolean;   // image above text vs text above image
-  imageAspect: string;
-  engagementIcons: typeof Heart[];
-}> = {
+const PLATFORM_CONFIG: Record<
+  PreviewPlatform,
+  {
+    captionLimit: number; // chars before truncation (0 = no truncation)
+    showHashtags: boolean;
+    imageFirst: boolean; // image above text vs text above image
+    imageAspect: string;
+    engagementIcons: (typeof Heart)[];
+  }
+> = {
   instagram: {
     captionLimit: 125,
     showHashtags: true,
     imageFirst: true,
-    imageAspect: 'aspect-square',
+    imageAspect: "aspect-square",
     engagementIcons: [Heart, MessageCircle, Share2],
   },
   facebook: {
     captionLimit: 0,
     showHashtags: false,
     imageFirst: false,
-    imageAspect: 'aspect-[16/9]',
+    imageAspect: "aspect-[16/9]",
     engagementIcons: [Heart, MessageCircle, Share2],
   },
   linkedin: {
     captionLimit: 0,
     showHashtags: false,
     imageFirst: false,
-    imageAspect: 'aspect-[1.91/1]',
+    imageAspect: "aspect-[1.91/1]",
     engagementIcons: [Heart, MessageCircle, Share2],
   },
 };
@@ -145,7 +149,7 @@ export function OnboardingPostCard({
   const [editBody, setEditBody] = useState(draft.body);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(
-    defaultScheduleTime.iso.slice(0, 16)
+    defaultScheduleTime.iso.slice(0, 16),
   );
   const [regenerating, setRegenerating] = useState(false);
 
@@ -161,14 +165,17 @@ export function OnboardingPostCard({
 
   // Platform preview — default to the draft's actual channel
   const defaultPreview: PreviewPlatform =
-    draft.channel === 'FACEBOOK' ? 'facebook'
-    : draft.channel === 'LINKEDIN' ? 'linkedin'
-    : 'instagram';
-  const [previewPlatform, setPreviewPlatform] = useState<PreviewPlatform>(defaultPreview);
+    draft.channel === "FACEBOOK"
+      ? "facebook"
+      : draft.channel === "LINKEDIN"
+        ? "linkedin"
+        : "instagram";
+  const [previewPlatform, setPreviewPlatform] =
+    useState<PreviewPlatform>(defaultPreview);
   const platformCfg = PLATFORM_CONFIG[previewPlatform];
 
   const { data: draftAssets } = useQuery({
-    queryKey: ['draft-assets', draft.id],
+    queryKey: ["draft-assets", draft.id],
     queryFn: () =>
       apiFetch<{ assets: MediaAsset[] }>(
         `workspaces/${clientId}/assets?draftId=${draft.id}&limit=10`,
@@ -178,31 +185,48 @@ export function OnboardingPostCard({
       const raw = query.state.data as { assets: MediaAsset[] } | undefined;
       const assets = raw?.assets;
       if (!assets || assets.length === 0) return 3000;
-      if (assets.every((a) => a.status === 'READY' || a.status === 'FAILED')) return false;
+      if (assets.every((a) => a.status === "READY" || a.status === "FAILED"))
+        return false;
       return 3000;
     },
   });
 
-  const readyAssets = (draftAssets ?? []).filter((a) => a.status === 'READY' && a.url);
+  const readyAssets = (draftAssets ?? []).filter(
+    (a) => a.status === "READY" && a.url,
+  );
   const hasMultipleImages = readyAssets.length > 1;
   // Primary image: first ready asset or draft.mediaUrl
-  const imageUrl = readyAssets[carouselIndex]?.url ?? readyAssets[0]?.url ?? draft.mediaUrl;
-  const isLoading = draftAssets && draftAssets.length > 0 && readyAssets.length === 0
-    && draftAssets.some((a) => a.status !== 'FAILED');
+  const imageUrl =
+    readyAssets[carouselIndex]?.url ?? readyAssets[0]?.url ?? draft.mediaUrl;
+  const isLoading =
+    draftAssets &&
+    draftAssets.length > 0 &&
+    readyAssets.length === 0 &&
+    draftAssets.some((a) => a.status !== "FAILED");
 
-  const isApproved = draft.status === 'APPROVED' || draft.status === 'SCHEDULED';
-  const isScheduled = draft.status === 'SCHEDULED';
+  const isApproved =
+    draft.status === "APPROVED" || draft.status === "SCHEDULED";
+  const isScheduled = draft.status === "SCHEDULED";
 
   // Platform readiness
   const channelLabel = CHANNEL_LABELS[draft.channel] || draft.channel;
-  const MEDIA_CHANNELS = new Set(['INSTAGRAM', 'TIKTOK']);
+  const MEDIA_CHANNELS = new Set(["INSTAGRAM", "TIKTOK"]);
   const draftHasMedia = !!(imageUrl || readyAssets.length > 0);
   const needsMedia = MEDIA_CHANNELS.has(draft.channel) && !draftHasMedia;
   const readinessBadge: { label: string; style: string } | null =
-    channelConnected && !needsMedia ? { label: `Ready for ${channelLabel}`, style: 'bg-zone-green/15 text-zone-green' }
-    : channelConnected && needsMedia ? { label: 'Needs media', style: 'bg-yellow-500/15 text-yellow-400' }
-    : channelConnected === false ? { label: 'Connect channel to publish', style: 'bg-white-10 text-white-40' }
-    : null; // channelConnected undefined = don't show badge
+    channelConnected && !needsMedia
+      ? {
+          label: `Ready for ${channelLabel}`,
+          style: "bg-zone-green/15 text-zone-green",
+        }
+      : channelConnected && needsMedia
+        ? { label: "Needs media", style: "bg-yellow-500/15 text-yellow-400" }
+        : channelConnected === false
+          ? {
+              label: "Connect channel to publish",
+              style: "bg-white-10 text-white-40",
+            }
+          : null; // channelConnected undefined = don't show badge
 
   const handleSaveEdit = async () => {
     await updateDraft.mutateAsync({ body: editBody });
@@ -213,7 +237,7 @@ export function OnboardingPostCard({
   const handleApprove = async () => {
     if (!isApproved) {
       await approveDraft.mutateAsync();
-      setLocalDraft((d) => ({ ...d, status: 'APPROVED' }));
+      setLocalDraft((d) => ({ ...d, status: "APPROVED" }));
     }
   };
 
@@ -223,7 +247,7 @@ export function OnboardingPostCard({
     }
     const iso = new Date(scheduleDate).toISOString();
     await scheduleDraft.mutateAsync(iso);
-    setLocalDraft((d) => ({ ...d, status: 'SCHEDULED', scheduledFor: iso }));
+    setLocalDraft((d) => ({ ...d, status: "SCHEDULED", scheduledFor: iso }));
     setShowSchedule(false);
   };
 
@@ -234,7 +258,9 @@ export function OnboardingPostCard({
         clientId,
         kind: draft.kind,
         channel: draft.channel,
-        guidance: draft.generationGuidance || `Create an engaging ${draft.channel} post.`,
+        guidance:
+          draft.generationGuidance ||
+          `Create an engaging ${draft.channel} post.`,
       });
       await deleteDraft.mutateAsync(draft.id);
       setLocalDraft(newDraft);
@@ -242,8 +268,8 @@ export function OnboardingPostCard({
       onRegenerated(newDraft);
 
       if (newDraft.imageGuidance) {
-        apiFetch('assets/generate', {
-          method: 'POST',
+        apiFetch("assets/generate", {
+          method: "POST",
           body: JSON.stringify({
             clientId,
             guidance: newDraft.imageGuidance,
@@ -253,7 +279,7 @@ export function OnboardingPostCard({
         }).catch(() => {});
       }
 
-      qc.invalidateQueries({ queryKey: ['draft-assets', newDraft.id] });
+      qc.invalidateQueries({ queryKey: ["draft-assets", newDraft.id] });
     } finally {
       setRegenerating(false);
     }
@@ -262,42 +288,57 @@ export function OnboardingPostCard({
   const now = new Date();
   const minDate = now.toISOString().slice(0, 16);
 
-  const colors = CHANNEL_COLORS[draft.channel] || { badge: 'bg-white-10 text-white-60', accent: 'text-white-60' };
+  const colors = CHANNEL_COLORS[draft.channel] || {
+    badge: "bg-white-10 text-white-60",
+    accent: "text-white-60",
+  };
 
-  const displayName = brandName || 'Your Brand';
-  const brandInitial = displayName[0]?.toUpperCase() || '?';
-  const handle = '@' + displayName.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 20);
+  const displayName = brandName || "Your Brand";
+  const brandInitial = displayName[0]?.toUpperCase() || "?";
+  const handle =
+    "@" +
+    displayName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "")
+      .slice(0, 20);
   const fakeTimestamp = FAKE_TIMESTAMPS[postIndex % FAKE_TIMESTAMPS.length];
 
   // Split body into caption and hashtags for display
-  const bodyLines = draft.body.split('\n');
+  const bodyLines = draft.body.split("\n");
   const captionLines: string[] = [];
   const inlineHashtags: string[] = [];
   for (const line of bodyLines) {
     if (/^#\w/.test(line.trim())) {
-      inlineHashtags.push(...line.trim().split(/\s+/).filter(t => t.startsWith('#')));
+      inlineHashtags.push(
+        ...line
+          .trim()
+          .split(/\s+/)
+          .filter((t) => t.startsWith("#")),
+      );
     } else {
       captionLines.push(line);
     }
   }
-  const captionText = captionLines.join('\n').trim();
+  const captionText = captionLines.join("\n").trim();
   const allHashtags = [
     ...inlineHashtags,
-    ...(draft.hashtags ?? []).map(t => t.startsWith('#') ? t : `#${t}`),
+    ...(draft.hashtags ?? []).map((t) => (t.startsWith("#") ? t : `#${t}`)),
   ];
   const uniqueHashtags = Array.from(new Set(allHashtags)).slice(0, 8);
 
   return (
-    <div className={cn(
-      'rounded-2xl border overflow-hidden flex flex-col bg-sp-card shadow-lg shadow-black/20',
-      isScheduled
-        ? 'border-zone-blue/40 ring-1 ring-zone-blue/15'
-        : isApproved
-          ? 'border-zone-green/40 ring-1 ring-zone-green/15'
-          : isFirstPost
-            ? 'border-accent-green-110/40 ring-1 ring-accent-green-110/20'
-            : 'border-white-15'
-    )}>
+    <div
+      className={cn(
+        "rounded-2xl border overflow-hidden flex flex-col bg-sp-card shadow-lg shadow-black/20",
+        isScheduled
+          ? "border-zone-blue/40 ring-1 ring-zone-blue/15"
+          : isApproved
+            ? "border-zone-green/40 ring-1 ring-zone-green/15"
+            : isFirstPost
+              ? "border-accent-green-110/40 ring-1 ring-accent-green-110/20"
+              : "border-white-15",
+      )}
+    >
       {isFirstPost && !isApproved && !isScheduled && (
         <div className="px-4 py-2 bg-accent-green-110/10 text-accent-green-110 text-xs font-medium flex items-center gap-1.5">
           <Check className="w-3 h-3" />
@@ -309,22 +350,42 @@ export function OnboardingPostCard({
         <div className="w-9 h-9 rounded-full bg-accent-green-110/15 flex items-center justify-center overflow-hidden flex-shrink-0">
           {logoUrl && /^https?:\/\//i.test(logoUrl) ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={displayName} className="w-full h-full object-cover" />
+            <img
+              src={logoUrl}
+              alt={displayName}
+              className="w-full h-full object-cover"
+            />
           ) : (
-            <span className="text-xs font-bold text-accent-green-110">{brandInitial}</span>
+            <span className="text-xs font-bold text-accent-green-110">
+              {brandInitial}
+            </span>
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white truncate">{displayName}</p>
-          <p className="text-[11px] text-white-40 truncate">{handle} · {fakeTimestamp}</p>
+          <p className="text-sm font-semibold text-white truncate">
+            {displayName}
+          </p>
+          <p className="text-[11px] text-white-40 truncate">
+            {handle} · {fakeTimestamp}
+          </p>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {contentType && (
-            <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase', CONTENT_TYPE_STYLE)}>
+            <span
+              className={cn(
+                "px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase",
+                CONTENT_TYPE_STYLE,
+              )}
+            >
               {contentType}
             </span>
           )}
-          <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-medium', colors.badge)}>
+          <span
+            className={cn(
+              "px-2.5 py-0.5 rounded-full text-[11px] font-medium",
+              colors.badge,
+            )}
+          >
             {channelLabel} Preview
           </span>
         </div>
@@ -332,8 +393,19 @@ export function OnboardingPostCard({
 
       {/* Platform readiness badge */}
       {readinessBadge && (
-        <div className={cn('px-4 py-1.5 text-[11px] font-medium flex items-center gap-1.5', readinessBadge.style)}>
-          {needsMedia ? <ImageIcon className="w-3 h-3" /> : channelConnected === false ? <Unplug className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+        <div
+          className={cn(
+            "px-4 py-1.5 text-[11px] font-medium flex items-center gap-1.5",
+            readinessBadge.style,
+          )}
+        >
+          {needsMedia ? (
+            <ImageIcon className="w-3 h-3" />
+          ) : channelConnected === false ? (
+            <Unplug className="w-3 h-3" />
+          ) : (
+            <Check className="w-3 h-3" />
+          )}
           {readinessBadge.label}
         </div>
       )}
@@ -346,10 +418,10 @@ export function OnboardingPostCard({
             key={tab.key}
             onClick={() => setPreviewPlatform(tab.key)}
             className={cn(
-              'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors',
+              "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors",
               previewPlatform === tab.key
-                ? 'bg-white-10 text-white-70'
-                : 'text-white-30 hover:text-white-50 hover:bg-white-5',
+                ? "bg-white-10 text-white-70"
+                : "text-white-30 hover:text-white-50 hover:bg-white-5",
             )}
           >
             {tab.label}
@@ -374,8 +446,8 @@ export function OnboardingPostCard({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}
-            alt={draft.altText ?? 'Generated image'}
-            className={cn('w-full object-cover', platformCfg.imageAspect)}
+            alt={draft.altText ?? "Generated image"}
+            className={cn("w-full object-cover", platformCfg.imageAspect)}
           />
           {/* Image action overlay on hover */}
           <div className="absolute bottom-2 left-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -396,14 +468,21 @@ export function OnboardingPostCard({
           {hasMultipleImages && (
             <>
               <button
-                onClick={() => setCarouselIndex((prev) => (prev - 1 + readyAssets.length) % readyAssets.length)}
+                onClick={() =>
+                  setCarouselIndex(
+                    (prev) =>
+                      (prev - 1 + readyAssets.length) % readyAssets.length,
+                  )
+                }
                 className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 aria-label="Previous image"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setCarouselIndex((prev) => (prev + 1) % readyAssets.length)}
+                onClick={() =>
+                  setCarouselIndex((prev) => (prev + 1) % readyAssets.length)
+                }
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 aria-label="Next image"
               >
@@ -416,8 +495,8 @@ export function OnboardingPostCard({
                     key={idx}
                     onClick={() => setCarouselIndex(idx)}
                     className={cn(
-                      'w-1.5 h-1.5 rounded-full transition-all cursor-pointer',
-                      idx === carouselIndex ? 'bg-white w-3' : 'bg-white/50',
+                      "w-1.5 h-1.5 rounded-full transition-all cursor-pointer",
+                      idx === carouselIndex ? "bg-white w-3" : "bg-white/50",
                     )}
                     aria-label={`Image ${idx + 1}`}
                   />
@@ -431,18 +510,28 @@ export function OnboardingPostCard({
           )}
         </div>
       ) : isLoading ? (
-        <div className={cn('w-full bg-white-5 animate-pulse flex items-center justify-center', platformCfg.imageAspect)}>
+        <div
+          className={cn(
+            "w-full bg-white-5 animate-pulse flex items-center justify-center",
+            platformCfg.imageAspect,
+          )}
+        >
           <Loader2 className="w-5 h-5 text-white-30 animate-spin" />
         </div>
       ) : (
-        <div className={cn('w-full bg-white-5 flex flex-col items-center justify-center gap-2 px-4', platformCfg.imageAspect)}>
+        <div
+          className={cn(
+            "w-full bg-white-5 flex flex-col items-center justify-center gap-2 px-4",
+            platformCfg.imageAspect,
+          )}
+        >
           <ImageIcon className="w-6 h-6 text-white-20" />
           <span className="text-[11px] text-white-25 text-center">
-            {previewPlatform === 'instagram'
-              ? 'Needs image for Instagram'
-              : previewPlatform === 'facebook'
-                ? 'Add an image to boost engagement'
-                : 'Image optional for LinkedIn'}
+            {previewPlatform === "instagram"
+              ? "Needs image for Instagram"
+              : previewPlatform === "facebook"
+                ? "Add an image to boost engagement"
+                : "Image optional for LinkedIn"}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -452,11 +541,6 @@ export function OnboardingPostCard({
               <Wand2 className="w-3 h-3" />
               Generate image
             </button>
-            <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white-10 text-white-60 hover:bg-white-15 transition-colors cursor-pointer">
-              <Upload className="w-3 h-3" />
-              Upload image
-              <input type="file" accept="image/*" className="hidden" onChange={() => {/* TODO: implement upload */}} />
-            </label>
           </div>
         </div>
       )}
@@ -511,7 +595,7 @@ export function OnboardingPostCard({
             <span>
               {industryKey && INDUSTRY_ATTRIBUTION[industryKey]
                 ? INDUSTRY_ATTRIBUTION[industryKey]
-                : 'Generated from your business data'}
+                : "Generated from your business data"}
             </span>
           </div>
         )}
@@ -528,16 +612,26 @@ export function OnboardingPostCard({
 
       {/* Status indicator */}
       {(isApproved || isScheduled) && (
-        <div className={cn(
-          'px-4 py-2 text-xs font-medium flex items-center gap-1.5',
-          isScheduled ? 'bg-zone-blue/10 text-zone-blue' : 'bg-zone-green/10 text-zone-green'
-        )}>
+        <div
+          className={cn(
+            "px-4 py-2 text-xs font-medium flex items-center gap-1.5",
+            isScheduled
+              ? "bg-zone-blue/10 text-zone-blue"
+              : "bg-zone-green/10 text-zone-green",
+          )}
+        >
           {isScheduled ? (
             <>
               <Calendar className="w-3 h-3" />
-              Scheduled for {new Date(draft.scheduledFor || scheduleDate).toLocaleDateString(undefined, {
-                weekday: 'short', month: 'short', day: 'numeric',
-              })}
+              Scheduled for{" "}
+              {new Date(draft.scheduledFor || scheduleDate).toLocaleDateString(
+                undefined,
+                {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                },
+              )}
             </>
           ) : (
             <>
@@ -576,8 +670,8 @@ export function OnboardingPostCard({
             </button>
           )}
 
-          {!showSchedule && (
-            channelConnected ? (
+          {!showSchedule &&
+            (channelConnected ? (
               <button
                 onClick={() => setShowSchedule(true)}
                 className="text-xs px-3 py-1.5 rounded-lg bg-zone-blue/15 text-zone-blue hover:bg-zone-blue/25 flex items-center gap-1.5 transition-colors"
@@ -593,8 +687,7 @@ export function OnboardingPostCard({
                 <Calendar className="w-3 h-3" />
                 Connect to schedule
               </button>
-            ) : null
-          )}
+            ) : null)}
 
           <button
             onClick={handleRegenerate}
@@ -647,12 +740,14 @@ export function OnboardingPostCard({
         <GenerateImageModal
           clientId={clientId}
           draftId={draft.id}
-          channel={draft.channel as import('@/hooks/useSquadpitch').Channel}
-          isRealEstate={industryKey === 'real_estate'}
+          channel={draft.channel as import("@/hooks/useSquadpitch").Channel}
+          isRealEstate={industryKey === "real_estate"}
           listingImageUrl={imageUrl || undefined}
-          defaultGuidance={draft.imageGuidance || draft.altText || draft.body.slice(0, 200)}
+          defaultGuidance={
+            draft.imageGuidance || draft.altText || draft.body.slice(0, 200)
+          }
           onGenerated={() => {
-            qc.invalidateQueries({ queryKey: ['draft-assets', draft.id] });
+            qc.invalidateQueries({ queryKey: ["draft-assets", draft.id] });
           }}
           onClose={() => setShowGenerateModal(false)}
         />
@@ -680,19 +775,26 @@ function PlatformCaption({
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const isTruncated = platformCfg.captionLimit > 0 && captionText.length > platformCfg.captionLimit && !expanded;
+  const isTruncated =
+    platformCfg.captionLimit > 0 &&
+    captionText.length > platformCfg.captionLimit &&
+    !expanded;
   const displayText = isTruncated
-    ? captionText.slice(0, platformCfg.captionLimit).replace(/\s+\S*$/, '') // break at word boundary
+    ? captionText.slice(0, platformCfg.captionLimit).replace(/\s+\S*$/, "") // break at word boundary
     : captionText;
 
   return (
-    <div className={cn(inline ? '' : 'px-4 py-3')}>
+    <div className={cn(inline ? "" : "px-4 py-3")}>
       <div className="space-y-2">
         {/* Caption text */}
-        <p className={cn(
-          'whitespace-pre-wrap leading-[1.65]',
-          platform === 'linkedin' ? 'text-[13px] text-white-80' : 'text-[13.5px] text-white-90',
-        )}>
+        <p
+          className={cn(
+            "whitespace-pre-wrap leading-[1.65]",
+            platform === "linkedin"
+              ? "text-[13px] text-white-80"
+              : "text-[13.5px] text-white-90",
+          )}
+        >
           {displayText}
           {isTruncated && (
             <button
@@ -707,7 +809,7 @@ function PlatformCaption({
         {/* Hashtags — platform-dependent */}
         {platformCfg.showHashtags && uniqueHashtags.length > 0 && (
           <p className="text-[11.5px] text-accent-green-110/60 leading-relaxed tracking-wide">
-            {uniqueHashtags.join(' ')}
+            {uniqueHashtags.join(" ")}
           </p>
         )}
 
@@ -718,7 +820,7 @@ function PlatformCaption({
             <span>
               {industryKey && INDUSTRY_ATTRIBUTION[industryKey]
                 ? INDUSTRY_ATTRIBUTION[industryKey]
-                : 'Generated from your business data'}
+                : "Generated from your business data"}
             </span>
           </div>
         )}
