@@ -11,6 +11,7 @@ import { GET } from "./route";
 describe("GET /auth/signup", () => {
   beforeEach(() => {
     getSession.mockReset();
+    vi.stubEnv("APP_BASE_URL", "https://app.squadpitch.com");
   });
 
   it("intentionally starts Auth0 Universal Login on signup", async () => {
