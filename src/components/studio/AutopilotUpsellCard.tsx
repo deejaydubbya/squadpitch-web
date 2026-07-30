@@ -12,7 +12,13 @@ import {
   Shield,
   Loader2,
 } from 'lucide-react';
-import { useSubscription, useCreateCheckout, useChangePlan, type PlanTier } from '@/hooks/useBilling';
+import {
+  hasBillableSubscription,
+  useSubscription,
+  useCreateCheckout,
+  useChangePlan,
+  type PlanTier,
+} from '@/hooks/useBilling';
 import { trackActivationEvent } from '@/lib/activationTracking';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -158,7 +164,7 @@ function AutopilotDetailModal({
   const changePlan = useChangePlan();
 
   const currentTier: PlanTier = subscription?.tier ?? 'FREE';
-  const hasSubscription = !!subscription?.stripeSubscriptionId;
+  const hasSubscription = hasBillableSubscription(subscription);
   const canEnableAutopilot = currentTier === 'PRO' || currentTier === 'GROWTH' || currentTier === 'AGENCY';
   const isPending = checkout.isPending || changePlan.isPending;
 

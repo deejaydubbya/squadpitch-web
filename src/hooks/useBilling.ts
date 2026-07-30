@@ -21,6 +21,15 @@ export interface Subscription {
   updatedAt: string;
 }
 
+export function hasBillableSubscription(
+  subscription: Subscription | null | undefined
+): boolean {
+  return Boolean(
+    subscription?.stripeSubscriptionId &&
+      ['ACTIVE', 'TRIALING', 'PAST_DUE'].includes(subscription.status)
+  );
+}
+
 export interface UsageData {
   period: { start: string; end: string };
   usage: {

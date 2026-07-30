@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, X, Zap, Loader2 } from 'lucide-react';
 import {
+  hasBillableSubscription,
   useSubscription,
   useCreateCheckout,
   useChangePlan,
@@ -39,7 +40,7 @@ export function UpgradeModal({
   const trackedRef = useRef(false);
 
   const currentTier: PlanTier = subscription?.tier ?? 'FREE';
-  const hasSubscription = !!subscription?.stripeSubscriptionId;
+  const hasSubscription = hasBillableSubscription(subscription);
   const isPending = checkout.isPending || changePlan.isPending;
 
   // Auto-hide if already on target tier

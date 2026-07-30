@@ -20,6 +20,7 @@ import {
   useCreatePortal,
   useCreateCheckout,
   useChangePlan,
+  hasBillableSubscription,
   type PlanTier,
   type PlanPricing,
 } from '@/hooks/useBilling';
@@ -181,7 +182,7 @@ export default function BillingSettingsPage() {
   }
 
   const tier = usage?.tier ?? 'FREE';
-  const hasSubscription = subscription?.stripeSubscriptionId;
+  const hasSubscription = hasBillableSubscription(subscription);
 
   // Check if any limit is at capacity
   const atLimitFields: string[] = [];

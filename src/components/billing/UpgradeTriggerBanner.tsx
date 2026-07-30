@@ -2,7 +2,13 @@
 
 import { useEffect, useRef } from 'react';
 import { Zap, Loader2, ArrowRight } from 'lucide-react';
-import { useSubscription, useCreateCheckout, useChangePlan, type PlanTier } from '@/hooks/useBilling';
+import {
+  hasBillableSubscription,
+  useSubscription,
+  useCreateCheckout,
+  useChangePlan,
+  type PlanTier,
+} from '@/hooks/useBilling';
 import { TIER_RANK } from '@/lib/tierConfig';
 import { trackActivationEvent } from '@/lib/activationTracking';
 
@@ -30,7 +36,7 @@ export function UpgradeTriggerBanner({
   const trackedRef = useRef(false);
 
   const currentTier: PlanTier = subscription?.tier ?? 'FREE';
-  const hasSubscription = !!subscription?.stripeSubscriptionId;
+  const hasSubscription = hasBillableSubscription(subscription);
   const isPending = checkout.isPending || changePlan.isPending;
 
   useEffect(() => {

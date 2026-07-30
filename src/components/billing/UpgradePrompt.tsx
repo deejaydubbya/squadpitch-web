@@ -2,7 +2,13 @@
 
 import { useEffect, useRef } from 'react';
 import { Zap, Loader2 } from 'lucide-react';
-import { useCreateCheckout, useChangePlan, useSubscription, type PlanTier } from '@/hooks/useBilling';
+import {
+  hasBillableSubscription,
+  useCreateCheckout,
+  useChangePlan,
+  useSubscription,
+  type PlanTier,
+} from '@/hooks/useBilling';
 import { trackActivationEvent } from '@/lib/activationTracking';
 
 interface Props {
@@ -16,7 +22,7 @@ export function UpgradePrompt({ currentTier, limitType }: Props) {
   const { data: subscription } = useSubscription();
   const trackedRef = useRef(false);
 
-  const hasSubscription = !!subscription?.stripeSubscriptionId;
+  const hasSubscription = hasBillableSubscription(subscription);
 
   const nextTier: PlanTier = currentTier === 'FREE' ? 'PRO'
     : currentTier === 'STARTER' ? 'PRO'
