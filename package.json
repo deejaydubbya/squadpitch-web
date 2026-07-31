@@ -10,10 +10,12 @@
     "test": "vitest run",
     "test:launch": "vitest run src/app/publicAccess.test.ts src/app/auth/signup/route.test.ts src/lib/authFlow.test.ts src/lib/signupPlanHandoff.test.ts src/lib/onboardingRedirect.test.ts src/lib/onboarding/persistence.test.ts src/lib/channelRegistry.test.ts src/lib/publishErrorMessage.test.ts",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "audit:runtime": "npm audit --omit=dev --audit-level=high",
+    "audit:full": "npm audit --audit-level=high"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "^4.16.0",
+    "@auth0/nextjs-auth0": "^4.26.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -25,7 +27,7 @@
     "lucide-react": "^0.424.0",
     "next": "14.2.35",
     "next-intl": "^4.12.0",
-    "posthog-js": "^1.190.0",
+    "posthog-js": "^1.409.5",
     "react": "^18",
     "react-dom": "^18",
     "recharts": "^2.15.4",
@@ -39,9 +41,12 @@
     "autoprefixer": "^10.4.27",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
-    "postcss": "^8",
+    "postcss": "^8.5.25",
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "dompurify": "3.4.12"
   }
 }

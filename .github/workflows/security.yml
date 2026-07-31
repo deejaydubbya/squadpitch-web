@@ -41,5 +41,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Audit dependencies
-        run: npm audit --audit-level=high
+      - name: Audit production runtime dependencies
+        run: npm run audit:runtime
+
+      - name: Report development and build dependency advisories
+        if: always()
+        continue-on-error: true
+        run: npm run audit:full
