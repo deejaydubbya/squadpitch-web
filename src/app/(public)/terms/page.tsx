@@ -157,8 +157,8 @@ export default function TermsPage() {
 
       <Section heading="8. Subscriptions, billing, trials, and cancellations">
         <p>
-          Squadpitch offers a free tier and paid plans (currently Solo, Pro,
-          Team, and Agency). Paid plans are billed monthly through Stripe.
+          Squadpitch offers a free tier and self-service paid plans (currently
+          Solo, Pro, and Team). Paid plans are billed monthly through Stripe.
           You authorize Stripe to charge the payment method on file at the
           beginning of each billing cycle, and you authorize us to update
           plan status based on what Stripe reports.

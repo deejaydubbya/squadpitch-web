@@ -9,7 +9,11 @@ import {
 describe("signup plan handoff state", () => {
   it("accepts only server-known paid plan keys", () => {
     expect(parseSignupPaidPlan("starter")).toBe("STARTER");
+    expect(parseSignupPaidPlan("SOLO")).toBe("STARTER");
     expect(parseSignupPaidPlan("PRO")).toBe("PRO");
+    expect(parseSignupPaidPlan("TEAM")).toBe("GROWTH");
+    expect(parseSignupPaidPlan("growth")).toBe("GROWTH");
+    expect(parseSignupPaidPlan("AGENCY")).toBeNull();
     expect(parseSignupPaidPlan("price_123")).toBeNull();
     expect(parseSignupPaidPlan("FREE")).toBeNull();
   });

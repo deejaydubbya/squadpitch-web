@@ -134,24 +134,6 @@ const PLANS: PlanDef[] = [
       '500 AI image generations',
     ],
   },
-  {
-    tier: 'AGENCY',
-    label: 'Agency',
-    positioning: 'For managing content for clients',
-    highlights: [
-      'Unlimited workspaces',
-      '1,200 posts/mo',
-      'Unlimited channels',
-      'Agency Autopilot',
-    ],
-    autopilot: 'Agency-scale',
-    detailedLimits: [
-      '500 images/mo',
-      '100 videos/mo',
-      '100 GB storage',
-      '1,000 AI image generations',
-    ],
-  },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────
@@ -322,7 +304,7 @@ export default function BillingSettingsPage() {
       <div>
         <h2 className="text-lg font-bold text-white-100 mb-4">Choose your plan</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PLANS.filter((p) => p.tier !== 'AGENCY').map((plan) => (
+          {PLANS.map((plan) => (
             <PlanCard
               key={plan.tier}
               plan={plan}
@@ -334,18 +316,6 @@ export default function BillingSettingsPage() {
             />
           ))}
         </div>
-        {/* Agency — full-width below the grid */}
-        {PLANS.filter((p) => p.tier === 'AGENCY').map((plan) => (
-          <AgencyCard
-            key={plan.tier}
-            plan={plan}
-            price={formatPrice(stripePlans, plan.tier)}
-            currentTier={tier}
-            hasSubscription={!!hasSubscription}
-            isPending={checkout.isPending || changePlan.isPending}
-            onAction={handlePlanAction}
-          />
-        ))}
       </div>
 
       {/* Detailed Usage */}

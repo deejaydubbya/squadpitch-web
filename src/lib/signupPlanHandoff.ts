@@ -1,20 +1,21 @@
 import type { PlanTier } from "@/hooks/useBilling";
 
-export type SignupPaidPlan = Exclude<PlanTier, "FREE">;
+export type SignupPaidPlan = "STARTER" | "PRO" | "GROWTH";
 export type CheckoutReturnState = "success" | "cancel" | null;
 
-const PAID_PLANS = new Set<SignupPaidPlan>([
-  "STARTER",
-  "PRO",
-  "GROWTH",
-  "AGENCY",
-]);
+const PUBLIC_PLAN_ALIASES: Record<string, SignupPaidPlan> = {
+  SOLO: "STARTER",
+  STARTER: "STARTER",
+  PRO: "PRO",
+  TEAM: "GROWTH",
+  GROWTH: "GROWTH",
+};
 
 export function parseSignupPaidPlan(
   value: string | null | undefined,
 ): SignupPaidPlan | null {
-  const normalized = value?.toUpperCase() as SignupPaidPlan | undefined;
-  return normalized && PAID_PLANS.has(normalized) ? normalized : null;
+  const normalized = value?.trim().toUpperCase();
+  return normalized ? PUBLIC_PLAN_ALIASES[normalized] ?? null : null;
 }
 
 export function parseCheckoutReturn(

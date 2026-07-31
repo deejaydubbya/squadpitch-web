@@ -24,11 +24,11 @@ export function UpgradePrompt({ currentTier, limitType }: Props) {
 
   const hasSubscription = hasBillableSubscription(subscription);
 
-  const nextTier: PlanTier = currentTier === 'FREE' ? 'PRO'
+  const nextTier: PlanTier | null = currentTier === 'FREE' ? 'PRO'
     : currentTier === 'STARTER' ? 'PRO'
-    : currentTier === 'PRO' ? 'GROWTH' : 'AGENCY';
-  const nextLabel = nextTier === 'PRO' ? 'Pro ($39/mo)'
-    : nextTier === 'GROWTH' ? 'Growth ($79/mo)' : 'Agency ($159/mo)';
+    : currentTier === 'PRO' ? 'GROWTH' : null;
+  const nextLabel = nextTier === 'PRO' ? 'Pro ($59/mo)'
+    : nextTier === 'GROWTH' ? 'Team ($149/mo)' : '';
 
   useEffect(() => {
     if (trackedRef.current) return;
@@ -38,7 +38,7 @@ export function UpgradePrompt({ currentTier, limitType }: Props) {
     });
   }, [currentTier, limitType]);
 
-  if (currentTier === 'AGENCY') return null;
+  if (!nextTier) return null;
 
   const isPending = checkout.isPending || changePlan.isPending;
 
@@ -85,7 +85,7 @@ export function UpgradePrompt({ currentTier, limitType }: Props) {
         ) : (
           <Zap className="w-3.5 h-3.5" />
         )}
-        Upgrade to {nextTier}
+        Upgrade to {nextTier === 'GROWTH' ? 'Team' : 'Pro'}
       </button>
     </div>
   );

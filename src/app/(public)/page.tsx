@@ -539,10 +539,6 @@ function HowItWorks() {
 /* Pricing                                                                    */
 /* -------------------------------------------------------------------------- */
 
-// TODO: Replace Team CTA mailto with Calendly or sales form before broader launch.
-const TEAM_CONTACT_HREF =
-  "mailto:support@squadpitch.com?subject=Squadpitch%20Team%20Plan";
-
 function PricingPreview() {
   const tiers: Array<{
     name: string;
@@ -572,7 +568,7 @@ function PricingPreview() {
       cadence: "/mo",
       tagline: "For agents who want a consistent social presence.",
       points: [
-        "50 posts/month",
+        "30 posts/month",
         "3 connected channels",
         "Campaign builder",
         "Planner + scheduling",
@@ -587,7 +583,7 @@ function PricingPreview() {
       tagline:
         "For agents who want Squadpitch to run their marketing automatically.",
       points: [
-        "200 posts/month",
+        "150 posts/month",
         "Autopilot recommendations",
         "AI persona tools",
         "Priority support",
@@ -607,8 +603,8 @@ function PricingPreview() {
         "Team collaboration",
         "Brokerage/team support",
       ],
-      ctaLabel: "Talk to us",
-      ctaHref: TEAM_CONTACT_HREF,
+      ctaLabel: "Start Free",
+      ctaHref: planSignupHref("TEAM"),
     },
   ];
 

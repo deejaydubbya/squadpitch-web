@@ -43,7 +43,7 @@ export default function WorkspacesPage() {
   const workspaceLimit = usageData?.limits.workspaces ?? Infinity;
   const currentTier: PlanTier = usageData?.tier ?? 'FREE';
   const atWorkspaceLimit = (clients?.length ?? 0) >= workspaceLimit;
-  const NEXT_TIER: Partial<Record<PlanTier, PlanTier>> = { FREE: 'PRO', STARTER: 'PRO', PRO: 'GROWTH', GROWTH: 'AGENCY' };
+  const NEXT_TIER: Partial<Record<PlanTier, PlanTier>> = { FREE: 'PRO', STARTER: 'PRO', PRO: 'GROWTH' };
   const upgradeTier = NEXT_TIER[currentTier] ?? 'PRO';
   const hasSubscription = currentTier !== 'FREE';
   const isUpgrading = checkout.isPending || changePlan.isPending;

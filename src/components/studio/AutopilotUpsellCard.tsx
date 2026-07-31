@@ -285,7 +285,7 @@ function AutopilotDetailModal({
                   </p>
                   <p className="text-xs text-white-40">
                     Upgrade to Pro to unlock automatic content generation, smart scheduling, and
-                    multi-platform publishing — $39/mo.
+                    multi-platform publishing — $59/mo.
                   </p>
                 </div>
                 <button
@@ -301,7 +301,7 @@ function AutopilotDetailModal({
                   Upgrade to Pro
                 </button>
                 <p className="text-[11px] text-white-30 text-center">
-                  $39/mo. Cancel anytime.
+                  $59/mo. Cancel anytime.
                 </p>
               </div>
             )}
