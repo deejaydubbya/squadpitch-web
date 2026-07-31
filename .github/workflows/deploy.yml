@@ -32,4 +32,10 @@ jobs:
       - name: flyctl deploy
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: >-
+          flyctl deploy --remote-only
+          --build-arg NEXT_PUBLIC_SENTRY_DSN="$NEXT_PUBLIC_SENTRY_DSN"
+          --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+          --build-arg NEXT_PUBLIC_SENTRY_RELEASE="$BUILD_SHA"
