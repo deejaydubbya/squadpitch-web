@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
-export default function ChannelsRedirect({ params }: { params: { clientId: string } }) {
-  redirect(`/workspaces/${params.clientId}/settings/channels`);
+export default async function ChannelsRedirect({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = await params;
+  redirect(`/workspaces/${clientId}/settings/channels`);
 }

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
-export default function AssistantRedirect({ params }: { params: { clientId: string } }) {
-  redirect(`/workspaces/${params.clientId}/create`);
+export default async function AssistantRedirect({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = await params;
+  redirect(`/workspaces/${clientId}/create`);
 }

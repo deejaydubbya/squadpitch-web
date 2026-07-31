@@ -68,7 +68,7 @@ function MediaSwapModalContent({
   // ── Search ──────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);

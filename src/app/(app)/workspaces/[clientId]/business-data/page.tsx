@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
-export default function BusinessDataRedirect({ params }: { params: { clientId: string } }) {
-  redirect(`/workspaces/${params.clientId}/data?tab=knowledge`);
+export default async function BusinessDataRedirect({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = await params;
+  redirect(`/workspaces/${clientId}/data?tab=knowledge`);
 }

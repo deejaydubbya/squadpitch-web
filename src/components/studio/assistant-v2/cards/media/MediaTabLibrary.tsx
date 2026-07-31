@@ -28,7 +28,7 @@ export function MediaTabLibrary({
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Debounce search input
   const handleSearchChange = useCallback((value: string) => {

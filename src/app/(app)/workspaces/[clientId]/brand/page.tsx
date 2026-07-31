@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
-export default function BrandRedirect({ params }: { params: { clientId: string } }) {
-  redirect(`/workspaces/${params.clientId}/settings/brand`);
+export default async function BrandRedirect({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = await params;
+  redirect(`/workspaces/${clientId}/settings/brand`);
 }

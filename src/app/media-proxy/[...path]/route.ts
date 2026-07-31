@@ -27,9 +27,10 @@ const ALLOWED_CONTENT_TYPE = /^(image|video)\//;
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const path = (params.path ?? []).join('/');
+  const { path: pathSegments } = await params;
+  const path = (pathSegments ?? []).join('/');
   if (!path) {
     return NextResponse.json({ error: 'missing path' }, { status: 400 });
   }

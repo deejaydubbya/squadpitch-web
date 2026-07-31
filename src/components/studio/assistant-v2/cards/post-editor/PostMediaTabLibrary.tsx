@@ -32,7 +32,7 @@ export function PostMediaTabLibrary({
   // Debounced search
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchTerm(value);

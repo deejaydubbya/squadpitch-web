@@ -19,9 +19,10 @@ function sessionExpiredResponse(message: string) {
 
 async function proxy(
   request: NextRequest,
-  { params }: { params: { path: string[] } },
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
-  const path = params.path.join("/");
+  const { path: pathSegments } = await params;
+  const path = pathSegments.join("/");
   const url = `${squadpitchApiUrl()}/api/v1/${path}${request.nextUrl.search}`;
 
   // Token strategy:
@@ -99,6 +100,7 @@ async function proxy(
     method: request.method,
     headers,
     body: body ? Buffer.from(body) : undefined,
+    cache: "no-store",
   });
 
   // Stream SSE responses instead of buffering
@@ -119,6 +121,7 @@ async function proxy(
     status: res.status,
     headers: {
       "content-type": resContentType || "application/json",
+      "cache-control": "private, no-store",
     },
   });
 }

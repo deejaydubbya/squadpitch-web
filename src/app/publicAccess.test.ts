@@ -4,7 +4,7 @@
 //   - sitemap.xml lists exactly the public pages, no app routes
 
 import { describe, it, expect } from 'vitest';
-import { PUBLIC_PATHS } from './../middleware';
+import { PUBLIC_PATHS } from './../proxy';
 import robots from './robots';
 import sitemap from './sitemap';
 

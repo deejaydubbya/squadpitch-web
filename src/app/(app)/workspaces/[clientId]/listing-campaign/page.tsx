@@ -1,14 +1,15 @@
 import { redirect } from 'next/navigation';
 
-export default function ListingCampaignRedirect({
+export default async function ListingCampaignRedirect({
   params,
   searchParams,
 }: {
-  params: { clientId: string };
-  searchParams: { listingId?: string; type?: string };
+  params: Promise<{ clientId: string }>;
+  searchParams: Promise<{ listingId?: string; type?: string }>;
 }) {
+  const [{ clientId }, query] = await Promise.all([params, searchParams]);
   const qs = new URLSearchParams({ mode: 'campaign' });
-  if (searchParams.listingId) qs.set('listingId', searchParams.listingId);
-  if (searchParams.type) qs.set('type', searchParams.type);
-  redirect(`/workspaces/${params.clientId}/create?${qs.toString()}`);
+  if (query.listingId) qs.set('listingId', query.listingId);
+  if (query.type) qs.set('type', query.type);
+  redirect(`/workspaces/${clientId}/create?${qs.toString()}`);
 }

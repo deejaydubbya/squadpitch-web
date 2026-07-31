@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
-export default function CalendarRedirect({ params }: { params: { clientId: string } }) {
-  redirect(`/workspaces/${params.clientId}/planner`);
+export default async function CalendarRedirect({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = await params;
+  redirect(`/workspaces/${clientId}/planner`);
 }

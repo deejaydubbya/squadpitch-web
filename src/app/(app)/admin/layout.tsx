@@ -3,6 +3,7 @@
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { Shield } from 'lucide-react';
+import Link from 'next/link';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isInternalUser, isAdmin, isLoading, isError } = useCurrentUser();
@@ -21,12 +22,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Shield className="w-12 h-12 text-white-30" />
         <h1 className="text-xl font-semibold text-white-100">Access Denied</h1>
         <p className="text-white-40 text-sm">You do not have permission to access the admin console.</p>
-        <a
+        <Link
           href="/workspaces"
           className="mt-4 px-4 py-2 rounded-lg bg-accent-green-110/15 text-accent-green-110 text-sm font-medium hover:bg-accent-green-110/25 transition-colors"
         >
           Back to workspaces
-        </a>
+        </Link>
       </div>
     );
   }
