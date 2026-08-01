@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 // Tabbed composer — capability-aware. Three possible modes:
 //
@@ -12,7 +12,7 @@
 // is disabled with the reason — keeps the affordance visible so users
 // learn what's needed (e.g. "This lead has no email address").
 
-import Link from 'next/link';
+import Link from "next/link";
 import {
   Send,
   StickyNote,
@@ -24,16 +24,16 @@ import {
   MessageSquare,
   MessageCircle,
   Star,
-} from 'lucide-react';
+} from "lucide-react";
 import type {
   ConversationProvider,
   ReplyActionDescriptor,
   ReplyActionId,
   ReplyCapabilities,
-} from '@/hooks/useInbox';
-import { cn } from '@/lib/utils';
+} from "@/hooks/useInbox";
+import { cn } from "@/lib/utils";
 
-export type ComposerMode = 'email' | 'sms' | 'reply' | 'note';
+export type ComposerMode = "email" | "sms" | "reply" | "note";
 
 interface ComposerProps {
   clientId: string;
@@ -75,10 +75,10 @@ export function Composer({
   provider,
   sendError = null,
 }: ComposerProps) {
-  const isEmail = mode === 'email';
-  const isSms = mode === 'sms';
-  const isReply = mode === 'reply';
-  const isNote = mode === 'note';
+  const isEmail = mode === "email";
+  const isSms = mode === "sms";
+  const isReply = mode === "reply";
+  const isNote = mode === "note";
 
   // GBP review + YouTube/Threads/Facebook/Instagram comment
   // conversations repurpose the primary tab: same mode='email'
@@ -86,19 +86,24 @@ export function Composer({
   // behind handleSubmit all swap to public-reply semantics. The
   // contact has no email; the public reply is the only outbound
   // action available.
-  const isGbpReview = provider === 'GOOGLE_BUSINESS';
-  const isYouTubeComment = provider === 'YOUTUBE';
-  const isThreadsReply = provider === 'THREADS';
-  const isFacebookComment = provider === 'FACEBOOK';
-  const isInstagramComment = provider === 'INSTAGRAM';
+  const isGbpReview = provider === "GOOGLE_BUSINESS";
+  const isYouTubeComment = provider === "YOUTUBE";
+  const isThreadsReply = provider === "THREADS";
+  const isFacebookComment = provider === "FACEBOOK";
+  const isInstagramComment = provider === "INSTAGRAM";
   const isPublicCommentReply =
-    isYouTubeComment || isThreadsReply || isFacebookComment || isInstagramComment;
+    isYouTubeComment ||
+    isThreadsReply ||
+    isFacebookComment ||
+    isInstagramComment;
   // For GBP we look at REPLY_REVIEW; for comment providers we look
   // at REPLY_PUBLIC_COMMENT. Email-only providers fall back to the
   // email capability.
-  const reviewAction = availableActions.find((a) => a.action === 'REPLY_REVIEW');
+  const reviewAction = availableActions.find(
+    (a) => a.action === "REPLY_REVIEW",
+  );
   const commentAction = availableActions.find(
-    (a) => a.action === 'REPLY_PUBLIC_COMMENT',
+    (a) => a.action === "REPLY_PUBLIC_COMMENT",
   );
   const reviewAvailable = reviewAction?.available ?? false;
   const commentAvailable = commentAction?.available ?? false;
@@ -108,16 +113,20 @@ export function Composer({
       ? commentAvailable
       : capabilities.email.available;
   const primaryReason = isGbpReview
-    ? reviewAction?.reason ?? 'Reviews can\'t be replied to yet.'
+    ? (reviewAction?.reason ?? "Reviews can't be replied to yet.")
     : isYouTubeComment
-      ? commentAction?.reason ?? 'YouTube comment replies aren\'t connected yet.'
+      ? (commentAction?.reason ??
+        "YouTube comment replies aren't connected yet.")
       : isThreadsReply
-        ? commentAction?.reason ?? 'Threads reply publishing is not enabled.'
+        ? (commentAction?.reason ?? "Threads reply publishing is not enabled.")
         : isFacebookComment
-          ? commentAction?.reason ?? 'Facebook comment replies aren\'t connected yet.'
+          ? (commentAction?.reason ??
+            "Facebook comment replies aren't connected yet.")
           : isInstagramComment
-            ? commentAction?.reason ?? 'Instagram comment replies aren\'t connected yet.'
-            : capabilities.email.reason ?? 'Email is not available for this conversation.';
+            ? (commentAction?.reason ??
+              "Instagram comment replies aren't connected yet.")
+            : (capabilities.email.reason ??
+              "Email is not available for this conversation.");
 
   const emailDisabledReason = primaryAvailable ? null : primaryReason;
 
@@ -127,17 +136,17 @@ export function Composer({
   // server's reason — turns "missing button" into a deliberate
   // "Connect <provider>" affordance.
   const EXTRA_ACTION_IDS: ReplyActionId[] = [
-    'SEND_SMS',
-    'REPLY_PUBLIC_COMMENT',
-    'REPLY_DM',
-    'REPLY_REVIEW',
+    "SEND_SMS",
+    "REPLY_PUBLIC_COMMENT",
+    "REPLY_DM",
+    "REPLY_REVIEW",
   ];
   // SMS is now a real tab (not an extras chip) when the server
   // surfaces a SEND_SMS action. The tab is visible whenever the
   // resolver returns the action at all — so the user sees the
   // truthful "Awaiting Twilio business profile / A2P 10DLC
   // approval." reason instead of a hidden capability.
-  const smsAction = availableActions.find((a) => a.action === 'SEND_SMS');
+  const smsAction = availableActions.find((a) => a.action === "SEND_SMS");
   const smsAvailable = smsAction?.available ?? false;
   const smsReason = smsAction?.reason ?? null;
   const showSmsTab = Boolean(smsAction);
@@ -148,10 +157,11 @@ export function Composer({
     // primary tab as a duplicate chip — it'd read as confusing
     // ("Reply to comment" disabled chip below an enabled
     // "Public comment reply" button).
-    if (isGbpReview && a.action === 'REPLY_REVIEW') return false;
-    if (isPublicCommentReply && a.action === 'REPLY_PUBLIC_COMMENT') return false;
+    if (isGbpReview && a.action === "REPLY_REVIEW") return false;
+    if (isPublicCommentReply && a.action === "REPLY_PUBLIC_COMMENT")
+      return false;
     // SMS now has its own tab; don't double-render as a chip.
-    if (a.action === 'SEND_SMS') return false;
+    if (a.action === "SEND_SMS") return false;
     return true;
   });
 
@@ -161,24 +171,24 @@ export function Composer({
       <div className="flex items-center gap-1 px-2 pt-2 border-b border-white-10">
         <SegButton
           active={isEmail}
-          onClick={() => onModeChange('email')}
+          onClick={() => onModeChange("email")}
           icon={<Mail className="w-3 h-3" />}
           tone="primary"
           disabled={!primaryAvailable}
           disabledTitle={emailDisabledReason}
         >
           {isGbpReview
-            ? 'Public review reply'
+            ? "Public review reply"
             : isYouTubeComment || isFacebookComment || isInstagramComment
-              ? 'Public comment reply'
+              ? "Public comment reply"
               : isThreadsReply
-                ? 'Public reply'
-                : 'Send email'}
+                ? "Public reply"
+                : "Send email"}
         </SegButton>
         {showSmsTab && (
           <SegButton
             active={isSms}
-            onClick={() => onModeChange('sms')}
+            onClick={() => onModeChange("sms")}
             icon={<MessageSquare className="w-3 h-3" />}
             tone="primary"
             disabled={!smsAvailable}
@@ -189,14 +199,14 @@ export function Composer({
         )}
         <SegButton
           active={isReply}
-          onClick={() => onModeChange('reply')}
+          onClick={() => onModeChange("reply")}
           icon={<Send className="w-3 h-3" />}
         >
           Log external reply
         </SegButton>
         <SegButton
           active={isNote}
-          onClick={() => onModeChange('note')}
+          onClick={() => onModeChange("note")}
           icon={<StickyNote className="w-3 h-3" />}
           tone="warn"
         >
@@ -218,21 +228,21 @@ export function Composer({
           placeholder={
             isEmail
               ? isGbpReview
-                ? 'Write a public response to this Google review…'
+                ? "Write a public response to this Google review…"
                 : isYouTubeComment
-                  ? 'Write a public reply to this YouTube comment…'
+                  ? "Write a public reply to this YouTube comment…"
                   : isThreadsReply
-                    ? 'Write a public reply on Threads…'
+                    ? "Write a public reply on Threads…"
                     : isFacebookComment
-                      ? 'Write a public reply to this Facebook comment…'
+                      ? "Write a public reply to this Facebook comment…"
                       : isInstagramComment
-                        ? 'Write a public reply to this Instagram comment…'
-                        : 'Write the reply you want to send to the lead…'
+                        ? "Write a public reply to this Instagram comment…"
+                        : "Write the reply you want to send to the lead…"
               : isSms
-                ? 'Type your SMS reply (keep it short — long messages span multiple segments)…'
+                ? "Type your SMS reply (keep it short — long messages span multiple segments)…"
                 : isReply
-                  ? 'Paste the reply you sent outside Squadpitch…'
-                  : 'Add a private note for your team…'
+                  ? "Paste the reply you sent outside Squadpitch…"
+                  : "Add a private note for your team…"
           }
           rows={4}
           className="w-full bg-transparent border-0 px-0 py-1 text-sm text-white-90 placeholder:text-white-30 focus:outline-none resize-none"
@@ -244,34 +254,35 @@ export function Composer({
         <p className="text-[11px] text-white-50 leading-snug min-w-0">
           {isEmail
             ? isGbpReview
-              ? 'Posts a public response under the review on your Google listing. Visible to everyone browsing the listing.'
+              ? "Posts a public response under the review on your Google listing. Visible to everyone browsing the listing."
               : isYouTubeComment
-                ? 'Posts a public reply under the comment on YouTube. Visible to every viewer of the video.'
+                ? "Posts a public reply under the comment on YouTube. Visible to every viewer of the video."
                 : isThreadsReply
-                  ? 'Posts a public reply under the comment on Threads. Visible in the public conversation.'
+                  ? "Posts a public reply under the comment on Threads. Visible in the public conversation."
                   : isFacebookComment
-                    ? 'Posts a public reply under the comment on your Facebook Page post. Visible to everyone who can see the post.'
+                    ? "Posts a public reply under the comment on your Facebook Page post. Visible to everyone who can see the post."
                     : isInstagramComment
-                      ? 'Posts a public reply under the comment on your Instagram post. Visible to everyone who can see the post.'
-                      : 'Sends a real email to the lead from your workspace. You can review the draft before sending.'
+                      ? "Posts a public reply under the comment on your Instagram post. Visible to everyone who can see the post."
+                      : "Sends a real email to the lead from your workspace. You can review the draft before sending."
             : isSms
-              ? 'Sends a real SMS to the lead\'s phone via Twilio. First message includes a STOP-to-opt-out footer for compliance.'
+              ? "SMS is temporarily unavailable and cannot be sent."
               : isReply
-                ? 'Sending is not connected for this channel. This only records the reply on the thread.'
-                : 'Notes stay inside your workspace and are never sent to the lead.'}
+                ? "Sending is not connected for this channel. This only records the reply on the thread."
+                : "Notes stay inside your workspace and are never sent to the lead."}
         </p>
         <button
           type="button"
           onClick={onSubmit}
-          disabled={pending || !body.trim()}
+          disabled={pending || !body.trim() || isSms}
           className={cn(
-            'text-xs font-semibold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-colors shrink-0',
+            "text-xs font-semibold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-colors shrink-0",
             isEmail || isSms
-              ? 'bg-accent-green-110 text-sp-bg hover:bg-accent-green-100'
+              ? "bg-accent-green-110 text-sp-bg hover:bg-accent-green-100"
               : isReply
-                ? 'bg-white-10 text-white-90 hover:bg-white-15 border border-white-15'
-                : 'bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 border border-amber-400/30',
-            (pending || !body.trim()) && 'opacity-50 cursor-not-allowed',
+                ? "bg-white-10 text-white-90 hover:bg-white-15 border border-white-15"
+                : "bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 border border-amber-400/30",
+            (pending || !body.trim() || isSms) &&
+              "opacity-50 cursor-not-allowed",
           )}
         >
           {isEmail ? (
@@ -286,22 +297,22 @@ export function Composer({
           {pending
             ? isEmail
               ? isGbpReview || isPublicCommentReply
-                ? 'Posting…'
-                : 'Sending…'
+                ? "Posting…"
+                : "Sending…"
               : isSms
-                ? 'Sending…'
+                ? "Sending…"
                 : isReply
-                  ? 'Logging…'
-                  : 'Saving…'
+                  ? "Logging…"
+                  : "Saving…"
             : isEmail
               ? isGbpReview || isPublicCommentReply
-                ? 'Post public reply'
-                : 'Send email'
+                ? "Post public reply"
+                : "Send email"
               : isSms
-                ? 'Send SMS'
+                ? "SMS unavailable"
                 : isReply
-                  ? 'Log external reply'
-                  : 'Add note'}
+                  ? "Log external reply"
+                  : "Add note"}
         </button>
       </div>
 
@@ -355,7 +366,9 @@ export function Composer({
         <div className="flex items-center justify-between gap-3 px-3 py-2 border-t border-white-10 bg-amber-400/5">
           <div className="flex items-start gap-2 text-[11px] text-amber-200/80 leading-snug min-w-0">
             <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
-            <span>Outbound sending is not available for this conversation yet.</span>
+            <span>
+              Outbound sending is not available for this conversation yet.
+            </span>
           </div>
           <Link
             href={`/workspaces/${clientId}/settings/integrations`}
@@ -392,7 +405,7 @@ interface SegButtonProps {
   onClick: () => void;
   icon: React.ReactNode;
   children: React.ReactNode;
-  tone?: 'default' | 'warn' | 'primary';
+  tone?: "default" | "warn" | "primary";
   disabled?: boolean;
   disabledTitle?: string | null;
 }
@@ -402,14 +415,14 @@ function SegButton({
   onClick,
   icon,
   children,
-  tone = 'default',
+  tone = "default",
   disabled = false,
   disabledTitle,
 }: SegButtonProps) {
   const activeClass =
-    tone === 'warn'
-      ? 'text-amber-200 border-b-amber-300'
-      : 'text-accent-green-110 border-b-accent-green-110';
+    tone === "warn"
+      ? "text-amber-200 border-b-amber-300"
+      : "text-accent-green-110 border-b-accent-green-110";
   return (
     <button
       type="button"
@@ -417,13 +430,13 @@ function SegButton({
       aria-selected={active}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
-      title={disabled ? disabledTitle ?? undefined : undefined}
+      title={disabled ? (disabledTitle ?? undefined) : undefined}
       className={cn(
-        'text-xs font-medium px-3 py-2 border-b-2 -mb-px inline-flex items-center gap-1.5 transition-colors',
+        "text-xs font-medium px-3 py-2 border-b-2 -mb-px inline-flex items-center gap-1.5 transition-colors",
         active
           ? activeClass
-          : 'text-white-50 hover:text-white-90 border-b-transparent',
-        disabled && 'opacity-40 cursor-not-allowed hover:text-white-50',
+          : "text-white-50 hover:text-white-90 border-b-transparent",
+        disabled && "opacity-40 cursor-not-allowed hover:text-white-50",
       )}
     >
       {icon}
@@ -451,16 +464,18 @@ function ExtraActionChip({
   action: ReplyActionDescriptor;
   clientId: string;
 }) {
-  const icon = EXTRA_ACTION_ICONS[action.action] ?? <Lock className="w-3 h-3" />;
+  const icon = EXTRA_ACTION_ICONS[action.action] ?? (
+    <Lock className="w-3 h-3" />
+  );
   // Reason from the server — always populated when available=false,
   // which is the only case extras land in this UI.
-  const tooltip = action.reason ?? 'Not connected yet.';
+  const tooltip = action.reason ?? "Not connected yet.";
   return (
     <span
       title={tooltip}
       className={cn(
-        'inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-medium',
-        'border-white-10 text-white-50 bg-white-5 cursor-not-allowed',
+        "inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-medium",
+        "border-white-10 text-white-50 bg-white-5 cursor-not-allowed",
       )}
     >
       {icon}
