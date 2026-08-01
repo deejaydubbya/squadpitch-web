@@ -29,9 +29,12 @@ import type {
   ConversationProvider,
   ReplyActionDescriptor,
   ReplyActionId,
-  ReplyCapabilities,
 } from "@/hooks/useInbox";
 import { cn } from "@/lib/utils";
+import {
+  isProviderConnectionAction,
+  primaryReplyAction,
+} from "./composerActions";
 
 export type ComposerMode = "email" | "sms" | "reply" | "note";
 
@@ -45,8 +48,6 @@ interface ComposerProps {
   pending: boolean;
   /** True when the body was populated from an AI suggestion via "Use this". */
   fromSuggestion: boolean;
-  /** Server-resolved capabilities — drives which tabs are enabled. */
-  capabilities: ReplyCapabilities;
   /** Full channel-aware action list from the server. The three
    *  primary tabs (email / reply / note) still drive the active
    *  composer, but the extras (SMS / comment / DM / review) are
@@ -70,7 +71,6 @@ export function Composer({
   onSubmit,
   pending,
   fromSuggestion,
-  capabilities,
   availableActions = [],
   provider,
   sendError = null,
@@ -96,6 +96,7 @@ export function Composer({
     isThreadsReply ||
     isFacebookComment ||
     isInstagramComment;
+  const authoritativePrimaryAction = primaryReplyAction(availableActions);
   // For GBP we look at REPLY_REVIEW; for comment providers we look
   // at REPLY_PUBLIC_COMMENT. Email-only providers fall back to the
   // email capability.
@@ -105,13 +106,7 @@ export function Composer({
   const commentAction = availableActions.find(
     (a) => a.action === "REPLY_PUBLIC_COMMENT",
   );
-  const reviewAvailable = reviewAction?.available ?? false;
-  const commentAvailable = commentAction?.available ?? false;
-  const primaryAvailable = isGbpReview
-    ? reviewAvailable
-    : isPublicCommentReply
-      ? commentAvailable
-      : capabilities.email.available;
+  const primaryAvailable = authoritativePrimaryAction?.available ?? false;
   const primaryReason = isGbpReview
     ? (reviewAction?.reason ?? "Reviews can't be replied to yet.")
     : isYouTubeComment
@@ -125,8 +120,8 @@ export function Composer({
           : isInstagramComment
             ? (commentAction?.reason ??
               "Instagram comment replies aren't connected yet.")
-            : (capabilities.email.reason ??
-              "Email is not available for this conversation.");
+            : (authoritativePrimaryAction?.reason ??
+              "Sending is not supported for this conversation channel.");
 
   const emailDisabledReason = primaryAvailable ? null : primaryReason;
 
@@ -267,7 +262,7 @@ export function Composer({
             : isSms
               ? "SMS is temporarily unavailable and cannot be sent."
               : isReply
-                ? "Sending is not connected for this channel. This only records the reply on the thread."
+                ? "Records a reply you sent outside Squadpitch without sending another message."
                 : "Notes stay inside your workspace and are never sent to the lead."}
         </p>
         <button
@@ -348,35 +343,15 @@ export function Composer({
             <Lock className="w-3 h-3 shrink-0 mt-0.5" />
             <span>{emailDisabledReason}</span>
           </div>
-          <Link
-            href={`/workspaces/${clientId}/settings/integrations`}
-            className="text-[11px] font-medium text-amber-200 hover:text-amber-100 inline-flex items-center gap-1 shrink-0"
-          >
-            <Settings className="w-3 h-3" />
-            Settings
-          </Link>
-        </div>
-      )}
-
-      {/* Legacy log-only strip — only when on the Log external reply
-          tab AND email is also unavailable, so users know neither
-          mode actually delivers a message. Hidden once email goes
-          live for this conversation. */}
-      {isReply && !capabilities.email.available && (
-        <div className="flex items-center justify-between gap-3 px-3 py-2 border-t border-white-10 bg-amber-400/5">
-          <div className="flex items-start gap-2 text-[11px] text-amber-200/80 leading-snug min-w-0">
-            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
-            <span>
-              Outbound sending is not available for this conversation yet.
-            </span>
-          </div>
-          <Link
-            href={`/workspaces/${clientId}/settings/integrations`}
-            className="text-[11px] font-medium text-amber-200 hover:text-amber-100 inline-flex items-center gap-1 shrink-0"
-          >
-            <Settings className="w-3 h-3" />
-            Connect email
-          </Link>
+          {isProviderConnectionAction(authoritativePrimaryAction) && (
+            <Link
+              href={`/workspaces/${clientId}/settings/integrations`}
+              className="text-[11px] font-medium text-amber-200 hover:text-amber-100 inline-flex items-center gap-1 shrink-0"
+            >
+              <Settings className="w-3 h-3" />
+              Manage provider
+            </Link>
+          )}
         </div>
       )}
 

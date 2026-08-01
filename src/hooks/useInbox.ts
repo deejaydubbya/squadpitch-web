@@ -73,6 +73,19 @@ export interface ReplyActionDescriptor {
    *  drives "Connect <provider>" copy in the UI. False when the
    *  blocker is per-conversation (e.g. lead has no phone). */
   requiresConfig: boolean;
+  capability?: {
+    providerConfigured: boolean;
+    accountApproved: boolean;
+    senderVerified: boolean;
+    outboundStreamReady: boolean;
+    inboundRoutingReady: boolean;
+    deliveryVerified: boolean;
+    recipientAvailable: boolean;
+    channelEligible: boolean;
+    canSend: boolean;
+    blockedCode: string | null;
+    blockedReason: string | null;
+  };
 }
 
 export type ConversationProvider =

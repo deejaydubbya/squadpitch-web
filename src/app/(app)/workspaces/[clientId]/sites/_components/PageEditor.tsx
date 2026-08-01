@@ -1446,7 +1446,6 @@ function LeadFormBlockFields({
               <p className="font-semibold text-white-100">{selected.name}</p>
               <p className="text-[11px] text-white-50">
                 {fieldCount} field{fieldCount === 1 ? '' : 's'}
-                {selected.notifyEmail ? ` · notifies ${selected.notifyEmail}` : ''}
               </p>
             </div>
             <Link
@@ -1512,7 +1511,6 @@ function CreateLeadFormModal({
   const defaultTemplate: FormTemplate =
     pageSourceType === 'PROPERTY' ? 'property_inquiry' : 'general';
   const [name, setName] = useState(FORM_TEMPLATE_DEFAULT_NAMES[defaultTemplate]);
-  const [notifyEmail, setNotifyEmail] = useState('');
   const [template, setTemplate] = useState<FormTemplate>(defaultTemplate);
   const [error, setError] = useState<string | null>(null);
 
@@ -1531,7 +1529,6 @@ function CreateLeadFormModal({
           type: 'message',
           message: "Thanks — we'll be in touch shortly.",
         },
-        notifyEmail: notifyEmail.trim() || null,
       });
       onCreated(result.form.id);
     } catch (err) {
@@ -1590,16 +1587,6 @@ function CreateLeadFormModal({
                 .join(', ')}
               .
             </p>
-          </Field>
-          <Field label="Notification email (optional)">
-            <input
-              className="input"
-              type="email"
-              value={notifyEmail}
-              onChange={(e) => setNotifyEmail(e.target.value)}
-              placeholder="agent@example.com"
-              maxLength={320}
-            />
           </Field>
           {error && (
             <p className="text-xs text-accent-red bg-accent-red/10 border border-accent-red/20 rounded-md px-2 py-1.5">

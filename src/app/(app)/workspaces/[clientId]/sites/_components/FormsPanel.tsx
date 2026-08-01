@@ -173,7 +173,6 @@ interface FormShellProps {
 
 function FormShell({ clientId, initial, mode, onClose, onCreated }: FormShellProps) {
   const [name, setName] = useState(initial.name);
-  const [notifyEmail, setNotifyEmail] = useState(initial.notifyEmail ?? '');
   const [fields, setFields] = useState<FormFieldDef[]>(initial.fieldsJson);
   const [successAction, setSuccessAction] = useState<SuccessAction>(initial.successAction);
   const [error, setError] = useState<string | null>(null);
@@ -211,7 +210,6 @@ function FormShell({ clientId, initial, mode, onClose, onCreated }: FormShellPro
         name: name.trim(),
         fieldsJson: fields,
         successAction,
-        notifyEmail: notifyEmail.trim() ? notifyEmail.trim() : null,
       };
       if (mode === 'create') {
         const result = await createForm.mutateAsync(payload);
@@ -306,22 +304,6 @@ function FormShell({ clientId, initial, mode, onClose, onCreated }: FormShellPro
             onChange={(e) => setName(e.target.value)}
             placeholder="Contact form"
           />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-white-50 uppercase tracking-wider mb-1.5">
-            Notify email (optional)
-          </label>
-          <input
-            className="input"
-            type="email"
-            value={notifyEmail}
-            onChange={(e) => setNotifyEmail(e.target.value)}
-            placeholder="agent@example.com"
-          />
-          <p className="text-xs text-white-40 mt-1.5">
-            We&apos;ll send a heads-up email here when this form receives a submission.
-            Leave blank to disable.
-          </p>
         </div>
       </div>
 

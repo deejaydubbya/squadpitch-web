@@ -47,6 +47,7 @@ import { AiReplyPanel } from './AiReplyPanel';
 import { Composer, type ComposerMode } from './Composer';
 import { LeadCard } from './LeadCard';
 import { contactHeadline, formatDateTime, humanizeKey } from './inbox.helpers';
+import { shouldDefaultToPrimary } from './composerActions';
 
 interface ConversationDetailProps {
   clientId: string;
@@ -114,10 +115,10 @@ export function ConversationDetail({
     if (!data) return;
     if (defaultedForId.current === data.id) return;
     defaultedForId.current = data.id;
-    if (data.replyCapabilities?.email.available) {
+    if (shouldDefaultToPrimary(data.availableReplyActions ?? [])) {
       setComposerMode('email');
     }
-  }, [data?.id, data?.replyCapabilities?.email.available]);
+  }, [data?.id, data?.availableReplyActions]);
 
   // The first inbound FORM_SUBMISSION gets hero rendering; subsequent
   // CONTACT messages fall back to the standard bubble layout. Computed
@@ -270,7 +271,9 @@ export function ConversationDetail({
   const handleUseSuggestion = (suggestion: InboxAiSuggestion) => {
     // Prefer the real send channel if it's available — the user
     // almost certainly meant to send, not log.
-    const nextMode: ComposerMode = conv.replyCapabilities?.email.available
+    const nextMode: ComposerMode = shouldDefaultToPrimary(
+      conv.availableReplyActions ?? [],
+    )
       ? 'email'
       : 'reply';
     setComposerMode(nextMode);
@@ -344,13 +347,6 @@ export function ConversationDetail({
             createNote.isPending
           }
           fromSuggestion={Boolean(fromSuggestionId)}
-          capabilities={
-            conv.replyCapabilities ?? {
-              email: { available: false, reason: 'Loading…' },
-              logExternal: { available: true, reason: null },
-              note: { available: true, reason: null },
-            }
-          }
           availableActions={conv.availableReplyActions ?? []}
           provider={conv.provider}
           sendError={sendError}
