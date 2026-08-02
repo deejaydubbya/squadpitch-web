@@ -142,7 +142,6 @@ export function trackActivationEvent(
 
   // ── Development: console output ────────────────────────────────────
   if (process.env.NODE_ENV === "development") {
-    // eslint-disable-next-line no-console
     console.debug("[activation]", event, envelope);
   }
 
@@ -159,15 +158,29 @@ export function trackActivationEvent(
 
 // ── Backend sender stub ─────────────────────────────────────────────────
 
-function sendEvent(_envelope: Record<string, unknown>) {
-  // No-op until a backend analytics endpoint is added.
-  // When ready, uncomment and adapt:
-  //
-  // try {
-  //   fetch('/api/proxy/events', {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify(_envelope),
-  //   }).catch(() => {});
-  // } catch {}
+function sendEvent(envelope: Record<string, unknown>) {
+  const event = typeof envelope.event === "string" ? envelope.event : null;
+  if (!event) return;
+  const meta = envelope.meta && typeof envelope.meta === "object"
+    ? envelope.meta as Record<string, unknown>
+    : {};
+  if (meta.synthetic === true || meta.internalTest === true) return;
+  const safe = (value: unknown): string | number | boolean | null =>
+    typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+      ? value
+      : null;
+  const props = {
+    schemaVersion: "activation.v1",
+    clientId: safe(envelope.clientId),
+    industry: safe(envelope.industry),
+    connectedChannelCount: safe(envelope.connectedChannelCount),
+    postsReadyCount: safe(envelope.postsReadyCount),
+    selectedPlatform: safe(envelope.selectedPlatform),
+    actionSource: safe(envelope.actionSource),
+    step: safe(envelope.step),
+    feature: safe(envelope.feature),
+  };
+  void import("./analytics").then(({ initAnalytics, trackActivation }) =>
+    initAnalytics().then(() => trackActivation(event, props)).catch(() => {}),
+  ).catch(() => {});
 }

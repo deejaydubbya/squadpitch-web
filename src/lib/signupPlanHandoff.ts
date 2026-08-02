@@ -1,14 +1,12 @@
 import type { PlanTier } from "@/hooks/useBilling";
 
-export type SignupPaidPlan = "STARTER" | "PRO" | "GROWTH";
+export type SignupPaidPlan = "STARTER" | "PRO";
 export type CheckoutReturnState = "success" | "cancel" | null;
 
 const PUBLIC_PLAN_ALIASES: Record<string, SignupPaidPlan> = {
   SOLO: "STARTER",
   STARTER: "STARTER",
   PRO: "PRO",
-  TEAM: "GROWTH",
-  GROWTH: "GROWTH",
 };
 
 export function parseSignupPaidPlan(

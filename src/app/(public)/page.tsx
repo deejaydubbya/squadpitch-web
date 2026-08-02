@@ -592,20 +592,6 @@ function PricingPreview() {
       ctaLabel: "Start Free",
       ctaHref: planSignupHref("PRO"),
     },
-    {
-      name: "Team",
-      price: "$149",
-      cadence: "/mo",
-      tagline: "For teams, brokerages, and high-volume content.",
-      points: [
-        "Multiple workspaces",
-        "High-volume campaigns",
-        "Team collaboration",
-        "Brokerage/team support",
-      ],
-      ctaLabel: "Start Free",
-      ctaHref: planSignupHref("TEAM"),
-    },
   ];
 
   return (
@@ -617,7 +603,7 @@ function PricingPreview() {
           </h2>
         </div>
 
-        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
           {tiers.map((t) => (
             <div
               key={t.name}

@@ -116,24 +116,6 @@ const PLANS: PlanDef[] = [
       '150 AI image generations',
     ],
   },
-  {
-    tier: 'GROWTH',
-    label: 'Team',
-    positioning: 'For scaling content across brands',
-    highlights: [
-      '10 workspaces',
-      '500 posts/mo',
-      'Up to 10 channels',
-      'Advanced Autopilot',
-    ],
-    autopilot: 'Advanced',
-    detailedLimits: [
-      '200 images/mo',
-      '30 videos/mo',
-      '30 GB storage',
-      '500 AI image generations',
-    ],
-  },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────

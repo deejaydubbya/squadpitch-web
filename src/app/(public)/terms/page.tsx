@@ -57,7 +57,7 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section heading="3. Workspaces and team members">
+      <Section heading="3. Workspaces">
         <p>
           Squadpitch organizes work into workspaces. The user who creates a
           workspace is the workspace owner and is responsible for the people
@@ -158,14 +158,14 @@ export default function TermsPage() {
       <Section heading="8. Subscriptions, billing, trials, and cancellations">
         <p>
           Squadpitch offers a free tier and self-service paid plans (currently
-          Solo, Pro, and Team). Paid plans are billed monthly through Stripe.
+          Solo and Pro). Paid plans are billed monthly through Stripe.
           You authorize Stripe to charge the payment method on file at the
           beginning of each billing cycle, and you authorize us to update
           plan status based on what Stripe reports.
         </p>
         <p>
           Plan limits — including monthly post / image / video / generation
-          quotas, workspace counts, and team-member counts — are described
+          quotas and workspace counts — are described
           on the public pricing page. Limits reset at the start of each
           calendar month. Overage above your plan&apos;s limits is blocked
           rather than billed unless we expressly tell you otherwise.

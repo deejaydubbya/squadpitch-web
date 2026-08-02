@@ -43,8 +43,8 @@ export default function WorkspacesPage() {
   const workspaceLimit = usageData?.limits.workspaces ?? Infinity;
   const currentTier: PlanTier = usageData?.tier ?? 'FREE';
   const atWorkspaceLimit = (clients?.length ?? 0) >= workspaceLimit;
-  const NEXT_TIER: Partial<Record<PlanTier, PlanTier>> = { FREE: 'PRO', STARTER: 'PRO', PRO: 'GROWTH' };
-  const upgradeTier = NEXT_TIER[currentTier] ?? 'PRO';
+  const NEXT_TIER: Partial<Record<PlanTier, PlanTier>> = { FREE: 'PRO', STARTER: 'PRO' };
+  const upgradeTier = NEXT_TIER[currentTier] ?? null;
   const hasSubscription = currentTier !== 'FREE';
   const isUpgrading = checkout.isPending || changePlan.isPending;
   const canConfirm = deletingClient !== null && confirmText === deletingClient.name;
@@ -161,8 +161,9 @@ export default function WorkspacesPage() {
                   Workspace limit reached
                 </h3>
                 <p className="text-sm text-white-40 mt-1">
-                  Your {currentTier} plan includes {workspaceLimit} workspace{workspaceLimit === 1 ? '' : 's'}. Upgrade to add more.
+                  Your {currentTier} plan includes {workspaceLimit} workspace{workspaceLimit === 1 ? '' : 's'}.
                 </p>
+                {upgradeTier && (
                 <button
                   onClick={() => {
                     if (hasSubscription) {
@@ -181,6 +182,7 @@ export default function WorkspacesPage() {
                   {isUpgrading ? <LoadingSpinner size="sm" /> : <Zap className="w-3.5 h-3.5" />}
                   Upgrade to {upgradeTier}
                 </button>
+                )}
               </div>
             </div>
           </div>

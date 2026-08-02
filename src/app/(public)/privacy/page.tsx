@@ -38,7 +38,7 @@ export default function PrivacyPage() {
             Auth0 identifier and your email.
           </li>
           <li>
-            <strong>Workspace and team information.</strong> Workspace name,
+            <strong>Workspace information.</strong> Workspace name,
             time zone, the people you invite, and the role you assign them.
           </li>
           <li>
@@ -107,7 +107,7 @@ export default function PrivacyPage() {
         <p>We use the data above to:</p>
         <ul className="ml-5 list-disc space-y-1.5">
           <li>Operate the service and your account.</li>
-          <li>Run workspace and team management features.</li>
+          <li>Run workspace management features.</li>
           <li>
             Generate AI content using third-party model providers, applying the
             brand context you have set.

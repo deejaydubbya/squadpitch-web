@@ -136,6 +136,15 @@ export function track(event: AnalyticsEvent, props?: Properties): void {
   }
 }
 
+export function trackActivation(event: string, props?: Properties): void {
+  if (!posthog || !/^[a-z][a-z0-9_]{2,80}$/.test(event)) return;
+  try {
+    posthog.capture(`activation.v1.${event}`, sanitiseProps(props));
+  } catch {
+    // Never let analytics break a UI path.
+  }
+}
+
 /** Identify the current user. We pass only the Auth0 sub. */
 export function identify(userSub: string): void {
   if (!posthog || !userSub) return;
