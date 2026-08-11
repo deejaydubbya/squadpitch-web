@@ -115,7 +115,7 @@ function SiteHeader() {
           </a>
           <a
             href={SIGNUP_HREF}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1DBF60] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#11A64F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1DBF60] focus-visible:ring-offset-2"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-[#1DBF60] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#11A64F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1DBF60] focus-visible:ring-offset-2"
           >
             Start Free
             <ArrowRight className="h-4 w-4" aria-hidden />

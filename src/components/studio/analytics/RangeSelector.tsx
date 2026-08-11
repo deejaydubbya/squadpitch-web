@@ -16,12 +16,12 @@ interface Props {
 
 export function RangeSelector({ value, onChange }: Props) {
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 overflow-x-auto [scrollbar-width:none]">
       {RANGES.map((r) => (
         <button
           key={r.value}
           onClick={() => onChange(r.value)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+          className={`min-h-11 min-w-11 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
             value === r.value
               ? 'bg-accent-green-110 text-sp-bg'
               : 'text-white-60 hover:text-white-100 hover:bg-white-10'

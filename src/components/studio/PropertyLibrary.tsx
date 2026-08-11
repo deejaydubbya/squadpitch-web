@@ -64,21 +64,23 @@ export function PropertyLibrary({ clientId }: Props) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Home className="w-4 h-4 text-teal-400" />
-        <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
-          Property Library
-        </h2>
-        {properties && properties.length > 0 && (
-          <span className="rounded-full bg-teal-500/20 px-2 py-0.5 text-[10px] font-semibold text-teal-300">
-            {properties.length}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
+          <Home className="w-4 h-4 text-teal-400" />
+          <h2 className="text-sm font-semibold text-white-100 uppercase tracking-wider">
+            Property Library
+          </h2>
+          {properties && properties.length > 0 && (
+            <span className="rounded-full bg-teal-500/20 px-2 py-0.5 text-[10px] font-semibold text-teal-300">
+              {properties.length}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 sm:ml-auto">
           <button
             data-testid="property-import-url-button"
             onClick={() => setShowImportUrl(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white-5 text-white-100 hover:bg-white-10 border border-white-10 transition-colors"
+            className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-white-10 bg-white-5 px-3 py-2 text-xs font-semibold text-white-100 transition-colors hover:bg-white-10 sm:flex-none"
           >
             <LinkIcon className="w-3.5 h-3.5" />
             Import from URL
@@ -86,7 +88,7 @@ export function PropertyLibrary({ clientId }: Props) {
           <button
             data-testid="property-add-button"
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent-green-110 text-black hover:bg-accent-green-110/90 transition-colors"
+            className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent-green-110 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-accent-green-110/90 sm:flex-none"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Property
@@ -95,23 +97,23 @@ export function PropertyLibrary({ clientId }: Props) {
       </div>
 
       {/* Search + filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative w-full flex-1 sm:min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white-30" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by address..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+            className="min-h-11 w-full rounded-lg border border-white-10 bg-white-5 py-2 pl-9 pr-3 text-sm text-white-100 placeholder:text-white-30 focus:border-accent-green-110 focus:outline-none"
           />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
           {STATUS_FILTERS.map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
               className={cn(
-                'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                'min-h-11 shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
                 statusFilter === s
                   ? 'bg-teal-500/20 text-teal-300'
                   : 'bg-white-5 text-white-40 hover:text-white-100'

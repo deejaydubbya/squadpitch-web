@@ -127,7 +127,7 @@ export function OnboardingMessageThread({ engine }: Props) {
   let lastStep: string | null = null;
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-5 space-y-4 scrollbar-dark">
+    <div className="flex-1 min-h-0 overscroll-contain overflow-y-auto overflow-x-hidden px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-4 sm:px-6 sm:py-5 space-y-4 scrollbar-dark">
       {conversation.messages.map((msg) => {
         const currentStep = msg.cardType ? STEP_GROUP[msg.cardType] ?? null : null;
         const dividerLabel =
@@ -205,7 +205,7 @@ function MessageBubble({ message, engine, campaignCardRef }: { message: Onboardi
   // ── Resolved interactive prompts — collapsed to minimal text ──
   if (showResolved) {
     return (
-      <div className="px-1">
+      <div className="hidden px-1 sm:block">
         <p className="text-[11px] text-white-30 leading-relaxed">{message.content}</p>
       </div>
     );

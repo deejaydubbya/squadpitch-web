@@ -3,8 +3,15 @@
 @tailwind utilities;
 
 @layer base {
+  html,
   body {
     @apply antialiased;
+    max-width: 100%;
+    min-height: 100dvh;
+    overflow-x: clip;
+    background-color: #0f0c1a;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   /* Apply dark scrollbar styling globally */
@@ -31,6 +38,43 @@
   input::placeholder,
   textarea::placeholder {
     @apply text-white-30;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.accent-green.110');
+    outline-offset: 2px;
+  }
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+:root {
+  --sp-mobile-nav-height: 4rem;
+}
+
+@layer utilities {
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-nav-clearance {
+    padding-bottom: calc(var(--sp-mobile-nav-height) + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -59,6 +103,34 @@
     @apply w-full px-3.5 py-2.5 rounded-xl bg-white-5 border border-white-10 text-white-100 text-sm
            focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30
            min-h-[44px];
+  }
+
+  .mobile-dialog-backdrop {
+    @apply items-end p-0 sm:items-center sm:p-4;
+  }
+
+  .mobile-dialog-surface {
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+    overscroll-behavior: contain;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  input[type='file'] {
+    min-height: 0;
+    font-size: 14px;
+  }
+
+  .onboarding-mobile .card {
+    max-width: 100%;
   }
 }
 

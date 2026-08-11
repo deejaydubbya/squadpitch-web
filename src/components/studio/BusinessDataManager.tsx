@@ -223,13 +223,13 @@ export function BusinessDataManager({ clientId }: Props) {
       <div className="sticky top-0 z-20 bg-sp-bg border-b border-white-10 -mx-1 px-1 pb-3 pt-1">
         {/* Row 1: Search + perf badge + status + actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-[280px]">
+          <div className="relative w-full flex-1 sm:min-w-[200px] sm:max-w-[280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white-30" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={`Search ${bdLabels.itemPlural.toLowerCase()}...`}
-              className="w-full pl-10 pr-4 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 placeholder:text-white-30"
+              className="min-h-11 w-full rounded-lg border border-white-10 bg-white-5 py-2 pl-10 pr-4 text-sm text-white-100 placeholder:text-white-30 focus:border-accent-green-110 focus:outline-none"
             />
           </div>
 
@@ -238,13 +238,13 @@ export function BusinessDataManager({ clientId }: Props) {
             <>
               <button
                 onClick={toggleSelectAll}
-                className="px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+                className="min-h-11 rounded-lg bg-white-10 px-3 py-2 text-xs font-medium text-white-60 transition-colors hover:bg-white-20"
               >
                 {selectedIds.size === items?.length ? 'Deselect All' : 'Select All'}
               </button>
               <button
                 onClick={() => setShowBulkGenerate(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-semibold hover:bg-accent-green-110/20 transition-colors"
+                className="flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-green-110/10 px-3 py-2 text-xs font-semibold text-accent-green-110 transition-colors hover:bg-accent-green-110/20"
               >
                 <Wand2 className="w-3.5 h-3.5" />
                 Create Posts ({selectedItems.length})
@@ -270,7 +270,7 @@ export function BusinessDataManager({ clientId }: Props) {
               {items && items.length > 0 && (
                 <button
                   onClick={toggleSelectAll}
-                  className="px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-medium hover:bg-white-20 transition-colors"
+                  className="min-h-11 rounded-lg bg-white-10 px-3 py-2 text-xs font-medium text-white-60 transition-colors hover:bg-white-20"
                 >
                   Select All
                 </button>
@@ -279,11 +279,11 @@ export function BusinessDataManager({ clientId }: Props) {
           )}
 
           {/* Status toggle */}
-          <div className="flex rounded-lg bg-white-5 border border-white-10 p-0.5 ml-auto">
+          <div className="ml-0 flex rounded-lg border border-white-10 bg-white-5 p-0.5 sm:ml-auto">
             <button
               onClick={() => setStatusFilter('ACTIVE')}
               className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                'min-h-10 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
                 statusFilter === 'ACTIVE'
                   ? 'bg-white-10 text-white-100'
                   : 'text-white-40 hover:text-white-60'
@@ -294,7 +294,7 @@ export function BusinessDataManager({ clientId }: Props) {
             <button
               onClick={() => setStatusFilter('ARCHIVED')}
               className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                'min-h-10 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
                 statusFilter === 'ARCHIVED'
                   ? 'bg-white-10 text-white-100'
                   : 'text-white-40 hover:text-white-60'
@@ -307,7 +307,7 @@ export function BusinessDataManager({ clientId }: Props) {
           {/* Action buttons */}
           <button
             onClick={() => setShowAutopilot(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-white-10 px-3 py-2 text-xs font-semibold text-white-60 transition-colors hover:bg-white-20"
             title="Autopilot"
           >
             <Zap className="w-3.5 h-3.5" />
@@ -315,7 +315,7 @@ export function BusinessDataManager({ clientId }: Props) {
           </button>
           <button
             onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-white-10 px-3 py-2 text-xs font-semibold text-white-60 transition-colors hover:bg-white-20"
             title={isRE ? 'Import' : 'Import Data'}
           >
             <Download className="w-3.5 h-3.5" />
@@ -324,7 +324,7 @@ export function BusinessDataManager({ clientId }: Props) {
           {isRE && (
             <Link
               href={`/workspaces/${clientId}/create?intent=campaign`}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-60 text-xs font-semibold hover:bg-white-20 transition-colors"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg bg-white-10 px-3 py-2 text-xs font-semibold text-white-60 transition-colors hover:bg-white-20"
             >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden lg:inline">Campaign</span>
@@ -332,7 +332,7 @@ export function BusinessDataManager({ clientId }: Props) {
           )}
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-green-110 text-sp-surface text-xs font-semibold hover:bg-accent-green-120 transition-colors"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-green-110 px-3 py-2 text-xs font-semibold text-sp-surface transition-colors hover:bg-accent-green-120"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Item
@@ -340,13 +340,13 @@ export function BusinessDataManager({ clientId }: Props) {
         </div>
 
         {/* Row 2: Type filter pills + Top Performing */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+        <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
           {(isRE ? RE_TYPE_FILTERS : TYPE_FILTERS).map((t) => (
             <button
               key={t.value}
               onClick={() => setTypeFilter(t.value)}
               className={cn(
-                'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                'min-h-11 shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors',
                 typeFilter === t.value
                   ? 'bg-accent-green-110 text-sp-surface'
                   : 'bg-white-10 text-white-60 hover:bg-white-20'
@@ -358,7 +358,7 @@ export function BusinessDataManager({ clientId }: Props) {
           <button
             onClick={() => setShowTopPerforming(!showTopPerforming)}
             className={cn(
-              'flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors',
+              'flex min-h-11 shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors',
               showTopPerforming
                 ? 'bg-green-500/20 text-green-400'
                 : 'bg-white-10 text-white-60 hover:bg-white-20'

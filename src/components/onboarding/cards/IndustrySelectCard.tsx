@@ -25,7 +25,7 @@ export function IndustrySelectCard({ onSelect }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pb-4">
+    <div className="grid grid-cols-1 min-[375px]:grid-cols-2 sm:grid-cols-3 gap-2 pb-4">
       {industries.map((industry) => {
         const IconComponent = INDUSTRY_ICON_MAP[industry.ui?.icon] ?? Briefcase;
         // spinstr421 — only Real Estate + Car Sales are active
@@ -46,7 +46,7 @@ export function IndustrySelectCard({ onSelect }: Props) {
             aria-disabled={isComingSoon}
             title={isComingSoon ? `${industry.label} — coming soon` : industry.label}
             className={cn(
-              'relative flex flex-col items-center gap-1.5 p-3 rounded-lg border border-transparent text-center transition-all',
+              'relative flex min-h-16 flex-row items-center gap-3 rounded-lg border border-transparent p-3 text-left transition-all min-[375px]:flex-col min-[375px]:gap-1.5 min-[375px]:text-center',
               isComingSoon
                 ? 'bg-white-3 cursor-not-allowed opacity-50'
                 : 'bg-white-5 hover:bg-white-10 hover:border-accent-green-110/30 cursor-pointer',

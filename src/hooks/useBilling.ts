@@ -21,6 +21,13 @@ export interface Subscription {
   updatedAt: string;
 }
 
+export interface BillingSubscriptionData {
+  subscription: Subscription | null;
+  effectiveTier?: PlanTier;
+  billingSource: 'FREE' | 'STRIPE' | 'INTERNAL';
+  internalEntitlement?: { tier: PlanTier; status: 'COMPED'; grantedAt: string } | null;
+}
+
 export function hasBillableSubscription(
   subscription: Subscription | null | undefined
 ): boolean {
@@ -56,6 +63,7 @@ export interface UsageData {
     enhancementRuns: number;
   };
   tier: PlanTier;
+  billingSource?: 'FREE' | 'STRIPE' | 'INTERNAL';
 }
 
 // ── Query Keys ──────────────────────────────────────────────────────────
@@ -129,8 +137,8 @@ export interface PlanPricing {
 }
 
 const billingKeys = {
-  subscription: ['billing', 'subscription'] as const,
-  usage: ['billing', 'usage'] as const,
+  subscription: (clientId?: string) => ['billing', 'subscription', clientId ?? 'account'] as const,
+  usage: (clientId?: string) => ['billing', 'usage', clientId ?? 'account'] as const,
   plans: ['billing', 'plans'] as const,
   systemHealth: ['billing', 'system-health'] as const,
   remaining: ['billing', 'remaining'] as const,
@@ -142,11 +150,17 @@ const billingKeys = {
 
 export function useSubscription() {
   return useQuery({
-    queryKey: billingKeys.subscription,
+    queryKey: billingKeys.subscription(),
     queryFn: () =>
-      apiFetch<{ subscription: Subscription | null }>('billing/subscription').then(
-        (r) => r.subscription
-      ),
+      apiFetch<BillingSubscriptionData>('billing/subscription').then((result) => result.subscription),
+  });
+}
+
+export function useBillingSummary(clientId: string) {
+  return useQuery({
+    queryKey: billingKeys.subscription(clientId),
+    queryFn: () =>
+      apiFetch<BillingSubscriptionData>(`billing/subscription?clientId=${encodeURIComponent(clientId)}`),
   });
 }
 
@@ -159,10 +173,10 @@ export function usePlans() {
   });
 }
 
-export function useUsage() {
+export function useUsage(clientId?: string) {
   return useQuery({
-    queryKey: billingKeys.usage,
-    queryFn: () => apiFetch<UsageData>('billing/usage'),
+    queryKey: billingKeys.usage(clientId),
+    queryFn: () => apiFetch<UsageData>(`billing/usage${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ''}`),
     refetchInterval: 60_000,
   });
 }
@@ -217,8 +231,8 @@ export function useChangePlan() {
         body: JSON.stringify(data),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: billingKeys.subscription });
-      qc.invalidateQueries({ queryKey: billingKeys.usage });
+      qc.invalidateQueries({ queryKey: ['billing', 'subscription'] });
+      qc.invalidateQueries({ queryKey: ['billing', 'usage'] });
     },
   });
 }

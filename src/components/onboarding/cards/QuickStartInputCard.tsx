@@ -147,7 +147,7 @@ export function QuickStartInputCard({ onSubmit, onFallbackToIndustry, isProcessi
           placeholder="Paste a listing link, website, or describe what you want…"
           rows={1}
           className={cn(
-            'w-full bg-transparent text-sm text-white-90 placeholder:text-white-30',
+            'w-full bg-transparent text-base text-white-90 placeholder:text-white-30 sm:text-sm',
             'px-4 pt-3.5 pb-12 resize-none outline-none',
             'leading-relaxed',
             isProcessing && 'opacity-50',
@@ -171,7 +171,7 @@ export function QuickStartInputCard({ onSubmit, onFallbackToIndustry, isProcessi
             onClick={handleSubmit}
             disabled={isEmpty || isProcessing}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all',
+              'inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all',
               isEmpty || isProcessing
                 ? 'bg-white-5 text-white-20 cursor-not-allowed'
                 : 'bg-accent-green-110 text-black hover:bg-accent-green-110/90 cursor-pointer',
@@ -197,7 +197,7 @@ export function QuickStartInputCard({ onSubmit, onFallbackToIndustry, isProcessi
         onClick={onFallbackToIndustry}
         disabled={isProcessing}
         className={cn(
-          'flex items-center gap-1 text-[11px] text-white-30 hover:text-white-50 transition-colors mx-auto',
+          'flex min-h-11 items-center gap-1 text-[11px] text-white-30 hover:text-white-50 transition-colors mx-auto',
           isProcessing && 'opacity-50 pointer-events-none',
         )}
       >

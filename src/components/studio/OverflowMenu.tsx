@@ -37,9 +37,11 @@ export function OverflowMenu({ items }: Props) {
   return (
     <div className="relative" ref={menuRef}>
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="p-1.5 rounded-md text-white-60 hover:text-white-100 hover:bg-white-10 transition-colors"
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-white-60 transition-colors hover:bg-white-10 hover:text-white-100"
         title="More actions"
+        aria-label="More post actions"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
@@ -50,6 +52,7 @@ export function OverflowMenu({ items }: Props) {
             const Icon = item.icon;
             return (
               <button
+                type="button"
                 key={item.label}
                 onClick={() => {
                   if (item.disabled || item.loading) return;
@@ -58,7 +61,7 @@ export function OverflowMenu({ items }: Props) {
                 }}
                 disabled={item.disabled || item.loading}
                 className={cn(
-                  'w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+                  'flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40',
                   item.variant === 'danger'
                     ? 'text-accent-red hover:bg-accent-red/10'
                     : 'text-white-80 hover:bg-white-10'

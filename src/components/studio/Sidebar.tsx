@@ -39,7 +39,7 @@ export function Sidebar({ client }: Props) {
   const t = useTranslations('nav');
 
   const isSettingsRoute = pathname.startsWith(`${base}/settings`);
-  const { data: usage } = useUsage();
+  const { data: usage } = useUsage(client.id);
   const { data: campaignStats } = useAutopilotCampaignStats(client.id);
   const autopilotBadgeCount = (campaignStats?.pendingCount ?? 0) + (campaignStats?.readyCount ?? 0);
   // Suite-module flags. While the query is loading we render

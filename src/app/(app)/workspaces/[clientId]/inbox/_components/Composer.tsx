@@ -161,9 +161,9 @@ export function Composer({
   });
 
   return (
-    <div className="card p-0 overflow-hidden">
+    <div className="card overflow-hidden p-0">
       {/* Tab row */}
-      <div className="flex items-center gap-1 px-2 pt-2 border-b border-white-10">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-white-10 px-2 pt-1 sm:pt-2" role="tablist" aria-label="Reply type">
         <SegButton
           active={isEmail}
           onClick={() => onModeChange("email")}
@@ -240,12 +240,12 @@ export function Composer({
                   : "Add a private note for your team…"
           }
           rows={4}
-          className="w-full bg-transparent border-0 px-0 py-1 text-sm text-white-90 placeholder:text-white-30 focus:outline-none resize-none"
+          className="max-h-[28dvh] min-h-20 w-full resize-none border-0 bg-transparent px-0 py-1 text-base text-white-90 placeholder:text-white-30 focus:outline-none sm:text-sm"
         />
       </div>
 
       {/* Helper + action row */}
-      <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-t border-white-10 bg-white-3">
+      <div className="flex flex-col items-stretch gap-2 border-t border-white-10 bg-white-3 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <p className="text-[11px] text-white-50 leading-snug min-w-0">
           {isEmail
             ? isGbpReview
@@ -270,7 +270,7 @@ export function Composer({
           onClick={onSubmit}
           disabled={pending || !body.trim() || isSms}
           className={cn(
-            "text-xs font-semibold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 transition-colors shrink-0",
+            "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition-colors",
             isEmail || isSms
               ? "bg-accent-green-110 text-sp-bg hover:bg-accent-green-100"
               : isReply
@@ -407,7 +407,7 @@ function SegButton({
       disabled={disabled}
       title={disabled ? (disabledTitle ?? undefined) : undefined}
       className={cn(
-        "text-xs font-medium px-3 py-2 border-b-2 -mb-px inline-flex items-center gap-1.5 transition-colors",
+        "-mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors",
         active
           ? activeClass
           : "text-white-50 hover:text-white-90 border-b-transparent",

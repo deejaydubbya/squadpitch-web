@@ -89,15 +89,16 @@ export function GenerateFromDataModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-sp-bg border border-white-10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+    <div className="mobile-dialog-backdrop fixed inset-0 z-50 flex justify-center bg-black/60" role="dialog" aria-modal="true" aria-label="Create post from source">
+      <div className="mobile-dialog-surface w-full max-w-lg overflow-y-auto rounded-t-2xl border border-white-10 bg-sp-bg p-4 shadow-2xl sm:rounded-2xl sm:p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold text-white-100">
             Create Post from Source
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white-40 hover:text-white-100 hover:bg-white-10 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white-40 transition-colors hover:bg-white-10 hover:text-white-100"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>

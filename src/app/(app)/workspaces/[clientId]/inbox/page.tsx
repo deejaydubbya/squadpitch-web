@@ -6,8 +6,8 @@
 // third column even on xl. Keeps the feature-flag gate verbatim;
 // when off, falls back to the ModuleShell "Coming Soon" surface.
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useCallback, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Inbox as InboxIcon, ArrowRight } from 'lucide-react';
 import { useSuiteFlags } from '@/hooks/useSquadpitch';
@@ -30,12 +30,21 @@ export default function InboxPage() {
 
   // Selected conversation is held in the URL so refresh / back work.
   const selectedId = searchParams.get('c');
-  const setSelectedId = (id: string | null) => {
+  const navigateInbox = (
+    changes: { conversationId?: string | null; details?: boolean },
+    method: 'push' | 'replace' = 'push',
+  ) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (id) params.set('c', id);
-    else params.delete('c');
+    if ('conversationId' in changes) {
+      if (changes.conversationId) params.set('c', changes.conversationId);
+      else params.delete('c');
+    }
+    if ('details' in changes) {
+      if (changes.details) params.set('details', '1');
+      else params.delete('details');
+    }
     const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    router[method](qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
   // Detail must be loaded for the contact drawer — it carries the
@@ -49,7 +58,8 @@ export default function InboxPage() {
   // Lead-details drawer state. Always opt-in via the header button —
   // no permanent column anywhere, so the thread gets the full width
   // on every breakpoint.
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsOpen = Boolean(selectedId && searchParams.get('details') === '1');
+  const goBack = useCallback(() => router.back(), [router]);
 
   if (flags && !flags.inbox) {
     const links: ModuleShellLink[] = [
@@ -85,8 +95,10 @@ export default function InboxPage() {
   const sitesHref = `/workspaces/${clientId}/sites`;
 
   return (
-    <div className="h-[calc(100vh-4rem)] -mx-4 sm:-mx-6 -my-4 sm:-my-6 flex flex-col bg-sp-bg">
-      <InboxHeader clientId={clientId} />
+    <div className="flex h-full min-h-0 flex-col bg-sp-bg">
+      <div className={cn(selectedId && 'hidden lg:block')}>
+        <InboxHeader clientId={clientId} />
+      </div>
 
       {/* Two-pane: list (fixed) + detail (flex). Mobile is single-pane
           flow — the list hides itself when a conversation is open and
@@ -102,8 +114,7 @@ export default function InboxPage() {
             clientId={clientId}
             selectedId={selectedId}
             onSelect={(id) => {
-              setSelectedId(id);
-              setDetailsOpen(false);
+              navigateInbox({ conversationId: id, details: false });
             }}
           />
         </aside>
@@ -119,8 +130,8 @@ export default function InboxPage() {
               key={selectedId}
               clientId={clientId}
               conversationId={selectedId}
-              onBack={() => setSelectedId(null)}
-              onOpenDetails={() => setDetailsOpen(true)}
+              onBack={goBack}
+              onOpenDetails={() => navigateInbox({ details: true })}
             />
           ) : (
             <EmptyDetailState sitesHref={sitesHref} />
@@ -133,11 +144,11 @@ export default function InboxPage() {
           Esc handling via keydown is intentionally omitted for MVP;
           adding a global listener costs more than it's worth here. */}
       {detailsOpen && selectedConv && (
-        <LeadDetailsDrawer onClose={() => setDetailsOpen(false)}>
+        <LeadDetailsDrawer onClose={goBack}>
           <ContactSidebar
             clientId={clientId}
             conversation={selectedConv}
-            onClose={() => setDetailsOpen(false)}
+            onClose={goBack}
           />
         </LeadDetailsDrawer>
       )}
@@ -180,18 +191,31 @@ interface DrawerProps {
 }
 
 function LeadDetailsDrawer({ onClose, children }: DrawerProps) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    requestAnimationFrame(() => panelRef.current?.focus());
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm animate-in fade-in"
-      onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Lead details"
     >
-      <div
-        className="w-full sm:max-w-md bg-sp-bg border-l border-white-15 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <button type="button" className="absolute inset-0 hidden bg-transparent sm:block" onClick={onClose} aria-label="Close lead details" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full bg-sp-bg shadow-2xl outline-none animate-in slide-in-from-right duration-200 sm:max-w-md sm:border-l sm:border-white-15">
         {children}
       </div>
     </div>

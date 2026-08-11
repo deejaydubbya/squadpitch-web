@@ -175,17 +175,17 @@ export function OnboardingChannelConnect({
       )}
 
       {/* CTAs */}
-      <div className="flex items-center justify-center gap-4 pt-2">
+      <div className="flex flex-col items-stretch justify-center gap-2 pt-2 sm:flex-row sm:items-center sm:gap-4">
         <button
           onClick={handleContinue}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent-green-110 text-black text-sm font-semibold hover:bg-accent-green-110/90 transition-colors"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent-green-110 px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-accent-green-110/90 sm:w-auto"
         >
           Continue
           <ArrowRight className="w-4 h-4" />
         </button>
         <button
           onClick={handleContinue}
-          className="inline-flex items-center gap-1.5 text-sm text-white-40 hover:text-white-60 transition-colors"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 text-sm text-white-40 transition-colors hover:text-white-60 sm:w-auto"
         >
           <SkipForward className="w-3.5 h-3.5" />
           Skip for now

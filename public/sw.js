@@ -20,8 +20,27 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url;
-  if (url) {
-    event.waitUntil(clients.openWindow(url));
+  const requestedUrl = event.notification.data?.url;
+  if (!requestedUrl) return;
+
+  // Notification payloads are server-controlled, but still constrain navigation
+  // to this installation's origin. The worker deliberately has no fetch handler
+  // and never caches authenticated application responses.
+  let url;
+  try {
+    url = new URL(requestedUrl, self.location.origin);
+  } catch {
+    return;
   }
+  if (url.origin !== self.location.origin) return;
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const existing = windows.find((client) => new URL(client.url).origin === url.origin);
+      if (existing) {
+        return existing.navigate(url.href).then((client) => client?.focus());
+      }
+      return clients.openWindow(url.href);
+    })
+  );
 });

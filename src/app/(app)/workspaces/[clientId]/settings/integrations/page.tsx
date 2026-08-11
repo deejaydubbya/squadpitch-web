@@ -241,31 +241,31 @@ function WebhookCard({
         />
       </div>
 
-      <div className="flex gap-2 ml-12">
+      <div className="flex flex-wrap gap-1 sm:ml-12 sm:gap-2">
         <button
           onClick={onToggleExpand}
-          className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+          className="flex min-h-11 items-center gap-1 px-2 text-xs text-accent-green-110 hover:underline"
         >
           {expanded ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
           {expanded ? 'Hide' : 'Details'}
         </button>
         <button
           onClick={onTest}
-          className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+          className="flex min-h-11 items-center gap-1 px-2 text-xs text-accent-green-110 hover:underline"
         >
           <Send className="w-3 h-3" />
           {testing ? 'Sending...' : 'Test'}
         </button>
         <button
           onClick={onDelete}
-          className="text-xs text-red-400 hover:underline flex items-center gap-1"
+          className="flex min-h-11 items-center gap-1 px-2 text-xs text-red-400 hover:underline"
         >
           <Trash2 className="w-3 h-3" /> Delete
         </button>
       </div>
 
       {expanded && (
-        <div className="ml-12 space-y-3">
+        <div className="space-y-3 sm:ml-12">
           {/* Event toggles */}
           <div className="space-y-1">
             <p className="text-xs text-white-40 uppercase tracking-wider mb-1">
@@ -536,7 +536,7 @@ function GenericIntegrationsSection() {
                 {meta.label}
               </p>
               <p className="text-xs text-white-30 mb-2">{meta.description}</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {entries.map(([type, meta]) => {
                   const Icon = meta.icon;
                   const count = filteredIntegrations?.filter((i) => i.type === type).length ?? 0;
@@ -546,7 +546,7 @@ function GenericIntegrationsSection() {
                       key={type}
                       onClick={() => startAdding(type)}
                       disabled={!!meta.oauth && oauthConnect.isPending}
-                      className="card p-4 text-left hover:border-accent-green-110/30 transition-colors disabled:opacity-50"
+                      className="card min-h-16 p-4 text-left transition-colors hover:border-accent-green-110/30 disabled:opacity-50"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-accent-green-110/20 flex items-center justify-center flex-shrink-0">
@@ -591,16 +591,16 @@ function GenericIntegrationsSection() {
               className="input w-full text-sm font-mono"
             />
           ))}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => handleCreate(adding)}
-              className="btn-primary text-sm px-4"
+              className="btn-primary min-h-11 px-4 text-sm"
             >
               {create.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Create'}
             </button>
             <button
               onClick={() => setAdding(null)}
-              className="text-sm text-white-40 hover:text-white-100"
+              className="min-h-11 px-3 text-sm text-white-40 hover:text-white-100"
             >
               Cancel
             </button>
@@ -732,14 +732,14 @@ function IntegrationCard({
         />
       </div>
 
-      <div className="flex gap-2 ml-12">
+      <div className="flex flex-wrap gap-1 sm:ml-12 sm:gap-2">
         {/* Show Sheets link when configured */}
         {sheetsConfigured && (
           <a
             href={`https://docs.google.com/spreadsheets/d/${config.spreadsheetId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+            className="flex min-h-11 items-center gap-1 px-2 text-xs text-accent-green-110 hover:underline"
           >
             <ExternalLink className="w-3 h-3" />
             {(config.spreadsheetName as string) ?? 'Open Sheet'}
@@ -747,21 +747,21 @@ function IntegrationCard({
         )}
         <button
           onClick={onToggleExpand}
-          className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+          className="flex min-h-11 items-center gap-1 px-2 text-xs text-accent-green-110 hover:underline"
         >
           {expanded ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
           {expanded ? 'Hide' : 'Logs'}
         </button>
         <button
           onClick={onTest}
-          className="text-xs text-accent-green-110 hover:underline flex items-center gap-1"
+          className="flex min-h-11 items-center gap-1 px-2 text-xs text-accent-green-110 hover:underline"
         >
           <Send className="w-3 h-3" />
           {testing ? 'Sending...' : 'Test'}
         </button>
         <button
           onClick={onDelete}
-          className="text-xs text-red-400 hover:underline flex items-center gap-1"
+          className="flex min-h-11 items-center gap-1 px-2 text-xs text-red-400 hover:underline"
         >
           <Trash2 className="w-3 h-3" /> Delete
         </button>
@@ -769,7 +769,7 @@ function IntegrationCard({
 
       {/* Google Sheets: spreadsheet picker when not yet configured */}
       {integration.type === 'google_sheets' && integration.isActive && !sheetsConfigured && (
-        <div className="ml-12 space-y-3">
+        <div className="space-y-3 sm:ml-12">
           <div>
             <label className="text-xs text-white-40 block mb-1">Sheet / Tab Name</label>
             <input
@@ -816,10 +816,10 @@ function IntegrationCard({
 
       {/* Event subscriptions (collapsible) */}
       {integration.isActive && (
-        <div className="ml-12">
+        <div className="sm:ml-12">
           <button
             onClick={() => setEventsOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-xs text-white-40 uppercase tracking-wider hover:text-white-60 transition-colors"
+            className="flex min-h-11 items-center gap-1.5 text-xs uppercase tracking-wider text-white-40 transition-colors hover:text-white-60"
           >
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${eventsOpen ? 'rotate-0' : '-rotate-90'}`} />
             Events ({subscribedEvents.length}/{INTEGRATION_EVENTS.length})
@@ -844,7 +844,7 @@ function IntegrationCard({
       )}
 
       {expanded && (
-        <div className="ml-12 space-y-3">
+        <div className="space-y-3 sm:ml-12">
           {/* Delivery logs */}
           {logs && logs.length > 0 ? (
             <div>

@@ -101,7 +101,15 @@ export function NotificationBell() {
     <>
       <button
         ref={buttonRef}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (window.matchMedia('(max-width: 1023px)').matches) {
+            setOpen(false);
+            router.push('/notifications');
+            return;
+          }
+          setOpen((v) => !v);
+        }}
+        aria-label="Notifications"
         className={cn(
           'relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full',
           open

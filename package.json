@@ -11,6 +11,7 @@
     "test:launch": "vitest run src/app/publicAccess.test.ts src/app/auth/signup/route.test.ts src/lib/authFlow.test.ts src/lib/signupPlanHandoff.test.ts src/lib/onboardingRedirect.test.ts src/lib/onboarding/persistence.test.ts src/lib/channelRegistry.test.ts src/lib/publishErrorMessage.test.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test e2e/mobile-readiness.spec.ts e2e/mobile-authenticated.spec.ts",
     "audit:runtime": "npm audit --omit=dev --audit-level=high",
     "audit:full": "npm audit --audit-level=high",
     "verify:sentry": "node scripts/verify-sentry.mjs"

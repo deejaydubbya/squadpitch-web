@@ -51,7 +51,7 @@ export function MediaTabGenerate({
 }: MediaTabGenerateProps) {
   const generateMedia = useGenerateMedia(clientId);
   const generateVideo = useGenerateVideo(clientId);
-  const { data: usage } = useUsage();
+  const { data: usage } = useUsage(clientId);
   const { data: persona } = useBrandPersona(clientId);
 
   const [videoPreset, setVideoPreset] = useState<string | undefined>(undefined);

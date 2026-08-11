@@ -98,20 +98,20 @@ export function GenerateImageModal({
   const isGenerating = generateMedia.isPending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md mx-4 rounded-2xl border border-white-10 bg-sp-card shadow-xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center">
+      <div className="safe-area-bottom flex max-h-[calc(100dvh-env(safe-area-inset-top,0px))] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-white-10 bg-sp-card shadow-xl sm:mx-4 sm:rounded-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white-10">
           <div className="flex items-center gap-2">
             <Wand2 className="w-4 h-4 text-accent-green-110" />
             <h3 className="text-sm font-semibold text-white">Generate visual</h3>
           </div>
-          <button onClick={onClose} className="text-white-40 hover:text-white-70 transition-colors">
+          <button onClick={onClose} className="grid min-h-11 min-w-11 place-items-center text-white-40 transition-colors hover:text-white-70" aria-label="Close image generator">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="px-4 py-4 flex flex-col gap-4">
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-4 py-4 overscroll-contain">
           {/* RE safety notice */}
           {isRealEstate && (
             <div className="flex items-start gap-2 p-2.5 rounded-lg bg-yellow-500/8 border border-yellow-500/15">
@@ -131,7 +131,7 @@ export function GenerateImageModal({
                   key={t.key}
                   onClick={() => setVisualType(t.key)}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                    'min-h-11 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                     visualType === t.key
                       ? 'bg-accent-green-110/15 text-accent-green-110 border border-accent-green-110/30'
                       : 'bg-white-5 text-white-50 border border-white-10 hover:border-white-15',
@@ -152,7 +152,7 @@ export function GenerateImageModal({
                   key={s.key}
                   onClick={() => setStyle(s.key)}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                    'min-h-11 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                     style === s.key
                       ? 'bg-accent-green-110/15 text-accent-green-110 border border-accent-green-110/30'
                       : 'bg-white-5 text-white-50 border border-white-10 hover:border-white-15',
@@ -172,7 +172,7 @@ export function GenerateImageModal({
               value={textOverlay}
               onChange={(e) => setTextOverlay(e.target.value)}
               placeholder="e.g., Just Listed, Open Sunday 1–4pm"
-              className="w-full rounded-lg bg-white-5 border border-white-10 px-3 py-2 text-xs text-white-80 placeholder:text-white-25 focus:outline-none focus:border-accent-green-110/40"
+              className="min-h-11 w-full rounded-lg border border-white-10 bg-white-5 px-3 py-2 text-base text-white-80 placeholder:text-white-25 focus:border-accent-green-110/40 focus:outline-none sm:text-xs"
             />
           </div>
 
@@ -201,11 +201,11 @@ export function GenerateImageModal({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-white-10 flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 border-t border-white-10 px-4 py-3">
           <button
             onClick={onClose}
             disabled={isGenerating}
-            className="px-4 py-2 rounded-lg text-xs text-white-50 hover:bg-white-5 transition-colors"
+            className="min-h-11 px-4 py-2 rounded-lg text-xs text-white-50 hover:bg-white-5 transition-colors"
           >
             Cancel
           </button>
@@ -213,7 +213,7 @@ export function GenerateImageModal({
             onClick={handleGenerate}
             disabled={isGenerating}
             className={cn(
-              'flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors',
+              'flex min-h-11 items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors',
               isGenerating
                 ? 'bg-white-10 text-white-30 cursor-not-allowed'
                 : 'bg-accent-green-110 text-black hover:bg-accent-green-110/90',

@@ -25,13 +25,14 @@ export default function SettingsBrandPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1">
+      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0">
+        <div className="flex min-w-max items-center gap-1">
         {sections.map((s) => (
           <button
             key={s.key}
             onClick={() => setSection(s.key)}
             className={cn(
-              'px-3 py-1.5 text-sm font-medium rounded-lg transition-colors',
+              'min-h-11 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors sm:min-h-0',
               section === s.key
                 ? 'bg-accent-green-110/15 text-accent-green-110'
                 : 'text-white-40 hover:text-white-100 hover:bg-white-5'
@@ -40,6 +41,7 @@ export default function SettingsBrandPage() {
             {s.label}
           </button>
         ))}
+        </div>
       </div>
 
       {section === 'profile' && <BrandProfileForm clientId={clientId} />}

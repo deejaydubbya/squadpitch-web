@@ -46,12 +46,12 @@ export function GBPReviewReplyModal({ clientId, review, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg mx-4 rounded-2xl bg-sp-surface border border-white-10 shadow-2xl">
+    <div className="mobile-dialog-backdrop fixed inset-0 z-50 flex justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Reply to review">
+      <div className="mobile-dialog-surface flex w-full max-w-lg flex-col overflow-y-auto rounded-t-2xl border border-white-10 bg-sp-surface shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white-10">
           <h3 className="text-sm font-semibold text-white-100">Reply to Review</h3>
-          <button onClick={onClose} className="p-1 rounded-lg text-white-30 hover:text-white-60 hover:bg-white-10 transition-colors">
+          <button onClick={onClose} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white-30 transition-colors hover:bg-white-10 hover:text-white-60" aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -90,7 +90,7 @@ export function GBPReviewReplyModal({ clientId, review, onClose }: Props) {
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <label className="text-xs text-white-40">Your reply</label>
+                <label htmlFor="gbp-review-reply" className="text-xs text-white-40">Your reply</label>
                 <button
                   onClick={generateDraft}
                   disabled={isGenerating}
@@ -105,6 +105,7 @@ export function GBPReviewReplyModal({ clientId, review, onClose }: Props) {
                 </button>
               </div>
               <textarea
+                id="gbp-review-reply"
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 placeholder="Write your reply..."
@@ -116,14 +117,14 @@ export function GBPReviewReplyModal({ clientId, review, onClose }: Props) {
                 {replyText.length}/4096
               </p>
               {error && (
-                <p className="text-xs text-red-400">{error}</p>
+                <p className="text-xs text-red-400" role="alert">{error}</p>
               )}
             </>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-white-10">
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t border-white-10 bg-sp-surface px-5 py-4">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm text-white-40 hover:text-white-60 transition-colors"

@@ -273,7 +273,7 @@ export function AssetLibrary({ clientId }: Props) {
   }, [assets, tagDefaults]);
 
   // ── Usage / billing ──────────────────────────────────────────────
-  const { data: usage } = useUsage();
+  const { data: usage } = useUsage(clientId);
 
   // ── Mutations ─────────────────────────────────────────────────────
   const uploadAsset = useUploadAsset(clientId);
@@ -485,9 +485,9 @@ export function AssetLibrary({ clientId }: Props) {
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <div className="flex gap-4">
+    <div className="flex min-w-0 flex-col gap-4 md:flex-row">
       {/* ── Folder Sidebar ──────────────────────────────────────────── */}
-      <div className="w-48 flex-shrink-0 space-y-1">
+      <div className="hidden w-48 flex-shrink-0 space-y-1 md:block">
         <button
           onClick={() => setActiveFolderId(null)}
           className={cn(
@@ -628,9 +628,23 @@ export function AssetLibrary({ clientId }: Props) {
 
       {/* ── Main Content ────────────────────────────────────────────── */}
       <div className="flex-1 space-y-4 min-w-0">
+        <label className="block space-y-1 md:hidden">
+          <span className="text-xs font-medium text-white-60">Folder</span>
+          <select
+            value={activeFolderId ?? ''}
+            onChange={(event) => setActiveFolderId(event.target.value || null)}
+            className="min-h-11 w-full rounded-lg border border-white-10 bg-sp-surface px-3 text-sm text-white-100"
+          >
+            <option value="">All Assets</option>
+            <option value="UNFILED">Unfiled</option>
+            {folders?.map((folder) => (
+              <option key={folder.id} value={folder.id}>{folder.name} ({folder.assetCount})</option>
+            ))}
+          </select>
+        </label>
         {/* Row 1: Search + action buttons */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+        <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
+          <div className="relative col-span-3 flex-1 sm:col-span-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white-40" />
             <input
               type="text"
@@ -642,21 +656,21 @@ export function AssetLibrary({ clientId }: Props) {
           </div>
           <button
             onClick={() => setShowUploadModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-80 text-sm font-medium hover:bg-white-20 transition-colors flex-shrink-0"
+            className="flex min-h-11 items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-white-10 text-white-80 text-xs font-medium hover:bg-white-20 transition-colors flex-shrink-0 sm:px-3 sm:text-sm"
           >
             <Upload className="w-4 h-4" />
             Upload
           </button>
           <button
             onClick={() => setShowCloudModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white-10 text-white-80 text-sm font-medium hover:bg-white-20 transition-colors flex-shrink-0"
+            className="flex min-h-11 items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-white-10 text-white-80 text-xs font-medium hover:bg-white-20 transition-colors flex-shrink-0 sm:px-3 sm:text-sm"
           >
             <Cloud className="w-4 h-4" />
             Import
           </button>
           <button
             onClick={() => setShowGenerateModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-green-110 text-sp-dark text-sm font-medium hover:bg-accent-green-110/90 transition-colors flex-shrink-0"
+            className="flex min-h-11 items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-accent-green-110 text-sp-dark text-xs font-medium hover:bg-accent-green-110/90 transition-colors flex-shrink-0 sm:px-3 sm:text-sm"
           >
             <Wand2 className="w-4 h-4" />
             Generate
@@ -742,7 +756,7 @@ export function AssetLibrary({ clientId }: Props) {
                     ? 'No media in this folder yet.'
                     : 'Upload images or generate visuals to start building your media library.'}
                 </p>
-                <div className="flex items-center justify-center gap-3">
+                <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                   <button
                     onClick={() => setShowUploadModal(true)}
                     className="px-4 py-2 rounded-lg bg-white-10 text-white-60 text-sm font-medium hover:bg-white-20 flex items-center gap-2"

@@ -688,6 +688,32 @@ export function useConversationalAssistant(
     setInitialized(false);
   }, []);
 
+  /** Switch creation modes intentionally, clearing only the unsaved
+   * assistant session and immediately opening the first step for the
+   * requested mode. Persisted API drafts are never touched. */
+  const resetToMode = useCallback((mode: 'campaign' | 'quick_post') => {
+    const modeAction: AssistantAction = { type: 'SET_MODE', payload: mode };
+    const nextSession = sessionReducer(session, modeAction);
+    const nextPrompt = resolveNextPrompts(nextSession)[0];
+
+    dispatchSession(modeAction);
+    dispatchConversation({ type: 'CLEAR' });
+    dispatchConversation({
+      type: 'ADD_MESSAGE',
+      payload: buildFieldConfirmation(
+        modeAction.type,
+        mode === 'quick_post' ? 'Mode: Single Post' : 'Mode: Campaign',
+      ),
+    });
+    if (nextPrompt) {
+      dispatchConversation({
+        type: 'ADD_MESSAGE',
+        payload: buildNextPromptMessage(nextPrompt, nextSession),
+      });
+    }
+    setInitialized(true);
+  }, [session]);
+
   /**
    * Append a one-off assistant_text message to the conversation.
    * Used by the shell to surface non-blocking notices (e.g. a
@@ -713,6 +739,7 @@ export function useConversationalAssistant(
     handleCardSelection,
     requestRevision,
     reset,
+    resetToMode,
     postAssistantText,
     dispatch: dispatchSession,
   };

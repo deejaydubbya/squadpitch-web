@@ -35,8 +35,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // Build first, then start. Same command CI will use.
-    command: 'npm run build && npx next start -p 3001',
+    // Build first, then run the standalone artifact used by production.
+    command: 'npm run build && node scripts/start-standalone.mjs',
     url: 'http://127.0.0.1:3001',
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

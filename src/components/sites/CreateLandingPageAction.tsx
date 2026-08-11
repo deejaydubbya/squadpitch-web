@@ -76,7 +76,7 @@ export function CreateLandingPageAction({
     variant === 'link' &&
       'inline-flex items-center gap-1.5 text-sm text-accent-green-110 hover:underline',
     variant === 'icon' &&
-      'p-1.5 rounded-lg text-white-40 hover:text-accent-green-110 hover:bg-accent-green-110/10 transition-colors',
+      'flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white-40 transition-colors hover:bg-accent-green-110/10 hover:text-accent-green-110',
     className,
   );
 

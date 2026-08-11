@@ -146,8 +146,8 @@ export function ChannelSettingsTable({ clientId }: Props) {
             key={row.channel}
             className="rounded-lg border border-white-10 bg-white-5 p-3"
           >
-            <div className="flex items-center gap-3 flex-wrap">
-              <label className="flex items-center gap-2 min-w-28">
+            <div className="grid grid-cols-1 gap-3 sm:flex sm:items-center sm:flex-wrap">
+              <label className="flex min-h-11 items-center gap-2 sm:min-h-0 sm:min-w-28">
                 <input
                   type="checkbox"
                   checked={row.isEnabled}
@@ -176,11 +176,11 @@ export function ChannelSettingsTable({ clientId }: Props) {
                     ? `Platform default: ${DEFAULT_MAX_CHARS_BY_CHANNEL[row.channel]}. Leave blank to use it; type a value to enforce a tighter cap.`
                     : 'Maximum characters per post (body + hashtags combined)'
                 }
-                className="w-32 px-2 py-1.5 rounded bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110"
+                className="min-h-11 w-full px-2 py-1.5 rounded bg-white-5 border border-white-10 text-white-100 text-xs focus:outline-none focus:border-accent-green-110 sm:min-h-0 sm:w-32"
                 disabled={!row.isEnabled}
               />
 
-              <label className="flex items-center gap-1.5 text-xs text-white-60">
+              <label className="flex min-h-11 items-center gap-1.5 text-xs text-white-60 sm:min-h-0">
                 <input
                   type="checkbox"
                   checked={row.allowEmoji}
@@ -200,7 +200,7 @@ export function ChannelSettingsTable({ clientId }: Props) {
                   updateRow(idx, { trailingHashtags: e.target.value })
                 }
                 placeholder="#tag1 #tag2"
-                className="flex-1 min-w-36 px-2 py-1.5 rounded bg-white-5 border border-white-10 text-white-100 text-xs font-mono focus:outline-none focus:border-accent-green-110"
+                className="min-h-11 w-full px-2 py-1.5 rounded bg-white-5 border border-white-10 text-white-100 text-xs font-mono focus:outline-none focus:border-accent-green-110 sm:min-h-0 sm:min-w-36 sm:flex-1"
                 disabled={!row.isEnabled}
               />
             </div>

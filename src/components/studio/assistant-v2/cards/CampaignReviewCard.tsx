@@ -171,7 +171,7 @@ export function CampaignReviewCard({ session, clientId, onSelection }: Props) {
   }, [initialCampaignLanguage]);
   const generateMedia = useGenerateMedia(clientId);
   const generateVideoMutation = useGenerateVideo(clientId);
-  const { data: usage } = useUsage();
+  const { data: usage } = useUsage(clientId);
 
   const aiImageAvailable = mediaProfile?.mode === 'BRAND_ASSETS_PLUS_AI' || mediaProfile?.mode === 'AI_CHARACTER';
   const atImageLimit = !!(usage && isFinite(usage.limits.images) && usage.usage.images >= usage.limits.images);

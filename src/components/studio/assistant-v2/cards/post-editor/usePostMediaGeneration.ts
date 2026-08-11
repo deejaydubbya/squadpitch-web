@@ -18,7 +18,7 @@ export function usePostMediaGeneration({
   const qc = useQueryClient();
   const generateMediaMutation = useGenerateMedia(clientId);
   const generateVideoMutation = useGenerateVideo(clientId);
-  const { data: usage } = useUsage();
+  const { data: usage } = useUsage(clientId);
 
   const [localAssets, setLocalAssets] = useState<Map<string, MediaAsset>>(new Map());
 

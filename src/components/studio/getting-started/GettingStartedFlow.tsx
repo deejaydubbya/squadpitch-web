@@ -238,7 +238,7 @@ export function GettingStartedFlow({ clientId }: Props) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <div className="mx-auto max-w-2xl space-y-5 sm:space-y-8">
       {/* Progress bar */}
       <ContentSetProgress
         step={step}
@@ -396,7 +396,7 @@ function IntroStep({
   onStart: () => void;
 }) {
   return (
-    <div className="card p-8 md:p-10 space-y-8 border-accent-green-110/20">
+    <div className="card space-y-6 border-accent-green-110/20 p-4 sm:p-8 md:p-10 md:space-y-8">
       <div className="text-center space-y-3">
         <div className="w-16 h-16 rounded-full bg-accent-green-110/20 flex items-center justify-center mx-auto mb-4">
           <Sparkles className="w-8 h-8 text-accent-green-110" />
@@ -576,7 +576,7 @@ function ReviewStep({
         : 'Give it a quick review, then continue to the next.';
 
   return (
-    <div className="card p-6 space-y-5">
+    <div className="card space-y-5 p-4 sm:p-6">
       <div>
         <h2 className="text-lg font-semibold text-white-100">{headline}</h2>
         <p className="text-sm text-white-40 mt-1">{subtext}</p>
@@ -584,7 +584,7 @@ function ReviewStep({
 
       {/* Post thumbnails — mini nav showing all posts */}
       {totalPosts > 1 && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-dark">
           {allPosts.map((d, i) => {
             const reviewed = reviewedSet.has(d.id);
             const isCurrent = i === postIndex;
@@ -644,14 +644,14 @@ function ReviewStep({
             <>
               <button
                 onClick={() => setCarouselIndex((prev) => (prev - 1 + readyAssets.length) % readyAssets.length)}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute left-2 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                 aria-label="Previous image"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setCarouselIndex((prev) => (prev + 1) % readyAssets.length)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute right-2 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                 aria-label="Next image"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -715,7 +715,7 @@ function ReviewStep({
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
               rows={5}
-              className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110/50 resize-none transition-colors"
+              className="min-h-32 w-full resize-y rounded-lg border border-white-10 bg-white-5 px-3 py-2 text-base text-white-100 transition-colors focus:border-accent-green-110/50 focus:outline-none sm:resize-none sm:text-sm"
               autoFocus
             />
             <div className="flex items-center justify-between">
@@ -828,7 +828,7 @@ function SuccessStep({
   }, [allPosts]);
 
   return (
-    <div className="card p-8 md:p-10 text-center space-y-8 border-accent-green-110/20">
+    <div className="card space-y-6 border-accent-green-110/20 p-4 text-center sm:p-8 md:p-10 md:space-y-8">
       <div className="w-20 h-20 rounded-full bg-accent-green-110/20 flex items-center justify-center mx-auto">
         <PartyPopper className="w-10 h-10 text-accent-green-110" />
       </div>
@@ -838,8 +838,8 @@ function SuccessStep({
       </h2>
 
       {/* Bold summary card */}
-      <div className="rounded-xl bg-accent-green-110/10 border border-accent-green-110/20 p-6 space-y-2">
-        <p className="text-4xl font-bold text-white-100">
+      <div className="space-y-2 rounded-xl border border-accent-green-110/20 bg-accent-green-110/10 p-4 sm:p-6">
+        <p className="text-3xl font-bold text-white-100 sm:text-4xl">
           {reviewedCount} post{reviewedCount !== 1 ? 's' : ''} ready
         </p>
         <p className="text-base text-accent-green-110 font-medium">
@@ -941,4 +941,3 @@ function ChannelBadge({ channel }: { channel: Channel }) {
     </span>
   );
 }
-

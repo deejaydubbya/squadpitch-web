@@ -15,6 +15,7 @@ import { SummaryPanel } from './SummaryPanel';
 import type { AssistantAction, AssistantCampaignType } from '@/lib/assistant/types';
 import type { Channel } from '@/hooks/useSquadpitch';
 import { getDefaultCampaignTypeForSource } from '@/lib/assistant/contentPreferences';
+import { DesktopRecommendedNotice } from '@/components/mobile/ResponsivePrimitives';
 
 // Prefill payload passed in by the /create route from the parsed
 // query contract (see lib/assistant/createRouteParams.ts). Every
@@ -97,6 +98,7 @@ export function ConversationalShell({
     handleCardSelection,
     requestRevision,
     reset,
+    resetToMode,
     postAssistantText,
   } = useConversationalAssistant(clientId, client?.industryKey ?? undefined);
 
@@ -475,7 +477,7 @@ export function ConversationalShell({
   // extra deps needed for the Plan 07 additions.
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full overflow-hidden lg:h-screen">
       {/* Main chat area */}
       <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full min-h-0">
         {/* Header — fixed */}
@@ -485,18 +487,40 @@ export function ConversationalShell({
           </h1>
           {session.mode && (
             <button
+              type="button"
               onClick={() => {
                 if (window.confirm('Start over? This will clear your current progress.')) {
                   reset();
                 }
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white-40 transition-colors hover:bg-white-5 hover:text-white-100"
             >
               <RotateCcw className="w-3 h-3" />
               Start over
             </button>
           )}
         </div>
+
+        {session.mode === 'campaign' && (
+          <div className="shrink-0 px-3 pt-3 lg:hidden">
+            <DesktopRecommendedNotice>
+              <div className="space-y-2">
+                <p>The campaign workspace is optimized for a larger screen. You can continue here, or switch to the shorter phone-friendly flow.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Switch to Quick Create? Your unsaved campaign setup will be cleared.')) {
+                      resetToMode('quick_post');
+                    }
+                  }}
+                  className="min-h-11 rounded-lg border border-accent-green-110/30 px-3 py-2 text-xs font-semibold text-accent-green-110 hover:bg-accent-green-110/10"
+                >
+                  Back to Quick Create
+                </button>
+              </div>
+            </DesktopRecommendedNotice>
+          </div>
+        )}
 
         {/* Message thread — scrollable */}
         <MessageThread

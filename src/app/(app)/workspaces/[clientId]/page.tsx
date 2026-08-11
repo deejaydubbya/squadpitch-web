@@ -14,6 +14,10 @@ import {
   Eye,
   AlertCircle,
   ArrowRight,
+  CalendarDays,
+  Clock3,
+  Database,
+  Inbox,
 } from 'lucide-react';
 import {
   useClient,
@@ -382,7 +386,71 @@ export default function OverviewPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="max-w-5xl">
+      <section className="space-y-5 lg:hidden" aria-label="Mobile workspace overview">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-white-40">Today</p>
+          <h1 className="mt-1 text-xl font-bold text-white-100">{client.name}</h1>
+          <p className="mt-1 text-sm text-white-50">Your content priorities at a glance.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2" aria-label="Workspace summary">
+          {suiteFlags?.inbox && <MobileMetric href={`${base}/inbox`} label="Unread inbox" value={inboxStats?.unreadCount ?? 0} accent="text-blue-400" />}
+          <MobileMetric href={`${base}/planner`} label="Needs review" value={analytics?.byStatus?.PENDING_REVIEW ?? 0} accent="text-yellow-400" />
+          <MobileMetric href={`${base}/planner`} label="Scheduled" value={summary?.scheduledUpcoming ?? 0} accent="text-green-400" />
+          <MobileMetric href={`${base}/planner`} label="Published this week" value={summary?.publishedThisWeek ?? 0} accent="text-accent-green-110" />
+        </div>
+
+        <div>
+          <h2 className="mb-2 text-sm font-semibold text-white-100">Quick actions</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {suiteFlags?.inbox && <MobileQuickAction href={`${base}/inbox`} label="Inbox" icon={Inbox} />}
+            <MobileQuickAction href={`${base}/create`} label="Create post" icon={Sparkles} primary />
+            <MobileQuickAction href={`${base}/planner`} label="View schedule" icon={CalendarDays} />
+            <MobileQuickAction href={`${base}/data`} label={client.industryKey === 'real_estate' ? 'Add property' : client.industryKey === 'car_sales' ? 'Add vehicle' : 'Add inventory'} icon={Database} />
+            {(analytics?.byStatus?.PENDING_REVIEW ?? 0) > 0 && <MobileQuickAction href={`${base}/planner`} label="Review approvals" icon={Eye} />}
+          </div>
+        </div>
+
+        {attentionItems.length > 0 && (
+          <div className="card p-3">
+            <div className="mb-2 flex items-center gap-2"><AlertCircle className="h-4 w-4 text-yellow-400" aria-hidden="true" /><h2 className="text-sm font-semibold text-white-100">Needs attention</h2></div>
+            <div className="divide-y divide-white-10">
+              {attentionItems.slice(0, 3).map((item) => (
+                <Link key={item.label} href={item.href} className="flex min-h-12 items-center gap-3 py-2">
+                  <span className={`min-w-6 text-lg font-bold ${item.accent}`}>{item.count}</span><span className="flex-1 text-sm text-white-70">{item.label}</span><ChevronRight className="h-4 w-4 text-white-30" aria-hidden="true" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {upcomingPosts.length > 0 && (
+          <div className="card p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-accent-green-110" aria-hidden="true" /><h2 className="text-sm font-semibold text-white-100">Up next</h2></div>
+              <Link href={`${base}/planner`} className="min-h-11 py-3 text-xs font-medium text-accent-green-110">View schedule</Link>
+            </div>
+            <div className="divide-y divide-white-10">
+              {upcomingPosts.slice(0, 2).map((post) => (
+                <Link key={post.id} href={`${base}/planner`} className="flex min-h-14 items-center gap-3 py-2">
+                  <CalendarDays className="h-4 w-4 shrink-0 text-white-40" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate text-sm text-white-70">{post.body || 'Scheduled post'}</span>
+                  <time className="shrink-0 text-xs text-white-40" dateTime={post.scheduledFor!}>{new Date(post.scheduledFor!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</time>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(analytics?.byStatus?.FAILED ?? 0) > 0 && (
+          <Link href={`${base}/planner`} className="flex min-h-12 items-center gap-3 rounded-xl border border-red-400/20 bg-red-400/5 p-3">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-400" aria-hidden="true" /><span className="flex-1 text-sm text-white-80">{analytics?.byStatus?.FAILED} recent publishing failure{analytics?.byStatus?.FAILED === 1 ? '' : 's'}</span><ChevronRight className="h-4 w-4 text-white-30" aria-hidden="true" />
+          </Link>
+        )}
+      </section>
+
+      <div className="hidden space-y-6 lg:block">
       {/* ── Header ── */}
       <div>
         <h1 className="text-xl font-bold text-white-100">{client.name}</h1>
@@ -493,6 +561,7 @@ export default function OverviewPage() {
         isRE={isRE}
         onDuplicate={(draftId) => duplicate.mutate(draftId)}
       />
+      </div>
     </div>
   );
 }
@@ -502,6 +571,51 @@ export default function OverviewPage() {
 // ══════════════════════════════════════════════════════════════════════════
 
 // ── Weekly Snapshot ───────────────────────────────────────────────────────
+
+function MobileMetric({
+  href,
+  label,
+  value,
+  accent,
+}: {
+  href: string;
+  label: string;
+  value: number;
+  accent: string;
+}) {
+  return (
+    <Link href={href} className="min-h-20 rounded-xl border border-white-10 bg-white-5 p-3 transition-colors hover:border-white-20">
+      <p className={`text-xl font-semibold ${accent}`}>{value}</p>
+      <p className="text-xs text-white-50">{label}</p>
+    </Link>
+  );
+}
+
+function MobileQuickAction({
+  href,
+  label,
+  icon: Icon,
+  primary = false,
+}: {
+  href: string;
+  label: string;
+  icon: typeof Sparkles;
+  primary?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors hover:text-white-100 ${
+        primary
+          ? 'border-accent-green-110/30 bg-accent-green-110/10 text-white-100'
+          : 'border-white-10 bg-white-5 text-white-80 hover:border-white-20'
+      }`}
+    >
+      <Icon className="h-4 w-4 text-accent-green-110" aria-hidden="true" />
+      <span>{label}</span>
+    </Link>
+  );
+}
 
 function WeeklySnapshot({
   analytics,
@@ -592,7 +706,7 @@ function WeeklySnapshot({
 // ── Dashboard Usage Widget ──────────────────────────────────────────
 
 function DashboardUsageWidget({ clientId, base }: { clientId: string; base: string }) {
-  const { data: usage } = useUsage();
+  const { data: usage } = useUsage(clientId);
   const trackedRef = useRef(false);
 
   useEffect(() => {

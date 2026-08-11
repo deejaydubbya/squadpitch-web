@@ -9,7 +9,7 @@ interface Props {
 
 export function QuickPostSourceCard({ onSelection }: Props) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <button
         onClick={() =>
           onSelection(
@@ -17,7 +17,7 @@ export function QuickPostSourceCard({ onSelection }: Props) {
             'Source: Use my data'
           )
         }
-        className="flex flex-col items-center gap-2 p-3 rounded-lg border border-white-10 hover:border-accent-green-110 hover:bg-accent-green-110/5 transition-colors text-center"
+        className="flex min-h-24 flex-col items-center gap-2 rounded-lg border border-white-10 p-3 text-center transition-colors hover:border-accent-green-110 hover:bg-accent-green-110/5"
       >
         <Database className="w-5 h-5 text-accent-green-110" />
         <span className="text-xs font-medium text-white-100">Use my data</span>
@@ -31,7 +31,7 @@ export function QuickPostSourceCard({ onSelection }: Props) {
             'Source: Start from an idea'
           )
         }
-        className="flex flex-col items-center gap-2 p-3 rounded-lg border border-white-10 hover:border-accent-green-110 hover:bg-accent-green-110/5 transition-colors text-center"
+        className="flex min-h-24 flex-col items-center gap-2 rounded-lg border border-white-10 p-3 text-center transition-colors hover:border-accent-green-110 hover:bg-accent-green-110/5"
       >
         <Lightbulb className="w-5 h-5 text-accent-green-110" />
         <span className="text-xs font-medium text-white-100">Start from an idea</span>

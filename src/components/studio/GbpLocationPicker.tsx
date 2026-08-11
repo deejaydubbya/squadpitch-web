@@ -40,11 +40,14 @@ export function GbpLocationPicker({ clientId, currentLocationName, onClose }: Pr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="mobile-dialog-backdrop fixed inset-0 z-50 flex justify-center bg-black/70 backdrop-blur-sm"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pick a Google Business Profile location"
     >
       <div
-        className="relative w-full max-w-lg mx-4 bg-sp-surface rounded-2xl overflow-hidden"
+        className="mobile-dialog-surface relative flex w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-sp-surface sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-white-10">
@@ -53,7 +56,7 @@ export function GbpLocationPicker({ clientId, currentLocationName, onClose }: Pr
           </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-white-40 hover:text-white-100 hover:bg-white-10 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-white-40 transition-colors hover:bg-white-10 hover:text-white-100"
             aria-label="Close"
           >
             <X className="w-4 h-4" />

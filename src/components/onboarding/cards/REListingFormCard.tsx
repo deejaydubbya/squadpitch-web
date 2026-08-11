@@ -20,19 +20,19 @@ interface Props {
 }
 
 const inputCn = cn(
-  'w-full px-3 py-2 rounded-lg text-sm',
+  'w-full min-h-11 px-3 py-2 rounded-lg text-base sm:text-sm',
   'bg-white-5 border border-white-10 text-white-90',
   'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
 );
 
 const textareaCn = cn(
-  'w-full px-3 py-2 rounded-lg text-sm resize-none',
+  'w-full min-h-11 px-3 py-2 rounded-lg text-base sm:text-sm resize-y sm:resize-none',
   'bg-white-5 border border-white-10 text-white-90',
   'placeholder:text-white-30 focus:border-accent-green-110/50 focus:outline-none',
 );
 
 const selectCn = cn(
-  'w-full px-2 py-2 rounded-lg text-sm appearance-none',
+  'w-full min-h-11 px-2 py-2 rounded-lg text-base sm:text-sm appearance-none',
   'bg-white-5 border border-white-10 text-white-90',
   'focus:border-accent-green-110/50 focus:outline-none',
   '[&>option]:bg-sp-bg [&>option]:text-white-90',
@@ -62,7 +62,7 @@ export function REListingFormCard({ onSubmit, isSubmitting }: Props) {
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 min-[390px]:grid-cols-3">
           <div>
             <Label>City</Label>
             <input
@@ -114,7 +114,7 @@ export function REListingFormCard({ onSubmit, isSubmitting }: Props) {
 
       {/* ── Listing Facts ───────────────────────────────────────── */}
       <Section title="Listing facts">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 min-[375px]:grid-cols-2">
           <div>
             <Label>Price</Label>
             <input
@@ -137,7 +137,7 @@ export function REListingFormCard({ onSubmit, isSubmitting }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div>
             <Label>Beds</Label>
             <input
@@ -233,7 +233,7 @@ export function REListingFormCard({ onSubmit, isSubmitting }: Props) {
         onClick={() => onSubmit(data)}
         disabled={!hasEnough || isSubmitting}
         className={cn(
-          'self-end flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+          'sticky bottom-0 z-10 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all sm:static sm:self-end sm:w-auto',
           hasEnough && !isSubmitting
             ? 'bg-accent-green-110 text-white hover:bg-accent-green-120 cursor-pointer'
             : 'bg-white-10 text-white-30 cursor-not-allowed',

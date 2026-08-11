@@ -167,12 +167,15 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto"
+      className="mobile-dialog-backdrop fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/60"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={editItem ? 'Edit property' : 'Add property'}
     >
-      <div className="w-full max-w-2xl rounded-2xl bg-sp-card border border-white-10 shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="mobile-dialog-surface flex w-full max-w-2xl flex-col rounded-t-2xl border border-white-10 bg-sp-card shadow-2xl sm:rounded-2xl">
         <header className="flex items-center justify-between p-5 border-b border-white-10">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-teal-500/15 flex items-center justify-center">
@@ -191,7 +194,7 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md text-white-40 hover:text-white-100 hover:bg-white-10 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-white-40 transition-colors hover:bg-white-10 hover:text-white-100"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -272,7 +275,7 @@ export function AddPropertyModal({ clientId, editItem, onClose }: Props) {
           </Section>
         </form>
 
-        <footer className="flex items-center justify-end gap-2 p-5 border-t border-white-10">
+        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-white-10 p-4 sm:p-5">
           <button
             type="button"
             onClick={onClose}

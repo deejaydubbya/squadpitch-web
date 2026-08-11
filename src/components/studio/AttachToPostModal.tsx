@@ -58,11 +58,14 @@ export function AttachToPostModal({ assetId, clientId, onClose, onCreated }: Pro
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="mobile-dialog-backdrop fixed inset-0 z-50 flex justify-center bg-black/70 backdrop-blur-sm"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Attach asset to post"
     >
       <div
-        className="relative w-full max-w-lg mx-4 bg-sp-surface rounded-2xl overflow-hidden"
+        className="mobile-dialog-surface relative flex w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-sp-surface sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -72,7 +75,8 @@ export function AttachToPostModal({ assetId, clientId, onClose, onCreated }: Pro
           </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-white-40 hover:text-white-100 hover:bg-white-10 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-white-40 transition-colors hover:bg-white-10 hover:text-white-100"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>

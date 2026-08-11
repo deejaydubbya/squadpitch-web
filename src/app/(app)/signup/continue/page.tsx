@@ -130,8 +130,8 @@ function SignupPlanContinueContent() {
     selectedPlan ?? state?.intent?.desiredTier ?? state?.desiredTier;
 
   return (
-    <main className="min-h-screen bg-sp-bg px-4 py-16 text-white-100">
-      <div className="mx-auto max-w-lg rounded-2xl border border-white-10 bg-white-5 p-8">
+    <main className="safe-area-top min-h-dvh bg-sp-bg px-4 py-6 text-white-100 sm:py-16">
+      <div className="mx-auto max-w-lg rounded-2xl border border-white-10 bg-white-5 p-5 sm:p-8">
         {checkoutReturn === "success" ? (
           <>
             <Loader2 className="h-9 w-9 animate-spin text-accent-green-110" />
@@ -212,8 +212,8 @@ export default function SignupPlanContinuePage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-sp-bg px-4 py-16 text-white-100">
-          <div className="mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-white-10 bg-white-5 p-8">
+        <main className="safe-area-top min-h-dvh bg-sp-bg px-4 py-6 text-white-100 sm:py-16">
+          <div className="mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-white-10 bg-white-5 p-5 sm:p-8">
             <Loader2 className="h-6 w-6 animate-spin text-accent-green-110" />
             <span>Loading your plan selection…</span>
           </div>

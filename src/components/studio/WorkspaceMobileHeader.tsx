@@ -24,9 +24,11 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
-import { Sidebar } from './Sidebar';
+import { Menu } from 'lucide-react';
 import type { Client } from '@/hooks/useSquadpitch';
+import { MobileSheet } from '@/components/mobile/MobileSheet';
+import { WorkspaceBottomNavigation } from './WorkspaceBottomNavigation';
+import { WorkspaceMoreMenu } from './WorkspaceMoreMenu';
 
 interface Props {
   client: Client;
@@ -77,7 +79,6 @@ export function WorkspaceMobileHeader({ client }: Props) {
 
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const closeRef = useRef<HTMLButtonElement | null>(null);
 
   // Close on route change. Using a pathname-dependent effect
   // (rather than the previous in-render ref hack) ensures the
@@ -86,29 +87,9 @@ export function WorkspaceMobileHeader({ client }: Props) {
     setOpen(false);
   }, [pathname]);
 
-  // Escape to close + body scroll lock while open.
+  // Restore focus to the header trigger after the drawer closes.
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [open]);
-
-  // Focus management: focus the close button on open; restore
-  // focus to the trigger when the drawer closes.
-  useEffect(() => {
-    if (open) {
-      // requestAnimationFrame so the close button is mounted
-      // before we try to focus it.
-      requestAnimationFrame(() => closeRef.current?.focus());
-    } else {
+    if (!open) {
       triggerRef.current?.focus();
     }
   }, [open]);
@@ -163,33 +144,10 @@ export function WorkspaceMobileHeader({ client }: Props) {
       {/* Drawer + backdrop. role="dialog" makes the drawer's
           purpose explicit to assistive tech. The aria-modal hint
           is honored by most screen readers. */}
-      {open && (
-        <div
-          className="lg:hidden fixed inset-0 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Workspace navigation"
-          id="workspace-mobile-drawer"
-        >
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="absolute inset-y-0 left-0 w-72 max-w-[80vw] shadow-2xl shadow-black/40">
-            <Sidebar client={client} />
-            <button
-              ref={closeRef}
-              type="button"
-              onClick={() => setOpen(false)}
-              className="absolute top-4 right-3 p-1.5 rounded-lg text-white-50 hover:text-white-100 hover:bg-white-10"
-              aria-label="Close navigation menu"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      <MobileSheet open={open} onClose={() => setOpen(false)} title="Workspace navigation" side="left">
+        <div id="workspace-mobile-drawer" className="h-full"><WorkspaceMoreMenu client={client} /></div>
+      </MobileSheet>
+      <WorkspaceBottomNavigation clientId={client.id} onMore={() => setOpen(true)} moreOpen={open} />
     </>
   );
 }

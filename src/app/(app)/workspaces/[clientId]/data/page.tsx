@@ -41,13 +41,13 @@ export default function DataPage() {
       </div>
 
       {tabs.length > 1 && (
-        <div className="flex items-center gap-1 border-b border-white-10">
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-white-10 [scrollbar-width:none]">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cn(
-                'px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
+                'min-h-11 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
                 tab === t.key
                   ? 'border-accent-green-110 text-accent-green-110'
                   : 'border-transparent text-white-40 hover:text-white-100'

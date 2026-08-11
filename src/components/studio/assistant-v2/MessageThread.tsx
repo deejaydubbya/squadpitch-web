@@ -47,7 +47,7 @@ export function MessageThread({ messages, session, clientId, onCardSelection }: 
   }, [messages.length, lastMessageId]);
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
+    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4">
       {messages.map((msg) => (
         <MessageBubble
           key={msg.id}
@@ -108,7 +108,8 @@ function MessageBubble({
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'max-w-[85%] rounded-xl px-4 py-2.5',
+          'rounded-xl px-3 py-2.5 sm:px-4',
+          isInteractive ? 'w-full max-w-full sm:w-auto sm:max-w-[85%]' : 'max-w-[90%] sm:max-w-[85%]',
           isUser
             ? 'bg-accent-green-110/15 text-white-100'
             : 'bg-white-5 text-white-100',

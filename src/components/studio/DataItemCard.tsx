@@ -76,7 +76,7 @@ export function DataItemCard({
           : 'border-white-10 bg-white-5 hover:border-white-20'
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-2 min-[400px]:flex-row min-[400px]:items-start min-[400px]:justify-between">
         <div className="flex items-center gap-2 min-w-0">
           {onSelect && (
             <input
@@ -111,24 +111,24 @@ export function DataItemCard({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 self-end flex-shrink-0 min-[400px]:self-auto">
           <button
             onClick={onEdit}
-            className="p-1.5 rounded-lg text-white-40 hover:text-white-100 hover:bg-white-10 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white-40 transition-colors hover:bg-white-10 hover:text-white-100"
             title="Edit"
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onArchive}
-            className="p-1.5 rounded-lg text-white-40 hover:text-white-100 hover:bg-white-10 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white-40 transition-colors hover:bg-white-10 hover:text-white-100"
             title="Archive"
           >
             <Archive className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onGenerate}
-            className="p-1.5 rounded-lg text-accent-green-110 hover:bg-accent-green-110/10 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-accent-green-110 transition-colors hover:bg-accent-green-110/10"
             title="Create post"
           >
             <Wand2 className="w-3.5 h-3.5" />

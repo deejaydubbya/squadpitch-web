@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -14,7 +15,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import {
-  useSubscription,
+  useBillingSummary,
   useUsage,
   usePlans,
   useCreatePortal,
@@ -121,8 +122,9 @@ const PLANS: PlanDef[] = [
 // ── Page ──────────────────────────────────────────────────────────────
 
 export default function BillingSettingsPage() {
-  const { data: subscription, isLoading: subLoading } = useSubscription();
-  const { data: usage, isLoading: usageLoading } = useUsage();
+  const { clientId } = useParams<{ clientId: string }>();
+  const { data: billingSummary, isLoading: subLoading } = useBillingSummary(clientId);
+  const { data: usage, isLoading: usageLoading } = useUsage(clientId);
   const { data: stripePlans } = usePlans();
   const portal = useCreatePortal();
   const checkout = useCreateCheckout();
@@ -145,8 +147,10 @@ export default function BillingSettingsPage() {
     );
   }
 
-  const tier = usage?.tier ?? 'FREE';
+  const subscription = billingSummary?.subscription;
+  const tier = usage?.tier ?? billingSummary?.effectiveTier ?? 'FREE';
   const hasSubscription = hasBillableSubscription(subscription);
+  const isComped = billingSummary?.billingSource === 'INTERNAL';
 
   // Check if any limit is at capacity
   const atLimitFields: string[] = [];
@@ -195,11 +199,13 @@ export default function BillingSettingsPage() {
       {/* Plan Usage Summary */}
       {usage && (
         <div className="card p-5 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 min-[400px]:flex-row min-[400px]:items-center min-[400px]:justify-between">
             <div>
               <h2 className="text-lg font-bold text-white-100">Plan Usage</h2>
               <p className="text-sm text-white-40 mt-0.5">
-                {tier === 'FREE'
+                {isComped
+                  ? `Your workspace has comped ${tierLabel(tier)} access. No payment is required.`
+                  : tier === 'FREE'
                   ? 'You\'re on the Free plan. Upgrade to unlock more.'
                   : `You're on the ${tierLabel(tier)} plan.`}
               </p>
@@ -225,11 +231,20 @@ export default function BillingSettingsPage() {
             </p>
           )}
 
+          {Object.entries(usage.usage).some(([key, used]) => {
+            const limit = usage.limits[key as keyof typeof usage.limits];
+            return typeof limit === 'number' && isFinite(limit) && used > limit;
+          }) && (
+            <p className="rounded-lg bg-zone-yellow/10 px-3 py-2 text-xs text-zone-yellow">
+              Historical usage can exceed the current plan limit after a plan change. Existing history is retained; further usage follows the current limit.
+            </p>
+          )}
+
           {(tier === 'FREE' || tier === 'STARTER') && (
             <button
               onClick={() => handlePlanAction('PRO')}
               disabled={checkout.isPending || changePlan.isPending}
-              className="btn btn-primary text-xs flex items-center gap-1.5"
+              className="btn btn-primary flex min-h-11 items-center gap-1.5 text-xs"
             >
               {(checkout.isPending || changePlan.isPending) ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -269,7 +284,7 @@ export default function BillingSettingsPage() {
               portal.mutate({ returnUrl: window.location.href })
             }
             disabled={portal.isPending}
-            className="btn btn-secondary text-xs flex items-center gap-1.5"
+            className="btn btn-secondary flex min-h-11 items-center gap-1.5 text-xs"
           >
             {portal.isPending ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -283,7 +298,7 @@ export default function BillingSettingsPage() {
       )}
 
       {/* Plan Picker */}
-      <div>
+      {!isComped && <div>
         <h2 className="text-lg font-bold text-white-100 mb-4">Choose your plan</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {PLANS.map((plan) => (
@@ -298,7 +313,7 @@ export default function BillingSettingsPage() {
             />
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Detailed Usage */}
       {usage && (

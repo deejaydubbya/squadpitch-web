@@ -278,12 +278,12 @@ export function PropertyDetailDrawer({ item, clientId, isOpen, onClose }: Props)
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Property details">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Drawer panel */}
-      <div className="relative w-full max-w-xl flex flex-col bg-sp-bg border-l border-white-10 shadow-2xl animate-in slide-in-from-right duration-200">
+      <div className="safe-area-top safe-area-bottom relative flex h-dvh w-full max-w-xl flex-col border-l border-white-10 bg-sp-bg shadow-2xl animate-in slide-in-from-right duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white-10">
           <div className="flex items-center gap-2 min-w-0">
@@ -302,7 +302,8 @@ export function PropertyDetailDrawer({ item, clientId, isOpen, onClose }: Props)
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-white-40 hover:text-white-100 hover:bg-white/5 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-white-40 transition-colors hover:bg-white/5 hover:text-white-100"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>

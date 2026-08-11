@@ -104,7 +104,7 @@ export function AssistantCommandBar({
           <button
             type="button"
             onClick={() => setExamplesOpen((o) => !o)}
-            className="flex items-center gap-0.5 text-white-40 hover:text-white-100 transition-colors"
+            className="flex min-h-11 items-center gap-1 px-1 text-white-40 transition-colors hover:text-white-100"
             aria-label="Examples of what you can type"
           >
             <HelpCircle className="w-3 h-3" />
@@ -145,13 +145,13 @@ export function AssistantCommandBar({
 
       {/* Chip row — hidden when empty so we don't reserve dead space */}
       {chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 px-3 pb-1.5">
+        <div className="flex items-center gap-1 overflow-x-auto px-3 pb-1.5">
           {chips.map((chip) => (
             <button
               key={chip.label}
               type="button"
               onClick={() => handleChip(chip.command)}
-              className="px-2.5 py-1 rounded-full bg-white-5 hover:bg-white-10 border border-white-10 hover:border-white-20 text-[11px] text-white-80 hover:text-white-100 transition-colors"
+              className="min-h-10 shrink-0 rounded-full border border-white-10 bg-white-5 px-3 py-2 text-[11px] text-white-80 transition-colors hover:border-white-20 hover:bg-white-10 hover:text-white-100"
             >
               {chip.label}
             </button>

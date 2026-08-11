@@ -58,7 +58,7 @@ export default function CreatePage() {
   }, [searchParams]);
 
   return (
-    <div className="fixed inset-0 lg:left-64 z-10 bg-sp-bg">
+    <div className="fixed inset-x-0 bottom-[calc(var(--sp-mobile-nav-height)+env(safe-area-inset-bottom,0px))] top-14 z-10 bg-sp-bg lg:inset-y-0 lg:left-64 lg:bottom-0 lg:top-0">
       <ConversationalShell clientId={clientId} initialPrefill={prefill} />
     </div>
   );

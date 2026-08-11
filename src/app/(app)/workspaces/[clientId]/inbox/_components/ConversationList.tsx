@@ -59,7 +59,7 @@ export function ConversationList({
 
   return (
     <div className="flex flex-col h-full bg-sp-bg">
-      <div className="px-3 pt-3 pb-2 space-y-3 border-b border-white-10">
+      <div className="space-y-3 border-b border-white-10 px-3 pb-2 pt-3">
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-white-30 absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
@@ -70,10 +70,11 @@ export function ConversationList({
               setCursor(undefined);
             }}
             placeholder="Search by name, email, or phone"
-            className="w-full bg-white-5 border border-white-10 rounded-lg pl-8 pr-3 py-2 text-xs text-white-90 placeholder:text-white-40 focus:outline-none focus:border-white-30 transition-colors"
+            aria-label="Search conversations"
+            className="min-h-11 w-full rounded-lg border border-white-10 bg-white-5 pl-8 pr-3 text-sm text-white-90 transition-colors placeholder:text-white-40 focus:border-white-30 focus:outline-none"
           />
         </div>
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1" aria-label="Conversation filters">
           {STATUS_FILTERS.map((f) => (
             <FilterPill
               key={f.value}
@@ -126,7 +127,7 @@ export function ConversationList({
           <button
             type="button"
             onClick={() => setCursor(data.nextCursor!)}
-            className="w-full text-xs text-white-50 hover:text-white-100 py-3 border-t border-white-10"
+            className="min-h-12 w-full border-t border-white-10 py-3 text-xs text-white-50 hover:text-white-100"
           >
             Load more
           </button>
@@ -155,7 +156,7 @@ function FilterPill({ active, onClick, tone = 'default', children }: FilterPillP
       type="button"
       onClick={onClick}
       className={cn(
-        'text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors',
+        'min-h-11 shrink-0 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
         active
           ? activeClass
           : 'border-transparent text-white-50 hover:text-white-100 hover:bg-white-10',
@@ -253,7 +254,7 @@ function ConversationRow({ row, selected, onSelect }: RowProps) {
         type="button"
         onClick={onSelect}
         className={cn(
-          'w-full text-left px-3 py-3 transition-colors relative flex items-start gap-3',
+          'relative flex min-h-[76px] w-full items-start gap-3 px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-green-110',
           selected
             ? 'bg-accent-green-110/8 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-accent-green-110'
             : row.unread

@@ -218,7 +218,7 @@ export function ChannelConnectionCard({
 
   return (
     <div className="card p-4">
-      <div className="flex items-start gap-3">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start">
         <div className="w-10 h-10 rounded-xl bg-white-5 flex items-center justify-center flex-shrink-0">
           <Icon className="w-5 h-5 text-white-60" />
         </div>
@@ -529,11 +529,11 @@ export function ChannelConnectionCard({
           )}
         </div>
 
-        <div className="flex flex-col gap-2 flex-shrink-0">
+        <div className="flex flex-col gap-2 flex-shrink-0 sm:items-end">
           {!meta.real && !connection ? (
             <button
               disabled
-              className="text-xs px-3 py-1.5 rounded-md bg-white-10 text-white-40 cursor-not-allowed"
+              className="min-h-11 w-full text-xs px-3 py-1.5 rounded-md bg-white-10 text-white-40 cursor-not-allowed sm:min-h-0 sm:w-auto"
             >
               Unavailable
             </button>
@@ -541,7 +541,7 @@ export function ChannelConnectionCard({
             <button
               onClick={handleDisconnect}
               disabled={disconnect.isPending}
-              className="text-xs px-3 py-1.5 rounded-md bg-accent-red/20 text-accent-red hover:bg-accent-red/30 flex items-center gap-1 disabled:opacity-50"
+              className="flex min-h-11 w-full items-center justify-center gap-1 rounded-md bg-accent-red/20 px-3 py-1.5 text-xs text-accent-red hover:bg-accent-red/30 disabled:opacity-50 sm:min-h-0 sm:w-auto"
             >
               {disconnect.isPending ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -554,7 +554,7 @@ export function ChannelConnectionCard({
             <button
               onClick={handleConnect}
               disabled={oauthPopup.isPending || !meta.real}
-              className="text-xs px-3 py-1.5 rounded-md bg-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/30 flex items-center gap-1 disabled:opacity-50"
+              className="flex min-h-11 w-full items-center justify-center gap-1 rounded-md bg-accent-green-110/20 px-3 py-1.5 text-xs text-accent-green-110 hover:bg-accent-green-110/30 disabled:opacity-50 sm:min-h-0 sm:w-auto"
             >
               {oauthPopup.isPending ? (
                 <Loader2 className="w-3 h-3 animate-spin" />

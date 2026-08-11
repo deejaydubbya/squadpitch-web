@@ -32,12 +32,12 @@ test.describe('Customer happy path — anonymous landing', () => {
     await expect(ctas.first()).toBeVisible();
   });
 
-  test('Start Free CTA routes to /auth/login with returnTo', async ({ page }) => {
+  test('Start Free CTA routes through the supported signup handoff', async ({ page }) => {
     await page.goto('/');
     const cta = page.getByRole('link', { name: /^Start Free$/i }).first();
     const href = await cta.getAttribute('href');
-    expect(href).toContain('/auth/login');
-    expect(href).toContain('returnTo=/workspaces');
+    expect(href).toContain('/auth/signup');
+    expect(href).toContain('returnTo=%2Fonboarding');
   });
 
   test('public legal pages are reachable without auth', async ({ page }) => {

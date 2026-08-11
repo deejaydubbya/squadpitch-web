@@ -119,8 +119,8 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-sp-surface border border-white-10 shadow-2xl">
+    <div className="mobile-dialog-backdrop fixed inset-0 z-50 flex justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Autopilot">
+      <div className="mobile-dialog-surface relative w-full max-w-2xl overflow-y-auto rounded-t-2xl border border-white-10 bg-sp-surface shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white-10 bg-sp-surface rounded-t-2xl">
           <div className="flex items-center gap-2">
@@ -136,7 +136,8 @@ export function AutopilotPanel({ clientId, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white-10 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors hover:bg-white-10"
+            aria-label="Close"
           >
             <X className="w-4 h-4 text-white-40" />
           </button>

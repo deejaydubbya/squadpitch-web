@@ -30,8 +30,8 @@ export function OnboardingShell() {
   if (engine.pendingResume) {
     const savedPhaseLabel = PHASE_LABELS[engine.pendingResume.phase] ?? 'In progress';
     return (
-      <div className="flex flex-col h-[calc(100vh-48px)] max-w-3xl mx-auto px-4 sm:px-6 py-12">
-        <div className="card p-6">
+      <div className="onboarding-mobile flex min-h-dvh flex-col justify-center px-4 py-6 sm:px-6 sm:py-12">
+        <div className="card mx-auto w-full max-w-3xl p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-white-100">
             Pick up where you left off?
           </h2>
@@ -40,11 +40,11 @@ export function OnboardingShell() {
             from scratch.{' '}
             <span className="text-white-80">Step: {savedPhaseLabel}</span>
           </p>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={engine.resumeFromSaved}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-green-110 text-sp-bg text-sm font-semibold hover:bg-accent-green-120 transition-colors"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-accent-green-110 px-4 py-2 text-sm font-semibold text-sp-bg transition-colors hover:bg-accent-green-120 sm:w-auto"
             >
               <Check className="w-4 h-4" />
               Resume setup
@@ -52,7 +52,7 @@ export function OnboardingShell() {
             <button
               type="button"
               onClick={engine.startOver}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white-5 text-white-80 text-sm font-medium hover:bg-white-10 border border-white-10 transition-colors"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-white-10 bg-white-5 px-4 py-2 text-sm font-medium text-white-80 transition-colors hover:bg-white-10 sm:w-auto"
             >
               Start over
             </button>
@@ -63,9 +63,9 @@ export function OnboardingShell() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-48px)] max-w-5xl mx-auto">
+    <div className="onboarding-mobile mx-auto flex h-dvh max-h-dvh w-full max-w-5xl flex-col overflow-hidden">
       {/* Header — shown prominently at start, collapses once user progresses */}
-      <div className="flex-none px-4 sm:px-6 pt-5 pb-1">
+      <div className="safe-area-top z-20 flex-none border-b border-white-5 bg-sp-bg/95 px-4 pb-2 pt-4 backdrop-blur sm:px-6 sm:pt-5">
         {isEarlyPhase && (
           <div className="mb-4 text-center sm:text-left">
             <h1 className="text-lg sm:text-xl font-semibold text-white-90 leading-snug">
@@ -83,7 +83,15 @@ export function OnboardingShell() {
         )}
 
         {/* Progress steps */}
-        <div className="flex items-center gap-0.5 sm:gap-1">
+        <div
+          className="flex items-center gap-0.5 sm:gap-1"
+          role="progressbar"
+          aria-label="Onboarding progress"
+          aria-valuemin={1}
+          aria-valuemax={PHASE_ORDER.length}
+          aria-valuenow={Math.max(1, currentIdx + 1)}
+          aria-valuetext={`${PHASE_LABELS[engine.session.phase] ?? 'Setup'}, step ${Math.max(1, currentIdx + 1)} of ${PHASE_ORDER.length}`}
+        >
           {PHASE_ORDER.map((phase, idx) => {
             const isComplete = idx < currentIdx;
             const isCurrent = idx === currentIdx;
@@ -122,6 +130,9 @@ export function OnboardingShell() {
             );
           })}
         </div>
+        <p className="mt-2 text-center text-xs font-medium text-white-60 sm:hidden">
+          {PHASE_LABELS[engine.session.phase] ?? 'Setup'} · Step {Math.max(1, currentIdx + 1)} of {PHASE_ORDER.length}
+        </p>
       </div>
 
       {/* Message thread */}

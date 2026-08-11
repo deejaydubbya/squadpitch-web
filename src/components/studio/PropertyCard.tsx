@@ -167,7 +167,7 @@ export function PropertyCard({ item, clientId, onArchive, onEdit, onClick }: Pro
       <div className="flex items-center gap-2 mt-auto pt-1">
         <button
           onClick={handleCreateCampaign}
-          className="flex items-center gap-1.5 text-xs font-medium text-accent-green-110 hover:text-accent-green-130 transition-colors"
+          className="flex min-h-11 items-center gap-1.5 text-xs font-medium text-accent-green-110 transition-colors hover:text-accent-green-130"
         >
           New Campaign <ArrowRight className="w-3 h-3" />
         </button>
@@ -178,7 +178,7 @@ export function PropertyCard({ item, clientId, onArchive, onEdit, onClick }: Pro
               e.stopPropagation();
               onEdit();
             }}
-            className="ml-auto p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors"
+            className="ml-auto flex min-h-11 min-w-11 items-center justify-center rounded-md text-white-30 transition-colors hover:bg-white-10 hover:text-white-100"
             title="Edit"
           >
             <Pencil className="w-3.5 h-3.5" />
@@ -187,7 +187,7 @@ export function PropertyCard({ item, clientId, onArchive, onEdit, onClick }: Pro
         <button
           onClick={handleArchive}
           className={cn(
-            'p-1.5 rounded-md text-white-30 hover:text-white-100 hover:bg-white-10 transition-colors',
+            'flex min-h-11 min-w-11 items-center justify-center rounded-md text-white-30 transition-colors hover:bg-white-10 hover:text-white-100',
             !onEdit && 'ml-auto',
           )}
           title="Archive"

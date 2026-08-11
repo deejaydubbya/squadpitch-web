@@ -35,6 +35,7 @@ import { PlannerSetupChecklist } from './PlannerSetupChecklist';
 import { CampaignFocusView } from './CampaignFocusView';
 import { CampaignSection } from './CampaignSection';
 import { groupDraftsByCampaign } from './campaignGrouping';
+import { MobilePlannerAgenda } from './MobilePlannerAgenda';
 
 interface Props {
   clientId: string;
@@ -437,7 +438,7 @@ export function PlannerView({ clientId }: Props) {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-white-100">Planner</h1>
@@ -449,12 +450,12 @@ export function PlannerView({ clientId }: Props) {
           </div>
           <p className="text-sm text-white-40 mt-1">Manage, review, and schedule your posts</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Approve All — prominent when approvable drafts exist */}
           {hasApprovable && (
             <button
               onClick={selected.size > 0 ? clearSelection : selectAll}
-              className="px-3 py-1.5 rounded-lg bg-zone-green/20 text-zone-green text-xs font-semibold hover:bg-zone-green/30 transition-colors flex items-center gap-1.5"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg bg-zone-green/20 px-3 py-2 text-xs font-semibold text-zone-green transition-colors hover:bg-zone-green/30"
             >
               <Check className="w-3.5 h-3.5" />
               {selected.size > 0
@@ -467,20 +468,20 @@ export function PlannerView({ clientId }: Props) {
           )}
           <Link
             href={`/workspaces/${clientId}/create?intent=single_post`}
-            className="px-3 py-1.5 rounded-lg bg-accent-green-110 text-sp-dark text-xs font-semibold hover:bg-accent-green-110/90 transition-colors"
+            className="flex min-h-11 items-center rounded-lg bg-accent-green-110 px-3 py-2 text-xs font-semibold text-sp-dark transition-colors hover:bg-accent-green-110/90"
           >
             New Post
           </Link>
           <Link
             href={`/workspaces/${clientId}/create?intent=campaign`}
-            className="px-3 py-1.5 rounded-lg bg-white-10 text-white-80 text-xs font-semibold hover:bg-white-20 transition-colors"
+            className="hidden min-h-11 items-center rounded-lg bg-white-10 px-3 py-2 text-xs font-semibold text-white-80 transition-colors hover:bg-white-20 sm:flex"
           >
             New Campaign
           </Link>
           {/* Tour replay button */}
           <button
             onClick={handleStartTour}
-            className="p-1.5 rounded-lg text-white-30 hover:text-white-60 hover:bg-white-10 transition-colors"
+            className="hidden min-h-11 min-w-11 items-center justify-center rounded-lg text-white-30 transition-colors hover:bg-white-10 hover:text-white-60 sm:flex"
             title="Take a quick tour"
           >
             <HelpCircle className="w-4 h-4" />
@@ -489,19 +490,19 @@ export function PlannerView({ clientId }: Props) {
             <button
               onClick={() => setView('calendar')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                'flex min-h-11 items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-colors',
                 view === 'calendar'
                   ? 'bg-white-10 text-white-100'
                   : 'text-white-40 hover:text-white-60'
               )}
             >
               <Calendar className="w-3.5 h-3.5" />
-              Calendar
+              <span className="lg:hidden">Agenda</span><span className="hidden lg:inline">Calendar</span>
             </button>
             <button
               onClick={() => setView('list')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                'flex min-h-11 items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-colors',
                 view === 'list'
                   ? 'bg-white-10 text-white-100'
                   : 'text-white-40 hover:text-white-60'
@@ -561,7 +562,8 @@ export function PlannerView({ clientId }: Props) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search content..."
-            className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-sm text-white-100 placeholder:text-white-30 focus:outline-none focus:border-accent-green-110 transition-colors"
+            aria-label="Search posts"
+            className="min-h-11 w-full rounded-lg border border-white-10 bg-white-5 pl-9 pr-14 text-base text-white-100 transition-colors placeholder:text-white-30 focus:border-accent-green-110 focus:outline-none sm:text-sm"
           />
           {searchQuery && (
             <button
@@ -574,7 +576,7 @@ export function PlannerView({ clientId }: Props) {
         </div>
 
         {/* Status filters */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1">
           {STATUS_FILTERS.map((f) => {
             const count =
               f.value === 'ALL' ? totalCount : (statusCounts[f.value] ?? 0);
@@ -583,7 +585,7 @@ export function PlannerView({ clientId }: Props) {
                 key={f.value}
                 onClick={() => setStatusFilter(f.value)}
                 className={cn(
-                  'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                  'min-h-11 shrink-0 rounded-full px-3 py-2 text-xs font-medium transition-colors',
                   statusFilter === f.value
                     ? 'bg-accent-green-110 text-sp-surface'
                     : 'bg-white-10 text-white-60 hover:bg-white-20'
@@ -598,13 +600,13 @@ export function PlannerView({ clientId }: Props) {
           })}
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1">
           {CHANNEL_FILTERS.map((f) => (
             <button
               key={f.value}
               onClick={() => setChannelFilter(f.value)}
               className={cn(
-                'px-2.5 py-1 rounded text-xs font-medium transition-colors',
+                'min-h-10 shrink-0 rounded px-3 py-2 text-xs font-medium transition-colors',
                 channelFilter === f.value
                   ? 'bg-white-20 text-white-100'
                   : 'text-white-40 hover:text-white-60'
@@ -628,7 +630,7 @@ export function PlannerView({ clientId }: Props) {
             <button
               onClick={handleAutoSchedule}
               disabled={autoSchedule.isPending}
-              className="px-3 py-1.5 rounded-lg bg-accent-green-110/10 text-accent-green-110 text-xs font-medium hover:bg-accent-green-110/20 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg bg-accent-green-110/10 px-3 py-2 text-xs font-medium text-accent-green-110 transition-colors hover:bg-accent-green-110/20 disabled:opacity-50"
             >
               {autoSchedule.isPending ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -649,13 +651,22 @@ export function PlannerView({ clientId }: Props) {
       {/* Calendar view */}
       {view === 'calendar' && channelFiltered && (
         <div data-tour-step="calendar">
-          <CalendarGrid
-            drafts={channelFiltered}
-            suggestions={visibleSuggestions}
-            selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
-            onSelectSuggestion={handleSelectSuggestion}
-          />
+          <div className="hidden lg:block">
+            <CalendarGrid
+              drafts={channelFiltered}
+              suggestions={visibleSuggestions}
+              selectedDay={selectedDay}
+              onSelectDay={setSelectedDay}
+              onSelectSuggestion={handleSelectSuggestion}
+            />
+          </div>
+          <div className="lg:hidden">
+            <MobilePlannerAgenda
+              drafts={searchFiltered ?? []}
+              selectedIds={selected}
+              onSelect={hasApprovable ? handleSelect : undefined}
+            />
+          </div>
         </div>
       )}
 
@@ -674,7 +685,7 @@ export function PlannerView({ clientId }: Props) {
 
       {/* Day detail label */}
       {selectedDay && view === 'calendar' && (
-        <div className="flex items-center gap-2">
+        <div className="hidden items-center gap-2 lg:flex">
           <p className="text-sm text-white-60">
             Showing drafts for selected day
           </p>
@@ -757,7 +768,7 @@ export function PlannerView({ clientId }: Props) {
 
         {/* Calendar view or non-grouped fallback */}
         {drafts && drafts.length > 0 && view === 'calendar' && (
-          <div className="space-y-3">
+          <div className="hidden space-y-3 lg:block">
             {drafts.map((draft) => (
               <DraftQueueCard
                 key={draft.id}

@@ -219,8 +219,12 @@ export function DraftPreviewCard({ draft, compact = false, maxChars, clientId }:
         </div>
       )}
 
-      <p className="text-xs text-white-40 pt-1">
-        {new Date(draft.createdAt).toLocaleString()}
+      <p className="pt-1 text-xs text-white-40">
+        {draft.status === 'PUBLISHED' && draft.publishedAt
+          ? `Published ${new Date(draft.publishedAt).toLocaleString()}`
+          : draft.scheduledFor
+            ? `Scheduled ${new Date(draft.scheduledFor).toLocaleString()}`
+            : `Created ${new Date(draft.createdAt).toLocaleString()}`}
       </p>
     </div>
   );

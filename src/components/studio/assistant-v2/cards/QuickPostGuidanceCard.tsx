@@ -116,7 +116,7 @@ export function QuickPostGuidanceCard({ session, clientId, onSelection }: Props)
                 key={rec.id}
                 type="button"
                 onClick={() => handleRecommendedClick(rec)}
-                className="w-full text-left p-2.5 rounded-lg bg-accent-green-110/5 border border-accent-green-110/15 hover:bg-accent-green-110/10 hover:border-accent-green-110/25 transition-all"
+                className="min-h-12 w-full rounded-lg border border-accent-green-110/15 bg-accent-green-110/5 p-2.5 text-left transition-all hover:border-accent-green-110/25 hover:bg-accent-green-110/10"
               >
                 <div className="flex items-start gap-2">
                   {rec.dataItemId && <Database className="w-3.5 h-3.5 text-accent-green-110 mt-0.5 shrink-0" />}
@@ -144,7 +144,7 @@ export function QuickPostGuidanceCard({ session, clientId, onSelection }: Props)
         placeholder="Describe what you want to highlight in this post..."
         rows={4}
         maxLength={4000}
-        className="w-full px-3 py-2.5 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 focus:ring-1 focus:ring-accent-green-110/30 resize-none placeholder:text-white-30"
+        className="w-full resize-none rounded-lg border border-white-10 bg-white-5 px-3 py-2.5 text-base text-white-100 placeholder:text-white-30 focus:border-accent-green-110 focus:outline-none focus:ring-1 focus:ring-accent-green-110/30 sm:text-sm"
       />
 
       {/* Character counter */}
@@ -160,7 +160,7 @@ export function QuickPostGuidanceCard({ session, clientId, onSelection }: Props)
               key={chip.label}
               type="button"
               onClick={() => handleChipClick(chip)}
-              className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white-5 border border-white-10 text-white-60 hover:bg-white-10 hover:text-white-100 hover:border-white-20 transition-all"
+              className="min-h-10 rounded-full border border-white-10 bg-white-5 px-3 py-2 text-[11px] font-medium text-white-60 transition-all hover:border-white-20 hover:bg-white-10 hover:text-white-100"
             >
               {chip.label}
             </button>
@@ -172,7 +172,7 @@ export function QuickPostGuidanceCard({ session, clientId, onSelection }: Props)
       <button
         onClick={() => handleConfirm(guidance)}
         disabled={!canContinue}
-        className="w-full py-2.5 rounded-lg bg-accent-green-110 text-sp-surface font-semibold text-sm flex items-center justify-center gap-2 hover:bg-accent-green-120 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent-green-110 py-2.5 text-sm font-semibold text-sp-surface transition-colors hover:bg-accent-green-120 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Continue
       </button>

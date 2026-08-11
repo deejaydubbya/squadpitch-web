@@ -295,7 +295,7 @@ export function ConversationDetail({
         onAddNote={() => setComposerMode('note')}
       />
 
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4">
         {heroMessageId && (
           <LeadCard
             message={conv.messages.find((m) => m.id === heroMessageId)!}
@@ -325,7 +325,7 @@ export function ConversationDetail({
         />
       </div>
 
-      <div className="border-t border-white-10 px-4 sm:px-6 py-3 bg-sp-bg">
+      <div className="shrink-0 border-t border-white-10 bg-sp-bg px-2 py-2 sm:px-6 sm:py-3">
         <Composer
           clientId={clientId}
           mode={composerMode}
@@ -382,12 +382,12 @@ function DetailHeader({
 
   return (
     <div className="sticky top-0 z-10 border-b border-white-10 bg-sp-bg/95 backdrop-blur supports-[backdrop-filter]:bg-sp-bg/80">
-      <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-3">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="lg:hidden p-1.5 rounded-lg text-white-60 hover:text-white-100 hover:bg-white-10"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white-60 hover:bg-white-10 hover:text-white-100 lg:hidden"
             aria-label="Back to inbox"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -405,7 +405,7 @@ function DetailHeader({
           )}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="order-last -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-1 overflow-x-auto px-1 sm:order-none sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0">
           <HeaderButton
             icon={<StickyNote className="w-3.5 h-3.5" />}
             label="Add note"
@@ -440,7 +440,7 @@ function DetailHeader({
           <button
             type="button"
             onClick={onOpenDetails}
-            className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-white-15 text-white-80 hover:text-white-100 hover:bg-white-10 hover:border-white-20 transition-colors inline-flex items-center gap-1.5"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-white-15 px-3 py-2 text-xs font-medium text-white-80 transition-colors hover:border-white-20 hover:bg-white-10 hover:text-white-100"
             title="Open lead details"
           >
             <User className="w-3.5 h-3.5" />
@@ -474,7 +474,7 @@ function HeaderButton({
       disabled={pending}
       title={label}
       className={cn(
-        'text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5',
+        'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
         tone === 'active'
           ? 'bg-amber-400/15 text-amber-200'
           : 'text-white-60 hover:text-white-100 hover:bg-white-10',
@@ -626,7 +626,7 @@ function MessageBubble({
     <li className={cn('flex', isContact ? 'justify-start' : 'justify-end')}>
       <div
         className={cn(
-          'max-w-[80%] rounded-2xl px-3.5 py-2.5 space-y-1',
+          'max-w-[88%] space-y-1 overflow-hidden rounded-2xl px-3.5 py-2.5 sm:max-w-[80%]',
           isContact
             ? 'bg-white-10 text-white-90 rounded-tl-sm'
             : isFailed
@@ -634,7 +634,7 @@ function MessageBubble({
               : 'bg-accent-green-110/15 text-white-100 rounded-tr-sm border border-accent-green-110/20',
         )}
       >
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.body}</p>
+        <p className="break-words text-sm leading-relaxed whitespace-pre-wrap">{message.body}</p>
         <div className="flex items-center gap-2 text-[10px] text-white-40 pt-1 flex-wrap">
           <span>{formatDateTime(message.createdAt)}</span>
           {message.channel && (
@@ -672,7 +672,7 @@ function MessageBubble({
               onClick={() => onRetry(message)}
               disabled={retryPending}
               className={cn(
-                'text-[11px] font-semibold px-2 py-1 rounded-md inline-flex items-center gap-1 transition-colors shrink-0',
+                'inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md px-3 py-2 text-[11px] font-semibold transition-colors',
                 'bg-amber-400/20 text-amber-100 hover:bg-amber-400/30 border border-amber-400/30',
                 retryPending && 'opacity-50 cursor-not-allowed',
               )}

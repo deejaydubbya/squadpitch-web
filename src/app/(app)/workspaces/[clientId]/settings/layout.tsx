@@ -28,7 +28,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         <p className="text-sm text-white-40 mt-1">Manage your workspace, brand, channels, and billing.</p>
       </div>
 
-      <div className="flex flex-wrap gap-x-0.5 border-b border-white-10">
+      <div className="-mx-4 overflow-x-auto border-b border-white-10 px-4 [scrollbar-width:none] sm:mx-0 sm:px-0">
+        <div className="flex min-w-max gap-x-0.5">
         {tabs.map((tab) => {
           const href = `${base}${tab.suffix}`;
           const isActive = tab.suffix === ''
@@ -39,7 +40,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
               key={tab.label}
               href={href}
               className={cn(
-                'px-3 py-2.5 text-[13px] leading-tight font-medium whitespace-nowrap transition-colors border-b-2 -mb-px',
+                'flex min-h-11 items-center px-3 py-2.5 text-[13px] leading-tight font-medium whitespace-nowrap transition-colors border-b-2 -mb-px',
                 isActive
                   ? 'text-accent-green-110 border-accent-green-110'
                   : 'text-white-40 border-transparent hover:text-white-80 hover:border-white-10'
@@ -49,6 +50,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
             </Link>
           );
         })}
+        </div>
       </div>
 
       {children}

@@ -264,8 +264,8 @@ export function ImportDataModal({ clientId, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-3xl max-h-[90vh] flex flex-col bg-sp-bg border border-white-10 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="mobile-dialog-backdrop fixed inset-0 z-50 flex justify-center bg-black/60" role="dialog" aria-modal="true" aria-label="Import data">
+      <div className="mobile-dialog-surface flex w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-white-10 bg-sp-bg shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white-10">
           <div>
@@ -276,7 +276,7 @@ export function ImportDataModal({ clientId, onClose }: Props) {
               </p>
             )}
           </div>
-          <button onClick={onClose} className="p-1 text-white-40 hover:text-white-100 transition-colors">
+          <button onClick={onClose} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white-40 transition-colors hover:bg-white-10 hover:text-white-100" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>

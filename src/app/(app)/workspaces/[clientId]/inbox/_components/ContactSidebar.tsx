@@ -101,21 +101,21 @@ export function ContactSidebar({
   const olderSubmissions = submissions.slice(1);
 
   return (
-    <div className="flex flex-col h-full bg-sp-bg min-h-0">
+    <div className="flex h-full min-h-0 flex-col bg-sp-bg pt-[env(safe-area-inset-top,0px)]">
       {onClose && (
         <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white-10 bg-sp-bg">
           <h2 className="text-sm font-semibold text-white-100">Lead details</h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white-50 hover:text-white-100 hover:bg-white-10"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white-50 hover:bg-white-10 hover:text-white-100"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
-      <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+      <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:p-4">
         <ContactCard
           contact={contact}
           conversation={conversation}
@@ -202,7 +202,7 @@ function ContactCard({
         <button
           type="button"
           onClick={() => setEditing((e) => !e)}
-          className="p-1.5 rounded-lg text-white-50 hover:text-white-100 hover:bg-white-10 shrink-0"
+          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-white-50 hover:bg-white-10 hover:text-white-100"
           title={editing ? 'Done editing' : 'Edit name, email, phone'}
         >
           {editing ? <X className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
@@ -875,7 +875,7 @@ function ActionButton({
       disabled={disabled}
       title={title}
       className={cn(
-        'w-full text-xs font-medium px-2.5 py-2 rounded-lg border transition-colors inline-flex items-center gap-2 text-left',
+        'inline-flex min-h-11 w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors',
         tone === 'warn'
           ? 'bg-amber-400/10 border-amber-400/20 text-amber-200 hover:bg-amber-400/20'
           : 'border-white-10 text-white-80 hover:border-white-20 hover:bg-white-5',
@@ -934,7 +934,8 @@ function ContactLink({
         type="button"
         onClick={handleCopy}
         title="Copy"
-        className="p-1 rounded text-white-40 hover:text-white-100 opacity-0 group-hover:opacity-100 transition-opacity"
+        aria-label={`Copy ${label}`}
+        className="flex min-h-11 min-w-11 items-center justify-center rounded text-white-40 opacity-100 transition-opacity hover:text-white-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
       >
         {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
       </button>

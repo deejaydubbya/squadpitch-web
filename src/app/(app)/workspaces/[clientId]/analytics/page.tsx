@@ -94,7 +94,7 @@ export default function AnalyticsPage() {
   return (
     <div className="max-w-5xl space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-lg font-semibold text-white-100">Analytics</h1>
           {data && (
@@ -163,7 +163,7 @@ export default function AnalyticsPage() {
       {/* Tab navigation */}
       {data && data.dataCoverage.totalPublished > 0 && (
         <>
-          <nav className="flex gap-1 border-b border-white-10 pb-0">
+          <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-white-10 px-4 pb-0 [scrollbar-width:none] sm:mx-0 sm:px-0">
             {TABS.map((t) => {
               const Icon = t.icon;
               const active = tab === t.key;
@@ -171,7 +171,7 @@ export default function AnalyticsPage() {
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
+                  className={`flex min-h-11 shrink-0 items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
                     active
                       ? 'text-white-100 border-accent-green-110'
                       : 'text-white-40 border-transparent hover:text-white-60 hover:border-white-20'

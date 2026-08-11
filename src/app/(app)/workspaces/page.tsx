@@ -74,8 +74,8 @@ export default function WorkspacesPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="space-y-6">
-        <div className="mb-6 flex items-start justify-between">
-          <div>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-white-100 flex items-center gap-3">
               <Image src="/icon-192.png" alt="Squadpitch" width={32} height={32} />
               Squadpitch
@@ -84,7 +84,7 @@ export default function WorkspacesPage() {
               Build and manage your AI-powered content systems.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {showDevConsole && (
               <Link
                 href="/admin"
@@ -92,7 +92,7 @@ export default function WorkspacesPage() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
               >
                 <Terminal className="w-4 h-4" />
-                Dev Console
+                <span className="hidden sm:inline">Dev Console</span>
               </Link>
             )}
             <a
@@ -100,7 +100,7 @@ export default function WorkspacesPage() {
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white-40 hover:text-white-100 hover:bg-white-5 transition-colors"
             >
               <LogOut className="w-4 h-4" />
-              Log out
+              <span className="hidden sm:inline">Log out</span>
             </a>
           </div>
         </div>

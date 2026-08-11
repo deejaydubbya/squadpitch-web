@@ -10,6 +10,7 @@ import { Sidebar } from '@/components/studio/Sidebar';
 import { WorkspaceMobileHeader } from '@/components/studio/WorkspaceMobileHeader';
 import { useClient } from '@/hooks/useSquadpitch';
 import { UsageLimitProvider } from '@/components/billing/UsageLimitGuard';
+import { MobilePageContainer } from '@/components/mobile/ResponsivePrimitives';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ clientId: string }>();
@@ -59,6 +60,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }
 
   const isGettingStarted = pathname.endsWith('/getting-started');
+  const isInbox = pathname.endsWith('/inbox');
 
   // Minimal layout for getting-started flow (no sidebar, no hamburger)
   if (isGettingStarted) {
@@ -98,12 +100,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             its own internal lg:hidden classes. */}
         <WorkspaceMobileHeader client={client} />
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <main className="mobile-nav-clearance flex-1 overflow-y-auto lg:pb-0">
+          <MobilePageContainer className={isInbox ? 'h-full max-w-none p-0 sm:p-0 lg:p-0' : undefined}>
             <UsageLimitProvider clientId={clientId}>
               {children}
             </UsageLimitProvider>
-          </div>
+          </MobilePageContainer>
         </main>
       </div>
     </div>

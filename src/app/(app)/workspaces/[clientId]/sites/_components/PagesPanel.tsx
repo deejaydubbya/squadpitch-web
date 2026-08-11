@@ -74,7 +74,7 @@ export function PagesPanel({ clientId, clientSlug }: PagesPanelProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
         <p className="text-sm text-white-50">
           Pages live at{' '}
           <span className="font-mono text-white-70">
@@ -83,17 +83,17 @@ export function PagesPanel({ clientId, clientSlug }: PagesPanelProps) {
           . Drafts are private; publish to make them reachable.
         </p>
         {!creating && (
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:flex sm:items-center">
             <Link
               href={`/workspaces/${clientId}/sites/new`}
-              className="btn btn-primary text-sm inline-flex items-center gap-1.5"
+              className="btn btn-primary min-h-11 justify-center text-sm inline-flex items-center gap-1.5"
             >
               <Wand2 className="w-4 h-4" />
               Generate with AI
             </Link>
             <button
               type="button"
-              className="btn btn-ghost border border-white-15 text-sm inline-flex items-center gap-1.5"
+              className="btn btn-ghost min-h-11 justify-center border border-white-15 text-sm inline-flex items-center gap-1.5"
               onClick={() => setCreating(true)}
             >
               <Plus className="w-4 h-4" />

@@ -59,6 +59,7 @@ import { MediaSwapModal } from './MediaSwapModal';
 import { InlineActionsMenu } from './InlineActionsMenu';
 import { OverflowMenu, type OverflowMenuItem } from './OverflowMenu';
 import { DraftOptimizations } from './OptimizationSuggestions';
+import { getDraftActionCapabilities } from './draftActionCapabilities';
 
 interface Props {
   draft: Draft;
@@ -121,11 +122,8 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
     : 0;
   const _showSchedulePressure = schedule.isSuccess && _belowPro && _postPct >= 70;
 
-  const isEditable = draft.status === 'DRAFT' || draft.status === 'PENDING_REVIEW';
-  const canApprove = isEditable;
-  const canReject = isEditable || draft.status === 'APPROVED' || draft.status === 'SCHEDULED' || draft.status === 'FAILED';
-  const canSchedule = (draft.status === 'APPROVED' || draft.status === 'SCHEDULED' || draft.status === 'FAILED') && eligibility.canSchedule;
-  const canPublish = draft.status === 'APPROVED' || draft.status === 'SCHEDULED' || draft.status === 'FAILED';
+  const { isEditable, canApprove, canReject, canSchedule, canPublish } =
+    getDraftActionCapabilities(draft.status, eligibility.canSchedule);
 
   const anyError =
     (updateDraft.error as Error | null) ||
@@ -243,14 +241,15 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       'rounded-xl border border-white-10 bg-sp-card overflow-hidden border-l-[3px] transition-shadow hover:shadow-lg hover:shadow-black/10',
       statusBorderColors[draft.status] ?? 'border-l-white-10'
     )}>
-      <div className="px-5 py-4">
+      <div className="px-3 py-3 sm:px-5 sm:py-4">
         {onSelect && (
           <div className="float-left mr-3 mt-1">
             <input
               type="checkbox"
               checked={selected}
               onChange={(e) => onSelect(draft.id, e.target.checked)}
-              className="accent-accent-green-110"
+              aria-label={`Select ${getChannelLabel(draft.channel)} post`}
+              className="h-5 w-5 accent-accent-green-110"
             />
           </div>
         )}
@@ -259,7 +258,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
 
       {/* Media indicator */}
       <div className={cn(
-        'border-t border-white-10 px-5 py-3',
+        'border-t border-white-10 px-3 py-3 sm:px-5',
         draft.mediaUrl ? 'bg-accent-green-110/3' : ''
       )}>
         {draft.mediaUrl ? (
@@ -544,11 +543,11 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
         );
       })()}
 
-      <div className="border-t border-white-10 px-5 py-3 flex items-center gap-2.5 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2 border-t border-white-10 px-3 py-2 sm:gap-2.5 sm:px-5 sm:py-3">
         {/* Expand/Collapse */}
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="text-xs text-white-60 hover:text-white-100 flex items-center gap-1"
+          className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs text-white-60 hover:bg-white-5 hover:text-white-100"
         >
           {expanded ? (
             <>
@@ -568,7 +567,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
           <button
             onClick={() => approve.mutate()}
             disabled={approve.isPending}
-            className="text-xs px-2.5 py-1 rounded-md bg-zone-green/20 text-zone-green hover:bg-zone-green/30 flex items-center gap-1 disabled:opacity-50"
+            className="flex min-h-11 items-center gap-1 rounded-lg bg-zone-green/20 px-4 py-2 text-xs font-semibold text-zone-green hover:bg-zone-green/30 disabled:opacity-50"
           >
             {approve.isPending ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -583,7 +582,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
             onClick={() => {
               setShowSchedule((v) => !v);
             }}
-            className="text-xs px-2.5 py-1 rounded-md bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30 flex items-center gap-1"
+            className="flex min-h-11 items-center gap-1 rounded-lg bg-zone-blue/20 px-4 py-2 text-xs font-semibold text-zone-blue hover:bg-zone-blue/30"
           >
             <Calendar className="w-3 h-3" /> Schedule
           </button>
@@ -599,7 +598,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
             onClick={() => {
               setShowSchedule((v) => !v);
             }}
-            className="text-xs px-2.5 py-1 rounded-md bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30 flex items-center gap-1"
+            className="flex min-h-11 items-center gap-1 rounded-lg bg-zone-blue/20 px-4 py-2 text-xs font-semibold text-zone-blue hover:bg-zone-blue/30"
           >
             <Calendar className="w-3 h-3" /> Schedule
           </button>
@@ -610,7 +609,7 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
           <button
             onClick={handlePublish}
             disabled={publish.isPending}
-            className="text-xs px-2.5 py-1 rounded-md bg-accent-green-110/20 text-accent-green-110 hover:bg-accent-green-110/30 flex items-center gap-1 disabled:opacity-60"
+            className="flex min-h-11 items-center gap-1 rounded-lg bg-accent-green-110/20 px-4 py-2 text-xs font-semibold text-accent-green-110 hover:bg-accent-green-110/30 disabled:opacity-60"
           >
             {publish.isPending ? (
               <>
@@ -738,12 +737,12 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}
 
       {editMode && (
-        <div className="border-t border-white-10 p-5 space-y-2">
+        <div className="space-y-2 border-t border-white-10 p-3 sm:p-5">
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={5}
-            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110 resize-none"
+            className="w-full resize-none rounded-lg border border-white-10 bg-white-5 px-3 py-2 text-base text-white-100 focus:border-accent-green-110 focus:outline-none sm:text-sm"
           />
           <button
             onClick={handleSaveBody}
@@ -759,25 +758,25 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}
 
       {showReject && (
-        <div className="border-t border-white-10 p-5 space-y-2">
+        <div className="space-y-2 border-t border-white-10 p-3 sm:p-5">
           <input
             type="text"
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             placeholder="Reason for rejection"
-            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-red"
+            className="min-h-11 w-full rounded-lg border border-white-10 bg-white-5 px-3 py-2 text-base text-white-100 focus:border-accent-red focus:outline-none sm:text-sm"
           />
           <div className="flex gap-2">
             <button
               onClick={handleReject}
               disabled={!rejectReason.trim() || reject.isPending}
-              className="text-xs px-3 py-1.5 rounded-md bg-accent-red/20 text-accent-red hover:bg-accent-red/30 disabled:opacity-50"
+              className="min-h-11 rounded-md bg-accent-red/20 px-3 py-2 text-xs text-accent-red hover:bg-accent-red/30 disabled:opacity-50"
             >
               Confirm rejection
             </button>
             <button
               onClick={() => setShowReject(false)}
-              className="text-xs px-3 py-1.5 rounded-md bg-white-10 text-white-60 hover:bg-white-20"
+              className="min-h-11 rounded-md bg-white-10 px-3 py-2 text-xs text-white-60 hover:bg-white-20"
             >
               Cancel
             </button>
@@ -786,26 +785,26 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}
 
       {showSchedule && (
-        <div className="border-t border-white-10 p-5 space-y-2">
+        <div className="space-y-2 border-t border-white-10 p-3 sm:p-5">
           <input
             type="datetime-local"
             value={scheduleDate}
             onChange={(e) => setScheduleDate(e.target.value)}
             min={new Date().toISOString().slice(0, 16)}
             style={{ colorScheme: 'dark' }}
-            className="w-full px-3 py-2 rounded-lg bg-white-5 border border-white-10 text-white-100 text-sm focus:outline-none focus:border-accent-green-110"
+            className="min-h-11 w-full rounded-lg border border-white-10 bg-white-5 px-3 py-2 text-base text-white-100 focus:border-accent-green-110 focus:outline-none sm:text-sm"
           />
           <div className="flex gap-2">
             <button
               onClick={handleSchedule}
               disabled={!scheduleDate || schedule.isPending}
-              className="text-xs px-3 py-1.5 rounded-md bg-zone-blue/20 text-zone-blue hover:bg-zone-blue/30 disabled:opacity-50"
+              className="min-h-11 rounded-md bg-zone-blue/20 px-3 py-2 text-xs text-zone-blue hover:bg-zone-blue/30 disabled:opacity-50"
             >
               Confirm schedule
             </button>
             <button
               onClick={() => setShowSchedule(false)}
-              className="text-xs px-3 py-1.5 rounded-md bg-white-10 text-white-60 hover:bg-white-20"
+              className="min-h-11 rounded-md bg-white-10 px-3 py-2 text-xs text-white-60 hover:bg-white-20"
             >
               Cancel
             </button>
