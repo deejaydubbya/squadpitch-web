@@ -1474,7 +1474,10 @@ export function useArchiveClient(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiFetch<Client>(`workspaces/${id}`, { method: 'DELETE' }),
+      apiFetch<Client>(`workspaces/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmation: 'ARCHIVE WORKSPACE' }),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.client(id) });
       qc.invalidateQueries({ queryKey: squadpitchKeys.clients() });
@@ -1486,7 +1489,10 @@ export function useDeleteWorkspace() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<Client>(`workspaces/${id}`, { method: 'DELETE' }),
+      apiFetch<Client>(`workspaces/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmation: 'ARCHIVE WORKSPACE' }),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: squadpitchKeys.clients() });
     },
