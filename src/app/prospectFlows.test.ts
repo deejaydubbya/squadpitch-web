@@ -47,6 +47,8 @@ describe('prospect preview and claim flows', () => {
     expect(preview).toContain('Featured property');
     expect(preview).toContain('item.property.price.toLocaleString()');
     expect(preview).toContain('item.property.beds');
+    expect(preview).toContain('item.property.yearBuilt');
+    expect(preview).toContain('item.summary && !item.property');
     expect(preview).toContain('<DraftMediaGallery draft={draft} />');
     expect(preview).toContain('Show previous image');
     expect(preview).toContain('Show next image');

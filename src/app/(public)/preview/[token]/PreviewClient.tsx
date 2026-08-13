@@ -19,7 +19,7 @@ type Preview = {
     title: string;
     summary: string | null;
     imageUrl: string | null;
-    property?: { address: string; price: number | null; beds: number | null; baths: number | null; sqft: number | null; status: string | null };
+    property?: { address: string; price: number | null; beds: number | null; baths: number | null; sqft: number | null; yearBuilt: number | null; status: string | null };
   }>;
   drafts: Array<{
     channel: string;
@@ -145,9 +145,10 @@ export function PreviewClient({ token }: { token: string }) {
                       {item.property.beds != null && <span>{item.property.beds} beds</span>}
                       {item.property.baths != null && <span>{item.property.baths} baths</span>}
                       {item.property.sqft != null && <span>{item.property.sqft.toLocaleString()} sq ft</span>}
+                      {item.property.yearBuilt != null && <span>Built in {item.property.yearBuilt}</span>}
                     </div>
                   )}
-                  {item.summary && (
+                  {item.summary && !item.property && (
                     <p className="mt-2 line-clamp-3 text-sm text-white/55">
                       {item.summary}
                     </p>
