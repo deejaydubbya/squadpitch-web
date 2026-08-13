@@ -20,6 +20,8 @@ export async function proxy(request: NextRequest) {
 
     if (pathname.startsWith("/auth/")) return authResponse;
     if (PUBLIC_PATHS.includes(pathname)) return authResponse;
+    if (pathname.startsWith("/preview/")) return authResponse;
+    if (pathname.startsWith("/api/public/prospects/")) return authResponse;
     if (pathname.startsWith("/api/")) return authResponse;
     if (pathname.startsWith("/oauth/")) return authResponse;
     if (pathname.startsWith("/media-proxy/")) return authResponse;

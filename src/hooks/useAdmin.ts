@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/apiFetch';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/apiFetch";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,64 @@ export interface WorkspaceSummary {
   channels: { channel: string; status: string }[];
 }
 
+export interface ProspectWorkspaceItem {
+  id: string;
+  clientId: string;
+  businessName: string;
+  industryKey: string | null;
+  prospectName: string;
+  prospectEmail: string;
+  websiteUrl: string | null;
+  sourceUrl: string | null;
+  acquisitionSource: string | null;
+  operatorNote: string | null;
+  previewStatus: "ACTIVE" | "REVOKED";
+  claimStatus: "CLAIMABLE" | "CLAIMED" | "REVOKED" | "EXPIRED";
+  claimIssuedAt: string;
+  claimExpiresAt: string;
+  claimedAt: string | null;
+  claimedByUserId: string | null;
+  createdAt: string;
+  previewToken?: string;
+  claimToken?: string;
+  eligiblePreviewItems?: ProspectPreviewCandidate[];
+  selectedPreviewItems?: ProspectPreviewSelection[];
+  preparationState?: "NOT_STARTED" | "READY_UNSELECTED" | "SELECTED";
+  sourcePreparationState?: "NOT_IMPORTED" | "IMPORTED";
+  campaignReadiness?: { status: "COMPLETE" | "PARTIAL" | "NEEDS_ATTENTION"; readyChannels: string[]; expectedChannels: string[]; issues: Array<{ channel: string; code: string; message: string }> };
+}
+
+export interface ProspectPreviewCandidate {
+  id: string;
+  itemType: "DATA_ITEM" | "DRAFT";
+  title: string;
+  subtitle: string;
+}
+export interface ProspectPreviewSelection {
+  id: string;
+  itemType: "DATA_ITEM" | "DRAFT";
+  sortOrder: number;
+}
+
+export interface CreateProspectInput {
+  prospectName: string;
+  prospectEmail: string;
+  businessName: string;
+  industryKey: "real_estate" | "car_sales";
+  websiteUrl?: string;
+  sourceUrl?: string;
+  acquisitionSource?: string;
+  operatorNote?: string;
+}
+
+export interface PopulateProspectInput {
+  listing?: { title: string; summary?: string; sourceUrl?: string };
+  posts: Array<{
+    channel: "FACEBOOK" | "INSTAGRAM" | "LINKEDIN";
+    body: string;
+  }>;
+}
+
 export interface WorkspaceDetail {
   id: string;
   name: string;
@@ -32,17 +90,51 @@ export interface WorkspaceDetail {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
-  owner: { id: string; auth0Sub: string; email: string; name: string | null; createdAt: string } | null;
-  subscription: { tier: string; status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
-  brand: { description: string | null; industry: string | null; website: string | null; city: string | null; state: string | null } | null;
+  owner: {
+    id: string;
+    auth0Sub: string;
+    email: string;
+    name: string | null;
+    createdAt: string;
+  } | null;
+  subscription: {
+    tier: string;
+    status: string;
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+  } | null;
+  brand: {
+    description: string | null;
+    industry: string | null;
+    website: string | null;
+    city: string | null;
+    state: string | null;
+  } | null;
   voice: { tone: string | null; version: number; updatedAt: string } | null;
   media: { mode: string; visualStyle: string | null; updatedAt: string } | null;
-  channelSettings: { channel: string; isEnabled: boolean; maxChars: number | null }[];
+  channelSettings: {
+    channel: string;
+    isEnabled: boolean;
+    maxChars: number | null;
+  }[];
   connections: ConnectionItem[];
   techStack: TechStackItem[];
-  analytics: { totalPosts: number; totalPublishedPosts: number; avgEngagementRate: number | null; topPlatform: string | null; lastCalculatedAt: string | null } | null;
+  analytics: {
+    totalPosts: number;
+    totalPublishedPosts: number;
+    avgEngagementRate: number | null;
+    topPlatform: string | null;
+    lastCalculatedAt: string | null;
+  } | null;
   recentDrafts: DraftSummary[];
-  recentFailures: { id: string; channel: string; publishError: string | null; publishAttempts: number; lastPublishAttemptAt: string | null; updatedAt: string }[];
+  recentFailures: {
+    id: string;
+    channel: string;
+    publishError: string | null;
+    publishAttempts: number;
+    lastPublishAttemptAt: string | null;
+    updatedAt: string;
+  }[];
 }
 
 export interface DraftSummary {
@@ -114,9 +206,43 @@ export interface DraftDetail {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  assets: { id: string; url: string; thumbnailUrl: string | null; mimeType: string; assetType: string; status: string; width: number | null; height: number | null; filename: string | null; source: string; errorMessage: string | null; role: string | null; orderIndex: number }[];
-  sources: { dataItem: { id: string; type: string; title: string | null; summary: string | null; status: string } | null; blueprint: { id: string; slug: string; name: string; category: string } | null }[];
-  moderationLog: { fromStatus: string; toStatus: string; actorSub: string; reason: string | null; createdAt: string }[];
+  assets: {
+    id: string;
+    url: string;
+    thumbnailUrl: string | null;
+    mimeType: string;
+    assetType: string;
+    status: string;
+    width: number | null;
+    height: number | null;
+    filename: string | null;
+    source: string;
+    errorMessage: string | null;
+    role: string | null;
+    orderIndex: number;
+  }[];
+  sources: {
+    dataItem: {
+      id: string;
+      type: string;
+      title: string | null;
+      summary: string | null;
+      status: string;
+    } | null;
+    blueprint: {
+      id: string;
+      slug: string;
+      name: string;
+      category: string;
+    } | null;
+  }[];
+  moderationLog: {
+    fromStatus: string;
+    toStatus: string;
+    actorSub: string;
+    reason: string | null;
+    createdAt: string;
+  }[];
 }
 
 export interface ConnectionItem {
@@ -320,32 +446,43 @@ interface PaginatedResult<T> {
 // ── Query Keys ───────────────────────────────────────────────────────────
 
 export const adminKeys = {
-  workspaces: (params: Record<string, string>) => ['admin', 'workspaces', params] as const,
-  workspace: (id: string) => ['admin', 'workspace', id] as const,
-  drafts: (params: Record<string, string>) => ['admin', 'drafts', params] as const,
-  draft: (id: string) => ['admin', 'draft', id] as const,
-  connections: (params: Record<string, string>) => ['admin', 'connections', params] as const,
-  techStack: (params: Record<string, string>) => ['admin', 'techStack', params] as const,
-  publishing: (params: Record<string, string>) => ['admin', 'publishing', params] as const,
-  services: (params: Record<string, string>) => ['admin', 'services', params] as const,
-  service: (id: string) => ['admin', 'service', id] as const,
-  servicesSummary: () => ['admin', 'servicesSummary'] as const,
-  betaSummary: () => ['admin', 'betaSummary'] as const,
-  betaTesters: (params: Record<string, string>) => ['admin', 'betaTesters', params] as const,
-  betaTester: (id: string) => ['admin', 'betaTester', id] as const,
-  betaFeedback: (params: Record<string, string>) => ['admin', 'betaFeedback', params] as const,
-  betaFeedbackItem: (id: string) => ['admin', 'betaFeedbackItem', id] as const,
-  jobsSummary: () => ['admin', 'jobsSummary'] as const,
-  jobs: (params: Record<string, string>) => ['admin', 'jobs', params] as const,
-  job: (queue: string, id: string) => ['admin', 'job', queue, id] as const,
-  webhookSummary: () => ['admin', 'webhookSummary'] as const,
-  webhookEndpoints: (params: Record<string, string>) => ['admin', 'webhookEndpoints', params] as const,
-  webhookEndpoint: (id: string) => ['admin', 'webhookEndpoint', id] as const,
-  webhookDeliveries: (params: Record<string, string>) => ['admin', 'webhookDeliveries', params] as const,
-  webhookDelivery: (id: string) => ['admin', 'webhookDelivery', id] as const,
-  systemHealth: () => ['admin', 'systemHealth'] as const,
-  flags: (params: Record<string, string>) => ['admin', 'flags', params] as const,
-  flag: (id: string) => ['admin', 'flag', id] as const,
+  workspaces: (params: Record<string, string>) =>
+    ["admin", "workspaces", params] as const,
+  workspace: (id: string) => ["admin", "workspace", id] as const,
+  drafts: (params: Record<string, string>) =>
+    ["admin", "drafts", params] as const,
+  draft: (id: string) => ["admin", "draft", id] as const,
+  connections: (params: Record<string, string>) =>
+    ["admin", "connections", params] as const,
+  techStack: (params: Record<string, string>) =>
+    ["admin", "techStack", params] as const,
+  publishing: (params: Record<string, string>) =>
+    ["admin", "publishing", params] as const,
+  services: (params: Record<string, string>) =>
+    ["admin", "services", params] as const,
+  service: (id: string) => ["admin", "service", id] as const,
+  servicesSummary: () => ["admin", "servicesSummary"] as const,
+  betaSummary: () => ["admin", "betaSummary"] as const,
+  betaTesters: (params: Record<string, string>) =>
+    ["admin", "betaTesters", params] as const,
+  betaTester: (id: string) => ["admin", "betaTester", id] as const,
+  betaFeedback: (params: Record<string, string>) =>
+    ["admin", "betaFeedback", params] as const,
+  betaFeedbackItem: (id: string) => ["admin", "betaFeedbackItem", id] as const,
+  jobsSummary: () => ["admin", "jobsSummary"] as const,
+  jobs: (params: Record<string, string>) => ["admin", "jobs", params] as const,
+  job: (queue: string, id: string) => ["admin", "job", queue, id] as const,
+  webhookSummary: () => ["admin", "webhookSummary"] as const,
+  webhookEndpoints: (params: Record<string, string>) =>
+    ["admin", "webhookEndpoints", params] as const,
+  webhookEndpoint: (id: string) => ["admin", "webhookEndpoint", id] as const,
+  webhookDeliveries: (params: Record<string, string>) =>
+    ["admin", "webhookDeliveries", params] as const,
+  webhookDelivery: (id: string) => ["admin", "webhookDelivery", id] as const,
+  systemHealth: () => ["admin", "systemHealth"] as const,
+  flags: (params: Record<string, string>) =>
+    ["admin", "flags", params] as const,
+  flag: (id: string) => ["admin", "flag", id] as const,
 };
 
 // ── Hooks ────────────────────────────────────────────────────────────────
@@ -356,19 +493,117 @@ function buildQuery(params: Record<string, string>) {
     if (v) qs.set(k, v);
   }
   const str = qs.toString();
-  return str ? `?${str}` : '';
+  return str ? `?${str}` : "";
 }
 
 export function useAdminWorkspaces(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.workspaces(params),
-    queryFn: () => apiFetch<PaginatedResult<WorkspaceSummary>>(`internal/workspaces${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<PaginatedResult<WorkspaceSummary>>(
+        `internal/workspaces${buildQuery(params)}`,
+      ),
+  });
+}
+
+export function useAdminProspects() {
+  return useQuery({
+    queryKey: ["admin", "prospects"],
+    queryFn: () =>
+      apiFetch<{ items: ProspectWorkspaceItem[] }>("internal/prospects"),
+  });
+}
+
+export function useAdminProspect(id: string | null, preparationActive = false) {
+  return useQuery({
+    queryKey: ["admin", "prospects", id],
+    queryFn: () => apiFetch<ProspectWorkspaceItem>(`internal/prospects/${id}`),
+    enabled: Boolean(id),
+    refetchInterval: preparationActive ? 2_000 : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function useUpdateProspectPreview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      items,
+    }: {
+      id: string;
+      items: Array<{ id: string; itemType: "DATA_ITEM" | "DRAFT" }>;
+    }) =>
+      apiFetch(`internal/prospects/${id}/preview-items`, {
+        method: "PUT",
+        body: JSON.stringify({ items }),
+      }),
+    onSuccess: (_data, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "prospects", variables.id],
+      }),
+  });
+}
+
+export function usePopulateAdminProspect() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: PopulateProspectInput }) =>
+      apiFetch(`internal/prospects/${id}/populate`, { method: "POST", body: JSON.stringify(body) }),
+    onSettled: (_data, _error, variables) => queryClient.invalidateQueries({ queryKey: ["admin", "prospects", variables.id] }),
+  });
+}
+
+export function usePrepareAdminProspect() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, sourceUrl }: { id: string; sourceUrl?: string }) =>
+      apiFetch(`internal/prospects/${id}/prepare`, { method: "POST", body: JSON.stringify(sourceUrl ? { sourceUrl } : {}) }),
+    onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["admin", "prospects", variables.id] }),
+  });
+}
+
+export function useCreateAdminProspect() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateProspectInput) =>
+      apiFetch<ProspectWorkspaceItem>("internal/prospects", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
+  });
+}
+
+export function useRotateProspectClaim() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<ProspectWorkspaceItem>(`internal/prospects/${id}/claim-token`, {
+        method: "POST",
+        body: "{}",
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
+  });
+}
+
+export function useRevokeProspectClaim() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`internal/prospects/${id}/claim-token`, {
+        method: "DELETE",
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
   });
 }
 
 export function useAdminWorkspace(id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.workspace(id ?? ''),
+    queryKey: adminKeys.workspace(id ?? ""),
     queryFn: () => apiFetch<WorkspaceDetail>(`internal/workspaces/${id}`),
     enabled: Boolean(id),
   });
@@ -378,10 +613,12 @@ export function useDeleteAllWorkspaces() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiFetch<{ ok: boolean; deleted: number }>('internal/workspaces', { method: 'DELETE' }),
+      apiFetch<{ ok: boolean; deleted: number }>("internal/workspaces", {
+        method: "DELETE",
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminKeys.workspaces({}) });
-      qc.invalidateQueries({ queryKey: ['squadpitch'] });
+      qc.invalidateQueries({ queryKey: ["squadpitch"] });
     },
   });
 }
@@ -389,13 +626,16 @@ export function useDeleteAllWorkspaces() {
 export function useAdminDrafts(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.drafts(params),
-    queryFn: () => apiFetch<PaginatedResult<DraftSummary>>(`internal/drafts${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<PaginatedResult<DraftSummary>>(
+        `internal/drafts${buildQuery(params)}`,
+      ),
   });
 }
 
 export function useAdminDraft(id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.draft(id ?? ''),
+    queryKey: adminKeys.draft(id ?? ""),
     queryFn: () => apiFetch<DraftDetail>(`internal/drafts/${id}`),
     enabled: Boolean(id),
   });
@@ -404,7 +644,10 @@ export function useAdminDraft(id: string | undefined) {
 export function useAdminConnections(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.connections(params),
-    queryFn: () => apiFetch<{ items: ConnectionItem[] }>(`internal/connections${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<{ items: ConnectionItem[] }>(
+        `internal/connections${buildQuery(params)}`,
+      ),
     select: (d) => d.items,
   });
 }
@@ -412,7 +655,10 @@ export function useAdminConnections(params: Record<string, string>) {
 export function useAdminTechStack(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.techStack(params),
-    queryFn: () => apiFetch<{ items: TechStackItem[] }>(`internal/connections/tech-stack${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<{ items: TechStackItem[] }>(
+        `internal/connections/tech-stack${buildQuery(params)}`,
+      ),
     select: (d) => d.items,
   });
 }
@@ -427,7 +673,7 @@ export interface AdminMetricsSyncResult {
   clientId: string;
   channel: string;
   externalPostId: string | null;
-  status: 'synced' | 'skipped' | 'failed';
+  status: "synced" | "skipped" | "failed";
   reason: string | null;
   detail: string | null;
   rawMetricId: string | null;
@@ -440,13 +686,19 @@ export interface AdminMetricsSyncResult {
 
 export function useAdminMetricsSync() {
   return useMutation({
-    mutationFn: ({ draftId, force = true }: { draftId: string; force?: boolean }) =>
+    mutationFn: ({
+      draftId,
+      force = true,
+    }: {
+      draftId: string;
+      force?: boolean;
+    }) =>
       apiFetch<AdminMetricsSyncResult>(
         `internal/drafts/${draftId}/metrics/sync`,
         {
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify({ force }),
-        }
+        },
       ),
   });
 }
@@ -454,7 +706,10 @@ export function useAdminMetricsSync() {
 export function useAdminPublishing(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.publishing(params),
-    queryFn: () => apiFetch<PaginatedResult<PublishItem>>(`internal/publishing${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<PaginatedResult<PublishItem>>(
+        `internal/publishing${buildQuery(params)}`,
+      ),
   });
 }
 
@@ -488,7 +743,15 @@ export interface ExternalServiceItem {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  usageSnapshots: { id: string; usage: number; limit: number | null; percentUsed: number | null; note: string | null; source: string; snapshotAt: string }[];
+  usageSnapshots: {
+    id: string;
+    usage: number;
+    limit: number | null;
+    percentUsed: number | null;
+    note: string | null;
+    source: string;
+    snapshotAt: string;
+  }[];
 }
 
 export interface ServicesSummary {
@@ -504,7 +767,10 @@ export interface ServicesSummary {
 export function useAdminServices(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.services(params),
-    queryFn: () => apiFetch<{ items: ExternalServiceItem[] }>(`internal/services${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<{ items: ExternalServiceItem[] }>(
+        `internal/services${buildQuery(params)}`,
+      ),
     select: (d) => d.items,
   });
 }
@@ -512,13 +778,13 @@ export function useAdminServices(params: Record<string, string> = {}) {
 export function useAdminServicesSummary() {
   return useQuery({
     queryKey: adminKeys.servicesSummary(),
-    queryFn: () => apiFetch<ServicesSummary>('internal/services/summary'),
+    queryFn: () => apiFetch<ServicesSummary>("internal/services/summary"),
   });
 }
 
 export function useAdminService(id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.service(id ?? ''),
+    queryKey: adminKeys.service(id ?? ""),
     queryFn: () => apiFetch<ExternalServiceItem>(`internal/services/${id}`),
     enabled: Boolean(id),
   });
@@ -528,10 +794,13 @@ export function useCreateService() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<ExternalServiceItem>('internal/services', { method: 'POST', body: JSON.stringify(body) }),
+      apiFetch<ExternalServiceItem>("internal/services", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'services'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'servicesSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "services"] });
+      qc.invalidateQueries({ queryKey: ["admin", "servicesSummary"] });
     },
   });
 }
@@ -540,11 +809,14 @@ export function useUpdateService(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<ExternalServiceItem>(`internal/services/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      apiFetch<ExternalServiceItem>(`internal/services/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'services'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'service', id] });
-      qc.invalidateQueries({ queryKey: ['admin', 'servicesSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "services"] });
+      qc.invalidateQueries({ queryKey: ["admin", "service", id] });
+      qc.invalidateQueries({ queryKey: ["admin", "servicesSummary"] });
     },
   });
 }
@@ -553,10 +825,12 @@ export function useDeleteService() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<{ ok: boolean }>(`internal/services/${id}`, { method: 'DELETE' }),
+      apiFetch<{ ok: boolean }>(`internal/services/${id}`, {
+        method: "DELETE",
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'services'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'servicesSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "services"] });
+      qc.invalidateQueries({ queryKey: ["admin", "servicesSummary"] });
     },
   });
 }
@@ -565,10 +839,12 @@ export function useSeedServices() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiFetch<{ created: number; total: number }>('internal/services/seed', { method: 'POST' }),
+      apiFetch<{ created: number; total: number }>("internal/services/seed", {
+        method: "POST",
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'services'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'servicesSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "services"] });
+      qc.invalidateQueries({ queryKey: ["admin", "servicesSummary"] });
     },
   });
 }
@@ -577,10 +853,12 @@ export function useRefreshDerivedUsage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiFetch<{ ok: boolean }>('internal/services/refresh', { method: 'POST' }),
+      apiFetch<{ ok: boolean }>("internal/services/refresh", {
+        method: "POST",
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'services'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'servicesSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "services"] });
+      qc.invalidateQueries({ queryKey: ["admin", "servicesSummary"] });
     },
   });
 }
@@ -589,10 +867,13 @@ export function useAddUsageSnapshot(serviceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { usage: number; limit?: number; note?: string }) =>
-      apiFetch(`internal/services/${serviceId}/usage`, { method: 'POST', body: JSON.stringify(body) }),
+      apiFetch(`internal/services/${serviceId}/usage`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'service', serviceId] });
-      qc.invalidateQueries({ queryKey: ['admin', 'services'] });
+      qc.invalidateQueries({ queryKey: ["admin", "service", serviceId] });
+      qc.invalidateQueries({ queryKey: ["admin", "services"] });
     },
   });
 }
@@ -629,7 +910,13 @@ export interface BetaTesterItem {
     draftCount: number;
     recentFailures: number;
   } | null;
-  recentActivity?: { id: string; eventType: string; title: string; description: string | null; createdAt: string }[];
+  recentActivity?: {
+    id: string;
+    eventType: string;
+    title: string;
+    description: string | null;
+    createdAt: string;
+  }[];
 }
 
 export interface BetaFeedbackItem {
@@ -654,32 +941,47 @@ export interface BetaFeedbackItem {
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  tester?: { id: string; email: string; name: string | null; cohort: string | null; tags?: string[]; priority: string } | null;
+  tester?: {
+    id: string;
+    email: string;
+    name: string | null;
+    cohort: string | null;
+    tags?: string[];
+    priority: string;
+  } | null;
 }
 
 export interface BetaSummary {
-  testers: { total: number; active: number; byStatus: Record<string, number>; highPriority: number };
+  testers: {
+    total: number;
+    active: number;
+    byStatus: Record<string, number>;
+    highPriority: number;
+  };
   feedback: { byStatus: Record<string, number>; needsFollowUp: number };
 }
 
 export function useBetaSummary() {
   return useQuery({
     queryKey: adminKeys.betaSummary(),
-    queryFn: () => apiFetch<BetaSummary>('internal/beta/summary'),
+    queryFn: () => apiFetch<BetaSummary>("internal/beta/summary"),
   });
 }
 
 export function useBetaTesters(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.betaTesters(params),
-    queryFn: () => apiFetch<{ items: BetaTesterItem[] }>(`internal/beta/testers${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<{ items: BetaTesterItem[] }>(
+        `internal/beta/testers${buildQuery(params)}`,
+      ),
     select: (d) => d.items,
   });
 }
 
 export function useBetaTester(id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.betaTester(id ?? ''),
+    queryKey: adminKeys.betaTester(id ?? ""),
     queryFn: () => apiFetch<BetaTesterItem>(`internal/beta/testers/${id}`),
     enabled: Boolean(id),
   });
@@ -688,7 +990,10 @@ export function useBetaTester(id: string | undefined) {
 export function useBetaFeedbackList(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.betaFeedback(params),
-    queryFn: () => apiFetch<{ items: BetaFeedbackItem[]; nextCursor: string | null }>(`internal/beta/feedback${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<{ items: BetaFeedbackItem[]; nextCursor: string | null }>(
+        `internal/beta/feedback${buildQuery(params)}`,
+      ),
   });
 }
 
@@ -696,10 +1001,13 @@ export function useCreateTester() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<BetaTesterItem>('internal/beta/testers', { method: 'POST', body: JSON.stringify(body) }),
+      apiFetch<BetaTesterItem>("internal/beta/testers", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'betaTesters'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'betaSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaTesters"] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaSummary"] });
     },
   });
 }
@@ -708,11 +1016,14 @@ export function useUpdateTester(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<BetaTesterItem>(`internal/beta/testers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      apiFetch<BetaTesterItem>(`internal/beta/testers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'betaTesters'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'betaTester', id] });
-      qc.invalidateQueries({ queryKey: ['admin', 'betaSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaTesters"] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaTester", id] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaSummary"] });
     },
   });
 }
@@ -721,10 +1032,13 @@ export function useCreateFeedback() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<BetaFeedbackItem>('internal/beta/feedback', { method: 'POST', body: JSON.stringify(body) }),
+      apiFetch<BetaFeedbackItem>("internal/beta/feedback", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'betaFeedback'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'betaSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaFeedback"] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaSummary"] });
     },
   });
 }
@@ -733,11 +1047,14 @@ export function useUpdateFeedback(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<BetaFeedbackItem>(`internal/beta/feedback/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      apiFetch<BetaFeedbackItem>(`internal/beta/feedback/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'betaFeedback'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'betaFeedbackItem', id] });
-      qc.invalidateQueries({ queryKey: ['admin', 'betaSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaFeedback"] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaFeedbackItem", id] });
+      qc.invalidateQueries({ queryKey: ["admin", "betaSummary"] });
     },
   });
 }
@@ -747,7 +1064,8 @@ export function useUpdateFeedback(id: string) {
 export function useJobsSummary() {
   return useQuery({
     queryKey: adminKeys.jobsSummary(),
-    queryFn: () => apiFetch<{ items: QueueSummaryItem[] }>('internal/jobs/summary'),
+    queryFn: () =>
+      apiFetch<{ items: QueueSummaryItem[] }>("internal/jobs/summary"),
     select: (d) => d.items,
     refetchInterval: 15_000,
   });
@@ -756,14 +1074,17 @@ export function useJobsSummary() {
 export function useAdminJobs(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.jobs(params),
-    queryFn: () => apiFetch<{ items: JobSummaryItem[]; total: number }>(`internal/jobs${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<{ items: JobSummaryItem[]; total: number }>(
+        `internal/jobs${buildQuery(params)}`,
+      ),
     refetchInterval: 30_000,
   });
 }
 
 export function useAdminJob(queue: string | undefined, id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.job(queue ?? '', id ?? ''),
+    queryKey: adminKeys.job(queue ?? "", id ?? ""),
     queryFn: () => apiFetch<JobDetail>(`internal/jobs/${queue}/${id}`),
     enabled: Boolean(queue && id),
   });
@@ -773,10 +1094,12 @@ export function useRetryJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ queue, jobId }: { queue: string; jobId: string }) =>
-      apiFetch<{ ok: boolean }>(`internal/jobs/${queue}/${jobId}/retry`, { method: 'POST' }),
+      apiFetch<{ ok: boolean }>(`internal/jobs/${queue}/${jobId}/retry`, {
+        method: "POST",
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'jobs'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'jobsSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "jobs"] });
+      qc.invalidateQueries({ queryKey: ["admin", "jobsSummary"] });
     },
   });
 }
@@ -785,10 +1108,12 @@ export function useRemoveJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ queue, jobId }: { queue: string; jobId: string }) =>
-      apiFetch<{ ok: boolean }>(`internal/jobs/${queue}/${jobId}`, { method: 'DELETE' }),
+      apiFetch<{ ok: boolean }>(`internal/jobs/${queue}/${jobId}`, {
+        method: "DELETE",
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'jobs'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'jobsSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "jobs"] });
+      qc.invalidateQueries({ queryKey: ["admin", "jobsSummary"] });
     },
   });
 }
@@ -798,7 +1123,7 @@ export function useRemoveJob() {
 export function useWebhookSummary() {
   return useQuery({
     queryKey: adminKeys.webhookSummary(),
-    queryFn: () => apiFetch<WebhookSummary>('internal/webhooks/summary'),
+    queryFn: () => apiFetch<WebhookSummary>("internal/webhooks/summary"),
     refetchInterval: 30_000,
   });
 }
@@ -806,15 +1131,19 @@ export function useWebhookSummary() {
 export function useWebhookEndpoints(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.webhookEndpoints(params),
-    queryFn: () => apiFetch<{ items: WebhookEndpointItem[] }>(`internal/webhooks/endpoints${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<{ items: WebhookEndpointItem[] }>(
+        `internal/webhooks/endpoints${buildQuery(params)}`,
+      ),
     select: (d) => d.items,
   });
 }
 
 export function useWebhookEndpoint(id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.webhookEndpoint(id ?? ''),
-    queryFn: () => apiFetch<WebhookEndpointDetail>(`internal/webhooks/endpoints/${id}`),
+    queryKey: adminKeys.webhookEndpoint(id ?? ""),
+    queryFn: () =>
+      apiFetch<WebhookEndpointDetail>(`internal/webhooks/endpoints/${id}`),
     enabled: Boolean(id),
   });
 }
@@ -822,15 +1151,19 @@ export function useWebhookEndpoint(id: string | undefined) {
 export function useWebhookDeliveries(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.webhookDeliveries(params),
-    queryFn: () => apiFetch<PaginatedResult<WebhookDeliveryItem>>(`internal/webhooks/deliveries${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<PaginatedResult<WebhookDeliveryItem>>(
+        `internal/webhooks/deliveries${buildQuery(params)}`,
+      ),
     refetchInterval: 30_000,
   });
 }
 
 export function useWebhookDeliveryDetail(id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.webhookDelivery(id ?? ''),
-    queryFn: () => apiFetch<WebhookDeliveryItem>(`internal/webhooks/deliveries/${id}`),
+    queryKey: adminKeys.webhookDelivery(id ?? ""),
+    queryFn: () =>
+      apiFetch<WebhookDeliveryItem>(`internal/webhooks/deliveries/${id}`),
     enabled: Boolean(id),
   });
 }
@@ -838,15 +1171,24 @@ export function useWebhookDeliveryDetail(id: string | undefined) {
 export function useToggleWebhookEndpoint() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ endpointId, isActive }: { endpointId: string; isActive: boolean }) =>
-      apiFetch<{ ok: boolean }>(`internal/webhooks/endpoints/${endpointId}/toggle`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isActive }),
-      }),
+    mutationFn: ({
+      endpointId,
+      isActive,
+    }: {
+      endpointId: string;
+      isActive: boolean;
+    }) =>
+      apiFetch<{ ok: boolean }>(
+        `internal/webhooks/endpoints/${endpointId}/toggle`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ isActive }),
+        },
+      ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'webhookEndpoints'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'webhookEndpoint'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'webhookSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "webhookEndpoints"] });
+      qc.invalidateQueries({ queryKey: ["admin", "webhookEndpoint"] });
+      qc.invalidateQueries({ queryKey: ["admin", "webhookSummary"] });
     },
   });
 }
@@ -855,10 +1197,13 @@ export function useReplayDelivery() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (deliveryId: string) =>
-      apiFetch<{ ok: boolean }>(`internal/webhooks/deliveries/${deliveryId}/replay`, { method: 'POST' }),
+      apiFetch<{ ok: boolean }>(
+        `internal/webhooks/deliveries/${deliveryId}/replay`,
+        { method: "POST" },
+      ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'webhookDeliveries'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'webhookSummary'] });
+      qc.invalidateQueries({ queryKey: ["admin", "webhookDeliveries"] });
+      qc.invalidateQueries({ queryKey: ["admin", "webhookSummary"] });
     },
   });
 }
@@ -868,7 +1213,8 @@ export function useReplayDelivery() {
 export function useSystemHealth() {
   return useQuery({
     queryKey: adminKeys.systemHealth(),
-    queryFn: () => apiFetch<SystemHealthSummary>('internal/system-health/summary'),
+    queryFn: () =>
+      apiFetch<SystemHealthSummary>("internal/system-health/summary"),
     refetchInterval: 30_000,
   });
 }
@@ -878,14 +1224,17 @@ export function useSystemHealth() {
 export function useFeatureFlags(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.flags(params),
-    queryFn: () => apiFetch<{ items: FeatureFlagItem[] }>(`internal/config/flags${buildQuery(params)}`),
+    queryFn: () =>
+      apiFetch<{ items: FeatureFlagItem[] }>(
+        `internal/config/flags${buildQuery(params)}`,
+      ),
     select: (d) => d.items,
   });
 }
 
 export function useFeatureFlag(id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.flag(id ?? ''),
+    queryKey: adminKeys.flag(id ?? ""),
     queryFn: () => apiFetch<FeatureFlagItem>(`internal/config/flags/${id}`),
     enabled: Boolean(id),
   });
@@ -895,9 +1244,12 @@ export function useCreateFlag() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<FeatureFlagItem>('internal/config/flags', { method: 'POST', body: JSON.stringify(body) }),
+      apiFetch<FeatureFlagItem>("internal/config/flags", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
+      qc.invalidateQueries({ queryKey: ["admin", "flags"] });
     },
   });
 }
@@ -906,10 +1258,13 @@ export function useUpdateFlag(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<FeatureFlagItem>(`internal/config/flags/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      apiFetch<FeatureFlagItem>(`internal/config/flags/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
-      qc.invalidateQueries({ queryKey: ['admin', 'flag', id] });
+      qc.invalidateQueries({ queryKey: ["admin", "flags"] });
+      qc.invalidateQueries({ queryKey: ["admin", "flag", id] });
     },
   });
 }
@@ -918,9 +1273,12 @@ export function useToggleFlag() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
-      apiFetch<FeatureFlagItem>(`internal/config/flags/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+      apiFetch<FeatureFlagItem>(`internal/config/flags/${id}/toggle`, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled }),
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
+      qc.invalidateQueries({ queryKey: ["admin", "flags"] });
     },
   });
 }
@@ -929,9 +1287,11 @@ export function useDeleteFlag() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<{ ok: boolean }>(`internal/config/flags/${id}`, { method: 'DELETE' }),
+      apiFetch<{ ok: boolean }>(`internal/config/flags/${id}`, {
+        method: "DELETE",
+      }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
+      qc.invalidateQueries({ queryKey: ["admin", "flags"] });
     },
   });
 }
@@ -940,9 +1300,12 @@ export function useSeedFlags() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiFetch<{ created: number; total: number }>('internal/config/flags/seed', { method: 'POST' }),
+      apiFetch<{ created: number; total: number }>(
+        "internal/config/flags/seed",
+        { method: "POST" },
+      ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'flags'] });
+      qc.invalidateQueries({ queryKey: ["admin", "flags"] });
     },
   });
 }

@@ -221,9 +221,9 @@ export function BusinessDataManager({ clientId }: Props) {
     <div className="space-y-4">
       {/* Sticky toolbar */}
       <div className="sticky top-0 z-20 bg-sp-bg border-b border-white-10 -mx-1 px-1 pb-3 pt-1">
-        {/* Row 1: Search + perf badge + status + actions */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative w-full flex-1 sm:min-w-[200px] sm:max-w-[280px]">
+        {/* Phone hierarchy: search, status, then actions. Desktop recombines them. */}
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <div className="relative w-full sm:min-w-[200px] sm:max-w-[280px] sm:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white-30" />
             <input
               value={search}
@@ -233,6 +233,7 @@ export function BusinessDataManager({ clientId }: Props) {
             />
           </div>
 
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
           {/* Performance badge or bulk actions */}
           {selectedItems.length > 0 ? (
             <>
@@ -279,7 +280,7 @@ export function BusinessDataManager({ clientId }: Props) {
           )}
 
           {/* Status toggle */}
-          <div className="ml-0 flex rounded-lg border border-white-10 bg-white-5 p-0.5 sm:ml-auto">
+          <div className="order-first flex rounded-lg border border-white-10 bg-white-5 p-0.5 sm:order-none sm:ml-auto">
             <button
               onClick={() => setStatusFilter('ACTIVE')}
               className={cn(
@@ -337,16 +338,17 @@ export function BusinessDataManager({ clientId }: Props) {
             <Plus className="w-3.5 h-3.5" />
             Add Item
           </button>
+          </div>
         </div>
 
         {/* Row 2: Type filter pills + Top Performing */}
-        <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+        <div aria-label="Content type filters" className="-mx-1 mt-2 flex snap-x snap-mandatory items-center gap-1.5 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(isRE ? RE_TYPE_FILTERS : TYPE_FILTERS).map((t) => (
             <button
               key={t.value}
               onClick={() => setTypeFilter(t.value)}
               className={cn(
-                'min-h-11 shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                'min-h-11 shrink-0 snap-start rounded-full px-3 py-1 text-xs font-medium transition-colors',
                 typeFilter === t.value
                   ? 'bg-accent-green-110 text-sp-surface'
                   : 'bg-white-10 text-white-60 hover:bg-white-20'
@@ -358,7 +360,7 @@ export function BusinessDataManager({ clientId }: Props) {
           <button
             onClick={() => setShowTopPerforming(!showTopPerforming)}
             className={cn(
-              'flex min-h-11 shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+              'flex min-h-11 shrink-0 snap-start items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors',
               showTopPerforming
                 ? 'bg-green-500/20 text-green-400'
                 : 'bg-white-10 text-white-60 hover:bg-white-20'

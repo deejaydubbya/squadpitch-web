@@ -576,7 +576,7 @@ export function PlannerView({ clientId }: Props) {
         </div>
 
         {/* Status filters */}
-        <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1">
+        <div aria-label="Post status filters" className="-mx-1 flex snap-x snap-mandatory items-center gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {STATUS_FILTERS.map((f) => {
             const count =
               f.value === 'ALL' ? totalCount : (statusCounts[f.value] ?? 0);
@@ -585,7 +585,7 @@ export function PlannerView({ clientId }: Props) {
                 key={f.value}
                 onClick={() => setStatusFilter(f.value)}
                 className={cn(
-                  'min-h-11 shrink-0 rounded-full px-3 py-2 text-xs font-medium transition-colors',
+                  'min-h-11 shrink-0 snap-start rounded-full px-3 py-2 text-xs font-medium transition-colors',
                   statusFilter === f.value
                     ? 'bg-accent-green-110 text-sp-surface'
                     : 'bg-white-10 text-white-60 hover:bg-white-20'
@@ -600,13 +600,13 @@ export function PlannerView({ clientId }: Props) {
           })}
         </div>
 
-        <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1">
+        <div aria-label="Post channel filters" className="-mx-1 flex snap-x snap-mandatory items-center gap-1.5 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {CHANNEL_FILTERS.map((f) => (
             <button
               key={f.value}
               onClick={() => setChannelFilter(f.value)}
               className={cn(
-                'min-h-10 shrink-0 rounded px-3 py-2 text-xs font-medium transition-colors',
+                'min-h-10 shrink-0 snap-start rounded px-3 py-2 text-xs font-medium transition-colors',
                 channelFilter === f.value
                   ? 'bg-white-20 text-white-100'
                   : 'text-white-40 hover:text-white-60'

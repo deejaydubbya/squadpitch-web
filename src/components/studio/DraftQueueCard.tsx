@@ -235,6 +235,17 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
     REJECTED: 'border-l-red-400',
     FAILED: 'border-l-red-400',
   };
+  const attachedMedia = draft.mediaAssets?.length > 0
+    ? draft.mediaAssets.map((asset) => ({
+        url: asset.assetType === 'video' ? (asset.thumbnailUrl || asset.url) : asset.url,
+        isVideo: asset.assetType === 'video',
+        key: asset.id,
+      }))
+    : draft.mediaUrl
+      ? [{ url: draft.mediaUrl, isVideo: draft.mediaType === 'video', key: 'primary' }]
+      : [];
+  const visibleMedia = attachedMedia.slice(0, 3);
+  const hiddenMediaCount = Math.max(0, attachedMedia.length - visibleMedia.length);
 
   return (
     <div className={cn(
@@ -263,12 +274,9 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
       )}>
         {draft.mediaUrl ? (
           <div className="space-y-1.5">
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1.5 flex-shrink-0 overflow-x-auto">
-                {(draft.mediaAssets?.length > 0
-                  ? draft.mediaAssets.map((a) => ({ url: a.assetType === 'video' ? (a.thumbnailUrl || a.url) : a.url, isVideo: a.assetType === 'video', key: a.id }))
-                  : [{ url: draft.mediaUrl, isVideo: draft.mediaType === 'video', key: 'primary' }]
-                ).map((item) => (
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <div data-testid="planner-media-strip" className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden sm:flex-none">
+                {visibleMedia.map((item) => (
                   <button
                     key={item.key}
                     onClick={() => setLightboxOpen(true)}
@@ -289,8 +297,18 @@ export function DraftQueueCard({ draft, selected, onSelect }: Props) {
                     )}
                   </button>
                 ))}
+                {hiddenMediaCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxOpen(true)}
+                    className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-white-15 bg-white-10 text-xs font-semibold text-white-80"
+                    aria-label={`View ${hiddenMediaCount} more attached media items`}
+                  >
+                    +{hiddenMediaCount}
+                  </button>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="hidden min-w-0 flex-1 sm:block">
                 <button
                   onClick={() => setLightboxOpen(true)}
                   className="text-xs text-white-60 truncate block text-left hover:text-white-100 transition-colors"
