@@ -32,9 +32,9 @@ describe('prospect preview and claim flows', () => {
     expect(editor).toContain('Only selected content is visible');
     expect(editor).toContain('Prepare sample content');
     expect(editor).toContain('through Squadpitch&apos;s property pipeline');
-    expect(editor).toContain('Importing listing and preparing posts');
-    expect(editor).toContain('Property imported. Sample posts are ready for review.');
-    expect(editor).toContain('Sample content is ready. Select what you want to show publicly below.');
+    expect(editor).toContain('Preparation in progress');
+    expect(editor).toContain('Preparation complete.');
+    expect(editor).toContain('Preparation completed with warnings.');
     expect(editor).toContain('Nothing selected. Prepare sample content above');
     expect(editor).toContain('Move preview item up');
     expect(editor).toContain('Move preview item down');
@@ -70,11 +70,11 @@ describe('prospect preview and claim flows', () => {
   it('polls canonical curate state only while preparation is active', () => {
     const hooks = read('src/hooks/useAdmin.ts');
     const editor = read('src/app/(app)/admin/prospects/[id]/page.tsx');
-    expect(hooks).toContain('refetchInterval: preparationActive ? 2_000 : false');
+    expect(hooks).toContain('includes(query.state.data?.preparationRun?.status');
     expect(hooks).toContain('refetchIntervalInBackground: false');
     expect(hooks).toContain('onSettled:');
-    expect(editor).toContain('useAdminProspect(id, prepare.isPending)');
-    expect(editor).toContain('of 3 posts ready');
+    expect(editor).toContain('useAdminProspect(id)');
+    expect(editor).toContain('run.expectedCount');
     expect(editor).toContain('aria-live="polite"');
     expect(editor).toContain('selectionDirty');
   });

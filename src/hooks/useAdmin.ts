@@ -45,7 +45,17 @@ export interface ProspectWorkspaceItem {
   selectedPreviewItems?: ProspectPreviewSelection[];
   preparationState?: "NOT_STARTED" | "READY_UNSELECTED" | "SELECTED";
   sourcePreparationState?: "NOT_IMPORTED" | "IMPORTED";
-  campaignReadiness?: { status: "COMPLETE" | "PARTIAL" | "NEEDS_ATTENTION"; readyChannels: string[]; expectedChannels: string[]; issues: Array<{ channel: string; code: string; message: string }> };
+  campaignReadiness?: { status: "COMPLETE" | "COMPLETE_WITH_WARNINGS" | "PARTIAL" | "NEEDS_ATTENTION"; readyChannels: string[]; expectedChannels: string[]; issues: Array<{ channel: string; code: string; message: string }> };
+  preparationRun?: {
+    id: string;
+    status: "QUEUED" | "RUNNING" | "COMPLETE" | "COMPLETE_WITH_WARNINGS" | "FAILED";
+    stage: "QUEUED" | "IMPORTING_LISTING" | "ENRICHING" | "PROCESSING_MEDIA" | "GENERATING" | "SELECTING" | "COMPLETE" | "FAILED";
+    readyCount: number;
+    expectedCount: number;
+    warningCount: number;
+    failureMessage: string | null;
+    platformStates: Record<string, { status: "NOT_STARTED" | "GENERATING" | "VALIDATING" | "RETRYING" | "AI_ACCEPTED" | "FALLBACK_ACCEPTED" | "FAILED"; attemptCount: number; provenance: "AI" | "FALLBACK" | null; rejectionCategory: string | null; updatedAt: string | null }>;
+  } | null;
 }
 
 export interface ProspectPreviewCandidate {
@@ -514,12 +524,12 @@ export function useAdminProspects() {
   });
 }
 
-export function useAdminProspect(id: string | null, preparationActive = false) {
+export function useAdminProspect(id: string | null) {
   return useQuery({
     queryKey: ["admin", "prospects", id],
     queryFn: () => apiFetch<ProspectWorkspaceItem>(`internal/prospects/${id}`),
     enabled: Boolean(id),
-    refetchInterval: preparationActive ? 2_000 : false,
+    refetchInterval: (query) => ["QUEUED", "RUNNING"].includes(query.state.data?.preparationRun?.status ?? "") ? 2_000 : false,
     refetchIntervalInBackground: false,
   });
 }

@@ -17,7 +17,7 @@ export default function ProspectPreviewEditorPage({
 }) {
   const { id } = use(params);
   const prepare = usePrepareAdminProspect();
-  const { data, isLoading, isFetching } = useAdminProspect(id, prepare.isPending);
+  const { data, isLoading, isFetching } = useAdminProspect(id);
   const update = useUpdateProspectPreview();
   const [selected, setSelected] = useState<ProspectPreviewSelection[]>([]);
   const [selectionDirty, setSelectionDirty] = useState(false);
@@ -56,6 +56,9 @@ export default function ProspectPreviewEditorPage({
     return <p className="text-white-50">Loading preview editor…</p>;
   if (!data)
     return <p className="text-red-300">Prospect workspace not found.</p>;
+  const run = data.preparationRun;
+  const preparationActive = run?.status === "QUEUED" || run?.status === "RUNNING";
+  const stageLabels: Record<string, string> = { QUEUED: "Waiting for a preparation worker", IMPORTING_LISTING: "Importing listing", ENRICHING: "Normalizing and enriching verified facts", PROCESSING_MEDIA: "Processing and classifying listing images", GENERATING: "Generating and validating social drafts", SELECTING: "Assigning media and finalizing campaign" };
   return (
     <div className="space-y-6">
       <header>
@@ -74,26 +77,26 @@ export default function ProspectPreviewEditorPage({
       </header>
       <section className="rounded-2xl border border-white-10 bg-sp-card p-5">
         <h2 className="font-semibold text-white-90">Preview preparation</h2>
-        {data.industryKey === "real_estate" && data.sourceUrl && (data.sourcePreparationState !== "IMPORTED" || prepare.isPending) && (
+        {data.industryKey === "real_estate" && data.sourceUrl && (!run || run.status === "FAILED" || data.sourcePreparationState !== "IMPORTED" || preparationActive) && (
           <>
             <p className="mt-2 text-sm text-white-50">Import the supplied listing through Squadpitch&apos;s property pipeline, enrich known facts, and generate private property-specific drafts.</p>
             <button
-              disabled={prepare.isPending}
+              disabled={prepare.isPending || preparationActive}
               onClick={() => prepare.mutate({ id })}
-              aria-describedby="preparation-live-status"
+              aria-describedby={preparationActive ? "authoritative-preparation-status" : undefined}
               className="btn mt-4 bg-accent-green-110 text-sp-bg disabled:cursor-wait disabled:opacity-80"
             >
-              {prepare.isPending ? <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 inline h-4 w-4" />}
-              {prepare.isPending ? "Importing listing and preparing posts…" : "Prepare sample content"}
+              {prepare.isPending || preparationActive ? <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 inline h-4 w-4" />}
+              {prepare.isPending || preparationActive ? "Preparation in progress…" : run?.status === "FAILED" ? "Retry preparation" : "Prepare sample content"}
             </button>
-            {prepare.isPending && <div id="preparation-live-status" aria-live="polite" className="mt-4 rounded-xl border border-accent-green-110/20 bg-accent-green-110/5 p-4"><p className="text-sm font-medium text-white-80">Preparing {data.businessName} preview…</p><p className="mt-1 text-sm text-white-50">{candidates.filter((item) => item.itemType === "DRAFT").length} of 3 posts ready{isFetching ? " · Checking for updates…" : ""}</p><p className="mt-3 text-xs text-white-50"><LoaderCircle className="mr-1 inline h-3.5 w-3.5 animate-spin text-accent-green-110" /> Importing images and generating safe social drafts</p></div>}
           </>
         )}
-        {data.preparationState === "READY_UNSELECTED" && <p className="mt-2 text-sm text-amber-200">Sample content is ready. Select what you want to show publicly below.</p>}
-        {data.preparationState === "SELECTED" && <p className="mt-2 text-sm text-accent-green-110">Public preview content has been selected.</p>}
-        {data.campaignReadiness?.status === "PARTIAL" && <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3 text-sm text-amber-100"><p>{data.campaignReadiness.readyChannels.length} of {data.campaignReadiness.expectedChannels.length} platform drafts are ready.</p>{data.campaignReadiness.issues.map((issue) => <p key={issue.channel} className="mt-1 text-xs text-amber-200/80">{issue.message}</p>)}</div>}
-        {data.campaignReadiness?.status === "NEEDS_ATTENTION" && <p className="mt-3 text-sm text-amber-200">Campaign preparation needs attention before social drafts can be selected.</p>}
-        {prepare.isSuccess && <p className="mt-3 text-sm text-accent-green-110">Property imported. Sample posts are ready for review.</p>}
+        {preparationActive && <div id="authoritative-preparation-status" aria-live="polite" className="mt-4 rounded-xl border border-accent-green-110/20 bg-accent-green-110/5 p-4"><p className="text-sm font-medium text-white-80">Preparing {data.businessName} preview</p><p className="mt-1 text-sm text-white-50">{run.readyCount} of {run.expectedCount} posts ready{isFetching ? " Â· Checking for updatesâ€¦" : ""}</p><p className="mt-3 text-xs text-white-50"><LoaderCircle className="mr-1 inline h-3.5 w-3.5 animate-spin text-accent-green-110" /> {stageLabels[run.stage] ?? "Preparing campaign"}</p><div className="mt-3 space-y-1">{Object.entries(run.platformStates).map(([channel, state]) => <p key={channel} className="text-xs text-white-60">{channel.charAt(0) + channel.slice(1).toLowerCase()} â€” {state.status.replaceAll("_", " ").toLowerCase()}{state.attemptCount ? ` (attempt ${state.attemptCount})` : ""}</p>)}</div></div>}
+        {!preparationActive && run?.status === "COMPLETE" && <p className="mt-2 text-sm text-accent-green-110">Preparation complete. {run.readyCount} of {run.expectedCount} posts ready. Sample content is ready for review.</p>}
+        {!preparationActive && run?.status === "COMPLETE_WITH_WARNINGS" && <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3 text-sm text-amber-100"><p>Preparation completed with warnings. {run.readyCount} of {run.expectedCount} posts ready.</p><p className="mt-1 text-xs">{run.warningCount} platform {run.warningCount === 1 ? "used a" : "used"} safe fallback after AI attempts were exhausted.</p></div>}
+        {!preparationActive && run?.status === "FAILED" && <p role="alert" className="mt-3 text-sm text-red-300">Preparation failed. {run.failureMessage ?? "Retry when ready."}</p>}
+        {!run && !prepare.isPending && data.preparationState === "READY_UNSELECTED" && <p className="mt-2 text-sm text-amber-200">Sample content is ready. Select what you want to show publicly below.</p>}
+        {!run && !prepare.isPending && data.preparationState === "SELECTED" && <p className="mt-2 text-sm text-accent-green-110">Public preview content has been selected.</p>}
         {prepare.error && <p role="alert" className="mt-3 text-sm text-red-300">{prepare.error.message} Retry import, or add the property through the normal manual property flow after claim.</p>}
       </section>
       <section className="rounded-2xl border border-white-10 bg-sp-card p-5">
