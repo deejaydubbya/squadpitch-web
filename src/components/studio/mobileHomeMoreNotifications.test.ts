@@ -25,12 +25,25 @@ describe('mobile home, more menu, and notifications', () => {
 
     expect(header).toContain('<WorkspaceMoreMenu client={client} />');
     expect(menu).toContain("client.industryKey === 'real_estate'");
-    expect(menu).toContain('suiteFlags?.inbox');
     expect(menu).toContain('suiteFlags?.sites');
     expect(menu).toContain('suiteFlags?.ads');
+    expect(menu).toContain("label: 'Channels'");
+    expect(menu).toContain('`${base}/settings/channels`');
+    expect(menu).not.toContain("label: 'Integrations'");
+    expect(menu).not.toContain("label: 'Contacts'");
+    expect(menu).toContain('Manage</p>');
+    expect(menu).toContain('Workspace</p>');
+    expect(menu).toContain('Account</p>');
     expect(menu).toContain("href: '/workspaces'");
     expect(menu).toContain("href: '/help'");
     expect(menu).toContain('href="/auth/logout"');
+  });
+
+  it('uses focus-visible styling without programmatically refocusing the touch trigger', () => {
+    const header = source('src/components/studio/WorkspaceMobileHeader.tsx');
+
+    expect(header).toContain('focus-visible:ring-2');
+    expect(header).not.toContain('triggerRef.current?.focus()');
   });
 
   it('keeps notification actions keyboard-accessible and touch-sized', () => {

@@ -68,6 +68,8 @@ test.describe('authenticated mobile regression', () => {
     await expect(drawer.getByRole('link', { name: /Notifications/i })).toHaveAttribute('href', '/notifications');
     await expect(drawer.getByRole('link', { name: /Properties|Vehicles|Inventory & data/i })).toHaveAttribute('href', `${base}/data`);
     await expect(drawer.getByRole('link', { name: /Workspace settings/i })).toHaveAttribute('href', `${base}/settings`);
+    await expect(drawer.getByRole('link', { name: 'Channels', exact: true })).toHaveAttribute('href', `${base}/settings/channels`);
+    await expect(drawer.getByRole('link', { name: 'Integrations', exact: true })).toHaveCount(0);
   });
 
   test('Inbox supports list to thread to browser back when a seeded lead exists', async ({ page }) => {

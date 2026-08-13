@@ -87,13 +87,6 @@ export function WorkspaceMobileHeader({ client }: Props) {
     setOpen(false);
   }, [pathname]);
 
-  // Restore focus to the header trigger after the drawer closes.
-  useEffect(() => {
-    if (!open) {
-      triggerRef.current?.focus();
-    }
-  }, [open]);
-
   return (
     <>
       {/* Sticky top bar — mobile only. lg+ uses the persistent
@@ -102,7 +95,8 @@ export function WorkspaceMobileHeader({ client }: Props) {
         <Link
           href={base}
           className="flex items-center gap-2 min-w-0"
-          aria-label={`${client.name} home`}
+          aria-label={`${client.name}${sectionLabel ? `, ${sectionLabel}` : ''} home`}
+          title={sectionLabel ? `${client.name} / ${sectionLabel}` : client.name}
         >
           <Image
             src="/icon-192.png"
@@ -132,7 +126,7 @@ export function WorkspaceMobileHeader({ client }: Props) {
           ref={triggerRef}
           type="button"
           onClick={() => setOpen(true)}
-          className="p-2 -mr-2 rounded-lg text-white-60 hover:text-white-100 hover:bg-white-10 active:bg-white-10"
+          className="-mr-2 grid min-h-11 min-w-11 place-items-center rounded-lg text-white-60 hover:bg-white-10 hover:text-white-100 active:bg-white-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-green-110"
           aria-label="Open navigation menu"
           aria-expanded={open}
           aria-controls="workspace-mobile-drawer"
