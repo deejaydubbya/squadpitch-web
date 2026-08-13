@@ -49,6 +49,7 @@ import { UsageMeter } from '@/components/billing/UsageMeter';
 import { trackActivationEvent } from '@/lib/activationTracking';
 import type { NextActionItem } from '@/components/studio/OpportunitiesSection';
 import { buildCampaignRouteFromInput } from '@/lib/assistant/urlDetect';
+import { WorkspaceInvitationBanner } from '@/components/invitations/WorkspaceInvitationBanner';
 
 export default function OverviewPage() {
   const params = useParams<{ clientId: string }>();
@@ -387,6 +388,7 @@ export default function OverviewPage() {
 
   return (
     <div className="max-w-5xl">
+      <WorkspaceInvitationBanner />
       <section className="space-y-5 lg:hidden" aria-label="Mobile workspace overview">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-white-40">Today</p>

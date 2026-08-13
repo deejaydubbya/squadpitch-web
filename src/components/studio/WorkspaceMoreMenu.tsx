@@ -19,12 +19,14 @@ import {
 import { cn } from '@/lib/utils';
 import { useSuiteFlags, type Client } from '@/hooks/useSquadpitch';
 import { useUnreadCount } from '@/hooks/useNotifications';
+import { useWorkspaceInvitations } from '@/hooks/useWorkspaceInvitations';
 
 export function WorkspaceMoreMenu({ client }: { client: Client }) {
   const pathname = usePathname();
   const base = `/workspaces/${client.id}`;
   const { data: suiteFlags } = useSuiteFlags(client.id);
   const { data: unreadCount = 0 } = useUnreadCount();
+  const { data: invitationData } = useWorkspaceInvitations();
   const inventoryLabel = client.industryKey === 'real_estate'
     ? 'Properties'
     : client.industryKey === 'car_sales'
@@ -91,7 +93,7 @@ export function WorkspaceMoreMenu({ client }: { client: Client }) {
 
       <div className="mt-auto space-y-1 border-t border-white-10 pt-3">
         <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-white-30">Account</p>
-        {renderItem({ label: 'Switch workspace', href: '/workspaces', icon: BriefcaseBusiness })}
+        {renderItem({ label: invitationData?.count ? `Switch workspace · ${invitationData.count} pending` : 'Switch workspace', href: '/workspaces', icon: BriefcaseBusiness, badge: invitationData?.count })}
         {renderItem({ label: 'Help', href: '/help', icon: CircleHelp })}
         <Link href="/auth/logout" className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-white-60 transition-colors hover:bg-white-5 hover:text-white-100">
           <LogOut className="h-5 w-5" aria-hidden="true" />

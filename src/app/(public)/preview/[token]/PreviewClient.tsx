@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Eye, ImageIcon } from "lucide-react";
+import { useClaimWorkspaceInvitation } from '@/hooks/useWorkspaceInvitations';
 
 type Preview = {
   businessName: string;
@@ -32,7 +33,7 @@ type Preview = {
   preparationState: "NOT_STARTED" | "READY_UNSELECTED" | "SELECTED";
 };
 
-export function PreviewClient({ token }: { token: string }) {
+export function PreviewClient({ token, invitationId }: { token?: string; invitationId?: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [failed, setFailed] = useState(false);
   const [claimToken, setClaimToken] = useState<string | null>(null);
@@ -41,7 +42,8 @@ export function PreviewClient({ token }: { token: string }) {
     const match = window.location.hash.match(
       /^#claim=([A-Za-z0-9_-]{40,100})$/,
     );
-    fetch(`/api/public/prospects/preview/${encodeURIComponent(token)}`, {
+    const endpoint = invitationId ? `/api/proxy/workspace-invitations/${encodeURIComponent(invitationId)}/preview` : `/api/public/prospects/preview/${encodeURIComponent(token!)}`;
+    fetch(endpoint, {
       cache: "no-store",
     })
       .then(async (response) => {
@@ -49,11 +51,11 @@ export function PreviewClient({ token }: { token: string }) {
         return response.json();
       })
       .then((data) => {
-        setClaimToken(match?.[1] ?? null);
+        setClaimToken(invitationId ? null : match?.[1] ?? null);
         setPreview(data);
       })
       .catch(() => setFailed(true));
-  }, [token]);
+  }, [token, invitationId]);
 
   if (failed)
     return (
@@ -89,7 +91,9 @@ export function PreviewClient({ token }: { token: string }) {
           scheduled, or published.
         </p>
         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-          {claimToken && preview.claimAvailable ? (
+          {invitationId && preview.claimAvailable ? (
+            <InvitationClaimAction invitationId={invitationId} />
+          ) : claimToken && preview.claimAvailable ? (
             <button
               type="button"
               onClick={continueToClaim}
@@ -207,6 +211,13 @@ export function PreviewClient({ token }: { token: string }) {
       </div>
     </main>
   );
+}
+
+function InvitationClaimAction({ invitationId }: { invitationId: string }) {
+  const claim = useClaimWorkspaceInvitation();
+  const [claimedClientId, setClaimedClientId] = useState<string | null>(null);
+  if (claimedClientId) return <div className="flex flex-col gap-3 rounded-xl border border-[#62e29a]/25 bg-[#62e29a]/10 p-4 sm:flex-row sm:items-center"><span className="font-semibold text-white">Workspace claimed successfully</span><a href={`/workspaces/${claimedClientId}/getting-started?claimed=true`} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1DBF60] px-4 font-semibold text-[#0f241f]">Open workspace</a><span className="text-sm text-white/55">Or stay here to finish reviewing.</span></div>;
+  return <div><button type="button" disabled={claim.isPending} onClick={() => claim.mutate(invitationId, { onSuccess: (result) => setClaimedClientId(result.clientId) })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#1DBF60] px-5 font-semibold text-[#0f241f] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">{claim.isPending ? 'Claiming…' : 'Claim workspace'} <ArrowRight className="h-4 w-4" /></button>{claim.error && <p className="mt-3 text-sm text-red-300" role="alert">{claim.error.message}</p>}</div>;
 }
 
 function DraftMediaGallery({ draft }: { draft: Preview["drafts"][number] }) {

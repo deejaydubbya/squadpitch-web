@@ -12,10 +12,13 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUsage, useCreateCheckout, useChangePlan, type PlanTier } from '@/hooks/useBilling';
 import { ClientCard } from '@/components/studio/ClientCard';
 import { shouldRedirectToOnboarding } from '@/lib/onboardingRedirect';
+import { InvitationCard } from '@/components/invitations/InvitationCard';
+import { useWorkspaceInvitations } from '@/hooks/useWorkspaceInvitations';
 
 export default function WorkspacesPage() {
   const router = useRouter();
   const { data: clients, isLoading, error } = useClients();
+  const { data: invitationData } = useWorkspaceInvitations();
   const { isAdmin, isDeveloper } = useCurrentUser();
   const deleteWorkspace = useDeleteWorkspace();
 
@@ -140,6 +143,13 @@ export default function WorkspacesPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {Boolean(invitationData?.count) && (
+          <section id="pending-invitations" className="max-w-5xl scroll-mt-6" aria-labelledby="pending-invitations-title">
+            <div className="mb-3 flex items-center justify-between gap-3"><div><h2 id="pending-invitations-title" className="text-lg font-semibold text-white-100">Pending invitations ({invitationData!.count})</h2><p className="mt-1 text-sm text-white-50">These are prepared workspaces you can preview or claim. They are not part of your account yet.</p></div></div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{invitationData!.invitations.map((invitation) => <InvitationCard key={invitation.id} invitation={invitation} />)}</div>
+          </section>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">

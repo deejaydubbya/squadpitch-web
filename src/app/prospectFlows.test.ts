@@ -80,4 +80,26 @@ describe('prospect preview and claim flows', () => {
     expect(editor).toContain('aria-live="polite"');
     expect(editor).toContain('selectionDirty');
   });
+
+  it('gates onboarding on authoritative verification and offers all pending workspaces', () => {
+    const gate = read('src/components/onboarding/VerifiedWorkspaceGate.tsx');
+    const onboarding = read('src/app/(app)/onboarding/page.tsx');
+    expect(onboarding).toContain('<VerifiedWorkspaceGate>');
+    expect(gate).toContain("I've verified my email");
+    expect(gate).toContain('identity/verification');
+    expect(gate).toContain('Resend verification email');
+    expect(gate).toContain('state.pendingClaims.map');
+    expect(gate).toContain('Create a different workspace');
+    expect(gate).toContain('getting-started?claimed=true');
+  });
+
+  it('lets admins persist supported preparation channels and keeps counts authoritative', () => {
+    const editor = read('src/app/(app)/admin/prospects/[id]/page.tsx');
+    const hooks = read('src/hooks/useAdmin.ts');
+    expect(editor).toContain('Prepare content for');
+    expect(editor).toContain('selectedChannels: preparationChannels');
+    expect(editor).toContain('preparationChannels.length === 0');
+    expect(hooks).toContain('selectedChannels?: Array<"INSTAGRAM" | "FACEBOOK" | "LINKEDIN">');
+    expect(editor).toContain('run.expectedCount');
+  });
 });

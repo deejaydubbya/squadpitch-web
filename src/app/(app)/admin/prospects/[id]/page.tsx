@@ -21,6 +21,9 @@ export default function ProspectPreviewEditorPage({
   const update = useUpdateProspectPreview();
   const [selected, setSelected] = useState<ProspectPreviewSelection[]>([]);
   const [selectionDirty, setSelectionDirty] = useState(false);
+  const [preparationChannels, setPreparationChannels] = useState<Array<"INSTAGRAM" | "FACEBOOK" | "LINKEDIN">>([]);
+  const run = data?.preparationRun;
+  const preparationActive = run?.status === "QUEUED" || run?.status === "RUNNING";
   useEffect(() => {
     if (data?.selectedPreviewItems && !selectionDirty) {
       // The query is the source of truth after save/refetch; synchronize the editor draft.
@@ -28,6 +31,12 @@ export default function ProspectPreviewEditorPage({
       setSelected(data.selectedPreviewItems);
     }
   }, [data, selectionDirty]);
+  useEffect(() => {
+    if (data?.selectedChannels && !preparationActive) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPreparationChannels(data.selectedChannels);
+    }
+  }, [data?.selectedChannels, preparationActive]);
   const candidates = data?.eligiblePreviewItems ?? [];
   const keys = new Set(selected.map((item) => `${item.itemType}:${item.id}`));
   const normalize = (items: ProspectPreviewSelection[]) =>
@@ -56,8 +65,6 @@ export default function ProspectPreviewEditorPage({
     return <p className="text-white-50">Loading preview editor…</p>;
   if (!data)
     return <p className="text-red-300">Prospect workspace not found.</p>;
-  const run = data.preparationRun;
-  const preparationActive = run?.status === "QUEUED" || run?.status === "RUNNING";
   const fallbackCount = run ? Object.values(run.platformStates).filter((state) => state.status === "FALLBACK_ACCEPTED").length : 0;
   const platformStatus = (state: NonNullable<typeof run>["platformStates"][string]) => {
     if (state.status === "AI_ACCEPTED") return "AI generated [ok]";
@@ -87,17 +94,23 @@ export default function ProspectPreviewEditorPage({
       </header>
       <section className="rounded-2xl border border-white-10 bg-sp-card p-5">
         <h2 className="font-semibold text-white-90">Preview preparation</h2>
-        {data.industryKey === "real_estate" && data.sourceUrl && (!run || run.status === "FAILED" || data.sourcePreparationState !== "IMPORTED" || preparationActive) && (
+        {data.industryKey === "real_estate" && data.sourceUrl && (
           <>
             <p className="mt-2 text-sm text-white-50">Import the supplied listing through Squadpitch&apos;s property pipeline, enrich known facts, and generate private property-specific drafts.</p>
+            <fieldset className="mt-4">
+              <legend className="text-sm font-medium text-white-80">Prepare content for</legend>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {(["INSTAGRAM", "FACEBOOK", "LINKEDIN"] as const).map((channel) => <label key={channel} className="flex min-h-11 items-center gap-2 rounded-lg border border-white-10 px-3 text-sm text-white-70"><input type="checkbox" checked={preparationChannels.includes(channel)} disabled={preparationActive} onChange={(event) => setPreparationChannels(event.target.checked ? [...preparationChannels, channel] : preparationChannels.filter((value) => value !== channel))} />{channel.charAt(0) + channel.slice(1).toLowerCase()}</label>)}
+              </div>
+            </fieldset>
             <button
-              disabled={prepare.isPending || preparationActive}
-              onClick={() => prepare.mutate({ id })}
+              disabled={prepare.isPending || preparationActive || preparationChannels.length === 0}
+              onClick={() => prepare.mutate({ id, selectedChannels: preparationChannels })}
               aria-describedby={preparationActive ? "authoritative-preparation-status" : undefined}
               className="btn mt-4 bg-accent-green-110 text-sp-bg disabled:cursor-wait disabled:opacity-80"
             >
               {prepare.isPending || preparationActive ? <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 inline h-4 w-4" />}
-              {prepare.isPending || preparationActive ? "Preparation in progress..." : run?.status === "FAILED" ? "Retry preparation" : "Prepare sample content"}
+              {prepare.isPending || preparationActive ? "Preparation in progress..." : run?.status === "FAILED" ? "Retry preparation" : run ? "Prepare selected channels" : "Prepare sample content"}
             </button>
           </>
         )}

@@ -45,6 +45,7 @@ export interface ProspectWorkspaceItem {
   selectedPreviewItems?: ProspectPreviewSelection[];
   preparationState?: "NOT_STARTED" | "READY_UNSELECTED" | "SELECTED";
   sourcePreparationState?: "NOT_IMPORTED" | "IMPORTED";
+  selectedChannels?: Array<"INSTAGRAM" | "FACEBOOK" | "LINKEDIN">;
   campaignReadiness?: { status: "COMPLETE" | "COMPLETE_WITH_WARNINGS" | "PARTIAL" | "NEEDS_ATTENTION"; readyChannels: string[]; expectedChannels: string[]; issues: Array<{ channel: string; code: string; message: string }> };
   preparationRun?: {
     id: string;
@@ -567,8 +568,8 @@ export function usePopulateAdminProspect() {
 export function usePrepareAdminProspect() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, sourceUrl }: { id: string; sourceUrl?: string }) =>
-      apiFetch(`internal/prospects/${id}/prepare`, { method: "POST", body: JSON.stringify(sourceUrl ? { sourceUrl } : {}) }),
+    mutationFn: ({ id, sourceUrl, selectedChannels }: { id: string; sourceUrl?: string; selectedChannels?: Array<"INSTAGRAM" | "FACEBOOK" | "LINKEDIN"> }) =>
+      apiFetch(`internal/prospects/${id}/prepare`, { method: "POST", body: JSON.stringify({ ...(sourceUrl ? { sourceUrl } : {}), ...(selectedChannels ? { selectedChannels } : {}) }) }),
     onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["admin", "prospects", variables.id] }),
   });
 }
