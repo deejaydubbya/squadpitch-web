@@ -20,4 +20,12 @@ describe("authoritative prospect preparation UI", () => {
     expect(page).toContain("run.readyCount");
     expect(page).toContain("run.platformStates");
   });
+
+  it("distinguishes AI success and fallback without mojibake", () => {
+    expect(page).toContain("AI generated [ok]");
+    expect(page).toContain("Safe fallback [warning]");
+    expect(page).toContain("posts available");
+    expect(page).toContain("fallbackCount");
+    expect(page).not.toContain("Ã¢â‚¬â€");
+  });
 });

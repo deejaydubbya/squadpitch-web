@@ -58,6 +58,16 @@ export default function ProspectPreviewEditorPage({
     return <p className="text-red-300">Prospect workspace not found.</p>;
   const run = data.preparationRun;
   const preparationActive = run?.status === "QUEUED" || run?.status === "RUNNING";
+  const fallbackCount = run ? Object.values(run.platformStates).filter((state) => state.status === "FALLBACK_ACCEPTED").length : 0;
+  const platformStatus = (state: NonNullable<typeof run>["platformStates"][string]) => {
+    if (state.status === "AI_ACCEPTED") return "AI generated [ok]";
+    if (state.status === "FALLBACK_ACCEPTED") return "Safe fallback [warning]";
+    if (state.status === "RETRYING") return `Retrying - attempt ${Math.min(state.attemptCount + 1, 3)} of 3`;
+    if (state.status === "VALIDATING") return "Validating";
+    if (state.status === "GENERATING") return `Generating - attempt ${state.attemptCount} of 3`;
+    if (state.status === "FAILED") return "Failed";
+    return "Not started";
+  };
   const stageLabels: Record<string, string> = { QUEUED: "Waiting for a preparation worker", IMPORTING_LISTING: "Importing listing", ENRICHING: "Normalizing and enriching verified facts", PROCESSING_MEDIA: "Processing and classifying listing images", GENERATING: "Generating and validating social drafts", SELECTING: "Assigning media and finalizing campaign" };
   return (
     <div className="space-y-6">
@@ -87,11 +97,11 @@ export default function ProspectPreviewEditorPage({
               className="btn mt-4 bg-accent-green-110 text-sp-bg disabled:cursor-wait disabled:opacity-80"
             >
               {prepare.isPending || preparationActive ? <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 inline h-4 w-4" />}
-              {prepare.isPending || preparationActive ? "Preparation in progress…" : run?.status === "FAILED" ? "Retry preparation" : "Prepare sample content"}
+              {prepare.isPending || preparationActive ? "Preparation in progress..." : run?.status === "FAILED" ? "Retry preparation" : "Prepare sample content"}
             </button>
           </>
         )}
-        {preparationActive && <div id="authoritative-preparation-status" aria-live="polite" className="mt-4 rounded-xl border border-accent-green-110/20 bg-accent-green-110/5 p-4"><p className="text-sm font-medium text-white-80">Preparing {data.businessName} preview</p><p className="mt-1 text-sm text-white-50">{run.readyCount} of {run.expectedCount} posts ready{isFetching ? " Â· Checking for updatesâ€¦" : ""}</p><p className="mt-3 text-xs text-white-50"><LoaderCircle className="mr-1 inline h-3.5 w-3.5 animate-spin text-accent-green-110" /> {stageLabels[run.stage] ?? "Preparing campaign"}</p><div className="mt-3 space-y-1">{Object.entries(run.platformStates).map(([channel, state]) => <p key={channel} className="text-xs text-white-60">{channel.charAt(0) + channel.slice(1).toLowerCase()} â€” {state.status.replaceAll("_", " ").toLowerCase()}{state.attemptCount ? ` (attempt ${state.attemptCount})` : ""}</p>)}</div></div>}
+        {preparationActive && <div id="authoritative-preparation-status" aria-live="polite" className="mt-4 rounded-xl border border-accent-green-110/20 bg-accent-green-110/5 p-4"><p className="text-sm font-medium text-white-80">Preparing {data.businessName} preview</p><p className="mt-1 text-sm text-white-50">{run.readyCount} of {run.expectedCount} posts available{fallbackCount ? ` | ${fallbackCount} fallback` : ""}{isFetching ? " | Checking for updates..." : ""}</p><p className="mt-3 text-xs text-white-50"><LoaderCircle className="mr-1 inline h-3.5 w-3.5 animate-spin text-accent-green-110" /> {stageLabels[run.stage] ?? "Preparing campaign"}</p><div className="mt-3 space-y-1">{Object.entries(run.platformStates).map(([channel, state]) => <p key={channel} className="text-xs text-white-60">{channel.charAt(0) + channel.slice(1).toLowerCase()} | {platformStatus(state)}</p>)}</div></div>}
         {!preparationActive && run?.status === "COMPLETE" && <p className="mt-2 text-sm text-accent-green-110">Preparation complete. {run.readyCount} of {run.expectedCount} posts ready. Sample content is ready for review.</p>}
         {!preparationActive && run?.status === "COMPLETE_WITH_WARNINGS" && <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3 text-sm text-amber-100"><p>Preparation completed with warnings. {run.readyCount} of {run.expectedCount} posts ready.</p><p className="mt-1 text-xs">{run.warningCount} platform {run.warningCount === 1 ? "used a" : "used"} safe fallback after AI attempts were exhausted.</p></div>}
         {!preparationActive && run?.status === "FAILED" && <p role="alert" className="mt-3 text-sm text-red-300">Preparation failed. {run.failureMessage ?? "Retry when ready."}</p>}
