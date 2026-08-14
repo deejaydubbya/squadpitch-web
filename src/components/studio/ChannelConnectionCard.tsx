@@ -29,11 +29,9 @@ import {
 } from "@/hooks/useSquadpitch";
 import { useOAuthPopup } from "@/hooks/useOAuthPopup";
 import { cn } from "@/lib/utils";
-import { CHANNEL_REGISTRY } from "@/lib/channelRegistry";
 import { PinterestBoardPicker } from "./PinterestBoardPicker";
 import { GbpLocationPicker } from "./GbpLocationPicker";
 import {
-  INSTAGRAM_CONNECTION_DESCRIPTION,
   INSTAGRAM_RECONNECT_BANNER,
   instagramConnectionNeedsReconnect,
 } from "@/lib/instagramScopes";
@@ -62,11 +60,6 @@ const CHANNEL_META: Record<
     label: "Instagram",
     icon: Instagram,
     real: true,
-    // IG-04 — show the four Business Login scope explanations
-    // before the user clicks Connect so reviewers + users can see
-    // exactly which permissions get requested. Single source of
-    // truth lives in `lib/instagramScopes.ts`.
-    description: INSTAGRAM_CONNECTION_DESCRIPTION,
   },
   TIKTOK: { label: "TikTok", icon: Music2, real: true },
   LINKEDIN: { label: "LinkedIn Personal Profile", icon: Linkedin, real: true },
@@ -129,7 +122,6 @@ export function ChannelConnectionCard({
   recommendationTier,
 }: Props) {
   const meta = CHANNEL_META[channel];
-  const availability = CHANNEL_REGISTRY[channel].availability;
   const Icon = meta.icon;
   const oauthPopup = useOAuthPopup(clientId);
   const disconnect = useDisconnectChannel(clientId);
@@ -226,11 +218,6 @@ export function ChannelConnectionCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-white-100 font-semibold">{meta.label}</h3>
-            {availability === "BETA" && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-zone-yellow">
-                Beta
-              </span>
-            )}
             {!meta.real && (
               <span className="text-xs text-white-40 font-medium">
                 Coming soon
