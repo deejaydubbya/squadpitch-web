@@ -26,7 +26,7 @@ test.describe('authenticated feedback flow', () => {
     await page.goto(base);
     const message = `E2E desktop feedback ${crypto.randomUUID()}`;
     await completeFeedback(page, message);
-    const history = await page.request.get('/api/proxy/v1/feedback/mine');
+    const history = await page.request.get('/api/proxy/feedback/mine');
     expect(history.ok()).toBe(true);
     expect((await history.json()).items.some((item: { body: string }) => item.body === message)).toBe(true);
   });
@@ -40,7 +40,7 @@ test.describe('authenticated feedback flow', () => {
 
   test('failure preserves the message and exposes retry without false success', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.route('**/api/proxy/v1/feedback', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Synthetic unavailable' }) }));
+    await page.route('**/api/proxy/feedback', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Synthetic unavailable' }) }));
     await page.goto(base);
     await page.getByRole('navigation', { name: 'Primary workspace navigation' }).getByRole('button', { name: /More/i }).click();
     await page.getByRole('button', { name: 'Send feedback' }).click();
@@ -65,19 +65,25 @@ test.describe('admin feedback flow', () => {
   test.use({ storageState: adminStorageState || { cookies: [], origins: [] } });
   test('admin triages, notes, and resolves persisted feedback', async ({ page }) => {
     const message = `E2E admin feedback ${crypto.randomUUID()}`;
-    const created = await page.request.post('/api/proxy/v1/feedback', { data: { type: 'general', message, clientId: null, route: '/admin/feedback?secret=removed', deviceClass: 'desktop', viewport: { width: 1280, height: 800 }, idempotencyKey: crypto.randomUUID() } });
+    const created = await page.request.post('/api/proxy/feedback', { data: { type: 'general', message, clientId: null, route: '/admin/feedback?secret=removed', deviceClass: 'desktop', viewport: { width: 1280, height: 800 }, idempotencyKey: crypto.randomUUID() } });
     expect(created.ok()).toBe(true);
     const id = (await created.json()).id as string;
     await page.goto('/admin/feedback');
     await expect(page.getByRole('heading', { name: 'Feedback Inbox' })).toBeVisible();
-    await page.getByText(message, { exact: true }).click();
-    await page.getByRole('button', { name: 'reviewing', exact: true }).click();
-    await page.getByRole('button', { name: 'high priority', exact: true }).click();
+    await page.getByText(message, { exact: true }).first().click();
+    const waitForPatch = () => page.waitForResponse((response) => response.request().method() === 'PATCH' && new URL(response.url()).pathname === `/api/proxy/internal/feedback/${id}`);
+    let [updated] = await Promise.all([waitForPatch(), page.getByRole('button', { name: 'reviewing', exact: true }).click()]);
+    expect(updated.ok()).toBe(true);
+    [updated] = await Promise.all([waitForPatch(), page.getByRole('button', { name: 'high priority', exact: true }).click()]);
+    expect(updated.ok()).toBe(true);
     await page.getByPlaceholder('Add internal notes about this feedback...').fill('E2E verified note');
-    await page.getByRole('button', { name: 'Save notes' }).click();
-    await page.getByRole('button', { name: 'resolved', exact: true }).click();
-    const detail = await page.request.get(`/api/proxy/internal/feedback/${id}`);
-    expect(detail.ok()).toBe(true);
-    expect(await detail.json()).toMatchObject({ id, body: message, type: 'general', route: '/admin/feedback', status: 'resolved', severity: 'high', internalNotes: 'E2E verified note' });
+    [updated] = await Promise.all([waitForPatch(), page.getByRole('button', { name: 'Save notes' }).click()]);
+    expect(updated.ok()).toBe(true);
+    [updated] = await Promise.all([waitForPatch(), page.getByRole('button', { name: 'resolved', exact: true }).click()]);
+    expect(updated.ok()).toBe(true);
+    await expect.poll(async () => {
+      const detail = await page.request.get(`/api/proxy/internal/feedback/${id}`);
+      return detail.ok() ? await detail.json() : null;
+    }).toMatchObject({ id, body: message, type: 'general', route: '/admin/feedback', status: 'resolved', severity: 'high', internalNotes: 'E2E verified note' });
   });
 });

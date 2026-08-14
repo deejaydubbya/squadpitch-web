@@ -35,7 +35,7 @@ export function FeedbackDialog({ clientId, triggerClassName }: { clientId?: stri
     setState('sending'); setError('');
     try {
       const width = window.innerWidth;
-      await apiFetch('v1/feedback', { method: 'POST', body: JSON.stringify({ type, message: message.trim(), clientId: clientId || null, route: window.location.pathname, releaseVersion: process.env.NEXT_PUBLIC_APP_VERSION || null, deviceClass: width < 640 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop', viewport: { width, height: window.innerHeight }, idempotencyKey: key.current }) });
+      await apiFetch('feedback', { method: 'POST', body: JSON.stringify({ type, message: message.trim(), clientId: clientId || null, route: window.location.pathname, releaseVersion: process.env.NEXT_PUBLIC_APP_VERSION || null, deviceClass: width < 640 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop', viewport: { width, height: window.innerHeight }, idempotencyKey: key.current }) });
       setState('success'); track('feedback_submitted', { type, route: window.location.pathname });
       setMessage(''); setType(''); key.current = crypto.randomUUID();
     } catch (cause) {

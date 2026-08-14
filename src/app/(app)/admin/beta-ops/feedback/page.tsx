@@ -281,7 +281,7 @@ function InternalNotesEditor({ feedbackId, initialNotes }: { feedbackId: string;
   const updateMutation = useUpdateFeedback(feedbackId);
 
   const handleSave = () => {
-    updateMutation.mutate({ internalNotes: notes || null });
+    updateMutation.mutate({ adminNote: notes || null });
   };
 
   return (

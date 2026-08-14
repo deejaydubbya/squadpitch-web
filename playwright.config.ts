@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const externalBaseURL = process.env.SQUADPITCH_E2E_BASE_URL;
+
 /**
  * Playwright config for the customer happy-path smoke test.
  *
@@ -24,7 +26,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:3001',
+    baseURL: externalBaseURL ?? 'http://127.0.0.1:3001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -34,7 +36,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
+  webServer: externalBaseURL ? undefined : {
     // Build first, then run the standalone artifact used by production.
     command: 'npm run build && node scripts/start-standalone.mjs',
     url: 'http://127.0.0.1:3001',
