@@ -339,6 +339,7 @@ export interface JobSummaryItem {
   attemptsMax: number;
   failedReason: string | null;
   workspaceId: string | null;
+  workspaceName?: string | null;
   context: string | null;
 }
 
@@ -935,6 +936,12 @@ export interface BetaFeedbackItem {
   testerId: string | null;
   userId: string;
   workspaceId: string | null;
+  workspaceName?: string | null;
+  submitterEmail?: string | null;
+  submitterName?: string | null;
+  releaseVersion?: string | null;
+  deviceClass?: string | null;
+  resolvedBy?: string | null;
   type: string;
   severity: string;
   title: string;
@@ -1003,7 +1010,7 @@ export function useBetaFeedbackList(params: Record<string, string> = {}) {
     queryKey: adminKeys.betaFeedback(params),
     queryFn: () =>
       apiFetch<{ items: BetaFeedbackItem[]; nextCursor: string | null }>(
-        `internal/beta/feedback${buildQuery(params)}`,
+        `internal/feedback${buildQuery(params)}`,
       ),
   });
 }
@@ -1058,7 +1065,7 @@ export function useUpdateFeedback(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch<BetaFeedbackItem>(`internal/beta/feedback/${id}`, {
+      apiFetch<BetaFeedbackItem>(`internal/feedback/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),
       }),

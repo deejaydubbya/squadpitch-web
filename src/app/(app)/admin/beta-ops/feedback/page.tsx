@@ -13,23 +13,22 @@ import {
 } from '@/hooks/useAdmin';
 import type { BetaFeedbackItem } from '@/hooks/useAdmin';
 
-const STATUS_OPTIONS = ['', 'new', 'triaged', 'in_progress', 'resolved', 'wont_fix', 'duplicate'];
-const TYPE_OPTIONS = ['', 'bug', 'feature_request', 'ux_issue', 'general', 'praise', 'question'];
-const SEVERITY_OPTIONS = ['', 'critical', 'high', 'medium', 'low'];
+const STATUS_OPTIONS = ['', 'new', 'reviewing', 'planned', 'resolved', 'closed'];
+const TYPE_OPTIONS = ['', 'bug', 'feature_request', 'ux_issue', 'general'];
+const SEVERITY_OPTIONS = ['', 'urgent', 'high', 'normal', 'low'];
 
 const STATUS_COLORS: Record<string, string> = {
   new: 'bg-accent-blue/20 text-accent-blue',
-  triaged: 'bg-yellow-500/20 text-yellow-400',
-  in_progress: 'bg-accent-green-110/20 text-accent-green-110',
+  reviewing: 'bg-yellow-500/20 text-yellow-400',
+  planned: 'bg-accent-green-110/20 text-accent-green-110',
   resolved: 'bg-green-500/20 text-green-400',
-  wont_fix: 'bg-white-10 text-white-40',
-  duplicate: 'bg-white-10 text-white-40',
+  closed: 'bg-white-10 text-white-40',
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'bg-red-500/20 text-accent-red',
+  urgent: 'bg-red-500/20 text-accent-red',
   high: 'bg-orange-500/20 text-accent-orange',
-  medium: 'bg-white-10 text-white-60',
+  normal: 'bg-white-10 text-white-60',
   low: 'bg-white-10 text-white-30',
 };
 
@@ -98,7 +97,7 @@ export default function FeedbackPage() {
           {TYPE_OPTIONS.map((s) => <option key={s} value={s}>{s ? s.replace('_', ' ') : 'All types'}</option>)}
         </select>
         <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} className="px-3 py-2 rounded-lg bg-sp-surface border border-white-10 text-white text-sm focus:outline-none">
-          {SEVERITY_OPTIONS.map((s) => <option key={s} value={s}>{s || 'All severities'}</option>)}
+          {SEVERITY_OPTIONS.map((s) => <option key={s} value={s}>{s || 'All priorities'}</option>)}
         </select>
         <button
           onClick={() => setFollowUpOnly(!followUpOnly)}
@@ -133,7 +132,8 @@ export default function FeedbackPage() {
                   <p className="text-white text-sm font-medium">{fb.title}</p>
                   <p className="text-white-40 text-xs mt-0.5 line-clamp-1">{fb.body}</p>
                   <div className="flex items-center gap-3 mt-1.5 text-[10px] text-white-30">
-                    <span>{fb.tester?.email || fb.userId}</span>
+                    <span>{fb.submitterEmail || fb.tester?.email || fb.userId}</span>
+                    {fb.workspaceName && <span>{fb.workspaceName}</span>}
                     {fb.tester?.cohort && <span className="text-accent-blue">{fb.tester.cohort}</span>}
                     {fb.route && <span>{fb.route}</span>}
                     <span>{new Date(fb.createdAt).toLocaleString()}</span>
@@ -189,6 +189,12 @@ function FeedbackDetailView({ fb, isAdmin, onBack }: { fb: BetaFeedbackItem; isA
               {s.replace('_', ' ')}
             </button>
           ))}
+          {SEVERITY_OPTIONS.filter(Boolean).map((priority) => (
+            <button key={priority} onClick={() => updateMutation.mutate({ priority })}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border', fb.severity === priority ? 'border-accent-blue/30 bg-accent-blue/15 text-accent-blue' : 'border-white-10 text-white-40 hover:bg-white-5')}>
+              {priority} priority
+            </button>
+          ))}
           <button onClick={handleToggleFollowUp}
             className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border',
               fb.needsFollowUp ? 'border-accent-orange/30 bg-accent-orange/15 text-accent-orange' : 'border-white-10 text-white-40 hover:bg-white-5')}
@@ -217,10 +223,14 @@ function FeedbackDetailView({ fb, isAdmin, onBack }: { fb: BetaFeedbackItem; isA
         <div className="rounded-xl border border-white-10 bg-sp-surface p-5">
           <h2 className="text-sm font-semibold text-white mb-3">Details</h2>
           <InfoRow label="Type" value={fb.type.replace('_', ' ')} />
-          <InfoRow label="Severity" value={fb.severity} />
+          <InfoRow label="Priority" value={fb.severity} />
           <InfoRow label="Route / Page" value={fb.route || '—'} />
           <InfoRow label="User ID" value={fb.userId} mono />
           <InfoRow label="Workspace ID" value={fb.workspaceId || '—'} mono />
+          <InfoRow label="Workspace" value={fb.workspaceName || '—'} />
+          <InfoRow label="Submitter" value={fb.submitterName || fb.submitterEmail || '—'} />
+          <InfoRow label="Device" value={fb.deviceClass || '—'} />
+          <InfoRow label="Release" value={fb.releaseVersion || '—'} />
           {fb.relatedEntityType && (
             <>
               <InfoRow label="Related Entity" value={fb.relatedEntityType} />

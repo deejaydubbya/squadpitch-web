@@ -37,7 +37,10 @@ export type AnalyticsEvent =
   | 'usage_limit_hit'
   | 'upgrade_clicked'
   | 'checkout_started'
-  | 'checkout_completed';
+  | 'checkout_completed'
+  | 'feedback_opened'
+  | 'feedback_submitted'
+  | 'feedback_submission_failed';
 
 type SafePrimitive = string | number | boolean | null;
 type Properties = Record<string, SafePrimitive>;

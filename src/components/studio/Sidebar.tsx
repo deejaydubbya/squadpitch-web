@@ -24,6 +24,7 @@ import { useAutopilotCampaignStats, useSuiteFlags } from '@/hooks/useSquadpitch'
 import { useUsage } from '@/hooks/useBilling';
 import { PlanBadge } from '@/components/billing/PlanBadge';
 import { NotificationBell } from './NotificationBell';
+import { FeedbackDialog } from '@/components/feedback/FeedbackDialog';
 import { useTranslations } from 'next-intl';
 
 
@@ -233,6 +234,7 @@ export function Sidebar({ client }: Props) {
 
       {/* Bottom */}
       <div className="p-3 border-t border-white-10 space-y-2">
+        <FeedbackDialog clientId={client.id} />
         {usage && (
           <div className="px-3 py-2">
             <PlanBadge tier={usage.tier} />
