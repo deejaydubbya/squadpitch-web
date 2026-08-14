@@ -17,6 +17,11 @@ export interface Subscription {
   status: SubscriptionStatus;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  trialConsumedAt: string | null;
+  trialStart: string | null;
+  trialEnd: string | null;
+  trialTier: PlanTier | null;
+  trialState: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -140,11 +145,33 @@ const billingKeys = {
   subscription: (clientId?: string) => ['billing', 'subscription', clientId ?? 'account'] as const,
   usage: (clientId?: string) => ['billing', 'usage', clientId ?? 'account'] as const,
   plans: ['billing', 'plans'] as const,
+  trial: ['billing', 'trial'] as const,
   systemHealth: ['billing', 'system-health'] as const,
   remaining: ['billing', 'remaining'] as const,
   aiUsage: ['billing', 'ai-usage'] as const,
   aiCostBreakdown: ['billing', 'ai-cost-breakdown'] as const,
 };
+
+export interface TrialSummary {
+  eligible: boolean; consumed: boolean; active: boolean; state: string | null;
+  tier: PlanTier | null; startsAt: string | null; endsAt: string | null;
+}
+
+export function useTrial() {
+  return useQuery({ queryKey: billingKeys.trial, queryFn: () => apiFetch<TrialSummary>('billing/trial') });
+}
+
+export function useStartTrial() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<Subscription>('billing/trial/start', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: billingKeys.trial });
+      qc.invalidateQueries({ queryKey: ['billing', 'subscription'] });
+      qc.invalidateQueries({ queryKey: ['billing', 'usage'] });
+    },
+  });
+}
 
 // ── Hooks ───────────────────────────────────────────────────────────────
 

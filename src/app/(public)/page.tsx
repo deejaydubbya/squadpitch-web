@@ -35,6 +35,8 @@ function planSignupHref(plan: string) {
   const returnTo =
     plan === "FREE"
       ? "/onboarding"
+      : plan === "PRO"
+      ? "/signup/continue?startTrial=1"
       : `/signup/continue?selectedPlan=${encodeURIComponent(plan)}`;
   return authHref(APP_ORIGIN, "signup", returnTo);
 }
@@ -589,7 +591,7 @@ function PricingPreview() {
         "Priority support",
       ],
       highlight: true,
-      ctaLabel: "Start Free",
+      ctaLabel: "Start 14-day free trial",
       ctaHref: planSignupHref("PRO"),
     },
   ];

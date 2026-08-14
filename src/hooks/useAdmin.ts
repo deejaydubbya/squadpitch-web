@@ -113,6 +113,12 @@ export interface WorkspaceDetail {
     status: string;
     currentPeriodEnd: string | null;
     cancelAtPeriodEnd: boolean;
+    trialConsumedAt: string | null;
+    trialStart: string | null;
+    trialEnd: string | null;
+    trialState: string | null;
+    stripeCustomerId: string;
+    stripeSubscriptionId: string | null;
   } | null;
   brand: {
     description: string | null;

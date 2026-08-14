@@ -217,6 +217,11 @@ function WorkspaceDetailView({ detail, onBack }: { detail: WorkspaceDetail; onBa
             <>
               <InfoRow label="Plan" value={detail.subscription.tier} />
               <InfoRow label="Status" value={detail.subscription.status} />
+              {detail.subscription.trialConsumedAt && <InfoRow label="Trial State" value={detail.subscription.trialState || 'Consumed'} />}
+              {detail.subscription.trialStart && <InfoRow label="Trial Start" value={new Date(detail.subscription.trialStart).toLocaleString()} />}
+              {detail.subscription.trialEnd && <InfoRow label="Trial End" value={new Date(detail.subscription.trialEnd).toLocaleString()} />}
+              <InfoRow label="Stripe Customer" value={detail.subscription.stripeCustomerId} mono />
+              {detail.subscription.stripeSubscriptionId && <InfoRow label="Stripe Subscription" value={detail.subscription.stripeSubscriptionId} mono />}
               {detail.subscription.currentPeriodEnd && (
                 <InfoRow label="Period End" value={new Date(detail.subscription.currentPeriodEnd).toLocaleDateString()} />
               )}

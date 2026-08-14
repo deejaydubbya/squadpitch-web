@@ -13,6 +13,7 @@ import {
   type SignupPaidPlan,
 } from "@/lib/signupPlanHandoff";
 import type { PlanTier } from "@/hooks/useBilling";
+import type { TrialSummary } from "@/hooks/useBilling";
 
 type IntentState = {
   intent?: {
@@ -28,6 +29,7 @@ function SignupPlanContinueContent() {
   const searchParams = useSearchParams();
   const selectedPlan = parseSignupPaidPlan(searchParams.get("selectedPlan"));
   const checkoutReturn = parseCheckoutReturn(searchParams.get("checkout"));
+  const trialRequested = searchParams.get("startTrial") === "1";
   const startedRef = useRef(false);
   const [state, setState] = useState<IntentState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,6 +88,23 @@ function SignupPlanContinueContent() {
     [router, state?.intent?.desiredTier],
   );
 
+  const startTrial = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const current = await apiFetch<TrialSummary>("billing/trial");
+      if (current.active || !current.eligible) {
+        router.replace("/onboarding");
+        return;
+      }
+      await apiFetch("billing/trial/start", { method: "POST" });
+      router.replace("/onboarding");
+    } catch (trialError) {
+      setError(trialError instanceof Error ? trialError.message : "The trial could not be started.");
+      setBusy(false);
+    }
+  }, [router]);
+
   useEffect(() => {
     trackActivationEvent("signup_plan_handoff_viewed", {
       meta: { selectedPlan, checkoutReturn },
@@ -94,6 +113,11 @@ function SignupPlanContinueContent() {
       trackActivationEvent("signup_checkout_canceled", {
         meta: { selectedPlan },
       });
+    }
+    if (trialRequested && !startedRef.current) {
+      startedRef.current = true;
+      void startTrial();
+      return;
     }
     if (
       shouldStartCheckout({
@@ -111,7 +135,7 @@ function SignupPlanContinueContent() {
         "We couldn’t load your plan selection. Your Free account is still available.",
       );
     });
-  }, [checkoutReturn, loadState, selectedPlan, startCheckout]);
+  }, [checkoutReturn, loadState, selectedPlan, startCheckout, startTrial, trialRequested]);
 
   useEffect(() => {
     if (checkoutReturn !== "success") return;
@@ -158,12 +182,14 @@ function SignupPlanContinueContent() {
           <>
             <CreditCard className="h-9 w-9 text-accent-green-110" />
             <h1 className="mt-5 text-2xl font-semibold">
-              {desiredTier
+              {trialRequested
+                ? "Starting your 14-day Pro trial"
+                : desiredTier
                 ? `Continue with ${desiredTier}`
                 : "Choose when to upgrade"}
             </h1>
             <p className="mt-2 text-sm text-white-60">
-              Your account works on Free even if you finish Checkout later.
+              {trialRequested ? "No card required and no charge today." : "Your account works on Free even if you finish Checkout later."}
             </p>
           </>
         )}

@@ -21,6 +21,8 @@ import {
   useCreatePortal,
   useCreateCheckout,
   useChangePlan,
+  useTrial,
+  useStartTrial,
   hasBillableSubscription,
   type PlanTier,
   type PlanPricing,
@@ -129,6 +131,8 @@ export default function BillingSettingsPage() {
   const portal = useCreatePortal();
   const checkout = useCreateCheckout();
   const changePlan = useChangePlan();
+  const { data: trial } = useTrial();
+  const startTrial = useStartTrial();
   const isLoading = subLoading || usageLoading;
   const trackedRef = useRef(false);
 
@@ -184,7 +188,7 @@ export default function BillingSettingsPage() {
   };
 
   const mutationError =
-    changePlan.error?.message || checkout.error?.message || portal.error?.message;
+    changePlan.error?.message || checkout.error?.message || portal.error?.message || startTrial.error?.message;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -195,6 +199,26 @@ export default function BillingSettingsPage() {
           message={`Plan ${changePlan.data?.isUpgrade ? 'upgraded' : 'changed'} to ${changePlan.data?.tier ?? 'new plan'}.`}
         />
       )}
+
+      {trial?.active && trial.endsAt ? (
+        <section className="rounded-2xl border border-accent-green-110/30 bg-accent-green-110/10 p-4 sm:p-6" aria-label="Free trial status">
+          <h2 className="text-lg font-bold">Pro trial active</h2>
+          <p className="mt-1 text-sm text-white-60">Your 14-day Pro trial ends {new Date(trial.endsAt).toLocaleDateString()}. There is no charge today.</p>
+          <p className="mt-1 text-sm text-white-60">Add a payment method before then to keep Pro access. Otherwise Stripe will cancel the subscription automatically and your data will remain available on the Free plan.</p>
+          <button className="mt-4 min-h-11 rounded-lg bg-accent-green-110 px-4 font-semibold text-sp-bg" onClick={() => portal.mutate({ returnUrl: window.location.href })}>Add payment method</button>
+        </section>
+      ) : trial?.eligible ? (
+        <section className="rounded-2xl border border-accent-blue/30 bg-accent-blue/10 p-4 sm:p-6" aria-label="Free trial offer">
+          <h2 className="text-lg font-bold">Try Pro free for 14 days</h2>
+          <p className="mt-1 text-sm text-white-60">No card required and no charge today. Add payment details before the displayed end date to continue with Pro.</p>
+          <button className="mt-4 min-h-11 rounded-lg bg-accent-blue px-4 font-semibold text-white" disabled={startTrial.isPending} onClick={() => startTrial.mutate()}>{startTrial.isPending ? 'Starting trial…' : 'Start 14-day Pro trial'}</button>
+        </section>
+      ) : trial?.consumed && !trial.active ? (
+        <section className="rounded-2xl border border-white-10 bg-white-5 p-4 sm:p-6" aria-label="Free trial ended">
+          <h2 className="text-lg font-bold">Your free trial has ended</h2>
+          <p className="mt-1 text-sm text-white-60">Your data is still here. Choose a paid plan to restore Pro features.</p>
+        </section>
+      ) : null}
 
       {/* Plan Usage Summary */}
       {usage && (
