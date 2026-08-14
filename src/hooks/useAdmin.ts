@@ -1077,6 +1077,22 @@ export function useUpdateFeedback(id: string) {
   });
 }
 
+export interface AdminReferralItem {
+  id: string;
+  status: string;
+  attributedAt: string;
+  paidAt: string | null;
+  qualifiesAt: string | null;
+  disqualificationReason: string | null;
+  referrer: { email: string; name: string | null } | null;
+  referred: { email: string; name: string | null } | null;
+  reward: { status: string; amountCents: number; currency: string; stripeBalanceTransactionId: string | null; grantedAt: string | null } | null;
+}
+
+export function useAdminReferrals() {
+  return useQuery({ queryKey: ['admin', 'referrals'], queryFn: () => apiFetch<{ items: AdminReferralItem[] }>('internal/referrals') });
+}
+
 // ── Jobs Monitor ────────────────────────────────────────────────────────
 
 export function useJobsSummary() {

@@ -6,6 +6,7 @@ import { initWebSentry } from '@/lib/sentry';
 import { initAnalytics } from '@/lib/analytics';
 import { UILocaleProvider } from '@/components/i18n/UILocaleProvider';
 import { ConnectivityBanner } from '@/components/mobile/ConnectivityBanner';
+import { ReferralAttributionCapture } from '@/components/referrals/ReferralAttributionCapture';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -31,6 +32,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           next-intl below this provider. Provider-only (no locale
           routing) so workspace URLs stay unchanged. */}
       <UILocaleProvider>
+        <ReferralAttributionCapture />
         <ConnectivityBanner />
         <div className="min-h-screen bg-sp-bg text-white-100">
           {children}

@@ -15,6 +15,7 @@ import {
   Megaphone,
   Radio,
   Settings,
+  Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSuiteFlags, type Client } from '@/hooks/useSquadpitch';
@@ -96,6 +97,7 @@ export function WorkspaceMoreMenu({ client }: { client: Client }) {
         <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-white-30">Account</p>
         {renderItem({ label: invitationData?.count ? `Switch workspace · ${invitationData.count} pending` : 'Switch workspace', href: '/workspaces', icon: BriefcaseBusiness, badge: invitationData?.count })}
         {renderItem({ label: 'Help', href: '/help', icon: CircleHelp })}
+        {renderItem({ label: 'Refer an agent', href: '/referrals', icon: Gift })}
         <FeedbackDialog clientId={client.id} triggerClassName="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-white-70 transition-colors hover:bg-white-5 hover:text-white-100" />
         <Link href="/auth/logout" className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-white-60 transition-colors hover:bg-white-5 hover:text-white-100">
           <LogOut className="h-5 w-5" aria-hidden="true" />

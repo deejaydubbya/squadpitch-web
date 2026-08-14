@@ -17,6 +17,7 @@ import {
   Globe,
   Inbox as InboxIcon,
   Megaphone,
+  Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/hooks/useSquadpitch';
@@ -234,6 +235,10 @@ export function Sidebar({ client }: Props) {
 
       {/* Bottom */}
       <div className="p-3 border-t border-white-10 space-y-2">
+        <Link href="/referrals" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white-60 transition-colors hover:bg-white-5 hover:text-white-100">
+          <Gift className="h-4.5 w-4.5" aria-hidden="true" />
+          Refer an agent
+        </Link>
         <FeedbackDialog clientId={client.id} />
         {usage && (
           <div className="px-3 py-2">

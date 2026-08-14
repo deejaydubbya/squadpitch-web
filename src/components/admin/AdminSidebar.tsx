@@ -18,6 +18,7 @@ import {
   Shield,
   UserPlus,
   MessageSquare,
+  Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +37,7 @@ const navItems = [
   { href: '/admin/external-services', icon: Globe, label: 'External Services' },
   { href: '/admin/beta-ops', icon: FlaskConical, label: 'Beta Ops' },
   { href: '/admin/feedback', icon: MessageSquare, label: 'Feedback', adminOnly: true },
+  { href: '/admin/referrals', icon: Gift, label: 'Referrals', adminOnly: true },
   { href: '/admin/jobs', icon: Cog, label: 'Jobs' },
   { href: '/admin/webhooks', icon: Webhook, label: 'Webhooks' },
   { href: '/admin/system-health', icon: Activity, label: 'System Health' },
