@@ -35,6 +35,6 @@ test.describe('admin referral program', () => {
 
   test('admin can inspect referral operations', async ({ page }) => {
     await page.goto('/admin/referrals');
-    await expect(page.getByRole('heading', { name: 'Referral Operations' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Referrals', exact: true })).toBeVisible();
   });
 });
