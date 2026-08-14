@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { safeReturnTo } from "@/lib/authFlow";
+import { mainMarketingRedirect } from "@/lib/marketingHostRedirect";
 
 export const PUBLIC_PATHS = [
   "/",
@@ -14,6 +15,15 @@ export const PUBLIC_PATHS = [
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const marketingDestination = mainMarketingRedirect(
+    request.headers.get("host"),
+    pathname,
+    request.nextUrl.search,
+  );
+  if (marketingDestination) {
+    return NextResponse.redirect(marketingDestination, 308);
+  }
 
   try {
     const authResponse = await auth0.middleware(request);
