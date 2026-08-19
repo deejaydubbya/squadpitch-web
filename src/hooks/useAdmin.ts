@@ -546,19 +546,19 @@ export function useAdminProspects() {
 export function useAgentOutreach() {
   return useQuery({ queryKey: ["admin", "agent-outreach"], queryFn: () => apiFetch<AgentOutreachData>("internal/agent-outreach"), refetchInterval: 5000 });
 }
-function outreachMutation(path: (value: any) => string, method = "POST") {
+function useOutreachMutation(path: (value: any) => string, method = "POST") {
   const queryClient = useQueryClient();
   return useMutation({ mutationFn: (value: any) => apiFetch(path(value), { method, body: JSON.stringify(value.body ?? {}) }), onSettled: () => queryClient.invalidateQueries({ queryKey: ["admin", "agent-outreach"] }) });
 }
-export function useDiscoverAgents() { return outreachMutation(() => "internal/agent-outreach/discoveries"); }
-export function useAnalyzeAgentSource() { return outreachMutation(() => "internal/agent-outreach/discoveries/analyze"); }
-export function useGenerateOutreachPreview() { return outreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/preview`); }
-export function usePrepareOutreachEmail() { return outreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/email`); }
-export function useSendOutreachEmail() { return outreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/send`); }
-export function useCreateSendingAccount() { return outreachMutation(() => "internal/agent-outreach/sending-accounts"); }
-export function useTestSendingAccount() { return outreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}/test`); }
-export function useUpdateSendingAccount() { return outreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "PATCH"); }
-export function useDeleteSendingAccount() { return outreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "DELETE"); }
+export function useDiscoverAgents() { return useOutreachMutation(() => "internal/agent-outreach/discoveries"); }
+export function useAnalyzeAgentSource() { return useOutreachMutation(() => "internal/agent-outreach/discoveries/analyze"); }
+export function useGenerateOutreachPreview() { return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/preview`); }
+export function usePrepareOutreachEmail() { return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/email`); }
+export function useSendOutreachEmail() { return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/send`); }
+export function useCreateSendingAccount() { return useOutreachMutation(() => "internal/agent-outreach/sending-accounts"); }
+export function useTestSendingAccount() { return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}/test`); }
+export function useUpdateSendingAccount() { return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "PATCH"); }
+export function useDeleteSendingAccount() { return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "DELETE"); }
 
 export function useAdminProspect(id: string | null) {
   return useQuery({
