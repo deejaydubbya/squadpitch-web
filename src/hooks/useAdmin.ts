@@ -633,7 +633,12 @@ export function useAgentOutreach() {
   return useQuery({
     queryKey: ["admin", "agent-outreach"],
     queryFn: () => apiFetch<AgentOutreachData>("internal/agent-outreach"),
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const data = query.state.data as AgentOutreachData | undefined;
+      const hasActiveDiscovery = data?.runs.some((run) => ["RUNNING", "PAUSED"].includes(run.status));
+      const hasActivePipelineWork = data?.prospects.some((prospect) => ["PREVIEW_PENDING", "PREVIEW_GENERATING", "EMAIL_QUEUED", "EMAIL_SENDING"].includes(prospect.status));
+      return hasActiveDiscovery || hasActivePipelineWork ? 10_000 : false;
+    },
   });
 }
 function useOutreachMutation(path: (value: any) => string, method = "POST") {

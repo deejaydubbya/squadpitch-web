@@ -24,7 +24,7 @@ export default function AgentOutreachPage() {
   const batchPausedRef = useRef(false);
   const prospects = useMemo(() => data?.prospects ?? [], [data?.prospects]);
   const discoveryGroups = useMemo(() => groupDiscoveryProspects(prospects), [prospects]);
-  const visible = useMemo(() => (tab === "Discover Agents" ? discoveryGroups[discoveryView] : prospects.filter((p) => (tab === "Preview Queue" ? ["QUALIFIED", "PREVIEW_PENDING", "PREVIEW_GENERATING", "PREVIEW_FAILED"].includes(p.status) : tab === "Ready for Email" ? ["READY_TO_EMAIL", "EMAIL_FAILED"].includes(p.status) : ["EMAIL_SENT", "UNCLAIMED", "CLAIMED", "BOUNCED", "UNSUBSCRIBED", "EMAIL_FAILED"].includes(p.status)))), [discoveryGroups, discoveryView, prospects, tab]);
+  const visible = useMemo(() => (tab === "Discover Agents" ? discoveryGroups[discoveryView] : prospects.filter((p) => (tab === "Preview Queue" ? ["QUALIFIED", "PREVIEW_PENDING", "PREVIEW_GENERATING", "PREVIEW_FAILED"].includes(p.status) : tab === "Ready for Email" ? ["READY_TO_EMAIL", "EMAIL_FAILED"].includes(p.status) : ["EMAIL_QUEUED", "EMAIL_SENDING", "EMAIL_SENT", "UNCLAIMED", "CLAIMED", "BOUNCED", "UNSUBSCRIBED", "EMAIL_FAILED"].includes(p.status)))), [discoveryGroups, discoveryView, prospects, tab]);
 
   async function batch(action: "preview" | "email") {
     setBatchPaused(false);
@@ -387,6 +387,8 @@ function ProspectTable({ rows, loading, selected, setSelected, allowSelection = 
                         <Mail className="h-4 w-4" />
                       </button>
                     )}
+                    {allowPipelineActions && row.status === "EMAIL_QUEUED" && <span className="text-xs text-white-50">Queued for sending…</span>}
+                    {allowPipelineActions && row.status === "EMAIL_SENDING" && <span className="text-xs text-white-50">Sending…</span>}
                   </div>
                 </td>
               </tr>

@@ -26,11 +26,15 @@ describe('prospect preview and claim flows', () => {
     expect(admin).toContain('row.status === "PREVIEW_GENERATING"');
     expect(admin).toContain('row.status === "PREVIEW_PENDING"');
     expect(admin).toContain("Queued…");
+    expect(admin).toContain('row.status === "EMAIL_QUEUED"');
+    expect(admin).toContain("Queued for sending…");
+    expect(hooks).toContain("hasActivePipelineWork");
+    expect(hooks).toContain("10_000");
+    expect(hooks).toContain(": false");
     expect(admin).toContain('Preparing Preview…');
     expect(admin).toContain('animate-spin');
     expect(admin).toContain('["READY_TO_EMAIL", "EMAIL_FAILED", "EMAIL_SENT", "UNCLAIMED", "CLAIMED", "BOUNCED", "UNSUBSCRIBED"].includes(row.status) && row.claimUrl');
     expect(admin).toContain('row.status === "PREVIEW_FAILED" ? "Retry"');
-    expect(hooks).toContain('refetchInterval: 5000');
   });
 
   it('supports Microsoft 365 STARTTLS and ready-preview regeneration', () => {
