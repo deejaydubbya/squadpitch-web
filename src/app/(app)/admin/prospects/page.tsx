@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useMemo, useRef, useState } from "react";
+import DOMPurify from "dompurify";
 import { ExternalLink, LoaderCircle, Mail, Pause, Play, RefreshCw, Search, Settings, Square } from "lucide-react";
-import { useAgentOutreach, useAnalyzeAgentSource, useCreateSendingAccount, useDeleteSendingAccount, useDiscoverAgents, useGenerateOutreachPreview, usePauseDiscovery, usePrepareOutreachEmail, useResumeDiscovery, useSendOutreachEmail, useStopDiscovery, useTestSendingAccount, useUpdateSendingAccount, type AgentOutreachProspect, type AgentOutreachData, type DiscoveryAnalysis } from "@/hooks/useAdmin";
+import { useAgentOutreach, useAnalyzeAgentSource, useCreateSendingAccount, useDeleteSendingAccount, useDiscoverAgents, useGenerateOutreachPreview, usePauseDiscovery, usePrepareOutreachEmail, useResumeDiscovery, useSendOutreachEmail, useStopDiscovery, useTestSendingAccount, useUpdateOutreachTemplate, useUpdateSendingAccount, type AgentOutreachProspect, type AgentOutreachData, type DiscoveryAnalysis } from "@/hooks/useAdmin";
 import { groupDiscoveryProspects, type DiscoveryCategory } from "./prospectCategories";
 
 const tabs = ["Discover Agents", "Preview Queue", "Ready for Email", "Outreach"] as const;
@@ -80,6 +81,7 @@ export default function AgentOutreachPage() {
           />
         </>
       )}
+      {tab === "Ready for Email" && data?.template && <EmailTemplateEditor template={data.template} />}
       {(tab === "Preview Queue" || tab === "Ready for Email") && (
         <div className="flex flex-wrap gap-2">
           {tab === "Ready for Email" && (
@@ -371,7 +373,7 @@ function ProspectTable({ rows, loading, selected, setSelected, allowSelection = 
                     {allowPipelineActions && row.emailBody && (
                       <details className="max-w-64">
                         <summary className="cursor-pointer text-xs text-white-50">Email preview</summary>
-                        <p className="mt-2 whitespace-pre-wrap rounded-lg bg-sp-bg p-2 text-xs text-white-70">{row.emailBody}</p>
+                        {row.emailHtmlBody ? <div className="mt-2 max-h-96 overflow-auto rounded-lg bg-white p-3 text-sm text-slate-900" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(row.emailHtmlBody) }} /> : <p className="mt-2 whitespace-pre-wrap rounded-lg bg-sp-bg p-2 text-xs text-white-70">{row.emailBody}</p>}
                       </details>
                     )}
                     {allowPipelineActions && row.emailBody && ["READY_TO_EMAIL", "EMAIL_FAILED"].includes(row.status) && (
@@ -387,6 +389,27 @@ function ProspectTable({ rows, loading, selected, setSelected, allowSelection = 
         </tbody>
       </table>
     </div>
+  );
+}
+
+function EmailTemplateEditor({ template }: { template: AgentOutreachData["template"] }) {
+  const update = useUpdateOutreachTemplate();
+  const [subject, setSubject] = useState(template.subject);
+  const [htmlBody, setHtmlBody] = useState(template.htmlBody);
+  const [textBody, setTextBody] = useState(template.textBody);
+  return (
+    <details className="rounded-2xl border border-white-10 bg-sp-card p-5">
+      <summary className="cursor-pointer font-semibold text-white-90">Email Template</summary>
+      <form className="mt-4 space-y-4" onSubmit={(event) => { event.preventDefault(); update.mutate({ body: { subject, htmlBody, textBody } }); }}>
+        <label className="block text-sm text-white-60">Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={240} required className="mt-1 min-h-11 w-full rounded-lg border border-white-10 bg-sp-bg px-3 text-white-100" /></label>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <label className="block text-sm text-white-60">HTML<textarea value={htmlBody} onChange={(event) => setHtmlBody(event.target.value)} required rows={18} className="mt-1 w-full rounded-lg border border-white-10 bg-sp-bg p-3 font-mono text-xs text-white-100" /></label>
+          <label className="block text-sm text-white-60">Plain Text<textarea value={textBody} onChange={(event) => setTextBody(event.target.value)} required rows={18} className="mt-1 w-full rounded-lg border border-white-10 bg-sp-bg p-3 font-mono text-xs text-white-100" /></label>
+        </div>
+        <div className="rounded-lg bg-white p-4 text-slate-900"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Sanitized HTML preview</p><div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(htmlBody) }} /></div>
+        <button disabled={update.isPending} className="btn bg-accent-green-110 text-sp-bg">{update.isPending ? "Saving…" : "Save Template"}</button>
+      </form>
+    </details>
   );
 }
 

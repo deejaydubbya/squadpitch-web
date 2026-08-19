@@ -76,20 +76,26 @@ export function PreviewClient({ token, invitationId }: { token?: string; invitat
     sessionStorage.setItem("squadpitch.prospectClaimToken", claimToken);
     window.location.assign("/claim");
   }
+  const hasPropertyListings = preview.items.some((item) => item.type === "PROPERTY");
+  const firstName = preview.prospectName.trim().split(/\s+/)[0] || preview.prospectName;
+  const listingGridClass = preview.items.length === 1 ? "max-w-2xl" : preview.items.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-14">
       <div className="mb-8 rounded-3xl border border-white/10 bg-gradient-to-br from-[#173a35] to-[#181225] p-6 shadow-2xl sm:p-10">
         <div className="mb-6 flex items-center gap-2 text-sm font-semibold text-[#62e29a]">
           <Eye className="h-4 w-4" /> Pre-built Squadpitch preview
         </div>
-        <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-white sm:text-5xl">
-          A social workspace prepared for {preview.businessName}
-        </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-white/65">
-          Hi {preview.prospectName}—this read-only workspace shows sample
-          content prepared for your business. Nothing has been connected,
-          scheduled, or published.
-        </p>
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
+          {preview.logoUrl && <AgentProfileImage src={preview.logoUrl} name={preview.prospectName} />}
+          <div>
+            <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-white sm:text-5xl">
+              A social workspace prepared for {preview.businessName}
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/65">
+              Hi {firstName}—this read-only workspace shows sample content prepared from {hasPropertyListings ? "your listings" : "your business"}. Nothing has been connected, scheduled, or published.
+            </p>
+          </div>
+        </div>
         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
           {invitationId && preview.claimAvailable ? (
             <InvitationClaimAction invitationId={invitationId} />
@@ -112,11 +118,12 @@ export function PreviewClient({ token, invitationId }: { token?: string; invitat
       </div>
 
       {preview.items.length > 0 && (
-        <section className="mb-10">
-          <h2 className="mb-4 text-2xl font-semibold text-white">
-            {preview.items.some((item) => item.type === "PROPERTY") ? "Featured property" : "Business content"}
+        <section className="mb-8">
+          <h2 className="text-2xl font-semibold text-white">
+            {hasPropertyListings ? "Listings used for this preview" : "Business content used for this preview"}
           </h2>
-          <div className="grid gap-4">
+          <p className="mb-4 mt-1 text-sm text-white/50">We used these {hasPropertyListings ? "active listings" : "business details"} to prepare the sample content below.</p>
+          <div className={`grid gap-4 ${listingGridClass}`}>
             {preview.items.map((item, index) => (
               <article
                 key={`${item.title}-${index}`}
@@ -128,19 +135,19 @@ export function PreviewClient({ token, invitationId }: { token?: string; invitat
                     src={item.imageUrl}
                     width={800}
                     height={600}
-                    alt=""
-                    className="aspect-[16/9] w-full object-cover sm:aspect-[2/1]"
+                    alt={item.property?.address || item.title}
+                    className="h-44 w-full object-cover"
                   />
                 ) : (
                   <div className="grid aspect-[4/3] place-items-center bg-white/5">
                     <ImageIcon className="h-8 w-8 text-white/25" />
                   </div>
                 )}
-                <div className="p-5 sm:p-6">
+                <div className="p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#62e29a]">
                     {item.type.replaceAll("_", " ")}
                   </p>
-                  <h3 className="mt-1 text-lg font-semibold text-white sm:text-xl">
+                  <h3 className="mt-1 line-clamp-2 text-base font-semibold text-white sm:text-lg">
                     {item.property?.address || item.title}
                   </h3>
                   {item.property && (
@@ -164,13 +171,13 @@ export function PreviewClient({ token, invitationId }: { token?: string; invitat
         </section>
       )}
       <section>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-          <h2 className="text-xl font-semibold text-white">Sample social content</h2>
+        <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-2xl font-semibold text-white">Sample social content</h2>
           {preview.drafts.length > 0 && <span className="rounded-full border border-[#62e29a]/25 bg-[#62e29a]/10 px-3 py-1 text-xs font-medium text-[#8aefb5]">{preview.drafts.length} prepared post{preview.drafts.length === 1 ? "" : "s"} · {preview.drafts.reduce((total, draft) => total + Math.max(draft.media?.filter((item) => item.url).length || 0, draft.mediaUrl ? 1 : 0), 0)} selected images</span>}
         </div>
-        {preview.drafts.length > 0 && <p className="mb-5 text-sm text-white/50">A ready-to-review campaign prepared from this property. Each card shows its exact stored draft and assigned media.</p>}
+        {preview.drafts.length > 0 && <p className="mb-5 text-sm text-white/55">Here&apos;s what Squadpitch created from the listings above. Each card shows its exact stored draft and assigned media.</p>}
         {preview.drafts.length ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {preview.drafts.map((draft, index) => (
               <article
                 key={`${draft.channel}-${index}`}
@@ -201,6 +208,13 @@ export function PreviewClient({ token, invitationId }: { token?: string; invitat
           </div>
         )}
       </section>
+      {claimToken && preview.claimAvailable && preview.drafts.length > 0 && (
+        <div className="mt-8 flex justify-center">
+          <button type="button" onClick={continueToClaim} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#1DBF60]/40 bg-[#1DBF60]/10 px-5 font-semibold text-[#8aefb5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            Claim this workspace <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="mt-10 flex items-start gap-3 rounded-2xl border border-[#1DBF60]/20 bg-[#1DBF60]/5 p-4 text-sm text-white/65">
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#62e29a]" />
         <p>
@@ -211,6 +225,12 @@ export function PreviewClient({ token, invitationId }: { token?: string; invitat
       </div>
     </main>
   );
+}
+
+function AgentProfileImage({ src, name }: { src: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return <Image unoptimized priority src={src} width={112} height={112} alt={`${name} profile`} onError={() => setFailed(true)} className="h-20 w-20 shrink-0 rounded-2xl border border-white/15 object-cover shadow-lg sm:h-28 sm:w-28" />;
 }
 
 function InvitationClaimAction({ invitationId }: { invitationId: string }) {

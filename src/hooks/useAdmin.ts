@@ -126,6 +126,7 @@ export interface AgentOutreachProspect {
   claimUrl: string | null;
   emailSubject: string | null;
   emailBody: string | null;
+  emailHtmlBody?: string | null;
   emailSentAt: string | null;
   claimedAt: string | null;
   lastError: string | null;
@@ -184,7 +185,7 @@ export interface AgentOutreachData {
     cursor?: { currentPage?: number } | null;
   }>;
   accounts: OutreachSendingAccount[];
-  template: { subject: string; body: string };
+  template: { id: string; subject: string; textBody: string; htmlBody: string; updatedAt: string };
 }
 export interface DiscoveryAnalysis {
   provider: { key: string; label: string } | null;
@@ -662,6 +663,9 @@ export function useGenerateOutreachPreview() {
 }
 export function usePrepareOutreachEmail() {
   return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/email`);
+}
+export function useUpdateOutreachTemplate() {
+  return useOutreachMutation(() => "internal/agent-outreach/template", "PATCH");
 }
 export function useSendOutreachEmail() {
   return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/send`);

@@ -42,6 +42,18 @@ describe('prospect preview and claim flows', () => {
     expect(admin).toContain('allowRegenerate={tab === "Ready for Email"}');
   });
 
+  it('edits and safely previews multipart outreach templates', () => {
+    const admin = read('src/app/(app)/admin/prospects/page.tsx');
+    const hooks = read('src/hooks/useAdmin.ts');
+    expect(admin).toContain('Email Template');
+    expect(admin).toContain('Plain Text');
+    expect(admin).toContain('DOMPurify.sanitize');
+    expect(admin).toContain('row.emailHtmlBody');
+    expect(hooks).toContain('textBody: string');
+    expect(hooks).toContain('htmlBody: string');
+    expect(hooks).toContain('internal/agent-outreach/template');
+  });
+
   it('renders mobile-safe public preview and explicit unpublished disclosure', () => {
     const preview = read('src/app/(public)/preview/[token]/PreviewClient.tsx');
     expect(preview).toContain('px-4');
@@ -66,7 +78,8 @@ describe('prospect preview and claim flows', () => {
 
   it('renders imported property facts as hero content without admin provenance text', () => {
     const preview = read('src/app/(public)/preview/[token]/PreviewClient.tsx');
-    expect(preview).toContain('Featured property');
+    expect(preview).toContain('Listings used for this preview');
+    expect(preview).toContain("Here&apos;s what Squadpitch created from the listings above.");
     expect(preview).toContain('item.property.price.toLocaleString()');
     expect(preview).toContain('item.property.beds');
     expect(preview).toContain('item.property.yearBuilt');
@@ -82,6 +95,26 @@ describe('prospect preview and claim flows', () => {
     expect(preview).toContain('selected images');
     expect(preview).toContain('Claim to edit these drafts');
     expect(preview).not.toContain('Operator-supplied source reference');
+  });
+
+  it('keeps profile-photo and listing-count preview variants intentional', () => {
+    const preview = read('src/app/(public)/preview/[token]/PreviewClient.tsx');
+    expect(preview).toContain('preview.logoUrl && <AgentProfileImage');
+    expect(preview).toContain('if (failed) return null');
+    expect(preview).toContain('onError={() => setFailed(true)}');
+    expect(preview).toContain('object-cover');
+    expect(preview).toContain('preview.items.length === 1 ? "max-w-2xl"');
+    expect(preview).toContain('preview.items.length === 2 ? "sm:grid-cols-2"');
+    expect(preview).toContain('"sm:grid-cols-2 lg:grid-cols-3"');
+    expect(preview).toContain('h-44 w-full object-cover');
+    expect(preview).toContain('xl:grid-cols-3');
+  });
+
+  it('reuses the exact claim-token handoff for the lower preview CTA', () => {
+    const preview = read('src/app/(public)/preview/[token]/PreviewClient.tsx');
+    expect(preview.match(/onClick={continueToClaim}/g)).toHaveLength(2);
+    expect(preview).toContain('sessionStorage.setItem("squadpitch.prospectClaimToken", claimToken)');
+    expect(preview).toContain('window.location.assign("/claim")');
   });
 
   it('renders honest public empty states instead of an indefinite fake loading message', () => {
