@@ -157,6 +157,7 @@ export interface OutreachSendingAccount {
   smtpPort: number | null;
   smtpUsername: string | null;
   smtpSecure: boolean;
+  smtpEncryption: "STARTTLS" | "SSL_TLS" | "NONE";
   enabled: boolean;
   isDefault: boolean;
   hourlyLimit: number;

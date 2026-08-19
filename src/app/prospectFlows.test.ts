@@ -31,6 +31,17 @@ describe('prospect preview and claim flows', () => {
     expect(hooks).toContain('refetchInterval: 5000');
   });
 
+  it('supports Microsoft 365 STARTTLS and ready-preview regeneration', () => {
+    const admin = read('src/app/(app)/admin/prospects/page.tsx');
+    expect(admin).toContain('Microsoft 365 / Outlook');
+    expect(admin).toContain('smtp.office365.com');
+    expect(admin).toContain('<option value="STARTTLS">STARTTLS</option>');
+    expect(admin).toContain('<option value="SSL_TLS">SSL/TLS</option>');
+    expect(admin).toContain('smtpEncryption === "SSL_TLS"');
+    expect(admin).toContain('Regenerate Preview');
+    expect(admin).toContain('allowRegenerate={tab === "Ready for Email"}');
+  });
+
   it('renders mobile-safe public preview and explicit unpublished disclosure', () => {
     const preview = read('src/app/(public)/preview/[token]/PreviewClient.tsx');
     expect(preview).toContain('px-4');

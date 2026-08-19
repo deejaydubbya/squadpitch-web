@@ -139,6 +139,7 @@ export default function AgentOutreachPage() {
         setSelected={setSelected}
         allowSelection={tab !== "Discover Agents" || discoveryView === "qualified"}
         allowPreview={tab !== "Discover Agents" || discoveryView === "qualified"}
+        allowRegenerate={tab === "Ready for Email"}
         allowPipelineActions={tab !== "Discover Agents"}
         showLastVerified={tab === "Discover Agents" && discoveryView === "rejected"}
         onGenerate={(id) => generate.mutate({ id })}
@@ -289,7 +290,7 @@ function DiscoveryPanel({ runs, pending, onStart }: { runs: AgentOutreachData["r
   );
 }
 
-function ProspectTable({ rows, loading, selected, setSelected, allowSelection = true, allowPreview = true, allowPipelineActions = true, showLastVerified = false, onGenerate, onPrepare, onSend }: { rows: AgentOutreachProspect[]; loading: boolean; selected: string[]; setSelected: (ids: string[]) => void; allowSelection?: boolean; allowPreview?: boolean; allowPipelineActions?: boolean; showLastVerified?: boolean; onGenerate: (id: string) => void; onPrepare: (id: string) => void; onSend: (id: string) => void }) {
+function ProspectTable({ rows, loading, selected, setSelected, allowSelection = true, allowPreview = true, allowRegenerate = false, allowPipelineActions = true, showLastVerified = false, onGenerate, onPrepare, onSend }: { rows: AgentOutreachProspect[]; loading: boolean; selected: string[]; setSelected: (ids: string[]) => void; allowSelection?: boolean; allowPreview?: boolean; allowRegenerate?: boolean; allowPipelineActions?: boolean; showLastVerified?: boolean; onGenerate: (id: string) => void; onPrepare: (id: string) => void; onSend: (id: string) => void }) {
   const columnCount = showLastVerified ? 7 : 6;
   return (
     <div className="overflow-x-auto rounded-2xl border border-white-10">
@@ -345,6 +346,12 @@ function ProspectTable({ rows, loading, selected, setSelected, allowSelection = 
                         {row.status === "PREVIEW_FAILED" ? "Retry" : "Generate Preview"}
                       </button>
                     )}
+                    {allowRegenerate && ["READY_TO_EMAIL", "EMAIL_FAILED"].includes(row.status) && (
+                      <button onClick={() => onGenerate(row.id)} className="btn inline-flex items-center gap-2 bg-white-10">
+                        <RefreshCw className="h-4 w-4" />
+                        Regenerate Preview
+                      </button>
+                    )}
                     {row.status === "PREVIEW_GENERATING" && (
                       <button type="button" disabled aria-live="polite" className="btn inline-flex cursor-wait items-center gap-2 bg-white-10 text-white-60">
                         <LoaderCircle className="h-4 w-4 animate-spin text-accent-green-110" />
@@ -388,6 +395,15 @@ function SendingAccounts({ accounts }: { accounts: any[] }) {
     test = useTestSendingAccount(),
     update = useUpdateSendingAccount(),
     remove = useDeleteSendingAccount();
+  const [smtpPreset, setSmtpPreset] = useState("MICROSOFT_365");
+  const [smtpHost, setSmtpHost] = useState("smtp.office365.com");
+  const [smtpPort, setSmtpPort] = useState("587");
+  const [smtpEncryption, setSmtpEncryption] = useState<"STARTTLS" | "SSL_TLS" | "NONE">("STARTTLS");
+  function applyPreset(value: string) {
+    setSmtpPreset(value);
+    if (value === "MICROSOFT_365") { setSmtpHost("smtp.office365.com"); setSmtpPort("587"); setSmtpEncryption("STARTTLS"); }
+    if (value === "GOOGLE_WORKSPACE") { setSmtpHost("smtp.gmail.com"); setSmtpPort("587"); setSmtpEncryption("STARTTLS"); }
+  }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const f = new FormData(event.currentTarget);
@@ -397,11 +413,12 @@ function SendingAccounts({ accounts }: { accounts: any[] }) {
         displayName: String(f.get("displayName")),
         fromEmail: String(f.get("fromEmail")),
         replyTo: String(f.get("replyTo") || ""),
-        smtpHost: String(f.get("smtpHost")),
-        smtpPort: Number(f.get("smtpPort")),
+        smtpHost,
+        smtpPort: Number(smtpPort),
         smtpUsername: String(f.get("smtpUsername")),
         smtpPassword: String(f.get("smtpPassword")),
-        smtpSecure: f.get("smtpSecure") === "on",
+        smtpEncryption,
+        smtpSecure: smtpEncryption === "SSL_TLS",
         enabled: true,
         isDefault: f.get("isDefault") === "on",
         hourlyLimit: Number(f.get("hourlyLimit")),
@@ -414,13 +431,14 @@ function SendingAccounts({ accounts }: { accounts: any[] }) {
     <section className="space-y-4 rounded-2xl border border-white-10 bg-sp-card p-5">
       <div>
         <h2 className="font-semibold text-white-90">Sending Accounts</h2>
-        <p className="text-sm text-white-40">SMTP credentials are encrypted and never returned. Gmail OAuth is intentionally deferred; Google Workspace SMTP works with an app password.</p>
+        <p className="text-sm text-white-40">SMTP credentials are encrypted and never returned. Use STARTTLS for Microsoft 365 and other providers on port 587; use SSL/TLS for implicit TLS on port 465.</p>
       </div>
       <div className="space-y-2">
         {accounts.map((a) => (
           <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white-5 p-3">
             <span className="text-sm text-white-70">
               {a.displayName} &lt;{a.fromEmail}&gt; · {a.provider}
+              {a.smtpEncryption ? ` · ${a.smtpEncryption.replace("_", "/")}` : ""}
               {a.isDefault ? " · Default" : ""}
               {!a.enabled ? " · Disabled" : ""}
             </span>
@@ -449,14 +467,16 @@ function SendingAccounts({ accounts }: { accounts: any[] }) {
           ))}
         </div>
         {test.isSuccess && <p role="status" className="text-sm text-accent-green-110">SMTP connection and credentials verified.</p>}
-        {test.error && <p role="alert" className="text-sm text-red-300">{test.error.message}</p>}
+        {test.error && <p role="alert" className="text-sm text-red-300">{test.error.message}{"code" in test.error ? ` (${String(test.error.code)})` : ""}</p>}
       <form onSubmit={submit} className="grid gap-3 md:grid-cols-3">
+        <label className="text-xs text-white-50">Provider preset<select value={smtpPreset} onChange={(event) => applyPreset(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-white-10 bg-sp-bg px-3 text-white-100"><option value="MICROSOFT_365">Microsoft 365 / Outlook</option><option value="GOOGLE_WORKSPACE">Google Workspace</option><option value="GENERIC">Generic SMTP</option></select></label>
+        <label className="text-xs text-white-50">SMTP hostname<input name="smtpHost" value={smtpHost} onChange={(event) => { setSmtpHost(event.target.value); setSmtpPreset("GENERIC"); }} required className="mt-1 min-h-11 w-full rounded-lg border border-white-10 bg-sp-bg px-3 text-white-100" /></label>
+        <label className="text-xs text-white-50">Port<input name="smtpPort" type="number" value={smtpPort} onChange={(event) => { setSmtpPort(event.target.value); setSmtpPreset("GENERIC"); }} required className="mt-1 min-h-11 w-full rounded-lg border border-white-10 bg-sp-bg px-3 text-white-100" /></label>
+        <label className="text-xs text-white-50">Encryption<select name="smtpEncryption" value={smtpEncryption} onChange={(event) => { setSmtpEncryption(event.target.value as "STARTTLS" | "SSL_TLS" | "NONE"); setSmtpPreset("GENERIC"); }} className="mt-1 min-h-11 w-full rounded-lg border border-white-10 bg-sp-bg px-3 text-white-100"><option value="STARTTLS">STARTTLS</option><option value="SSL_TLS">SSL/TLS</option><option value="NONE">None</option></select></label>
         {[
           ["displayName", "From name", "text"],
           ["fromEmail", "From email", "email"],
           ["replyTo", "Reply-to", "email"],
-          ["smtpHost", "SMTP hostname", "text"],
-          ["smtpPort", "Port", "number"],
           ["smtpUsername", "Username", "text"],
           ["smtpPassword", "Password / app password", "password"],
           ["hourlyLimit", "Hourly limit", "number"],
@@ -468,10 +488,6 @@ function SendingAccounts({ accounts }: { accounts: any[] }) {
             <input name={name} type={type} required={!["replyTo"].includes(name)} defaultValue={name === "smtpPort" ? "465" : name === "hourlyLimit" ? "25" : name === "dailyLimit" ? "100" : name === "delaySeconds" ? "60" : undefined} className="mt-1 min-h-11 w-full rounded-lg border border-white-10 bg-sp-bg px-3 text-white-100" />
           </label>
         ))}
-        <label className="flex items-center gap-2 text-sm text-white-60">
-          <input name="smtpSecure" type="checkbox" defaultChecked />
-          TLS/SSL
-        </label>
         <label className="flex items-center gap-2 text-sm text-white-60">
           <input name="isDefault" type="checkbox" defaultChecked={!accounts.length} />
           Default
