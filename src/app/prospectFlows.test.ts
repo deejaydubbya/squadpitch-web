@@ -20,6 +20,17 @@ describe('prospect preview and claim flows', () => {
     expect(preview).toContain('sessionStorage.setItem("squadpitch.prospectClaimToken"');
   });
 
+  it('shows honest outreach preview progress and withholds the preview action while generating', () => {
+    const admin = read('src/app/(app)/admin/prospects/page.tsx');
+    const hooks = read('src/hooks/useAdmin.ts');
+    expect(admin).toContain('row.status === "PREVIEW_GENERATING"');
+    expect(admin).toContain('Preparing Preview…');
+    expect(admin).toContain('animate-spin');
+    expect(admin).toContain('["READY_TO_EMAIL", "EMAIL_FAILED", "EMAIL_SENT", "UNCLAIMED", "CLAIMED", "BOUNCED", "UNSUBSCRIBED"].includes(row.status) && row.claimUrl');
+    expect(admin).toContain('row.status === "PREVIEW_FAILED" ? "Retry"');
+    expect(hooks).toContain('refetchInterval: 5000');
+  });
+
   it('renders mobile-safe public preview and explicit unpublished disclosure', () => {
     const preview = read('src/app/(public)/preview/[token]/PreviewClient.tsx');
     expect(preview).toContain('px-4');

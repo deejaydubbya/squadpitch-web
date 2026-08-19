@@ -46,7 +46,12 @@ export interface ProspectWorkspaceItem {
   preparationState?: "NOT_STARTED" | "READY_UNSELECTED" | "SELECTED";
   sourcePreparationState?: "NOT_IMPORTED" | "IMPORTED";
   selectedChannels?: Array<"INSTAGRAM" | "FACEBOOK" | "LINKEDIN">;
-  campaignReadiness?: { status: "COMPLETE" | "COMPLETE_WITH_WARNINGS" | "PARTIAL" | "NEEDS_ATTENTION"; readyChannels: string[]; expectedChannels: string[]; issues: Array<{ channel: string; code: string; message: string }> };
+  campaignReadiness?: {
+    status: "COMPLETE" | "COMPLETE_WITH_WARNINGS" | "PARTIAL" | "NEEDS_ATTENTION";
+    readyChannels: string[];
+    expectedChannels: string[];
+    issues: Array<{ channel: string; code: string; message: string }>;
+  };
   preparationRun?: {
     id: string;
     status: "QUEUED" | "RUNNING" | "COMPLETE" | "COMPLETE_WITH_WARNINGS" | "FAILED";
@@ -55,7 +60,16 @@ export interface ProspectWorkspaceItem {
     expectedCount: number;
     warningCount: number;
     failureMessage: string | null;
-    platformStates: Record<string, { status: "NOT_STARTED" | "GENERATING" | "VALIDATING" | "RETRYING" | "AI_ACCEPTED" | "FALLBACK_ACCEPTED" | "FAILED"; attemptCount: number; provenance: "AI" | "FALLBACK" | null; rejectionCategory: string | null; updatedAt: string | null }>;
+    platformStates: Record<
+      string,
+      {
+        status: "NOT_STARTED" | "GENERATING" | "VALIDATING" | "RETRYING" | "AI_ACCEPTED" | "FALLBACK_ACCEPTED" | "FAILED";
+        attemptCount: number;
+        provenance: "AI" | "FALLBACK" | null;
+        rejectionCategory: string | null;
+        updatedAt: string | null;
+      }
+    >;
   } | null;
 }
 
@@ -91,16 +105,100 @@ export interface PopulateProspectInput {
 }
 
 export interface AgentOutreachProspect {
-  id: string; prospectWorkspaceId: string | null; fullName: string; firstName: string | null; email: string | null; brokerage: string | null; sourceUrl: string; sourceDomain: string;
-  profileUrl: string | null; status: string; outreachType?: "MANUAL" | "AUTOMATED"; rejectionReason: string | null; activeListingCount: number; listings: Array<{ listingUrl?: string; address?: string; status?: string }>;
-  discoveredAt: string; previewUrl: string | null; claimUrl: string | null; emailSubject: string | null; emailBody: string | null; emailSentAt: string | null;
-  claimedAt: string | null; lastError: string | null; sendingAccountId: string | null; sendingAccount?: { id: string; displayName: string; fromEmail: string; provider: string } | null;
-  prospectWorkspace?: { claimStatus: "CLAIMABLE" | "CLAIMED" | "REVOKED" | "EXPIRED"; claimedAt: string | null } | null;
-  events: Array<{ id: string; type: string; message: string | null; createdAt: string }>;
+  id: string;
+  discoveryRunId?: string | null;
+  prospectWorkspaceId: string | null;
+  fullName: string;
+  firstName: string | null;
+  email: string | null;
+  brokerage: string | null;
+  sourceUrl: string;
+  sourceDomain: string;
+  profileUrl: string | null;
+  status: string;
+  outreachType?: "MANUAL" | "AUTOMATED";
+  rejectionReason: string | null;
+  activeListingCount: number;
+  listings: Array<{ listingUrl?: string; address?: string; status?: string }>;
+  discoveredAt: string;
+  lastVerifiedAt?: string | null;
+  previewUrl: string | null;
+  claimUrl: string | null;
+  emailSubject: string | null;
+  emailBody: string | null;
+  emailSentAt: string | null;
+  claimedAt: string | null;
+  lastError: string | null;
+  sendingAccountId: string | null;
+  sendingAccount?: {
+    id: string;
+    displayName: string;
+    fromEmail: string;
+    provider: string;
+  } | null;
+  prospectWorkspace?: {
+    claimStatus: "CLAIMABLE" | "CLAIMED" | "REVOKED" | "EXPIRED";
+    claimedAt: string | null;
+  } | null;
+  events: Array<{
+    id: string;
+    type: string;
+    message: string | null;
+    createdAt: string;
+  }>;
 }
-export interface OutreachSendingAccount { id: string; provider: "SMTP" | "GMAIL"; displayName: string; fromEmail: string; replyTo: string | null; smtpHost: string | null; smtpPort: number | null; smtpUsername: string | null; smtpSecure: boolean; enabled: boolean; isDefault: boolean; hourlyLimit: number; dailyLimit: number; delaySeconds: number; }
-export interface AgentOutreachData { prospects: AgentOutreachProspect[]; runs: Array<{ id: string; sourceUrl: string; status: string; pagesScanned: number; agentLinksFound: number; profilesFound: number; newAgentsCount: number; qualifiedCount: number; rejectedCount: number; duplicateCount: number; suppressedCount: number; errorCount: number; lastError: string | null; createdAt: string; cursor?: { currentPage?: number } | null }>; accounts: OutreachSendingAccount[]; template: { subject: string; body: string }; }
-export interface DiscoveryAnalysis { provider: { key: string; label: string } | null; pageType: string; agentLinksFound: number; alreadyTargeted: number; potentiallyNew: number; paginationDetected: boolean; ready: boolean; samples: Array<{ name: string | null; profileUrl: string; providerExternalId: string | null }>; }
+export interface OutreachSendingAccount {
+  id: string;
+  provider: "SMTP" | "GMAIL";
+  displayName: string;
+  fromEmail: string;
+  replyTo: string | null;
+  smtpHost: string | null;
+  smtpPort: number | null;
+  smtpUsername: string | null;
+  smtpSecure: boolean;
+  enabled: boolean;
+  isDefault: boolean;
+  hourlyLimit: number;
+  dailyLimit: number;
+  delaySeconds: number;
+}
+export interface AgentOutreachData {
+  prospects: AgentOutreachProspect[];
+  runs: Array<{
+    id: string;
+    sourceUrl: string;
+    status: string;
+    pagesScanned: number;
+    agentLinksFound: number;
+    profilesFound: number;
+    newAgentsCount: number;
+    qualifiedCount: number;
+    rejectedCount: number;
+    duplicateCount: number;
+    suppressedCount: number;
+    errorCount: number;
+    lastError: string | null;
+    createdAt: string;
+    cursor?: { currentPage?: number } | null;
+  }>;
+  accounts: OutreachSendingAccount[];
+  template: { subject: string; body: string };
+}
+export interface DiscoveryAnalysis {
+  provider: { key: string; label: string } | null;
+  pageType: string;
+  agentLinksFound: number;
+  alreadyTargeted: number;
+  potentiallyNew: number;
+  paginationDetected: boolean;
+  ready: boolean;
+  samples: Array<{
+    name: string | null;
+    profileUrl: string;
+    providerExternalId: string | null;
+  }>;
+}
 
 export interface WorkspaceDetail {
   id: string;
@@ -476,42 +574,31 @@ interface PaginatedResult<T> {
 // ── Query Keys ───────────────────────────────────────────────────────────
 
 export const adminKeys = {
-  workspaces: (params: Record<string, string>) =>
-    ["admin", "workspaces", params] as const,
+  workspaces: (params: Record<string, string>) => ["admin", "workspaces", params] as const,
   workspace: (id: string) => ["admin", "workspace", id] as const,
-  drafts: (params: Record<string, string>) =>
-    ["admin", "drafts", params] as const,
+  drafts: (params: Record<string, string>) => ["admin", "drafts", params] as const,
   draft: (id: string) => ["admin", "draft", id] as const,
-  connections: (params: Record<string, string>) =>
-    ["admin", "connections", params] as const,
-  techStack: (params: Record<string, string>) =>
-    ["admin", "techStack", params] as const,
-  publishing: (params: Record<string, string>) =>
-    ["admin", "publishing", params] as const,
-  services: (params: Record<string, string>) =>
-    ["admin", "services", params] as const,
+  connections: (params: Record<string, string>) => ["admin", "connections", params] as const,
+  techStack: (params: Record<string, string>) => ["admin", "techStack", params] as const,
+  publishing: (params: Record<string, string>) => ["admin", "publishing", params] as const,
+  services: (params: Record<string, string>) => ["admin", "services", params] as const,
   service: (id: string) => ["admin", "service", id] as const,
   servicesSummary: () => ["admin", "servicesSummary"] as const,
   betaSummary: () => ["admin", "betaSummary"] as const,
-  betaTesters: (params: Record<string, string>) =>
-    ["admin", "betaTesters", params] as const,
+  betaTesters: (params: Record<string, string>) => ["admin", "betaTesters", params] as const,
   betaTester: (id: string) => ["admin", "betaTester", id] as const,
-  betaFeedback: (params: Record<string, string>) =>
-    ["admin", "betaFeedback", params] as const,
+  betaFeedback: (params: Record<string, string>) => ["admin", "betaFeedback", params] as const,
   betaFeedbackItem: (id: string) => ["admin", "betaFeedbackItem", id] as const,
   jobsSummary: () => ["admin", "jobsSummary"] as const,
   jobs: (params: Record<string, string>) => ["admin", "jobs", params] as const,
   job: (queue: string, id: string) => ["admin", "job", queue, id] as const,
   webhookSummary: () => ["admin", "webhookSummary"] as const,
-  webhookEndpoints: (params: Record<string, string>) =>
-    ["admin", "webhookEndpoints", params] as const,
+  webhookEndpoints: (params: Record<string, string>) => ["admin", "webhookEndpoints", params] as const,
   webhookEndpoint: (id: string) => ["admin", "webhookEndpoint", id] as const,
-  webhookDeliveries: (params: Record<string, string>) =>
-    ["admin", "webhookDeliveries", params] as const,
+  webhookDeliveries: (params: Record<string, string>) => ["admin", "webhookDeliveries", params] as const,
   webhookDelivery: (id: string) => ["admin", "webhookDelivery", id] as const,
   systemHealth: () => ["admin", "systemHealth"] as const,
-  flags: (params: Record<string, string>) =>
-    ["admin", "flags", params] as const,
+  flags: (params: Record<string, string>) => ["admin", "flags", params] as const,
   flag: (id: string) => ["admin", "flag", id] as const,
 };
 
@@ -529,47 +616,74 @@ function buildQuery(params: Record<string, string>) {
 export function useAdminWorkspaces(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.workspaces(params),
-    queryFn: () =>
-      apiFetch<PaginatedResult<WorkspaceSummary>>(
-        `internal/workspaces${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<PaginatedResult<WorkspaceSummary>>(`internal/workspaces${buildQuery(params)}`),
   });
 }
 
 export function useAdminProspects() {
   return useQuery({
     queryKey: ["admin", "prospects"],
-    queryFn: () =>
-      apiFetch<{ items: ProspectWorkspaceItem[] }>("internal/prospects"),
+    queryFn: () => apiFetch<{ items: ProspectWorkspaceItem[] }>("internal/prospects"),
   });
 }
 
 export function useAgentOutreach() {
-  return useQuery({ queryKey: ["admin", "agent-outreach"], queryFn: () => apiFetch<AgentOutreachData>("internal/agent-outreach"), refetchInterval: 5000 });
+  return useQuery({
+    queryKey: ["admin", "agent-outreach"],
+    queryFn: () => apiFetch<AgentOutreachData>("internal/agent-outreach"),
+    refetchInterval: 5000,
+  });
 }
 function useOutreachMutation(path: (value: any) => string, method = "POST") {
   const queryClient = useQueryClient();
-  return useMutation({ mutationFn: (value: any) => apiFetch(path(value), { method, body: JSON.stringify(value.body ?? {}) }), onSettled: () => queryClient.invalidateQueries({ queryKey: ["admin", "agent-outreach"] }) });
+  return useMutation({
+    mutationFn: (value: any) => apiFetch(path(value), { method, body: JSON.stringify(value.body ?? {}) }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["admin", "agent-outreach"] }),
+  });
 }
-export function useDiscoverAgents() { return useOutreachMutation(() => "internal/agent-outreach/discoveries"); }
-export function usePauseDiscovery() { return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/pause`); }
-export function useResumeDiscovery() { return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/resume`); }
-export function useStopDiscovery() { return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/stop`); }
-export function useAnalyzeAgentSource() { return useOutreachMutation(() => "internal/agent-outreach/discoveries/analyze"); }
-export function useGenerateOutreachPreview() { return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/preview`); }
-export function usePrepareOutreachEmail() { return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/email`); }
-export function useSendOutreachEmail() { return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/send`); }
-export function useCreateSendingAccount() { return useOutreachMutation(() => "internal/agent-outreach/sending-accounts"); }
-export function useTestSendingAccount() { return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}/test`); }
-export function useUpdateSendingAccount() { return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "PATCH"); }
-export function useDeleteSendingAccount() { return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "DELETE"); }
+export function useDiscoverAgents() {
+  return useOutreachMutation(() => "internal/agent-outreach/discoveries");
+}
+export function usePauseDiscovery() {
+  return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/pause`);
+}
+export function useResumeDiscovery() {
+  return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/resume`);
+}
+export function useStopDiscovery() {
+  return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/stop`);
+}
+export function useAnalyzeAgentSource() {
+  return useOutreachMutation(() => "internal/agent-outreach/discoveries/analyze");
+}
+export function useGenerateOutreachPreview() {
+  return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/preview`);
+}
+export function usePrepareOutreachEmail() {
+  return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/email`);
+}
+export function useSendOutreachEmail() {
+  return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/send`);
+}
+export function useCreateSendingAccount() {
+  return useOutreachMutation(() => "internal/agent-outreach/sending-accounts");
+}
+export function useTestSendingAccount() {
+  return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}/test`);
+}
+export function useUpdateSendingAccount() {
+  return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "PATCH");
+}
+export function useDeleteSendingAccount() {
+  return useOutreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "DELETE");
+}
 
 export function useAdminProspect(id: string | null) {
   return useQuery({
     queryKey: ["admin", "prospects", id],
     queryFn: () => apiFetch<ProspectWorkspaceItem>(`internal/prospects/${id}`),
     enabled: Boolean(id),
-    refetchInterval: (query) => ["QUEUED", "RUNNING"].includes(query.state.data?.preparationRun?.status ?? "") ? 2_000 : false,
+    refetchInterval: (query) => (["QUEUED", "RUNNING"].includes(query.state.data?.preparationRun?.status ?? "") ? 2_000 : false),
     refetchIntervalInBackground: false,
   });
 }
@@ -577,13 +691,7 @@ export function useAdminProspect(id: string | null) {
 export function useUpdateProspectPreview() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      items,
-    }: {
-      id: string;
-      items: Array<{ id: string; itemType: "DATA_ITEM" | "DRAFT" }>;
-    }) =>
+    mutationFn: ({ id, items }: { id: string; items: Array<{ id: string; itemType: "DATA_ITEM" | "DRAFT" }> }) =>
       apiFetch(`internal/prospects/${id}/preview-items`, {
         method: "PUT",
         body: JSON.stringify({ items }),
@@ -599,8 +707,14 @@ export function usePopulateAdminProspect() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: PopulateProspectInput }) =>
-      apiFetch(`internal/prospects/${id}/populate`, { method: "POST", body: JSON.stringify(body) }),
-    onSettled: (_data, _error, variables) => queryClient.invalidateQueries({ queryKey: ["admin", "prospects", variables.id] }),
+      apiFetch(`internal/prospects/${id}/populate`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSettled: (_data, _error, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "prospects", variables.id],
+      }),
   });
 }
 
@@ -608,8 +722,17 @@ export function usePrepareAdminProspect() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, sourceUrl, selectedChannels }: { id: string; sourceUrl?: string; selectedChannels?: Array<"INSTAGRAM" | "FACEBOOK" | "LINKEDIN"> }) =>
-      apiFetch(`internal/prospects/${id}/prepare`, { method: "POST", body: JSON.stringify({ ...(sourceUrl ? { sourceUrl } : {}), ...(selectedChannels ? { selectedChannels } : {}) }) }),
-    onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["admin", "prospects", variables.id] }),
+      apiFetch(`internal/prospects/${id}/prepare`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...(sourceUrl ? { sourceUrl } : {}),
+          ...(selectedChannels ? { selectedChannels } : {}),
+        }),
+      }),
+    onSuccess: (_data, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "prospects", variables.id],
+      }),
   });
 }
 
@@ -621,8 +744,7 @@ export function useCreateAdminProspect() {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
   });
 }
 
@@ -634,8 +756,7 @@ export function useRotateProspectClaim() {
         method: "POST",
         body: "{}",
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
   });
 }
 
@@ -646,8 +767,7 @@ export function useRevokeProspectClaim() {
       apiFetch<void>(`internal/prospects/${id}/claim-token`, {
         method: "DELETE",
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "prospects"] }),
   });
 }
 
@@ -676,10 +796,7 @@ export function useDeleteAllWorkspaces() {
 export function useAdminDrafts(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.drafts(params),
-    queryFn: () =>
-      apiFetch<PaginatedResult<DraftSummary>>(
-        `internal/drafts${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<PaginatedResult<DraftSummary>>(`internal/drafts${buildQuery(params)}`),
   });
 }
 
@@ -694,10 +811,7 @@ export function useAdminDraft(id: string | undefined) {
 export function useAdminConnections(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.connections(params),
-    queryFn: () =>
-      apiFetch<{ items: ConnectionItem[] }>(
-        `internal/connections${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<{ items: ConnectionItem[] }>(`internal/connections${buildQuery(params)}`),
     select: (d) => d.items,
   });
 }
@@ -705,10 +819,7 @@ export function useAdminConnections(params: Record<string, string>) {
 export function useAdminTechStack(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.techStack(params),
-    queryFn: () =>
-      apiFetch<{ items: TechStackItem[] }>(
-        `internal/connections/tech-stack${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<{ items: TechStackItem[] }>(`internal/connections/tech-stack${buildQuery(params)}`),
     select: (d) => d.items,
   });
 }
@@ -736,30 +847,18 @@ export interface AdminMetricsSyncResult {
 
 export function useAdminMetricsSync() {
   return useMutation({
-    mutationFn: ({
-      draftId,
-      force = true,
-    }: {
-      draftId: string;
-      force?: boolean;
-    }) =>
-      apiFetch<AdminMetricsSyncResult>(
-        `internal/drafts/${draftId}/metrics/sync`,
-        {
-          method: "POST",
-          body: JSON.stringify({ force }),
-        },
-      ),
+    mutationFn: ({ draftId, force = true }: { draftId: string; force?: boolean }) =>
+      apiFetch<AdminMetricsSyncResult>(`internal/drafts/${draftId}/metrics/sync`, {
+        method: "POST",
+        body: JSON.stringify({ force }),
+      }),
   });
 }
 
 export function useAdminPublishing(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.publishing(params),
-    queryFn: () =>
-      apiFetch<PaginatedResult<PublishItem>>(
-        `internal/publishing${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<PaginatedResult<PublishItem>>(`internal/publishing${buildQuery(params)}`),
   });
 }
 
@@ -817,10 +916,7 @@ export interface ServicesSummary {
 export function useAdminServices(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.services(params),
-    queryFn: () =>
-      apiFetch<{ items: ExternalServiceItem[] }>(
-        `internal/services${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<{ items: ExternalServiceItem[] }>(`internal/services${buildQuery(params)}`),
     select: (d) => d.items,
   });
 }
@@ -1027,10 +1123,7 @@ export function useBetaSummary() {
 export function useBetaTesters(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.betaTesters(params),
-    queryFn: () =>
-      apiFetch<{ items: BetaTesterItem[] }>(
-        `internal/beta/testers${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<{ items: BetaTesterItem[] }>(`internal/beta/testers${buildQuery(params)}`),
     select: (d) => d.items,
   });
 }
@@ -1046,10 +1139,7 @@ export function useBetaTester(id: string | undefined) {
 export function useBetaFeedbackList(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.betaFeedback(params),
-    queryFn: () =>
-      apiFetch<{ items: BetaFeedbackItem[]; nextCursor: string | null }>(
-        `internal/feedback${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<{ items: BetaFeedbackItem[]; nextCursor: string | null }>(`internal/feedback${buildQuery(params)}`),
   });
 }
 
@@ -1124,11 +1214,20 @@ export interface AdminReferralItem {
   disqualificationReason: string | null;
   referrer: { email: string; name: string | null } | null;
   referred: { email: string; name: string | null } | null;
-  reward: { status: string; amountCents: number; currency: string; stripeBalanceTransactionId: string | null; grantedAt: string | null } | null;
+  reward: {
+    status: string;
+    amountCents: number;
+    currency: string;
+    stripeBalanceTransactionId: string | null;
+    grantedAt: string | null;
+  } | null;
 }
 
 export function useAdminReferrals() {
-  return useQuery({ queryKey: ['admin', 'referrals'], queryFn: () => apiFetch<{ items: AdminReferralItem[] }>('internal/referrals') });
+  return useQuery({
+    queryKey: ["admin", "referrals"],
+    queryFn: () => apiFetch<{ items: AdminReferralItem[] }>("internal/referrals"),
+  });
 }
 
 // ── Jobs Monitor ────────────────────────────────────────────────────────
@@ -1136,8 +1235,7 @@ export function useAdminReferrals() {
 export function useJobsSummary() {
   return useQuery({
     queryKey: adminKeys.jobsSummary(),
-    queryFn: () =>
-      apiFetch<{ items: QueueSummaryItem[] }>("internal/jobs/summary"),
+    queryFn: () => apiFetch<{ items: QueueSummaryItem[] }>("internal/jobs/summary"),
     select: (d) => d.items,
     refetchInterval: 15_000,
   });
@@ -1146,10 +1244,7 @@ export function useJobsSummary() {
 export function useAdminJobs(params: Record<string, string>) {
   return useQuery({
     queryKey: adminKeys.jobs(params),
-    queryFn: () =>
-      apiFetch<{ items: JobSummaryItem[]; total: number }>(
-        `internal/jobs${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<{ items: JobSummaryItem[]; total: number }>(`internal/jobs${buildQuery(params)}`),
     refetchInterval: 30_000,
   });
 }
@@ -1203,10 +1298,7 @@ export function useWebhookSummary() {
 export function useWebhookEndpoints(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.webhookEndpoints(params),
-    queryFn: () =>
-      apiFetch<{ items: WebhookEndpointItem[] }>(
-        `internal/webhooks/endpoints${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<{ items: WebhookEndpointItem[] }>(`internal/webhooks/endpoints${buildQuery(params)}`),
     select: (d) => d.items,
   });
 }
@@ -1214,8 +1306,7 @@ export function useWebhookEndpoints(params: Record<string, string> = {}) {
 export function useWebhookEndpoint(id: string | undefined) {
   return useQuery({
     queryKey: adminKeys.webhookEndpoint(id ?? ""),
-    queryFn: () =>
-      apiFetch<WebhookEndpointDetail>(`internal/webhooks/endpoints/${id}`),
+    queryFn: () => apiFetch<WebhookEndpointDetail>(`internal/webhooks/endpoints/${id}`),
     enabled: Boolean(id),
   });
 }
@@ -1223,10 +1314,7 @@ export function useWebhookEndpoint(id: string | undefined) {
 export function useWebhookDeliveries(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.webhookDeliveries(params),
-    queryFn: () =>
-      apiFetch<PaginatedResult<WebhookDeliveryItem>>(
-        `internal/webhooks/deliveries${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<PaginatedResult<WebhookDeliveryItem>>(`internal/webhooks/deliveries${buildQuery(params)}`),
     refetchInterval: 30_000,
   });
 }
@@ -1234,8 +1322,7 @@ export function useWebhookDeliveries(params: Record<string, string> = {}) {
 export function useWebhookDeliveryDetail(id: string | undefined) {
   return useQuery({
     queryKey: adminKeys.webhookDelivery(id ?? ""),
-    queryFn: () =>
-      apiFetch<WebhookDeliveryItem>(`internal/webhooks/deliveries/${id}`),
+    queryFn: () => apiFetch<WebhookDeliveryItem>(`internal/webhooks/deliveries/${id}`),
     enabled: Boolean(id),
   });
 }
@@ -1243,20 +1330,11 @@ export function useWebhookDeliveryDetail(id: string | undefined) {
 export function useToggleWebhookEndpoint() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      endpointId,
-      isActive,
-    }: {
-      endpointId: string;
-      isActive: boolean;
-    }) =>
-      apiFetch<{ ok: boolean }>(
-        `internal/webhooks/endpoints/${endpointId}/toggle`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ isActive }),
-        },
-      ),
+    mutationFn: ({ endpointId, isActive }: { endpointId: string; isActive: boolean }) =>
+      apiFetch<{ ok: boolean }>(`internal/webhooks/endpoints/${endpointId}/toggle`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive }),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "webhookEndpoints"] });
       qc.invalidateQueries({ queryKey: ["admin", "webhookEndpoint"] });
@@ -1268,11 +1346,7 @@ export function useToggleWebhookEndpoint() {
 export function useReplayDelivery() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (deliveryId: string) =>
-      apiFetch<{ ok: boolean }>(
-        `internal/webhooks/deliveries/${deliveryId}/replay`,
-        { method: "POST" },
-      ),
+    mutationFn: (deliveryId: string) => apiFetch<{ ok: boolean }>(`internal/webhooks/deliveries/${deliveryId}/replay`, { method: "POST" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "webhookDeliveries"] });
       qc.invalidateQueries({ queryKey: ["admin", "webhookSummary"] });
@@ -1285,8 +1359,7 @@ export function useReplayDelivery() {
 export function useSystemHealth() {
   return useQuery({
     queryKey: adminKeys.systemHealth(),
-    queryFn: () =>
-      apiFetch<SystemHealthSummary>("internal/system-health/summary"),
+    queryFn: () => apiFetch<SystemHealthSummary>("internal/system-health/summary"),
     refetchInterval: 30_000,
   });
 }
@@ -1296,10 +1369,7 @@ export function useSystemHealth() {
 export function useFeatureFlags(params: Record<string, string> = {}) {
   return useQuery({
     queryKey: adminKeys.flags(params),
-    queryFn: () =>
-      apiFetch<{ items: FeatureFlagItem[] }>(
-        `internal/config/flags${buildQuery(params)}`,
-      ),
+    queryFn: () => apiFetch<{ items: FeatureFlagItem[] }>(`internal/config/flags${buildQuery(params)}`),
     select: (d) => d.items,
   });
 }
@@ -1371,11 +1441,7 @@ export function useDeleteFlag() {
 export function useSeedFlags() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiFetch<{ created: number; total: number }>(
-        "internal/config/flags/seed",
-        { method: "POST" },
-      ),
+    mutationFn: () => apiFetch<{ created: number; total: number }>("internal/config/flags/seed", { method: "POST" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "flags"] });
     },
