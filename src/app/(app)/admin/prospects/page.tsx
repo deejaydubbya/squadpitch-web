@@ -17,7 +17,7 @@ export default function AgentOutreachPage() {
   const [sendingAccountId, setSendingAccountId] = useState("");
   const batchPausedRef = useRef(false);
   const prospects = useMemo(() => data?.prospects ?? [], [data?.prospects]);
-  const visible = useMemo(() => prospects.filter((p) => tab === "Discover Agents" ? ["DISCOVERED", "QUALIFIED", "NO_EMAIL", "INVALID_EMAIL", "NO_ACTIVE_LISTINGS", "DUPLICATE", "SUPPRESSED", "SCRAPE_ERROR"].includes(p.status) : tab === "Preview Queue" ? ["QUALIFIED", "PREVIEW_PENDING", "PREVIEW_GENERATING", "PREVIEW_FAILED"].includes(p.status) : tab === "Ready for Email" ? ["READY_TO_EMAIL", "EMAIL_FAILED"].includes(p.status) : ["EMAIL_SENT", "MANUAL_OUTREACH", "CLAIMED", "BOUNCED", "UNSUBSCRIBED", "EMAIL_FAILED"].includes(p.status)), [prospects, tab]);
+  const visible = useMemo(() => prospects.filter((p) => tab === "Discover Agents" ? ["DISCOVERED", "QUALIFIED", "NO_EMAIL", "INVALID_EMAIL", "NO_ACTIVE_LISTINGS", "DUPLICATE", "SUPPRESSED", "SCRAPE_ERROR"].includes(p.status) : tab === "Preview Queue" ? ["QUALIFIED", "PREVIEW_PENDING", "PREVIEW_GENERATING", "PREVIEW_FAILED"].includes(p.status) : tab === "Ready for Email" ? ["READY_TO_EMAIL", "EMAIL_FAILED"].includes(p.status) : ["EMAIL_SENT", "UNCLAIMED", "CLAIMED", "BOUNCED", "UNSUBSCRIBED", "EMAIL_FAILED"].includes(p.status)), [prospects, tab]);
 
   async function batch(action: "preview" | "email") {
     setBatchPaused(false); batchPausedRef.current = false;

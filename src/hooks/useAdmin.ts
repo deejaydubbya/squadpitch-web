@@ -92,9 +92,10 @@ export interface PopulateProspectInput {
 
 export interface AgentOutreachProspect {
   id: string; prospectWorkspaceId: string | null; fullName: string; firstName: string | null; email: string | null; brokerage: string | null; sourceUrl: string; sourceDomain: string;
-  profileUrl: string | null; status: string; rejectionReason: string | null; activeListingCount: number; listings: Array<{ listingUrl?: string; address?: string; status?: string }>;
+  profileUrl: string | null; status: string; outreachType?: "MANUAL" | "AUTOMATED"; rejectionReason: string | null; activeListingCount: number; listings: Array<{ listingUrl?: string; address?: string; status?: string }>;
   discoveredAt: string; previewUrl: string | null; claimUrl: string | null; emailSubject: string | null; emailBody: string | null; emailSentAt: string | null;
   claimedAt: string | null; lastError: string | null; sendingAccountId: string | null; sendingAccount?: { id: string; displayName: string; fromEmail: string; provider: string } | null;
+  prospectWorkspace?: { claimStatus: "CLAIMABLE" | "CLAIMED" | "REVOKED" | "EXPIRED"; claimedAt: string | null } | null;
   events: Array<{ id: string; type: string; message: string | null; createdAt: string }>;
 }
 export interface OutreachSendingAccount { id: string; provider: "SMTP" | "GMAIL"; displayName: string; fromEmail: string; replyTo: string | null; smtpHost: string | null; smtpPort: number | null; smtpUsername: string | null; smtpSecure: boolean; enabled: boolean; isDefault: boolean; hourlyLimit: number; dailyLimit: number; delaySeconds: number; }
