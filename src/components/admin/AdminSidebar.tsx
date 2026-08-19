@@ -30,7 +30,7 @@ interface Props {
 const navItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Overview', exact: true },
   { href: '/admin/workspaces', icon: Building2, label: 'Workspaces' },
-  { href: '/admin/prospects', icon: UserPlus, label: 'Prospect Workspaces', adminOnly: true },
+  { href: '/admin/prospects', icon: UserPlus, label: 'Agent Outreach', adminOnly: true },
   { href: '/admin/content-debugger', icon: FileSearch, label: 'Content Debugger' },
   { href: '/admin/integrations', icon: Plug, label: 'Integrations' },
   { href: '/admin/publishing', icon: Send, label: 'Publishing' },

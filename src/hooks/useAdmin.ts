@@ -90,6 +90,17 @@ export interface PopulateProspectInput {
   }>;
 }
 
+export interface AgentOutreachProspect {
+  id: string; fullName: string; firstName: string | null; email: string | null; brokerage: string | null; sourceUrl: string; sourceDomain: string;
+  profileUrl: string | null; status: string; rejectionReason: string | null; activeListingCount: number; listings: Array<{ listingUrl?: string; address?: string; status?: string }>;
+  discoveredAt: string; previewUrl: string | null; claimUrl: string | null; emailSubject: string | null; emailBody: string | null; emailSentAt: string | null;
+  claimedAt: string | null; lastError: string | null; sendingAccountId: string | null; sendingAccount?: { id: string; displayName: string; fromEmail: string; provider: string } | null;
+  events: Array<{ id: string; type: string; message: string | null; createdAt: string }>;
+}
+export interface OutreachSendingAccount { id: string; provider: "SMTP" | "GMAIL"; displayName: string; fromEmail: string; replyTo: string | null; smtpHost: string | null; smtpPort: number | null; smtpUsername: string | null; smtpSecure: boolean; enabled: boolean; isDefault: boolean; hourlyLimit: number; dailyLimit: number; delaySeconds: number; }
+export interface AgentOutreachData { prospects: AgentOutreachProspect[]; runs: Array<{ id: string; sourceUrl: string; status: string; pagesScanned: number; agentLinksFound: number; profilesFound: number; newAgentsCount: number; qualifiedCount: number; rejectedCount: number; duplicateCount: number; suppressedCount: number; errorCount: number; lastError: string | null; createdAt: string }>; accounts: OutreachSendingAccount[]; template: { subject: string; body: string }; }
+export interface DiscoveryAnalysis { provider: { key: string; label: string } | null; pageType: string; agentLinksFound: number; alreadyTargeted: number; potentiallyNew: number; paginationDetected: boolean; ready: boolean; samples: Array<{ name: string | null; profileUrl: string; providerExternalId: string | null }>; }
+
 export interface WorkspaceDetail {
   id: string;
   name: string;
@@ -531,6 +542,23 @@ export function useAdminProspects() {
       apiFetch<{ items: ProspectWorkspaceItem[] }>("internal/prospects"),
   });
 }
+
+export function useAgentOutreach() {
+  return useQuery({ queryKey: ["admin", "agent-outreach"], queryFn: () => apiFetch<AgentOutreachData>("internal/agent-outreach"), refetchInterval: 5000 });
+}
+function outreachMutation(path: (value: any) => string, method = "POST") {
+  const queryClient = useQueryClient();
+  return useMutation({ mutationFn: (value: any) => apiFetch(path(value), { method, body: JSON.stringify(value.body ?? {}) }), onSettled: () => queryClient.invalidateQueries({ queryKey: ["admin", "agent-outreach"] }) });
+}
+export function useDiscoverAgents() { return outreachMutation(() => "internal/agent-outreach/discoveries"); }
+export function useAnalyzeAgentSource() { return outreachMutation(() => "internal/agent-outreach/discoveries/analyze"); }
+export function useGenerateOutreachPreview() { return outreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/preview`); }
+export function usePrepareOutreachEmail() { return outreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/email`); }
+export function useSendOutreachEmail() { return outreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/send`); }
+export function useCreateSendingAccount() { return outreachMutation(() => "internal/agent-outreach/sending-accounts"); }
+export function useTestSendingAccount() { return outreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}/test`); }
+export function useUpdateSendingAccount() { return outreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "PATCH"); }
+export function useDeleteSendingAccount() { return outreachMutation((v) => `internal/agent-outreach/sending-accounts/${v.id}`, "DELETE"); }
 
 export function useAdminProspect(id: string | null) {
   return useQuery({
