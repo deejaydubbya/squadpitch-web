@@ -24,6 +24,8 @@ describe('prospect preview and claim flows', () => {
     const admin = read('src/app/(app)/admin/prospects/page.tsx');
     const hooks = read('src/hooks/useAdmin.ts');
     expect(admin).toContain('row.status === "PREVIEW_GENERATING"');
+    expect(admin).toContain('row.status === "PREVIEW_PENDING"');
+    expect(admin).toContain("Queued…");
     expect(admin).toContain('Preparing Preview…');
     expect(admin).toContain('animate-spin');
     expect(admin).toContain('["READY_TO_EMAIL", "EMAIL_FAILED", "EMAIL_SENT", "UNCLAIMED", "CLAIMED", "BOUNCED", "UNSUBSCRIBED"].includes(row.status) && row.claimUrl');

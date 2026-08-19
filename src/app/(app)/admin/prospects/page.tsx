@@ -360,6 +360,12 @@ function ProspectTable({ rows, loading, selected, setSelected, allowSelection = 
                         Preparing Preview…
                       </button>
                     )}
+                    {row.status === "PREVIEW_PENDING" && (
+                      <button type="button" disabled aria-live="polite" className="btn inline-flex cursor-wait items-center gap-2 bg-white-10 text-white-60">
+                        <LoaderCircle className="h-4 w-4 animate-spin text-white-40" />
+                        Queued…
+                      </button>
+                    )}
                     {allowPipelineActions && ["READY_TO_EMAIL", "EMAIL_FAILED", "EMAIL_SENT", "UNCLAIMED", "CLAIMED", "BOUNCED", "UNSUBSCRIBED"].includes(row.status) && row.claimUrl && (
                       <a href={row.claimUrl} target="_blank" rel="noreferrer" className="btn bg-white-10">
                         Preview
