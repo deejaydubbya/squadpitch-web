@@ -91,14 +91,14 @@ export interface PopulateProspectInput {
 }
 
 export interface AgentOutreachProspect {
-  id: string; fullName: string; firstName: string | null; email: string | null; brokerage: string | null; sourceUrl: string; sourceDomain: string;
+  id: string; prospectWorkspaceId: string | null; fullName: string; firstName: string | null; email: string | null; brokerage: string | null; sourceUrl: string; sourceDomain: string;
   profileUrl: string | null; status: string; rejectionReason: string | null; activeListingCount: number; listings: Array<{ listingUrl?: string; address?: string; status?: string }>;
   discoveredAt: string; previewUrl: string | null; claimUrl: string | null; emailSubject: string | null; emailBody: string | null; emailSentAt: string | null;
   claimedAt: string | null; lastError: string | null; sendingAccountId: string | null; sendingAccount?: { id: string; displayName: string; fromEmail: string; provider: string } | null;
   events: Array<{ id: string; type: string; message: string | null; createdAt: string }>;
 }
 export interface OutreachSendingAccount { id: string; provider: "SMTP" | "GMAIL"; displayName: string; fromEmail: string; replyTo: string | null; smtpHost: string | null; smtpPort: number | null; smtpUsername: string | null; smtpSecure: boolean; enabled: boolean; isDefault: boolean; hourlyLimit: number; dailyLimit: number; delaySeconds: number; }
-export interface AgentOutreachData { prospects: AgentOutreachProspect[]; runs: Array<{ id: string; sourceUrl: string; status: string; pagesScanned: number; agentLinksFound: number; profilesFound: number; newAgentsCount: number; qualifiedCount: number; rejectedCount: number; duplicateCount: number; suppressedCount: number; errorCount: number; lastError: string | null; createdAt: string }>; accounts: OutreachSendingAccount[]; template: { subject: string; body: string }; }
+export interface AgentOutreachData { prospects: AgentOutreachProspect[]; runs: Array<{ id: string; sourceUrl: string; status: string; pagesScanned: number; agentLinksFound: number; profilesFound: number; newAgentsCount: number; qualifiedCount: number; rejectedCount: number; duplicateCount: number; suppressedCount: number; errorCount: number; lastError: string | null; createdAt: string; cursor?: { currentPage?: number } | null }>; accounts: OutreachSendingAccount[]; template: { subject: string; body: string }; }
 export interface DiscoveryAnalysis { provider: { key: string; label: string } | null; pageType: string; agentLinksFound: number; alreadyTargeted: number; potentiallyNew: number; paginationDetected: boolean; ready: boolean; samples: Array<{ name: string | null; profileUrl: string; providerExternalId: string | null }>; }
 
 export interface WorkspaceDetail {
@@ -551,6 +551,9 @@ function useOutreachMutation(path: (value: any) => string, method = "POST") {
   return useMutation({ mutationFn: (value: any) => apiFetch(path(value), { method, body: JSON.stringify(value.body ?? {}) }), onSettled: () => queryClient.invalidateQueries({ queryKey: ["admin", "agent-outreach"] }) });
 }
 export function useDiscoverAgents() { return useOutreachMutation(() => "internal/agent-outreach/discoveries"); }
+export function usePauseDiscovery() { return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/pause`); }
+export function useResumeDiscovery() { return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/resume`); }
+export function useStopDiscovery() { return useOutreachMutation((v) => `internal/agent-outreach/discoveries/${v.id}/stop`); }
 export function useAnalyzeAgentSource() { return useOutreachMutation(() => "internal/agent-outreach/discoveries/analyze"); }
 export function useGenerateOutreachPreview() { return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/preview`); }
 export function usePrepareOutreachEmail() { return useOutreachMutation((v) => `internal/agent-outreach/prospects/${v.id}/email`); }
