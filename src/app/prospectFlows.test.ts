@@ -11,10 +11,10 @@ describe('prospect preview and claim flows', () => {
     expect(proxy).toContain('safeReturnTo(`${pathname}${request.nextUrl.search}`');
   });
 
-  it('uses separate preview and claim credentials without sending claim in preview requests', () => {
+  it('uses the server-provided outreach claim URL without rebuilding credentials in the browser', () => {
     const admin = read('src/app/(app)/admin/prospects/page.tsx');
     const preview = read('src/app/(public)/preview/[token]/PreviewClient.tsx');
-    expect(admin).toContain('#claim=${item.claimToken}');
+    expect(admin).toContain('href={row.claimUrl}');
     expect(preview).toContain('window.location.hash.match');
     expect(preview).toContain('/api/public/prospects/preview/');
     expect(preview).toContain('sessionStorage.setItem("squadpitch.prospectClaimToken"');
