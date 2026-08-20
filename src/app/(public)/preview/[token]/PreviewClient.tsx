@@ -42,7 +42,9 @@ export function PreviewClient({ token, invitationId }: { token?: string; invitat
     const match = window.location.hash.match(
       /^#claim=([A-Za-z0-9_-]{40,100})$/,
     );
-    const endpoint = invitationId ? `/api/proxy/workspace-invitations/${encodeURIComponent(invitationId)}/preview` : `/api/public/prospects/preview/${encodeURIComponent(token!)}`;
+    const outreach = new URLSearchParams(window.location.search).get("outreach");
+    const attribution = outreach && /^[A-Za-z0-9_-]{40,100}$/.test(outreach) ? `?outreach=${encodeURIComponent(outreach)}` : "";
+    const endpoint = invitationId ? `/api/proxy/workspace-invitations/${encodeURIComponent(invitationId)}/preview` : `/api/public/prospects/preview/${encodeURIComponent(token!)}${attribution}`;
     fetch(endpoint, {
       cache: "no-store",
     })
@@ -73,6 +75,8 @@ export function PreviewClient({ token, invitationId }: { token?: string; invitat
 
   function continueToClaim() {
     if (!claimToken) return;
+    const outreach = new URLSearchParams(window.location.search).get("outreach");
+    if (outreach && /^[A-Za-z0-9_-]{40,100}$/.test(outreach)) void fetch(`/api/public/outreach/track/claim-start/${encodeURIComponent(outreach)}`, { method: "POST", keepalive: true });
     sessionStorage.setItem("squadpitch.prospectClaimToken", claimToken);
     window.location.assign("/claim");
   }

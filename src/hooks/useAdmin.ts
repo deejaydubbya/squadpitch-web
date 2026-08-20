@@ -128,6 +128,10 @@ export interface AgentOutreachProspect {
   emailBody: string | null;
   emailHtmlBody?: string | null;
   emailSentAt: string | null;
+  emailDeliveredAt?: string | null; emailFirstOpenedAt?: string | null; emailLastOpenedAt?: string | null; emailOpenCount?: number;
+  claimLinkFirstClickedAt?: string | null; claimLinkLastClickedAt?: string | null; claimLinkClickCount?: number;
+  previewFirstViewedAt?: string | null; previewLastViewedAt?: string | null; previewViewCount?: number; claimStartedAt?: string | null;
+  bouncedAt?: string | null; unsubscribedAt?: string | null;
   claimedAt: string | null;
   lastError: string | null;
   sendingAccountId: string | null;
@@ -167,6 +171,7 @@ export interface OutreachSendingAccount {
 }
 export interface AgentOutreachData {
   prospects: AgentOutreachProspect[];
+  funnel: { sent:number; deliveryConfirmed:number; deliveryUnknown:number; uniqueEstimatedOpened:number; rawUniqueClicked:number; likelyHumanUniqueClicked:number; uniquePreviewViewed:number; uniqueClaimStarted:number; claimed:number; unsubscribed:number; bounced:number; rates:Record<string,number|null> };
   runs: Array<{
     id: string;
     sourceUrl: string;
